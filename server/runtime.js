@@ -29,6 +29,9 @@ import { installFleetRoutes } from './fleet/routes.js';
 import { installMcpEndpoint } from './mcp/server.js';
 import { installOAuthRoutes, installAccessRoutes } from './mcp/auth.js';
 import { getImportedTools } from './mcp/client.js';
+import { createBrowserTools } from './browser/tools.js';
+import { installBrowserRoutes } from './browser/routes.js';
+import { installExtensionRoutes } from './browser/extension-bridge.js';
 
 export function cloudConfig() {
   if (process.env.FRAYMUS_CLOUD_ENABLED !== '1') return { enabled: false };
@@ -59,11 +62,13 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   const fleetTools = createFleetTools({ workflowStore });
   let mcpImported = [];
   try { mcpImported = getImportedTools(); } catch {}
+  let browserTools = [];
+  try { browserTools = createBrowserTools(); } catch {}
   agent = createAgentService({ db, workspace, ollamaUrl, fetchImpl,
     cloud, codeExecutor, desktopBroker:desktop, extraTools: [...createExtensionTools(artifacts, web),...desktop.tools(),
       ...createTaskTools({scheduler:tasks,db,now:taskClock,onReceipt:(id,receipt)=>agent?.recordTaskReceipt(id,receipt)}),
       ...createSemanticTools({artifacts,store:semanticStore,embedder:embeddings}),...createVisionTools({artifacts,provider:localVision}),...createOcrTools({artifacts,provider:localOcr}),...createFraymusTools(),
-      ...fleetTools, ...mcpImported],
+      ...fleetTools, ...mcpImported, ...browserTools],
     resolveAttachments: (ids, options) => artifacts.resolve(ids, options),
     onEvent: event => {
       if(agent&&['usage','auxiliary_usage'].includes(event.type)) {
@@ -81,6 +86,8 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installMcpEndpoint(app);
   installOAuthRoutes(app);
   installAccessRoutes(app);
+  installBrowserRoutes(app);
+  installExtensionRoutes(app);
 
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
   const known = id => {
@@ -113,7 +120,8 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
     workspace, localDefault: true, cloudConfigured: cloud?.enabled === true,sqliteSynchronous:db.prepare('PRAGMA synchronous').get()?.synchronous,
     features: ['durable-agent', 'approved-tools', 'attachments', 'document-reader', 'local-semantic-retrieval', 'local-vision-helper', 'local-ocr', 'web-research', 'local-wav-transcription', 'scheduled-tasks', 'voice-proxy', 'transport-lab',
       'fraymus-identity', 'fraymus-encoding', 'fraymus-protocol', 'fraymus-intelligence', 'fraymus-autonomy', 'fraymus-ouroboros', 'fraymus-hermes-30skill', 'fraymus-motor', 'fraymus-openclaw', 'fraymus-kuramoto-sync',
-      'visual-workflow-engine', '16-agent-fleet', 'mcp-server-gateway', 'mcp-client-bridge', 'cron-automations'] }));
+      'visual-workflow-engine', '16-agent-fleet', 'mcp-server-gateway', 'mcp-client-bridge', 'cron-automations',
+      'puppeteer-headless-browser', 'chrome-extension-bridge'] }));
   app.get('/api/agent/capabilities', route(async (_req, res) => {
     const caps = await agent.capabilities();
     let localOcrHealth;

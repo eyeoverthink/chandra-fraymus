@@ -18,6 +18,8 @@ import { initMcp, mcpServers, importServers, removeServer } from './mcp/client.j
 import { createToken } from './mcp/auth.js';
 import { initScheduler, startScheduler, stopScheduler, listAutomations, saveAutomation, deleteAutomation, runAutomation, automationRuns } from './automations/scheduler.js';
 import { DATA_DIR } from './config.js';
+import { handleExtensionWs } from './browser/extension-bridge.js';
+import { closeBrowser } from './browser/service.js';
 import {
   ensureV3Initialized,
   getV3State,
@@ -47,7 +49,15 @@ app.use('/api/voice/listen', express.json({ limit: '6mb' }));
 app.use(express.json({ limit: '1mb' }));
 
 const server = createServer(app);
-const wss = new WebSocketServer({ server, path: '/ws', verifyClient: ({ req }) => ready&&allowedRequest(req) });
+const wss = new WebSocketServer({ noServer: true });
+server.on('upgrade', (req, socket, head) => {
+  if (!ready || !allowedRequest(req)) { socket.destroy(); return; }
+  if (req.url === '/ws/extension') {
+    wss.handleUpgrade(req, socket, head, ws => handleExtensionWs(ws, req));
+  } else if (req.url === '/ws') {
+    wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
+  } else { socket.destroy(); }
+});
 const broadcast = (type, payload) => {
   const s = JSON.stringify({ type, payload });
   for (const c of wss.clients) if (c.readyState === 1) c.send(s);
@@ -335,6 +345,7 @@ let syncTimer;
 async function stop() {
   if(stopping)return;stopping=true;ready=false;clearInterval(syncTimer);
   try { stopScheduler(); } catch {}
+  try { await closeBrowser(); } catch {}
   if(runtime) {
     let closed=await runtime.close();
     while(!closed.safeToCloseDatabase) {

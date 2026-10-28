@@ -4,6 +4,7 @@ import FleetPanel from './panels/FleetPanel.jsx';
 import AutomationsPanel from './panels/AutomationsPanel.jsx';
 import McpPanel from './panels/McpPanel.jsx';
 import DashboardPanel from './panels/DashboardPanel.jsx';
+import BrowserPanel from './panels/BrowserPanel.jsx';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: '◈' },
@@ -11,6 +12,7 @@ const TABS = [
   { id: 'fleet', label: 'Agent Fleet', icon: '⚡' },
   { id: 'automations', label: 'Automations', icon: '⟳' },
   { id: 'mcp', label: 'MCP Gateway', icon: '⬢' },
+  { id: 'browser', label: 'Browser', icon: '◉' },
 ];
 
 export default function App() {
@@ -57,6 +59,7 @@ export default function App() {
         {tab === 'fleet' && <FleetPanel />}
         {tab === 'automations' && <AutomationsPanel />}
         {tab === 'mcp' && <McpPanel />}
+        {tab === 'browser' && <BrowserPanel />}
       </main>
     </div>
   );
