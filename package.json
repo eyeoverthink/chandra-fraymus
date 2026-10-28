@@ -6,10 +6,10 @@
   "description": "Autonomous AI agent workspace — Chandra runtime + FRAYMUS master system. Ed25519 identity, 7-format encoding, v13 signed mesh, Ouroboros RSI, Hermes 30-skill fleet, Motor compute dispatch, OpenClaw gateway, Kuramoto phase sync. Full autonomy.",
   "scripts": {
     "dev": "concurrently -n server,client -c blue,magenta \"npm run server\" \"npm run client\"",
-    "server": "node server/index.js",
+    "server": "node --env-file=.env server/index.js",
     "client": "npm --prefix client run dev",
     "build": "npm --prefix ../MyAIPartner run build && npm --prefix client run build",
-    "start": "node server/start.js",
+    "start": "node --env-file=.env server/start.js",
     "test": "node --test test/*.test.js",
     "benchmark": "node server/transport/benchmark.js",
     "sandbox:setup": "node server/sandbox/setup.js",
