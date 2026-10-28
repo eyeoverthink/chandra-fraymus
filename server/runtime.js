@@ -22,6 +22,13 @@ import {createOcrTools} from './ocr/tools.js';
 import { createFraymusTools } from './fraymus-tools.js';
 import { createAutonomyEngine } from './autonomy.js';
 import { installFraymusRoutes } from './fraymus-routes.js';
+import { createWorkflowStore, installWorkflowRoutes } from './workflow/routes.js';
+import { createFleetTools } from './fleet/tools.js';
+import { initFleet, setFleetTools } from './fleet/runtime.js';
+import { installFleetRoutes } from './fleet/routes.js';
+import { installMcpEndpoint } from './mcp/server.js';
+import { installOAuthRoutes, installAccessRoutes } from './mcp/auth.js';
+import { getImportedTools } from './mcp/client.js';
 
 export function cloudConfig() {
   if (process.env.FRAYMUS_CLOUD_ENABLED !== '1') return { enabled: false };
@@ -48,10 +55,15 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
     cancel:id=>agent.cancel(id),isBusy:()=>agent.isBusy()
   }});
   const desktop = createDesktopBroker({db,driver:desktopDriver,onRevoke:(id,state)=>agent?.endDesktopRun(id,state),onReceipt:(id,receipt)=>agent?.recordDesktopReceipt(id,receipt)});
+  const workflowStore = createWorkflowStore();
+  const fleetTools = createFleetTools({ workflowStore });
+  let mcpImported = [];
+  try { mcpImported = getImportedTools(); } catch {}
   agent = createAgentService({ db, workspace, ollamaUrl, fetchImpl,
     cloud, codeExecutor, desktopBroker:desktop, extraTools: [...createExtensionTools(artifacts, web),...desktop.tools(),
       ...createTaskTools({scheduler:tasks,db,now:taskClock,onReceipt:(id,receipt)=>agent?.recordTaskReceipt(id,receipt)}),
-      ...createSemanticTools({artifacts,store:semanticStore,embedder:embeddings}),...createVisionTools({artifacts,provider:localVision}),...createOcrTools({artifacts,provider:localOcr}),...createFraymusTools()],
+      ...createSemanticTools({artifacts,store:semanticStore,embedder:embeddings}),...createVisionTools({artifacts,provider:localVision}),...createOcrTools({artifacts,provider:localOcr}),...createFraymusTools(),
+      ...fleetTools, ...mcpImported],
     resolveAttachments: (ids, options) => artifacts.resolve(ids, options),
     onEvent: event => {
       if(agent&&['usage','auxiliary_usage'].includes(event.type)) {
@@ -64,6 +76,11 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
     try { db.prepare('INSERT INTO events (kind, actor, detail, created_at) VALUES (?, ?, ?, ?)').run(kind, actor, detail, Date.now()); } catch {}
   }});
   installFraymusRoutes(app, { autonomy, broadcast });
+  installWorkflowRoutes(app, { broadcast });
+  installFleetRoutes(app);
+  installMcpEndpoint(app);
+  installOAuthRoutes(app);
+  installAccessRoutes(app);
 
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
   const known = id => {
@@ -95,7 +112,8 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   app.get('/api/health', (_req, res) => res.json({ ok: true, app: 'Chandra / Fraymus',
     workspace, localDefault: true, cloudConfigured: cloud?.enabled === true,sqliteSynchronous:db.prepare('PRAGMA synchronous').get()?.synchronous,
     features: ['durable-agent', 'approved-tools', 'attachments', 'document-reader', 'local-semantic-retrieval', 'local-vision-helper', 'local-ocr', 'web-research', 'local-wav-transcription', 'scheduled-tasks', 'voice-proxy', 'transport-lab',
-      'fraymus-identity', 'fraymus-encoding', 'fraymus-protocol', 'fraymus-intelligence', 'fraymus-autonomy', 'fraymus-ouroboros', 'fraymus-hermes-30skill', 'fraymus-motor', 'fraymus-openclaw', 'fraymus-kuramoto-sync'] }));
+      'fraymus-identity', 'fraymus-encoding', 'fraymus-protocol', 'fraymus-intelligence', 'fraymus-autonomy', 'fraymus-ouroboros', 'fraymus-hermes-30skill', 'fraymus-motor', 'fraymus-openclaw', 'fraymus-kuramoto-sync',
+      'visual-workflow-engine', '16-agent-fleet', 'mcp-server-gateway', 'mcp-client-bridge', 'cron-automations'] }));
   app.get('/api/agent/capabilities', route(async (_req, res) => {
     const caps = await agent.capabilities();
     let localOcrHealth;
@@ -170,7 +188,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
       res.status(response.status).type(response.headers.get('content-type') || 'application/json').send(Buffer.concat(chunks));
     } catch (error) { res.status(503).json({ ok: false, ready: false, error: `Local voice service unavailable: ${error.message}` }); }
   }));
-  return { agent, artifacts, web, desktop, tasks, autonomy, async close() {
+  return { agent, artifacts, web, desktop, tasks, autonomy, workflowStore, fleetTools, async close() {
     autonomy.stop();
     const scheduling=await tasks.close();
     if(!scheduling.cleanupConfirmed)return {safeToCloseDatabase:false,scheduling};

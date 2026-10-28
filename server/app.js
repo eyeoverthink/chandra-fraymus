@@ -11,6 +11,13 @@ import { installStatic } from './static.js';
 import { listenThenInitialize } from './lifecycle.js';
 import { modelForAgent, replyWithModel } from './brain.js';
 import { ingestFleetSnapshot } from './fleet.js';
+import { migrateWorkspaces } from './db-migrate.js';
+import { join } from 'node:path';
+import { initFleet, setFleetTools, startRun, callToolDirect } from './fleet/runtime.js';
+import { initMcp, mcpServers, importServers, removeServer } from './mcp/client.js';
+import { createToken } from './mcp/auth.js';
+import { initScheduler, startScheduler, stopScheduler, listAutomations, saveAutomation, deleteAutomation, runAutomation, automationRuns } from './automations/scheduler.js';
+import { DATA_DIR } from './config.js';
 import {
   ensureV3Initialized,
   getV3State,
@@ -256,6 +263,52 @@ app.post('/api/tools/:id/run', async (req, res) => {
   });
 });
 
+// ---------- Automations ----------
+app.get('/api/automations', (_req, res) => {
+  res.json({ automations: listAutomations('system') });
+});
+app.post('/api/automations', async (req, res) => {
+  res.status(201).json(await saveAutomation('system', req.body));
+});
+app.delete('/api/automations/:id', async (req, res) => {
+  await deleteAutomation('system', req.params.id);
+  res.json({ ok: true });
+});
+app.post('/api/automations/:id/run', async (req, res) => {
+  res.json(await runAutomation('system', req.params.id, 'manual'));
+});
+app.get('/api/automations/:id/runs', (req, res) => {
+  res.json({ runs: automationRuns('system', req.params.id) });
+});
+
+// ---------- MCP servers (client mode REST) ----------
+app.get('/api/mcp/servers', (_req, res) => {
+  try { res.json({ servers: mcpServers() }); }
+  catch { res.json({ servers: [] }); }
+});
+app.post('/api/mcp/import', async (req, res) => {
+  res.json(await importServers(req.body));
+});
+app.delete('/api/mcp/servers/:name', (req, res) => {
+  removeServer(req.params.name, true);
+  res.json({ ok: true });
+});
+
+// ---------- Access tokens REST ----------
+app.get('/api/access', (_req, res) => {
+  try {
+    const rows = db.prepare('SELECT id, name, kind, scopes, last_used FROM access_tokens ORDER BY created_at DESC').all();
+    res.json({ tokens: rows, clients: [] });
+  } catch { res.json({ tokens: [], clients: [] }); }
+});
+app.post('/api/access/tokens', (req, res) => {
+  try {
+    const { name = 'default', scopes = 'read run' } = req.body || {};
+    const result = createToken('local', name, scopes);
+    res.status(201).json(result);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 // ---------- Static (production) ----------
 installStatic(app);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown API route' }));
@@ -281,6 +334,7 @@ const doSync = () => {
 let syncTimer;
 async function stop() {
   if(stopping)return;stopping=true;ready=false;clearInterval(syncTimer);
+  try { stopScheduler(); } catch {}
   if(runtime) {
     let closed=await runtime.close();
     while(!closed.safeToCloseDatabase) {
@@ -296,10 +350,17 @@ process.once('SIGTERM',()=>{stop().catch(error=>{console.error(error);process.ex
 process.once('SIGINT',()=>{stop().catch(error=>{console.error(error);process.exitCode=1;});});
 listenThenInitialize(server,{host:HOST,port:PORT,initialize:async()=>{
   if(stopping)throw new Error('Startup was cancelled');
+  try { migrateWorkspaces(); } catch(e) { console.error(`Workspace schema migration: ${e.message}`); }
   runtime=installRuntime(runtimeRoutes,{db,broadcast});
   runtimeRoutes.use(apiError);
   await runtime.tasks.start();
   if(stopping)return;
+  try { initFleet({ broadcast }); } catch(e) { console.error(`Fleet init deferred: ${e.message}`); }
+  try { await initMcp(join(DATA_DIR, 'mcp-servers.json')); } catch(e) { console.error(`MCP client deferred: ${e.message}`); }
+  try {
+    initScheduler({ runAgent: (uid, aid, msg) => startRun(uid, aid, msg), runTool: (uid, tool, args) => callToolDirect(uid, tool, args), broadcast });
+    startScheduler();
+  } catch(e) { console.error(`Scheduler deferred: ${e.message}`); }
   if(process.env.FRAYMUS_AUTONOMY_AUTOSTART !== '0') {
     try { await runtime.autonomy.start(); } catch(e) { console.error(`Autonomy engine deferred: ${e.message}`); }
   }
