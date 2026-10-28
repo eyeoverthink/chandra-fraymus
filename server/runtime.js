@@ -32,6 +32,11 @@ import { getImportedTools } from './mcp/client.js';
 import { createBrowserTools } from './browser/tools.js';
 import { installBrowserRoutes } from './browser/routes.js';
 import { installExtensionRoutes } from './browser/extension-bridge.js';
+import { VertisoMemory } from './vertiso/memory.js';
+import { createVertisoTools } from './vertiso/tools.js';
+import { RSIEngine } from './vertiso/rsi.js';
+import { createRSITools } from './vertiso/rsi-tools.js';
+import { installVertisoRoutes } from './vertiso/routes.js';
 
 export function cloudConfig() {
   if (process.env.FRAYMUS_CLOUD_ENABLED !== '1') return { enabled: false };
@@ -64,11 +69,15 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   try { mcpImported = getImportedTools(); } catch {}
   let browserTools = [];
   try { browserTools = createBrowserTools(); } catch {}
+  const vertiso = new VertisoMemory({ db, ollamaUrl });
+  const rsi = new RSIEngine({ db, vertiso, ollamaUrl, broadcast });
+  let vertisoTools = [];
+  try { vertisoTools = [...createVertisoTools(vertiso), ...createRSITools(rsi)]; } catch {}
   agent = createAgentService({ db, workspace, ollamaUrl, fetchImpl,
     cloud, codeExecutor, desktopBroker:desktop, extraTools: [...createExtensionTools(artifacts, web),...desktop.tools(),
       ...createTaskTools({scheduler:tasks,db,now:taskClock,onReceipt:(id,receipt)=>agent?.recordTaskReceipt(id,receipt)}),
       ...createSemanticTools({artifacts,store:semanticStore,embedder:embeddings}),...createVisionTools({artifacts,provider:localVision}),...createOcrTools({artifacts,provider:localOcr}),...createFraymusTools(),
-      ...fleetTools, ...mcpImported, ...browserTools],
+      ...fleetTools, ...mcpImported, ...browserTools, ...vertisoTools],
     resolveAttachments: (ids, options) => artifacts.resolve(ids, options),
     onEvent: event => {
       if(agent&&['usage','auxiliary_usage'].includes(event.type)) {
@@ -88,6 +97,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installAccessRoutes(app);
   installBrowserRoutes(app);
   installExtensionRoutes(app);
+  installVertisoRoutes(app, { vertiso, rsi });
 
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
   const known = id => {
@@ -121,7 +131,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
     features: ['durable-agent', 'approved-tools', 'attachments', 'document-reader', 'local-semantic-retrieval', 'local-vision-helper', 'local-ocr', 'web-research', 'local-wav-transcription', 'scheduled-tasks', 'voice-proxy', 'transport-lab',
       'fraymus-identity', 'fraymus-encoding', 'fraymus-protocol', 'fraymus-intelligence', 'fraymus-autonomy', 'fraymus-ouroboros', 'fraymus-hermes-30skill', 'fraymus-motor', 'fraymus-openclaw', 'fraymus-kuramoto-sync',
       'visual-workflow-engine', '16-agent-fleet', 'mcp-server-gateway', 'mcp-client-bridge', 'cron-automations',
-      'puppeteer-headless-browser', 'chrome-extension-bridge'] }));
+      'puppeteer-headless-browser', 'chrome-extension-bridge', 'vertiso-vector-memory', 'recursive-self-improvement'] }));
   app.get('/api/agent/capabilities', route(async (_req, res) => {
     const caps = await agent.capabilities();
     let localOcrHealth;
@@ -196,7 +206,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
       res.status(response.status).type(response.headers.get('content-type') || 'application/json').send(Buffer.concat(chunks));
     } catch (error) { res.status(503).json({ ok: false, ready: false, error: `Local voice service unavailable: ${error.message}` }); }
   }));
-  return { agent, artifacts, web, desktop, tasks, autonomy, workflowStore, fleetTools, async close() {
+  return { agent, artifacts, web, desktop, tasks, autonomy, workflowStore, fleetTools, vertiso, rsi, async close() {
     autonomy.stop();
     const scheduling=await tasks.close();
     if(!scheduling.cleanupConfirmed)return {safeToCloseDatabase:false,scheduling};

@@ -5,6 +5,7 @@ import AutomationsPanel from './panels/AutomationsPanel.jsx';
 import McpPanel from './panels/McpPanel.jsx';
 import DashboardPanel from './panels/DashboardPanel.jsx';
 import BrowserPanel from './panels/BrowserPanel.jsx';
+import VertisoPanel from './panels/VertisoPanel.jsx';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: '◈' },
@@ -13,6 +14,7 @@ const TABS = [
   { id: 'automations', label: 'Automations', icon: '⟳' },
   { id: 'mcp', label: 'MCP Gateway', icon: '⬢' },
   { id: 'browser', label: 'Browser', icon: '◉' },
+  { id: 'vertiso', label: 'Vertiso / RSI', icon: '◇' },
 ];
 
 export default function App() {
@@ -60,6 +62,7 @@ export default function App() {
         {tab === 'automations' && <AutomationsPanel />}
         {tab === 'mcp' && <McpPanel />}
         {tab === 'browser' && <BrowserPanel />}
+        {tab === 'vertiso' && <VertisoPanel />}
       </main>
     </div>
   );

@@ -366,7 +366,7 @@ listenThenInitialize(server,{host:HOST,port:PORT,initialize:async()=>{
   runtimeRoutes.use(apiError);
   await runtime.tasks.start();
   if(stopping)return;
-  try { initFleet({ broadcast }); } catch(e) { console.error(`Fleet init deferred: ${e.message}`); }
+  try { initFleet({ broadcast, vertiso: runtime.vertiso, rsi: runtime.rsi }); } catch(e) { console.error(`Fleet init deferred: ${e.message}`); }
   try { await initMcp(join(DATA_DIR, 'mcp-servers.json')); } catch(e) { console.error(`MCP client deferred: ${e.message}`); }
   try {
     initScheduler({ runAgent: (uid, aid, msg) => startRun(uid, aid, msg), runTool: (uid, tool, args) => callToolDirect(uid, tool, args), broadcast });

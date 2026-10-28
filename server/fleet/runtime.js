@@ -11,9 +11,13 @@ const now = () => Date.now();
 let manifests = null;
 let toolRegistry = [];
 let broadcastFn = () => {};
+let vertisoRef = null;
+let rsiRef = null;
 
-export function initFleet({ broadcast }) {
+export function initFleet({ broadcast, vertiso, rsi }) {
   broadcastFn = broadcast || (() => {});
+  vertisoRef = vertiso || null;
+  rsiRef = rsi || null;
   manifests = loadManifests();
   return { agentCount: manifests.size };
 }
@@ -61,7 +65,7 @@ function searchMemories(userId, query, limit = 8) {
     .map(x => ({ id: x.r.id, text: x.r.text, agent: x.r.agent_id }));
 }
 
-function systemPrompt(agent, userId) {
+async function systemPrompt(agent, userId) {
   const memories = searchMemories(userId, agent.name + ' ' + (agent.role || ''), 5);
   const memBlock = memories.length
     ? `\n\nRelevant memories:\n${memories.map(m => `- ${m.text}`).join('\n')}`
@@ -70,7 +74,31 @@ function systemPrompt(agent, userId) {
   const rosterBlock = roster
     ? `\n\nAvailable agents for delegation:\n${roster}`
     : '';
-  return `${agent.systemPrompt}${memBlock}${rosterBlock}`;
+
+  // Vertiso vector memories
+  let vertisoBlock = '';
+  if (vertisoRef) {
+    try {
+      const vMem = await vertisoRef.recall({ agentId: agent.id, query: agent.name + ' ' + (agent.role || ''), namespace: 'global', limit: 5, minSimilarity: 0.2 });
+      if (vMem.length) {
+        vertisoBlock = `\n\nVertiso memories (semantic):\n${vMem.map(m => `- [${m.score.toFixed(2)}] ${m.content.slice(0, 200)}`).join('\n')}`;
+      }
+    } catch {}
+  }
+
+  // RSI genome parameters
+  let genomeBlock = '';
+  if (rsiRef) {
+    try {
+      const genome = rsiRef.getGenome(agent.id);
+      const gen = rsiRef.currentGeneration(agent.id);
+      if (gen > 0) {
+        genomeBlock = `\n\nRSI Genome (gen ${gen}): temp=${genome.temperature?.toFixed(2)}, exploration=${genome.explorationRate?.toFixed(2)}, creativity=${genome.creativityBias?.toFixed(2)}, verbosity=${genome.verbosity?.toFixed(2)}, memDepth=${genome.memoryRecallDepth}`;
+      }
+    } catch {}
+  }
+
+  return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}`;
 }
 
 async function chat(messages, tools, model) {
@@ -159,7 +187,7 @@ async function drive(runId, depth = 0) {
 
   for (let step = run.steps || 0; step < MAX_STEPS; step++) {
     const hist = getHistory(run.thread_id);
-    const messages = [{ role: 'system', content: systemPrompt(agent, userId) }, ...hist];
+    const messages = [{ role: 'system', content: await systemPrompt(agent, userId) }, ...hist];
 
     let res;
     try {
