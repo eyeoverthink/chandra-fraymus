@@ -41,9 +41,9 @@ async function getSystemIdentity() {
 const ouroboros = new OuroborosEngine();
 const hermes = new HermesFleet();
 const motor = new MotorDispatcher();
-const openclaw = new OpenClawGateway();
 const controlPlane = new ControlPlane();
 const needle = new NeedleQueue();
+const openclaw = new OpenClawGateway({ hermes, motor, ouroboros, controlPlane });
 
 export { ouroboros, hermes, motor, openclaw, controlPlane, needle };
 
