@@ -1,0 +1,32 @@
+{
+  "name": "fraymus-master-system",
+  "version": "1.0.0",
+  "description": "Unified FRAYMUS master system — cryptographic identity, multi-format encoding, v13 protocol, AI intelligence fleet, and production pipeline",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./core/*": "./core/*.js",
+    "./encoding/*": "./encoding/*.js",
+    "./protocol/*": "./protocol/*.js",
+    "./intelligence/*": "./intelligence/*.js",
+    "./bridge/*": "./bridge/*.js",
+    "./entities": "./entities/schemas.js",
+    "./workflows": "./workflows/definitions.js",
+    "./mcp": "./mcp/tools.js"
+  },
+  "author": "Vaughn Scott <eyeoverthink@gmail.com>",
+  "license": "PROPRIETARY",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "fraymus",
+    "ed25519",
+    "wasm",
+    "dna-encoding",
+    "agent-system",
+    "cryptographic-identity",
+    "recursive-self-improvement"
+  ]
+}

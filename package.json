@@ -1,0 +1,37 @@
+{
+  "name": "chandra-fraymus",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Autonomous AI agent workspace — Chandra runtime + FRAYMUS master system. Ed25519 identity, 7-format encoding, v13 signed mesh, Ouroboros RSI, Hermes 30-skill fleet, Motor compute dispatch, OpenClaw gateway, Kuramoto phase sync. Full autonomy.",
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,magenta \"npm run server\" \"npm run client\"",
+    "server": "node server/index.js",
+    "client": "npm --prefix client run dev",
+    "build": "npm --prefix ../MyAIPartner run build && npm --prefix client run build",
+    "start": "node server/start.js",
+    "test": "node --test test/*.test.js",
+    "benchmark": "node server/transport/benchmark.js",
+    "sandbox:setup": "node server/sandbox/setup.js",
+    "sandbox:verify": "node server/sandbox/verify.js",
+    "sandbox:reconcile": "node server/sandbox/reconcile.js"
+  },
+  "dependencies": {
+    "@js-temporal/polyfill": "0.5.1",
+    "better-sqlite3": "^12.4.1",
+    "express": "^4.21.2",
+    "parse5": "8.0.1",
+    "pdfjs-dist": "6.4.299",
+    "ws": "^8.18.3",
+    "yauzl": "3.4.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  }
+}

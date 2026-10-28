@@ -1,0 +1,43 @@
+{
+  "generated_at": "2026-10-11T17:39:24-07:00",
+  "source": "eyekaughn fleet-dashboard · fraymus-fleet-bridge + world.json + tailscale + ollama",
+  "fleet": [
+    { "name": "EYEOVERTHINK Prime", "archetype": "DREAMCORE", "fx_id": "fx-1418-2f44-7fda-d412", "tick": 6, "nodes": 11, "avg_energy": 0.962, "state": "stale", "world_age_min": 611.1 },
+    { "name": "ARCHIVIST", "archetype": "MEMORY", "fx_id": "fx-020a-70e5-45b8-b592", "tick": 4, "nodes": 11, "avg_energy": 0.944, "state": "stale", "world_age_min": 611.1 },
+    { "name": "SCOUT", "archetype": "SEEKER", "fx_id": "fx-4b0d-f016-40a6-d27b", "tick": 4, "nodes": 11, "avg_energy": 0.944, "state": "stale", "world_age_min": 611.1 },
+    { "name": "WEAVER", "archetype": "LOOM", "fx_id": "fx-d6ad-c5c0-79ad-e455", "tick": 4, "nodes": 9, "avg_energy": 0.932, "state": "stale", "world_age_min": 611.1 },
+    { "name": "SENTINEL", "archetype": "WATCHER", "fx_id": "fx-f76a-6d61-ba3d-3f7f", "tick": 4, "nodes": 11, "avg_energy": 0.944, "state": "stale", "world_age_min": 611.1 }
+  ],
+  "remote_models": [
+    "persea:v1-r1", "fraynix-dna-reason:3b-v9", "fraynix-dna-reason:3b-lora-r2",
+    "fraynix-dna-reason:3b-lora-r1", "fraynix-dna-reason:3b-r3", "fraynix-dna-reason:3b-r2",
+    "fraynix-dna-reason:3b-r1", "fraynix-reason:3b", "fraynix-reason:3b-handmade",
+    "llava:latest", "eyeoverthink/persea:v1", "tycho:v1", "kepler:v1",
+    "eyeoverthink/fraymus:v1", "eyeoverthink/nova:v1", "eyeoverthink/polaris:v1",
+    "eyeoverthink/vesper:v1", "nova:v1", "eyekaughn:v1", "fraymus:v1", "persea:v1",
+    "polaris:v1", "vesper:v1", "eyeoverthink/Fraynix:latest", "llama3.2:1b",
+    "Niles-FRAYMUS:v10", "niles-v10:latest", "fraynix-coder-x1:latest",
+    "fraynix-fleet1:latest", "llama3.2:3b", "fraynix-dna:8b", "fraynix-dna:3b",
+    "eyeoverthink/FRAYNIX-PROTOCOL:3b-64k", "eyeoverthink/FRAYNIX-PROTOCOL:3b",
+    "homework-coach:latest", "Niles-FRAYMUS:v9-machine", "Niles-FRAYMUS:v9",
+    "llama3.1:8b", "eyeoverthink/v6.2-opeg:latest", "eyeoverthink/eyeoverthink-model:latest",
+    "eyeoverthink/v6.1-machine:latest", "eyeoverthink:v6.1-machine",
+    "eyeoverthink/eyeoverthink:latest", "nomic-embed-text:latest", "fraymus:latest",
+    "llama3.2:latest", "hermes3:latest", "qwen2.5-coder:7b", "gemma4:latest"
+  ],
+  "flybridge_connectome": {
+    "engine": "FlyBridge · fleet_bridge.py + world.json · 50 rounds",
+    "splits": {
+      "train": { "n": 11, "before": "0%", "after": "100%" },
+      "held": { "n": 8, "before": "0%", "after": "100%" },
+      "novel": { "n": 10, "before": "0%", "after": "100%" },
+      "blind": { "n": 20, "before": "5%", "after": "85%" }
+    },
+    "chance": "11%",
+    "blind_misses": [
+      "b11 cloud on roof -> wet (target: rain)",
+      "b16 mary _ a little -> lamb (target: had)",
+      "b17 _ owned a little -> lamb (target: mary)"
+    ]
+  }
+}
