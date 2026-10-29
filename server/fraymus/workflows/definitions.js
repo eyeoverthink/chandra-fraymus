@@ -65,6 +65,27 @@ export const WORKFLOWS = {
     description: 'Every 6 hours — cross-hemisphere autonomy check',
   },
 
+  // ═══ Content-to-Commerce Pipeline ═══
+  ContentToCommercePipeline: {
+    trigger: { source: 'manual', event: 'run' },
+    function: 'commercePipeline',
+    action: 'full_pipeline',
+    description: 'Research → Create → Review → Log → Shopify: 5-stage content-to-commerce pipeline',
+    canvas_nodes: [
+      { id: 'n1', type: 'researcher', position: { x: 100, y: 200 }, data: { type: 'researcher', prompt: 'Research the topic' } },
+      { id: 'n2', type: 'copywriter', position: { x: 350, y: 200 }, data: { type: 'copywriter', prompt: 'Create content' } },
+      { id: 'n3', type: 'reviewer', position: { x: 600, y: 200 }, data: { type: 'reviewer', prompt: 'QA review' } },
+      { id: 'n4', type: 'ceo_logger', position: { x: 850, y: 200 }, data: { type: 'ceo_logger', prompt: 'Log and approve' } },
+      { id: 'n5', type: 'shopify_publish', position: { x: 1100, y: 200 }, data: { type: 'shopify_publish', prompt: 'Publish to Shopify' } },
+    ],
+    canvas_edges: [
+      { id: 'e1', source: 'n1', target: 'n2' },
+      { id: 'e2', source: 'n2', target: 'n3' },
+      { id: 'e3', source: 'n3', target: 'n4' },
+      { id: 'e4', source: 'n4', target: 'n5' },
+    ],
+  },
+
   // ═══ External Integration ═══
   GoogleCalendarRealtimeSync: {
     trigger: { source: 'google_calendar', event: 'webhook' },

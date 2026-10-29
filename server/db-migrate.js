@@ -135,5 +135,18 @@ export function migrateWorkspaces() {
       scopes TEXT NOT NULL DEFAULT 'read run',
       created_at INTEGER
     );
+
+    CREATE TABLE IF NOT EXISTS commerce_pipeline_runs (
+      id TEXT PRIMARY KEY,
+      topic TEXT NOT NULL,
+      content_type TEXT NOT NULL DEFAULT 'both',
+      status TEXT NOT NULL DEFAULT 'running',
+      score INTEGER DEFAULT 0,
+      issues TEXT DEFAULT '[]',
+      final_content TEXT,
+      shopify_result TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_cpr_created ON commerce_pipeline_runs(created_at DESC);
   `);
 }

@@ -17,6 +17,11 @@ const NODE_TYPES = [
   { type: 'tool:fraymus.mesh.post', label: 'Mesh Post', color: '#14b8a6', icon: '🕸️' },
   { type: 'web_search', label: 'Web Search', color: '#3b82f6', icon: '🔎' },
   { type: 'code', label: 'Code Sandbox', color: '#a855f7', icon: '💻' },
+  { type: 'researcher', label: 'Researcher', color: '#06b6d4', icon: '🔬' },
+  { type: 'copywriter', label: 'Copywriter', color: '#f59e0b', icon: '✍️' },
+  { type: 'reviewer', label: 'QA Reviewer', color: '#22c55e', icon: '✅' },
+  { type: 'ceo_logger', label: 'CEO Logger', color: '#a78bfa', icon: '📋' },
+  { type: 'shopify_publish', label: 'Shopify Publish', color: '#96bf48', icon: '🛒' },
 ];
 
 function NodeCard({ data }) {

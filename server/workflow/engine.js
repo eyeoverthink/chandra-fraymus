@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { DATA_DIR, OLLAMA_URL } from '../config.js';
+import { runResearcher, runCreator, runReviewer, runCeoLogger, runShopifyPublish } from '../commerce/pipeline.js';
 
 const OUT_DIR = join(DATA_DIR, 'outputs');
 
@@ -63,6 +64,11 @@ function nodeKind(type) {
   if (type.includes('fraymus') || type.startsWith('tool:')) return 'fraymus_tool';
   if (type === 'code' || type === 'sandbox') return 'code';
   if (type === 'web_search') return 'web_search';
+  if (type === 'researcher') return 'researcher';
+  if (type === 'copywriter') return 'copywriter';
+  if (type === 'reviewer') return 'reviewer';
+  if (type === 'ceo_logger') return 'ceo_logger';
+  if (type === 'shopify_publish') return 'shopify_publish';
   return 'unknown';
 }
 
@@ -124,6 +130,31 @@ export async function runPipeline(nodes, edges, opts = {}) {
         const query = upstreamText || node.data?.query || opts.prompt || '';
         r.text = `[Web search for: "${query}"]`;
         texts[id] = r.text;
+      } else if (k === 'researcher') {
+        const topic = upstreamText || node.data?.topic || opts.prompt || '';
+        const out = await runResearcher({ topic, contentType: node.data?.contentType || 'both', sources: node.data?.sources || 'both' });
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+      } else if (k === 'copywriter') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
+        const out = await runCreator(prev || JSON.parse(upstreamText || '{}'));
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+      } else if (k === 'reviewer') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
+        const out = await runReviewer(prev || JSON.parse(upstreamText || '{}'));
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+      } else if (k === 'ceo_logger') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
+        const out = await runCeoLogger(prev || JSON.parse(upstreamText || '{}'));
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+      } else if (k === 'shopify_publish') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
+        const out = await runShopifyPublish(prev || JSON.parse(upstreamText || '{}'));
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
       } else {
         throw new Error(`Unknown node type: ${node.type}`);
       }

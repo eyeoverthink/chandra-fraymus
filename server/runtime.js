@@ -39,6 +39,8 @@ import { createRSITools } from './vertiso/rsi-tools.js';
 import { installVertisoRoutes } from './vertiso/routes.js';
 import { createYouTubeTools } from './youtube/tools.js';
 import { installYouTubeRoutes } from './youtube/routes.js';
+import { createCommerceTools } from './commerce/tools.js';
+import { installCommerceRoutes } from './commerce/routes.js';
 
 export function cloudConfig() {
   if (process.env.FRAYMUS_CLOUD_ENABLED !== '1') return { enabled: false };
@@ -77,11 +79,13 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   try { vertisoTools = [...createVertisoTools(vertiso), ...createRSITools(rsi)]; } catch {}
   let youtubeTools = [];
   try { youtubeTools = createYouTubeTools(); } catch {}
+  let commerceTools = [];
+  try { commerceTools = createCommerceTools(); } catch {}
   agent = createAgentService({ db, workspace, ollamaUrl, fetchImpl,
     cloud, codeExecutor, desktopBroker:desktop, extraTools: [...createExtensionTools(artifacts, web),...desktop.tools(),
       ...createTaskTools({scheduler:tasks,db,now:taskClock,onReceipt:(id,receipt)=>agent?.recordTaskReceipt(id,receipt)}),
       ...createSemanticTools({artifacts,store:semanticStore,embedder:embeddings}),...createVisionTools({artifacts,provider:localVision}),...createOcrTools({artifacts,provider:localOcr}),...createFraymusTools(),
-      ...fleetTools, ...mcpImported, ...browserTools, ...vertisoTools, ...youtubeTools],
+      ...fleetTools, ...mcpImported, ...browserTools, ...vertisoTools, ...youtubeTools, ...commerceTools],
     resolveAttachments: (ids, options) => artifacts.resolve(ids, options),
     onEvent: event => {
       if(agent&&['usage','auxiliary_usage'].includes(event.type)) {
@@ -103,6 +107,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installExtensionRoutes(app);
   installVertisoRoutes(app, { vertiso, rsi });
   installYouTubeRoutes(app);
+  installCommerceRoutes(app);
 
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
   const known = id => {
