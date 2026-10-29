@@ -7,6 +7,20 @@ import {
   runCeoLogger,
   runShopifyPublish,
 } from './pipeline.js';
+import {
+  runApparelPipeline,
+  runTrendScout,
+  runDesigner,
+  runPrintifyPush,
+  runShopifySync,
+  runPricingEngine,
+} from './apparel-pipeline.js';
+import {
+  runMysteryShopperPipeline,
+  runShopperAgent,
+  runUxAuditor,
+  runPriceAnalyst,
+} from './mystery-shopper.js';
 
 const now = () => Date.now();
 
@@ -67,6 +81,73 @@ export function installCommerceRoutes(app) {
       issues: JSON.parse(run.issues || '[]'),
       final_content: JSON.parse(run.final_content || '{}'),
       shopify_result: run.shopify_result ? JSON.parse(run.shopify_result) : null,
+    });
+  }));
+
+  // ── Apparel Pipeline ────────────────────────────────────────────
+  app.post('/api/apparel/pipeline', route(async (req, res) => {
+    const { niche, season, productTypes } = req.body;
+    const result = await runApparelPipeline({ niche, season, productTypes });
+    res.json(result);
+  }));
+
+  app.post('/api/apparel/trends', route(async (req, res) => {
+    res.json(await runTrendScout(req.body));
+  }));
+
+  app.post('/api/apparel/design', route(async (req, res) => {
+    res.json(await runDesigner(req.body));
+  }));
+
+  app.post('/api/apparel/printify', route(async (req, res) => {
+    res.json(await runPrintifyPush(req.body));
+  }));
+
+  app.post('/api/apparel/shopify-sync', route(async (req, res) => {
+    res.json(await runShopifySync(req.body, req.body._designs || {}));
+  }));
+
+  app.post('/api/apparel/pricing', route(async (req, res) => {
+    res.json(await runPricingEngine(req.body, req.body._designs || {}));
+  }));
+
+  app.get('/api/apparel/runs', route((_req, res) => {
+    const runs = db.prepare(
+      'SELECT * FROM apparel_pipeline_runs ORDER BY created_at DESC LIMIT 50'
+    ).all();
+    res.json({ runs: runs.map(r => ({ ...r, stages: JSON.parse(r.stages || '{}') })) });
+  }));
+
+  // ── Mystery Shopper ─────────────────────────────────────────────
+  app.post('/api/shopper/audit', route(async (req, res) => {
+    const result = await runMysteryShopperPipeline(req.body, { autoApply: req.body.autoApply });
+    res.json(result);
+  }));
+
+  app.post('/api/shopper/browse', route(async (req, res) => {
+    res.json(await runShopperAgent(req.body));
+  }));
+
+  app.post('/api/shopper/ux', route(async (req, res) => {
+    res.json(await runUxAuditor(req.body));
+  }));
+
+  app.post('/api/shopper/pricing', route(async (req, res) => {
+    res.json(await runPriceAnalyst(req.body));
+  }));
+
+  app.get('/api/shopper/runs', route((_req, res) => {
+    const runs = db.prepare(
+      'SELECT * FROM mystery_shopper_runs ORDER BY created_at DESC LIMIT 50'
+    ).all();
+    res.json({
+      runs: runs.map(r => ({
+        ...r,
+        scores: JSON.parse(r.scores || '{}'),
+        automated_fixes: JSON.parse(r.automated_fixes || '[]'),
+        manual_fixes: JSON.parse(r.manual_fixes || '[]'),
+        strategic: JSON.parse(r.strategic || '[]'),
+      })),
     });
   }));
 }

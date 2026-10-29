@@ -5,6 +5,8 @@ import {
   runReviewer,
   runShopifyPublish,
 } from './pipeline.js';
+import { runApparelPipeline, runTrendScout, runDesigner, runPrintifyPush } from './apparel-pipeline.js';
+import { runMysteryShopperPipeline, runShopperAgent } from './mystery-shopper.js';
 
 const string = (maxLength, extra = {}) => ({ type: 'string', maxLength, ...extra });
 const object = (properties, required = []) => ({ type: 'object', properties, required });
@@ -71,6 +73,75 @@ export function createCommerceTools() {
         autoPublish: { type: 'boolean', description: 'Auto-publish to Shopify if approved (default true)' },
       }, ['topic']),
       execute: async ({ args }) => runContentCommercePipeline(args, { autoPublish: args.autoPublish }),
+    },
+
+    // ── Apparel Pipeline Tools ──────────────────────────────────
+    {
+      name: 'apparel.trend_scout',
+      group: 'apparel',
+      risk: 'safe',
+      description: 'Scan trends from Outlier Board + web for apparel design inspiration. Returns trend data with recommended products.',
+      parameters: object({
+        niche: string(200, { description: 'Apparel niche (e.g. streetwear, tech culture)' }),
+        season: string(50, { description: 'Target season (e.g. summer 2026, all-season)' }),
+        productTypes: { type: 'array', items: { type: 'string' }, description: 'Product types to consider' },
+      }),
+      execute: async ({ args }) => runTrendScout(args),
+    },
+    {
+      name: 'apparel.design',
+      group: 'apparel',
+      risk: 'safe',
+      description: 'Generate detailed product listings from trend scout data. Produces titles, descriptions, variants, and design specs.',
+      parameters: object({
+        recommended_products: { type: 'array', items: { type: 'object' }, description: 'Products from trend scout' },
+      }, ['recommended_products']),
+      execute: async ({ args }) => runDesigner(args),
+    },
+    {
+      name: 'apparel.printify_push',
+      group: 'apparel',
+      risk: 'approval',
+      description: 'Push designed products to Printify for print-on-demand fulfillment. Requires PRINTIFY_ACCESS_TOKEN.',
+      parameters: object({
+        products: { type: 'array', items: { type: 'object' }, description: 'Designed products to push' },
+      }, ['products']),
+      execute: async ({ args }) => runPrintifyPush(args),
+    },
+    {
+      name: 'apparel.full_pipeline',
+      group: 'apparel',
+      risk: 'approval',
+      description: 'Run the full apparel pipeline: Trend Scout → Designer → Printify → Shopify Sync → Pricing. Creates apparel products end-to-end.',
+      parameters: object({
+        niche: string(200, { description: 'Apparel niche' }),
+        season: string(50),
+        productTypes: { type: 'array', items: { type: 'string' } },
+      }),
+      execute: async ({ args }) => runApparelPipeline(args),
+    },
+
+    // ── Mystery Shopper Tools ───────────────────────────────────
+    {
+      name: 'shopper.audit',
+      group: 'shopper',
+      risk: 'safe',
+      description: 'Run all 4 mystery shopper agents against the store: Shopper → UX Auditor → Price Analyst → Report. Returns a full store audit.',
+      parameters: object({
+        storeUrl: string(500, { description: 'Store URL to audit (defaults to configured store)' }),
+        autoApply: { type: 'boolean', description: 'Auto-apply safe fixes' },
+      }),
+      execute: async ({ args }) => runMysteryShopperPipeline(args, { autoApply: args.autoApply }),
+    },
+    {
+      name: 'shopper.browse',
+      group: 'shopper',
+      risk: 'safe',
+      description: 'Run the mystery shopper agent alone to evaluate the store from a customer perspective.',
+      parameters: object({
+        storeUrl: string(500),
+      }),
+      execute: async ({ args }) => runShopperAgent(args),
     },
   ];
 }

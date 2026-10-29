@@ -3,6 +3,8 @@ import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { DATA_DIR, OLLAMA_URL } from '../config.js';
 import { runResearcher, runCreator, runReviewer, runCeoLogger, runShopifyPublish } from '../commerce/pipeline.js';
+import { runTrendScout, runDesigner, runPrintifyPush, runShopifySync, runPricingEngine } from '../commerce/apparel-pipeline.js';
+import { runShopperAgent, runUxAuditor, runPriceAnalyst, runReportAndFix } from '../commerce/mystery-shopper.js';
 
 const OUT_DIR = join(DATA_DIR, 'outputs');
 
@@ -69,6 +71,15 @@ function nodeKind(type) {
   if (type === 'reviewer') return 'reviewer';
   if (type === 'ceo_logger') return 'ceo_logger';
   if (type === 'shopify_publish') return 'shopify_publish';
+  if (type === 'trend_scout') return 'trend_scout';
+  if (type === 'apparel_designer') return 'apparel_designer';
+  if (type === 'printify_push') return 'printify_push';
+  if (type === 'shopify_sync') return 'shopify_sync';
+  if (type === 'pricing_engine') return 'pricing_engine';
+  if (type === 'mystery_shopper') return 'mystery_shopper';
+  if (type === 'ux_auditor') return 'ux_auditor';
+  if (type === 'price_analyst') return 'price_analyst';
+  if (type === 'shopper_report') return 'shopper_report';
   return 'unknown';
 }
 
@@ -155,6 +166,61 @@ export async function runPipeline(nodes, edges, opts = {}) {
         const out = await runShopifyPublish(prev || JSON.parse(upstreamText || '{}'));
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
+
+      // ── Apparel pipeline nodes ──────────────────────────────
+      } else if (k === 'trend_scout') {
+        const out = await runTrendScout({ niche: node.data?.prompt || upstreamText || 'streetwear' });
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+      } else if (k === 'apparel_designer') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
+        const out = await runDesigner(prev || JSON.parse(upstreamText || '{}'));
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+      } else if (k === 'printify_push') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
+        const out = await runPrintifyPush(prev || JSON.parse(upstreamText || '{}'));
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+      } else if (k === 'shopify_sync') {
+        const prevAll = incoming.map(s => results[s]?.data).filter(Boolean);
+        const printifyData = prevAll.find(d => d.stage === 'printify') || {};
+        const designerData = prevAll.find(d => d.stage === 'designer') || prevAll[0] || {};
+        const out = await runShopifySync(printifyData, designerData);
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+      } else if (k === 'pricing_engine') {
+        const prevAll = incoming.map(s => results[s]?.data).filter(Boolean);
+        const shopifyData = prevAll.find(d => d.stage === 'shopify_sync') || {};
+        const designerData = prevAll.find(d => d.stage === 'designer') || prevAll[0] || {};
+        const out = await runPricingEngine(shopifyData, designerData);
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+
+      // ── Mystery shopper nodes ───────────────────────────────
+      } else if (k === 'mystery_shopper') {
+        const out = await runShopperAgent({ storeUrl: node.data?.prompt || '' });
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+      } else if (k === 'ux_auditor') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
+        const out = await runUxAuditor(prev || JSON.parse(upstreamText || '{}'));
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+      } else if (k === 'price_analyst') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
+        const out = await runPriceAnalyst(prev || JSON.parse(upstreamText || '{}'));
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+      } else if (k === 'shopper_report') {
+        const prevAll = incoming.map(s => results[s]?.data).filter(Boolean);
+        const shopperData = prevAll.find(d => d.agent === 'shopper') || {};
+        const uxData = prevAll.find(d => d.agent === 'ux_auditor') || {};
+        const priceData = prevAll.find(d => d.agent === 'price_analyst') || {};
+        const out = await runReportAndFix(shopperData, uxData, priceData);
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+
       } else {
         throw new Error(`Unknown node type: ${node.type}`);
       }

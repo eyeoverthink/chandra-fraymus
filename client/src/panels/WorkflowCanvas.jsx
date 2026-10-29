@@ -22,6 +22,15 @@ const NODE_TYPES = [
   { type: 'reviewer', label: 'QA Reviewer', color: '#22c55e', icon: '✅' },
   { type: 'ceo_logger', label: 'CEO Logger', color: '#a78bfa', icon: '📋' },
   { type: 'shopify_publish', label: 'Shopify Publish', color: '#96bf48', icon: '🛒' },
+  { type: 'trend_scout', label: 'Trend Scout', color: '#e879f9', icon: '📊' },
+  { type: 'apparel_designer', label: 'Apparel Designer', color: '#fb923c', icon: '👕' },
+  { type: 'printify_push', label: 'Printify Push', color: '#34d399', icon: '🖨️' },
+  { type: 'shopify_sync', label: 'Shopify Sync', color: '#96bf48', icon: '🔄' },
+  { type: 'pricing_engine', label: 'Pricing Engine', color: '#fbbf24', icon: '💰' },
+  { type: 'mystery_shopper', label: 'Mystery Shopper', color: '#f472b6', icon: '🕵️' },
+  { type: 'ux_auditor', label: 'UX Auditor', color: '#c084fc', icon: '🔍' },
+  { type: 'price_analyst', label: 'Price Analyst', color: '#fb7185', icon: '📈' },
+  { type: 'shopper_report', label: 'Shopper Report', color: '#818cf8', icon: '📝' },
 ];
 
 function NodeCard({ data }) {

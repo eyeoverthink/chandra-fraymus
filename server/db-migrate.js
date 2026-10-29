@@ -148,5 +148,28 @@ export function migrateWorkspaces() {
       created_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_cpr_created ON commerce_pipeline_runs(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS apparel_pipeline_runs (
+      id TEXT PRIMARY KEY,
+      niche TEXT NOT NULL DEFAULT 'streetwear',
+      product_types TEXT DEFAULT '[]',
+      status TEXT NOT NULL DEFAULT 'running',
+      stages TEXT,
+      products_created INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_apr_created ON apparel_pipeline_runs(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS mystery_shopper_runs (
+      id TEXT PRIMARY KEY,
+      store_domain TEXT NOT NULL,
+      overall_grade TEXT,
+      scores TEXT,
+      automated_fixes TEXT,
+      manual_fixes TEXT,
+      strategic TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_msr_created ON mystery_shopper_runs(created_at DESC);
   `);
 }

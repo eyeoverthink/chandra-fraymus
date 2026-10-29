@@ -86,6 +86,47 @@ export const WORKFLOWS = {
     ],
   },
 
+  // ═══ Apparel Pipeline ═══
+  ApparelProductionPipeline: {
+    trigger: { source: 'manual', event: 'run' },
+    function: 'apparelPipeline',
+    action: 'full_pipeline',
+    description: 'Trend Scout → Designer → Printify → Shopify Sync → Pricing: 5-stage apparel production pipeline',
+    canvas_nodes: [
+      { id: 'a1', type: 'trend_scout', position: { x: 100, y: 200 }, data: { type: 'trend_scout', prompt: 'Scout streetwear trends' } },
+      { id: 'a2', type: 'apparel_designer', position: { x: 350, y: 200 }, data: { type: 'apparel_designer', prompt: 'Design products' } },
+      { id: 'a3', type: 'printify_push', position: { x: 600, y: 200 }, data: { type: 'printify_push', prompt: 'Push to Printify' } },
+      { id: 'a4', type: 'shopify_sync', position: { x: 850, y: 200 }, data: { type: 'shopify_sync', prompt: 'Sync to Shopify' } },
+      { id: 'a5', type: 'pricing_engine', position: { x: 1100, y: 200 }, data: { type: 'pricing_engine', prompt: 'Optimize pricing' } },
+    ],
+    canvas_edges: [
+      { id: 'ae1', source: 'a1', target: 'a2' },
+      { id: 'ae2', source: 'a2', target: 'a3' },
+      { id: 'ae3', source: 'a3', target: 'a4' },
+      { id: 'ae4', source: 'a4', target: 'a5' },
+    ],
+  },
+
+  // ═══ Mystery Shopper Audit ═══
+  MysteryShopperAudit: {
+    trigger: { source: 'manual', event: 'run' },
+    function: 'mysteryShopperPipeline',
+    action: 'full_audit',
+    description: 'Shopper → UX Auditor → Price Analyst → Report: 4-agent store audit with auto-fix',
+    canvas_nodes: [
+      { id: 's1', type: 'mystery_shopper', position: { x: 100, y: 200 }, data: { type: 'mystery_shopper', prompt: 'Browse the store' } },
+      { id: 's2', type: 'ux_auditor', position: { x: 400, y: 100 }, data: { type: 'ux_auditor', prompt: 'Audit UX and conversion' } },
+      { id: 's3', type: 'price_analyst', position: { x: 400, y: 300 }, data: { type: 'price_analyst', prompt: 'Analyze pricing' } },
+      { id: 's4', type: 'shopper_report', position: { x: 700, y: 200 }, data: { type: 'shopper_report', prompt: 'Compile report and fixes' } },
+    ],
+    canvas_edges: [
+      { id: 'se1', source: 's1', target: 's2' },
+      { id: 'se2', source: 's1', target: 's3' },
+      { id: 'se3', source: 's2', target: 's4' },
+      { id: 'se4', source: 's3', target: 's4' },
+    ],
+  },
+
   // ═══ External Integration ═══
   GoogleCalendarRealtimeSync: {
     trigger: { source: 'google_calendar', event: 'webhook' },
