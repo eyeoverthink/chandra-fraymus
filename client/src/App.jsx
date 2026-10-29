@@ -6,6 +6,7 @@ import McpPanel from './panels/McpPanel.jsx';
 import DashboardPanel from './panels/DashboardPanel.jsx';
 import BrowserPanel from './panels/BrowserPanel.jsx';
 import VertisoPanel from './panels/VertisoPanel.jsx';
+import OutlierPanel from './panels/OutlierPanel.jsx';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: '◈' },
@@ -15,6 +16,7 @@ const TABS = [
   { id: 'mcp', label: 'MCP Gateway', icon: '⬢' },
   { id: 'browser', label: 'Browser', icon: '◉' },
   { id: 'vertiso', label: 'Vertiso / RSI', icon: '◇' },
+  { id: 'outlier', label: 'Outlier Board', icon: '◎' },
 ];
 
 export default function App() {
@@ -63,6 +65,7 @@ export default function App() {
         {tab === 'mcp' && <McpPanel />}
         {tab === 'browser' && <BrowserPanel />}
         {tab === 'vertiso' && <VertisoPanel />}
+        {tab === 'outlier' && <OutlierPanel />}
       </main>
     </div>
   );

@@ -164,7 +164,7 @@ export function createAgentService({ db, workspace, ollamaUrl, fetchImpl = fetch
       execute: ({ args, enableToolGroup }) => enableToolGroup(args.group) }));
   }
   const wireTools = [...tools.values()].map(tool => ({ type: 'function', function: { name: tool.name, description: tool.description, parameters: tool.parameters } }));
-  if (JSON.stringify(wireTools).length > 65536) fail('invalid_tool', 'Tool registry is too large');
+  if (JSON.stringify(wireTools).length > 131072) fail('invalid_tool', 'Tool registry is too large');
   const SYSTEM = systemPrompt(codeExecutor?.kind === 'docker', groups);
   const controls = new Map(), queues = new Map(), pendingCalls = new Set(),liveAuxCalls=new Map();
   let closing = false;
