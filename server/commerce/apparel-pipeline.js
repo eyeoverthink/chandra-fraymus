@@ -40,8 +40,19 @@ async function chatOllama(messages, opts = {}) {
 }
 
 function parseJSON(raw) {
-  try { return JSON.parse(raw.replace(/```json\n?|```/g, '').trim()); }
-  catch { return { raw }; }
+  // Try direct parse first
+  try { return JSON.parse(raw.trim()); } catch {}
+  // Strip markdown code fences and try again
+  const fenced = raw.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
+  if (fenced) {
+    try { return JSON.parse(fenced[1].trim()); } catch {}
+  }
+  // Last resort: find the first { ... } block
+  const braceMatch = raw.match(/\{[\s\S]*\}/);
+  if (braceMatch) {
+    try { return JSON.parse(braceMatch[0]); } catch {}
+  }
+  return { raw };
 }
 
 // ── Brand constants ───────────────────────────────────────────────

@@ -21,8 +21,16 @@ async function chatOllama(messages, opts = {}) {
 }
 
 function parseJSON(raw) {
-  try { return JSON.parse(raw.replace(/```json\n?|```/g, '').trim()); }
-  catch { return { raw }; }
+  try { return JSON.parse(raw.trim()); } catch {}
+  const fenced = raw.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
+  if (fenced) {
+    try { return JSON.parse(fenced[1].trim()); } catch {}
+  }
+  const braceMatch = raw.match(/\{[\s\S]*\}/);
+  if (braceMatch) {
+    try { return JSON.parse(braceMatch[0]); } catch {}
+  }
+  return { raw };
 }
 
 // ── Agent 1: Shopper ──────────────────────────────────────────────
