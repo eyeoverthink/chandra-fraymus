@@ -31,6 +31,11 @@ const NODE_TYPES = [
   { type: 'ux_auditor', label: 'UX Auditor', color: '#c084fc', icon: '🔍' },
   { type: 'price_analyst', label: 'Price Analyst', color: '#fb7185', icon: '📈' },
   { type: 'shopper_report', label: 'Shopper Report', color: '#818cf8', icon: '📝' },
+  { type: 'page_generator', label: 'Page Generator', color: '#2dd4bf', icon: '📄' },
+  { type: 'collection_organizer', label: 'Collection Organizer', color: '#a3e635', icon: '🗂️' },
+  { type: 'description_enhancer', label: 'Description Enhancer', color: '#facc15', icon: '✨' },
+  { type: 'price_adjuster', label: 'Price Adjuster', color: '#f97316', icon: '💲' },
+  { type: 'shopify_applier', label: 'Shopify Applier', color: '#96bf48', icon: '🚀' },
 ];
 
 function NodeCard({ data }) {

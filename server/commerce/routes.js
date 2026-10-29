@@ -21,6 +21,13 @@ import {
   runUxAuditor,
   runPriceAnalyst,
 } from './mystery-shopper.js';
+import {
+  runStoreFixerPipeline,
+  runPageGenerator,
+  runCollectionOrganizer,
+  runDescriptionEnhancer,
+  runPriceAdjuster,
+} from './store-fixer.js';
 
 const now = () => Date.now();
 
@@ -149,5 +156,34 @@ export function installCommerceRoutes(app) {
         strategic: JSON.parse(r.strategic || '[]'),
       })),
     });
+  }));
+
+  // ── Store Fixer ─────────────────────────────────────────────────
+  app.post('/api/fixer/pipeline', route(async (req, res) => {
+    const result = await runStoreFixerPipeline(req.body.auditReport || req.body, { draft: req.body.draft });
+    res.json(result);
+  }));
+
+  app.post('/api/fixer/pages', route(async (req, res) => {
+    res.json(await runPageGenerator(req.body));
+  }));
+
+  app.post('/api/fixer/collections', route(async (req, res) => {
+    res.json(await runCollectionOrganizer(req.body));
+  }));
+
+  app.post('/api/fixer/descriptions', route(async (req, res) => {
+    res.json(await runDescriptionEnhancer(req.body));
+  }));
+
+  app.post('/api/fixer/prices', route(async (req, res) => {
+    res.json(await runPriceAdjuster(req.body));
+  }));
+
+  app.get('/api/fixer/runs', route((_req, res) => {
+    const runs = db.prepare(
+      'SELECT * FROM store_fixer_runs ORDER BY created_at DESC LIMIT 50'
+    ).all();
+    res.json({ runs });
   }));
 }

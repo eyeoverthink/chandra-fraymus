@@ -127,6 +127,27 @@ export const WORKFLOWS = {
     ],
   },
 
+  // ═══ Store Fixer Pipeline ═══
+  StoreFixerPipeline: {
+    trigger: { source: 'manual', event: 'run' },
+    function: 'storeFixerPipeline',
+    action: 'full_fix',
+    description: 'Pages → Collections → Descriptions → Prices → Apply: 5-agent store fixer from audit findings',
+    canvas_nodes: [
+      { id: 'f1', type: 'page_generator', position: { x: 100, y: 100 }, data: { type: 'page_generator', prompt: 'Generate missing pages' } },
+      { id: 'f2', type: 'collection_organizer', position: { x: 100, y: 250 }, data: { type: 'collection_organizer', prompt: 'Reorganize collections' } },
+      { id: 'f3', type: 'description_enhancer', position: { x: 100, y: 400 }, data: { type: 'description_enhancer', prompt: 'Enhance descriptions' } },
+      { id: 'f4', type: 'price_adjuster', position: { x: 450, y: 250 }, data: { type: 'price_adjuster', prompt: 'Adjust underpriced items' } },
+      { id: 'f5', type: 'shopify_applier', position: { x: 750, y: 250 }, data: { type: 'shopify_applier', prompt: 'Apply all fixes to Shopify' } },
+    ],
+    canvas_edges: [
+      { id: 'fe1', source: 'f1', target: 'f5' },
+      { id: 'fe2', source: 'f2', target: 'f5' },
+      { id: 'fe3', source: 'f3', target: 'f5' },
+      { id: 'fe4', source: 'f4', target: 'f5' },
+    ],
+  },
+
   // ═══ External Integration ═══
   GoogleCalendarRealtimeSync: {
     trigger: { source: 'google_calendar', event: 'webhook' },

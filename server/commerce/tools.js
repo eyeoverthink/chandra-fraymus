@@ -7,6 +7,7 @@ import {
 } from './pipeline.js';
 import { runApparelPipeline, runTrendScout, runDesigner, runPrintifyPush } from './apparel-pipeline.js';
 import { runMysteryShopperPipeline, runShopperAgent } from './mystery-shopper.js';
+import { runStoreFixerPipeline, runPageGenerator, runCollectionOrganizer, runDescriptionEnhancer, runPriceAdjuster } from './store-fixer.js';
 
 const string = (maxLength, extra = {}) => ({ type: 'string', maxLength, ...extra });
 const object = (properties, required = []) => ({ type: 'object', properties, required });
@@ -142,6 +143,60 @@ export function createCommerceTools() {
         storeUrl: string(500),
       }),
       execute: async ({ args }) => runShopperAgent(args),
+    },
+
+    // ── Store Fixer Tools ──────────────────────────────────────
+    {
+      name: 'fixer.generate_pages',
+      group: 'fixer',
+      risk: 'safe',
+      description: 'Generate missing store pages (About, FAQ, Size Guide, Returns, Contact) using AI with brand voice.',
+      parameters: object({
+        missing_pages: { type: 'array', items: { type: 'string' }, description: 'Pages to generate' },
+      }),
+      execute: async ({ args }) => runPageGenerator(args),
+    },
+    {
+      name: 'fixer.organize_collections',
+      group: 'fixer',
+      risk: 'safe',
+      description: 'Create a smart collection structure with navigation menu and product tag updates for better discovery.',
+      parameters: object({
+        collections: { type: 'object', description: 'Current collection issues from audit' },
+        product_discovery: { type: 'object', description: 'Product discovery issues from audit' },
+      }),
+      execute: async ({ args }) => runCollectionOrganizer(args),
+    },
+    {
+      name: 'fixer.enhance_descriptions',
+      group: 'fixer',
+      risk: 'safe',
+      description: 'Generate enhanced product description templates for all product categories with SEO optimization.',
+      parameters: object({
+        product_presentation: { type: 'object', description: 'Product presentation issues from audit' },
+      }),
+      execute: async ({ args }) => runDescriptionEnhancer(args),
+    },
+    {
+      name: 'fixer.adjust_prices',
+      group: 'fixer',
+      risk: 'approval',
+      description: 'Calculate optimal price adjustments for underpriced products to hit 55-60% margin targets.',
+      parameters: object({
+        margin_analysis: { type: 'array', items: { type: 'object' }, description: 'Margin analysis from price analyst' },
+      }),
+      execute: async ({ args }) => runPriceAdjuster(args),
+    },
+    {
+      name: 'fixer.full_pipeline',
+      group: 'fixer',
+      risk: 'approval',
+      description: 'Run the full store fixer pipeline: Pages → Collections → Descriptions → Prices → Apply. Generates and queues all fixes from an audit report.',
+      parameters: object({
+        auditReport: { type: 'object', description: 'Full mystery shopper audit report' },
+        draft: { type: 'boolean', description: 'Create pages as drafts (default false)' },
+      }),
+      execute: async ({ args }) => runStoreFixerPipeline(args.auditReport || args, { draft: args.draft }),
     },
   ];
 }

@@ -171,5 +171,17 @@ export function migrateWorkspaces() {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_msr_created ON mystery_shopper_runs(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS store_fixer_runs (
+      id TEXT PRIMARY KEY,
+      audit_run_id TEXT,
+      pages_generated INTEGER DEFAULT 0,
+      collections_created INTEGER DEFAULT 0,
+      templates_created INTEGER DEFAULT 0,
+      prices_adjusted INTEGER DEFAULT 0,
+      apply_status TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_sfr_created ON store_fixer_runs(created_at DESC);
   `);
 }

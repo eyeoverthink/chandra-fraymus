@@ -5,6 +5,7 @@ import { DATA_DIR, OLLAMA_URL } from '../config.js';
 import { runResearcher, runCreator, runReviewer, runCeoLogger, runShopifyPublish } from '../commerce/pipeline.js';
 import { runTrendScout, runDesigner, runPrintifyPush, runShopifySync, runPricingEngine } from '../commerce/apparel-pipeline.js';
 import { runShopperAgent, runUxAuditor, runPriceAnalyst, runReportAndFix } from '../commerce/mystery-shopper.js';
+import { runPageGenerator, runCollectionOrganizer, runDescriptionEnhancer, runPriceAdjuster, runShopifyApplier } from '../commerce/store-fixer.js';
 
 const OUT_DIR = join(DATA_DIR, 'outputs');
 
@@ -80,6 +81,11 @@ function nodeKind(type) {
   if (type === 'ux_auditor') return 'ux_auditor';
   if (type === 'price_analyst') return 'price_analyst';
   if (type === 'shopper_report') return 'shopper_report';
+  if (type === 'page_generator') return 'page_generator';
+  if (type === 'collection_organizer') return 'collection_organizer';
+  if (type === 'description_enhancer') return 'description_enhancer';
+  if (type === 'price_adjuster') return 'price_adjuster';
+  if (type === 'shopify_applier') return 'shopify_applier';
   return 'unknown';
 }
 
@@ -218,6 +224,37 @@ export async function runPipeline(nodes, edges, opts = {}) {
         const uxData = prevAll.find(d => d.agent === 'ux_auditor') || {};
         const priceData = prevAll.find(d => d.agent === 'price_analyst') || {};
         const out = await runReportAndFix(shopperData, uxData, priceData);
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+
+      // ── Store fixer nodes ─────────────────────────────────────
+      } else if (k === 'page_generator') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
+        const out = await runPageGenerator(prev || JSON.parse(upstreamText || '{}'));
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+      } else if (k === 'collection_organizer') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
+        const out = await runCollectionOrganizer(prev || JSON.parse(upstreamText || '{}'));
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+      } else if (k === 'description_enhancer') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
+        const out = await runDescriptionEnhancer(prev || JSON.parse(upstreamText || '{}'));
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+      } else if (k === 'price_adjuster') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
+        const out = await runPriceAdjuster(prev || JSON.parse(upstreamText || '{}'));
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+      } else if (k === 'shopify_applier') {
+        const prevAll = incoming.map(s => results[s]?.data).filter(Boolean);
+        const pagesData = prevAll.find(d => d.agent === 'page_generator') || {};
+        const collData = prevAll.find(d => d.agent === 'collection_organizer') || {};
+        const descData = prevAll.find(d => d.agent === 'description_enhancer') || {};
+        const priceData = prevAll.find(d => d.agent === 'price_adjuster') || {};
+        const out = await runShopifyApplier(pagesData, collData, descData, priceData);
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
 
