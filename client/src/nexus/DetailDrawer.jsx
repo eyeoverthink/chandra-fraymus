@@ -14,6 +14,7 @@ import BusPanel from '../panels/BusPanel.jsx';
 import HealthPanel from '../panels/HealthPanel.jsx';
 import MediaPanel from '../panels/MediaPanel.jsx';
 import ForgePanel from '../panels/ForgePanel.jsx';
+import SettingsPanel from '../panels/SettingsPanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -30,6 +31,7 @@ const PANELS = {
   health: { component: HealthPanel, label: 'System Health Monitor' },
   media: { component: MediaPanel, label: 'Media Hub' },
   forge: { component: ForgePanel, label: 'Forge + Synthesis' },
+  settings: { component: SettingsPanel, label: 'System Settings' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {

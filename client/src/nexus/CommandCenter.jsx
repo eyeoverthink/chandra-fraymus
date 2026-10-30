@@ -17,6 +17,7 @@ const WIDGETS = [
   { id: 'health', label: 'Health Monitor', icon: '♥', color: '#ef4444', panel: 'health' },
   { id: 'media', label: 'Media Hub', icon: '▶', color: '#14b8a6', panel: 'media' },
   { id: 'forge', label: 'Forge + Synth', icon: '⚡', color: '#f59e0b', panel: 'forge' },
+  { id: 'settings', label: 'Settings', icon: '⚙', color: '#64748b', panel: 'settings' },
 ];
 
 const EVENT_STYLES = {

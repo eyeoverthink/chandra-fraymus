@@ -41,6 +41,7 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 33 | Media Hub Panel | — | 5 files | [PHASE-33.md](PHASE-33.md) |
 | 34 | Error Boundary + System Resilience | — | 6 files | [PHASE-34.md](PHASE-34.md) |
 | 35 | Agent Forge + Synthesis Panel | — | 4 files | [PHASE-35.md](PHASE-35.md) |
+| 36 | System Settings Panel | — | 5 files | [PHASE-36.md](PHASE-36.md) |
 
 ## Convention
 

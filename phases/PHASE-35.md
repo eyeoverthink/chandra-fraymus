@@ -6,7 +6,7 @@
 | **Title** | Agent Forge + Synthesis Panel |
 | **Status** | Complete |
 | **Prev** | [Phase 34 — Error Boundary + System Resilience](PHASE-34.md) |
-| **Next** | Phase 36 (TBD) |
+| **Next** | [Phase 36 — System Settings Panel](PHASE-36.md) |
 
 ## Summary
 
