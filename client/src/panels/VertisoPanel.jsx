@@ -22,7 +22,7 @@ export default function VertisoPanel() {
     fetch('/api/vertiso/stats').then(r => r.json()).then(setMemStats).catch(() => {});
     fetch('/api/rsi/status').then(r => r.json()).then(setRsiStatus).catch(() => {});
   };
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   const doStore = async () => {
     if (!storeContent.trim()) return;

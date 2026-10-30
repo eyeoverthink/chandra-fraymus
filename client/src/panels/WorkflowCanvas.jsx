@@ -71,6 +71,7 @@ export default function WorkflowCanvas() {
   const [currentId, setCurrentId] = useState(null);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
   const [name, setName] = useState('New Workflow');
   const reactFlowWrapper = useRef(null);
 
@@ -91,19 +92,22 @@ export default function WorkflowCanvas() {
   }, [setNodes]);
 
   const saveWorkflow = useCallback(async () => {
-    const payload = {
-      name,
-      nodes: nodes.map(n => ({ id: n.id, type: n.data.type, data: n.data, position: n.position })),
-      edges: edges.map(e => ({ id: e.id, source: e.source, target: e.target })),
-    };
-    if (currentId) {
-      await fetch(`/api/workflows/${currentId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    } else {
-      const res = await fetch('/api/workflows', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      const data = await res.json();
-      setCurrentId(data.id);
-    }
-    loadWorkflows();
+    try {
+      setError(null);
+      const payload = {
+        name,
+        nodes: nodes.map(n => ({ id: n.id, type: n.data.type, data: n.data, position: n.position })),
+        edges: edges.map(e => ({ id: e.id, source: e.source, target: e.target })),
+      };
+      if (currentId) {
+        await fetch(`/api/workflows/${currentId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      } else {
+        const res = await fetch('/api/workflows', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const data = await res.json();
+        setCurrentId(data.id);
+      }
+      loadWorkflows();
+    } catch (e) { setError(`Save failed: ${e.message}`); }
   }, [nodes, edges, name, currentId, loadWorkflows]);
 
   const runWorkflow = useCallback(async () => {
@@ -123,18 +127,22 @@ export default function WorkflowCanvas() {
   }, [currentId, saveWorkflow, workflows]);
 
   const loadWorkflow = useCallback(async (id) => {
-    const res = await fetch(`/api/workflows/${id}`);
-    const wf = await res.json();
-    setCurrentId(id);
-    setName(wf.name);
-    const parsed = typeof wf.nodes === 'string' ? JSON.parse(wf.nodes) : wf.nodes;
-    const parsedEdges = typeof wf.edges === 'string' ? JSON.parse(wf.edges) : wf.edges;
-    setNodes(parsed.map(n => ({ id: n.id, type: 'custom', position: n.position || { x: 100, y: 100 }, data: n.data || { type: n.type } })));
-    setEdges(parsedEdges.map(e => ({ id: e.id || `${e.source}-${e.target}`, source: e.source, target: e.target })));
+    try {
+      setError(null);
+      const res = await fetch(`/api/workflows/${id}`);
+      const wf = await res.json();
+      setCurrentId(id);
+      setName(wf.name);
+      const parsed = typeof wf.nodes === 'string' ? JSON.parse(wf.nodes) : wf.nodes;
+      const parsedEdges = typeof wf.edges === 'string' ? JSON.parse(wf.edges) : wf.edges;
+      setNodes(parsed.map(n => ({ id: n.id, type: 'custom', position: n.position || { x: 100, y: 100 }, data: n.data || { type: n.type } })));
+      setEdges(parsedEdges.map(e => ({ id: e.id || `${e.source}-${e.target}`, source: e.source, target: e.target })));
+    } catch (e) { setError(`Load failed: ${e.message}`); }
   }, [setNodes, setEdges]);
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {error && <div style={{ background: '#2d1b1b', border: '1px solid #5b2b2b', padding: '8px 12px', color: '#f87171', fontSize: 13 }}>{error}</div>}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px',
         background: '#111118', borderBottom: '1px solid #222',

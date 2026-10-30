@@ -157,19 +157,21 @@ export default function OutlierPanel() {
 
   const saveVideo = async (video, notes = '') => {
     try {
+      setError('');
       await fetch('/api/youtube/board', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ video, notes, searchQuery: query }),
       });
       loadBoard();
-    } catch {}
+    } catch (e) { setError(`Save failed: ${e.message}`); }
   };
 
   const removeVideo = async (video) => {
     try {
+      setError('');
       await fetch(`/api/youtube/board/${video.id}`, { method: 'DELETE' });
       loadBoard();
-    } catch {}
+    } catch (e) { setError(`Remove failed: ${e.message}`); }
   };
 
   const boardIds = new Set(boardItems.map(i => i.video_id));

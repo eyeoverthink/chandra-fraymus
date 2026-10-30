@@ -4,6 +4,7 @@ export default function AutomationsPanel() {
   const [automations, setAutomations] = useState([]);
   const [form, setForm] = useState({ name: '', cron: '0 8 * * *', kind: 'agent', agentId: 'concierge', prompt: '' });
   const [agents, setAgents] = useState([]);
+  const [error, setError] = useState(null);
 
   const load = useCallback(() => {
     fetch('/api/automations').then(r => r.json()).then(d => setAutomations(d.automations || d || [])).catch(() => {});
@@ -14,25 +15,34 @@ export default function AutomationsPanel() {
 
   const create = async () => {
     if (!form.name || !form.cron) return;
-    await fetch('/api/automations', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: form.name, cron: form.cron, kind: form.kind,
-        agentId: form.agentId, payload: { prompt: form.prompt },
-      }),
-    });
-    setForm({ name: '', cron: '0 8 * * *', kind: 'agent', agentId: 'concierge', prompt: '' });
-    load();
+    try {
+      setError(null);
+      await fetch('/api/automations', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name, cron: form.cron, kind: form.kind,
+          agentId: form.agentId, payload: { prompt: form.prompt },
+        }),
+      });
+      setForm({ name: '', cron: '0 8 * * *', kind: 'agent', agentId: 'concierge', prompt: '' });
+      load();
+    } catch (e) { setError(`Create failed: ${e.message}`); }
   };
 
   const runNow = async (id) => {
-    await fetch(`/api/automations/${id}/run`, { method: 'POST' });
-    setTimeout(load, 3000);
+    try {
+      setError(null);
+      await fetch(`/api/automations/${id}/run`, { method: 'POST' });
+      setTimeout(load, 3000);
+    } catch (e) { setError(`Run failed: ${e.message}`); }
   };
 
   const del = async (id) => {
-    await fetch(`/api/automations/${id}`, { method: 'DELETE' });
-    load();
+    try {
+      setError(null);
+      await fetch(`/api/automations/${id}`, { method: 'DELETE' });
+      load();
+    } catch (e) { setError(`Delete failed: ${e.message}`); }
   };
 
   const inputStyle = {
@@ -43,6 +53,7 @@ export default function AutomationsPanel() {
   return (
     <div style={{ padding: 24 }}>
       <h2 style={{ fontSize: 20, fontWeight: 700, color: '#a78bfa', marginBottom: 20 }}>Automations — Cron Scheduler</h2>
+      {error && <div style={{ background: '#2d1b1b', border: '1px solid #5b2b2b', borderRadius: 8, padding: '8px 12px', marginBottom: 16, color: '#f87171', fontSize: 13 }}>{error}</div>}
 
       <div style={{ background: '#111118', borderRadius: 12, padding: 20, marginBottom: 24 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: '#e0e0e8', marginBottom: 16 }}>New Automation</div>

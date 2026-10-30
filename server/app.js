@@ -328,8 +328,17 @@ app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown API route'
 app.use(apiError);
 
 wss.on('connection', (ws) => {
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
   ws.send(JSON.stringify({ type: 'hello', payload: { ts: Date.now() } }));
 });
+const wsHeartbeat = setInterval(() => {
+  for (const ws of wss.clients) {
+    if (!ws.isAlive) { ws.terminate(); continue; }
+    ws.isAlive = false;
+    ws.ping();
+  }
+}, 30_000);
 
 // Real-state bridge: poll tailnet / node / ollama every 15s
 const SYNC_MS = 15000;
@@ -346,7 +355,7 @@ const doSync = () => {
 };
 let syncTimer;
 async function stop() {
-  if(stopping)return;stopping=true;ready=false;clearInterval(syncTimer);
+  if(stopping)return;stopping=true;ready=false;clearInterval(syncTimer);clearInterval(wsHeartbeat);
   try { stopScheduler(); } catch (e) { console.error('shutdown: scheduler stop failed:', e.message); }
   try { await closeBrowser(); } catch (e) { console.error('shutdown: browser close failed:', e.message); }
   if(runtime) {
