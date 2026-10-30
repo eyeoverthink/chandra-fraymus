@@ -66,14 +66,22 @@ export { WORKFLOWS, WORKFLOW_NAMES, getWorkflow, scheduledWorkflows, eventTrigge
 export { MCP_TOOLS, TOOL_NAMES, getToolDefinition, listTools } from './mcp/tools.js';
 
 // ═══ System Assembly ═══
+import { OuroborosEngine as _Ouroboros } from './intelligence/ouroboros.js';
+import { HermesFleet as _Hermes } from './intelligence/hermes.js';
+import { MotorDispatcher as _Motor } from './intelligence/motor.js';
+import { OpenClawGateway as _OpenClaw } from './intelligence/openclaw.js';
+import { ControlPlane as _ControlPlane } from './intelligence/control-plane.js';
+import { NeedleQueue as _Needle } from './intelligence/needle.js';
+import { OrificeBridge as _Bridge } from './bridge/orifice.js';
+
 export function createMasterSystem(entityStore = null, aiModel = null) {
-  const ouroboros = new OuroborosEngine(entityStore, aiModel);
-  const hermes = new HermesFleet();
-  const motor = new MotorDispatcher(entityStore);
-  const controlPlane = new ControlPlane(entityStore);
-  const needle = new NeedleQueue(entityStore);
-  const bridge = new OrificeBridge(entityStore);
-  const gateway = new OpenClawGateway({ hermes, motor, ouroboros, controlPlane, bridge, entityStore });
+  const ouroboros = new _Ouroboros(entityStore, aiModel);
+  const hermes = new _Hermes();
+  const motor = new _Motor(entityStore);
+  const controlPlane = new _ControlPlane(entityStore);
+  const needle = new _Needle(entityStore);
+  const bridge = new _Bridge(entityStore);
+  const gateway = new _OpenClaw({ hermes, motor, ouroboros, controlPlane, bridge, entityStore });
 
   return { ouroboros, hermes, motor, controlPlane, needle, bridge, gateway };
 }

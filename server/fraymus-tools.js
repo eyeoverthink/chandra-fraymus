@@ -23,6 +23,7 @@ import { MotorDispatcher } from './fraymus/intelligence/motor.js';
 import { OpenClawGateway } from './fraymus/intelligence/openclaw.js';
 import { ControlPlane } from './fraymus/intelligence/control-plane.js';
 import { NeedleQueue } from './fraymus/intelligence/needle.js';
+import { OrificeBridge } from './fraymus/bridge/orifice.js';
 import { NILES_MODEL, FRAYVM_OPCODES, buildModelfile, executeFrayvm } from './fraymus/intelligence/niles.js';
 import { SCHEMAS, getSchema, entitiesBySource } from './fraymus/entities/schemas.js';
 import { getWorkflow, scheduledWorkflows, eventTriggeredWorkflows } from './fraymus/workflows/definitions.js';
@@ -38,12 +39,106 @@ async function getSystemIdentity() {
   return _systemIdentity;
 }
 
-const ouroboros = new OuroborosEngine();
-const hermes = new HermesFleet();
-const motor = new MotorDispatcher();
-const controlPlane = new ControlPlane();
-const needle = new NeedleQueue();
-const openclaw = new OpenClawGateway({ hermes, motor, ouroboros, controlPlane });
+import { entityStore } from './fraymus/entity-store.js';
+import { chatOllama } from './commerce/shared.js';
+
+// Wire all intelligence modules to SQLite-backed entity store
+const ouroboros = new OuroborosEngine(entityStore, { chat: chatOllama });
+const hermesExecutors = buildHermesExecutors();
+const hermes = new HermesFleet(hermesExecutors);
+const motor = new MotorDispatcher(entityStore);
+const controlPlane = new ControlPlane(entityStore);
+const needle = new NeedleQueue(entityStore);
+const bridge = new OrificeBridge(entityStore);
+const openclaw = new OpenClawGateway({ hermes, motor, ouroboros, controlPlane, bridge, entityStore });
+
+function buildHermesExecutors() {
+  return {
+    duckduckgo_search: async ({ query }) => {
+      const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query || '')}`, {
+        signal: AbortSignal.timeout(15_000),
+        headers: { 'User-Agent': 'Chandra/1.0' },
+      });
+      const html = await res.text();
+      const matches = [...html.matchAll(/class="result__a"[^>]*href="([^"]+)"[^>]*>([^<]+)/g)];
+      return { results: matches.slice(0, 10).map(m => ({ url: m[1], title: m[2].trim() })) };
+    },
+    web_scrape: async ({ url }) => {
+      const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+      const text = await res.text();
+      return { length: text.length, preview: text.slice(0, 2000) };
+    },
+    target_analysis: async ({ target }) => {
+      const prompt = [{ role: 'user', content: `Analyze this target for research purposes: ${target}. Provide key facts, domain info, and notable details.` }];
+      const analysis = await chatOllama(prompt);
+      return { target, analysis };
+    },
+    deep_research: async ({ topic }) => {
+      const prompt = [{ role: 'user', content: `Conduct deep research on: ${topic}. Provide comprehensive analysis with key findings, trends, and implications.` }];
+      const research = await chatOllama(prompt);
+      return { topic, research };
+    },
+    news_scan: async ({ topic }) => {
+      const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(topic + ' news')}&t=h_&iar=news`, {
+        signal: AbortSignal.timeout(15_000),
+        headers: { 'User-Agent': 'Chandra/1.0' },
+      });
+      const html = await res.text();
+      const matches = [...html.matchAll(/class="result__a"[^>]*href="([^"]+)"[^>]*>([^<]+)/g)];
+      return { results: matches.slice(0, 10).map(m => ({ url: m[1], title: m[2].trim() })) };
+    },
+    code_generation: async ({ description, language }) => {
+      const prompt = [{ role: 'user', content: `Generate ${language || 'JavaScript'} code for: ${description}` }];
+      const code = await chatOllama(prompt);
+      return { language: language || 'JavaScript', code };
+    },
+    code_review: async ({ code }) => {
+      const prompt = [{ role: 'user', content: `Review this code for bugs, security issues, and improvements:\n\n${code}` }];
+      const review = await chatOllama(prompt);
+      return { review };
+    },
+    ollama_manage: async ({ action }) => {
+      try {
+        const res = await fetch('http://127.0.0.1:11434/api/tags', { signal: AbortSignal.timeout(10_000) });
+        const data = await res.json();
+        return { action: action || 'list', models: data.models?.map(m => m.name) || [] };
+      } catch (e) {
+        return { error: e.message, action };
+      }
+    },
+    db_query: async ({ sql }) => {
+      // Safe read-only queries only
+      if (!/^\s*SELECT\s/i.test(sql)) return { error: 'Only SELECT queries allowed' };
+      try {
+        const { db: database } = await import('./db.js');
+        const rows = database.prepare(sql).all();
+        return { rows: rows.slice(0, 100), count: rows.length };
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    log_analysis: async ({ lines }) => {
+      const prompt = [{ role: 'user', content: `Analyze these log lines for errors, patterns, and anomalies:\n\n${lines}` }];
+      const analysis = await chatOllama(prompt);
+      return { analysis };
+    },
+    sentiment_analyze: async ({ text }) => {
+      const prompt = [{ role: 'user', content: `Analyze the sentiment of this text. Return: sentiment (positive/negative/neutral/mixed), confidence (0-1), and key phrases:\n\n${text}` }];
+      const result = await chatOllama(prompt);
+      return { result };
+    },
+    pattern_match: async ({ data, pattern }) => {
+      const prompt = [{ role: 'user', content: `Find patterns matching "${pattern}" in this data:\n\n${data}` }];
+      const result = await chatOllama(prompt);
+      return { pattern, result };
+    },
+    anomaly_detect: async ({ data }) => {
+      const prompt = [{ role: 'user', content: `Detect anomalies in this data. Identify outliers, unusual patterns, and deviations:\n\n${typeof data === 'string' ? data : JSON.stringify(data)}` }];
+      const result = await chatOllama(prompt);
+      return { result };
+    },
+  };
+}
 
 export { ouroboros, hermes, motor, openclaw, controlPlane, needle };
 
