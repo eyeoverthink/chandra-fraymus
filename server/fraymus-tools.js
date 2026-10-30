@@ -59,8 +59,11 @@ const openclaw = new OpenClawGateway({ hermes, motor, ouroboros, controlPlane, b
 // New modules from fraynix-continuity + fraynix-dreamer-120b
 const heart = new Heart(entityStore);
 const ledger = new Ledger(entityStore);
-const dreamer = new Dreamer(entityStore, _systemIdentity);
+const dreamer = new Dreamer(entityStore, null); // identity injected lazily below
 const cognition = new CognitionPipeline({ heart, ledger, dreamer, ouroboros, ollamaChat: chatOllama });
+
+// Lazily inject system identity into dreamer once generated
+getSystemIdentity().then(id => { dreamer.identity = id; }).catch(() => {});
 
 function buildHermesExecutors() {
   return {

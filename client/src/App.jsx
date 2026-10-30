@@ -8,9 +8,11 @@ import DashboardPanel from './panels/DashboardPanel.jsx';
 import BrowserPanel from './panels/BrowserPanel.jsx';
 import VertisoPanel from './panels/VertisoPanel.jsx';
 import OutlierPanel from './panels/OutlierPanel.jsx';
+import IntelligencePanel from './panels/IntelligencePanel.jsx';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: '◈' },
+  { id: 'intelligence', label: 'Intelligence', icon: '♦' },
   { id: 'canvas', label: 'Workflow Canvas', icon: '⬡' },
   { id: 'fleet', label: 'Agent Fleet', icon: '⚡' },
   { id: 'automations', label: 'Automations', icon: '⟳' },
@@ -61,6 +63,7 @@ export default function App() {
 
       <main style={{ flex: 1, overflow: 'auto', background: '#0a0a0f' }}>
         {tab === 'dashboard' && <DashboardPanel health={health} wsEvent={wsEvent} />}
+        {tab === 'intelligence' && <IntelligencePanel wsEvent={wsEvent} />}
         {tab === 'canvas' && <WorkflowCanvas wsEvent={wsEvent} />}
         {tab === 'fleet' && <FleetPanel wsEvent={wsEvent} />}
         {tab === 'automations' && <AutomationsPanel wsEvent={wsEvent} />}

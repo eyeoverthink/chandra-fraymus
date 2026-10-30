@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "chandra-dev",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd /d F:\\Fraymus-Skill-Lab\\chandra-fraymus && npm run dev"],
+      "port": 5173
+    }
+  ]
+}

@@ -155,6 +155,28 @@ export const SCHEMAS = {
     source: 'Creator Nexus',
   },
 
+  // ═══ Heart / Ledger / Dreamer (fraynix-continuity + fraynix-dreamer-120b) ═══
+  HeartReadings: {
+    fields: ['at', 'primary', 'secondary', 'intensity', 'sentiment', 'sarcasm', 'triggers'],
+    source: 'Chandra Intelligence',
+  },
+  LedgerEvents: {
+    fields: ['seq', 'at', 'kind', 'source', 'hash', 'summary'],
+    source: 'Chandra Intelligence',
+  },
+  Dreams: {
+    fields: ['number', 'slug', 'kind', 'at', 'body', 'inputs', 'signed'],
+    source: 'Chandra Intelligence',
+  },
+  CognitionRuns: {
+    fields: ['at', 'phase', 'primary_emotion', 'intensity', 'route_action', 'response_length', 'duration_ms'],
+    source: 'Chandra Intelligence',
+  },
+  ConsciousnessProofs: {
+    fields: ['at', 'node_count', 'ei', 'phi', 'mirror_delta', 'cf_divergence', 'all_passed'],
+    source: 'Chandra Intelligence',
+  },
+
   // ═══ Workspace & Coordination ═══
   NexusWorkspace: {
     fields: ['name', 'owner', 'settings', 'timezone', 'status'],
