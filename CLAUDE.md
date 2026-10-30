@@ -223,3 +223,19 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `PORT` — server port (default: 8787)
 - `SHOPIFY_STORE` / `SHOPIFY_TOKEN` — Shopify credentials
 - `PRINTIFY_TOKEN` — Printify API token
+
+## Operational Rules
+
+### Push After Pause
+After every ~1 hour pause in a session, push all work to git before stopping. When resuming after a pause, read `F:\claude-brain\context\brain-dump.md` instead of re-reading the full session context — this saves credits and preserves continuity.
+
+### Continuity Folder
+`F:\claude-brain\` is the cross-agent continuity folder:
+- `memories/` — All Claude memory files exported verbatim (FULL-MEMORY-EXPORT.md)
+- `sessions/` — Session transcript exports (zip files)
+- `context/` — Brain dumps and context summaries for any agent to absorb
+
+When starting a new session on this project, check `F:\claude-brain\context\brain-dump.md` first. It contains everything a new agent needs: who Niles is, what the system does, critical rules, architecture, and pending work — without re-reading paid conversation history.
+
+### Session Export
+At the end of significant sessions, export the transcript to `F:\claude-brain\sessions\` so other agents can reference past decisions without re-reading the full conversation.
