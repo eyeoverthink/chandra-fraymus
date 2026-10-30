@@ -17,7 +17,7 @@ export function handleExtensionWs(ws, req) {
         pending.delete(msg.id);
         resolve(msg);
       }
-    } catch {}
+    } catch (e) { console.error('extension-bridge: bad message:', e.message); }
   });
 
   ws.on('close', () => { connections.delete(id); });

@@ -90,7 +90,7 @@ export function installMcpEndpoint(app) {
 
       return res.json({
         jsonrpc: '2.0', id: body.id,
-        error: { code: -32601, message: `Method not found: ${body.method}` },
+        error: { code: -32601, message: `Method not found: ${String(body.method).slice(0, 100)}` },
       });
     } catch (e) {
       return res.json({

@@ -29,7 +29,8 @@ export function installYouTubeRoutes(app) {
 
   app.get('/api/youtube/board', route((req, res) => {
     const { tier, search, sort, limit } = req.query;
-    const items = getBoard(req.query.userId || 'local', { tier, search, sort, limit: Number(limit) || 100 });
+    const clampedLimit = Math.min(500, Math.max(1, Number(limit) || 100));
+    const items = getBoard(req.query.userId || 'local', { tier, search, sort, limit: clampedLimit });
     res.json({ items });
   }));
 

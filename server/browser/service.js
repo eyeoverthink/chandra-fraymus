@@ -45,7 +45,11 @@ export async function openPage(url, opts = {}) {
   pages.set(id, page);
   page.once('close', () => pages.delete(id));
   if (url) {
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30_000 }).catch(() => {});
+    try {
+      await page.goto(url, { waitUntil: 'networkidle2', timeout: 30_000 });
+    } catch (e) {
+      console.error('browser: navigation failed:', e.message);
+    }
   }
   return { pageId: id, url: page.url(), title: await page.title() };
 }
