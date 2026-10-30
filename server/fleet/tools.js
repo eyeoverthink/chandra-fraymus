@@ -2,6 +2,7 @@ import { db } from '../db.js';
 import { runPipeline } from '../workflow/engine.js';
 import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
 import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching } from '../fraymus/intelligence/ouroboros.js';
+import { publish, directMessage, inbox } from './bus.js';
 
 const now = () => Date.now();
 const clip = (s, n = 8000) => s.length > n ? s.slice(0, n) + '...[truncated]' : s;
@@ -250,6 +251,51 @@ export function createFleetTools({ workflowStore }) {
           dream: { number: dreamResult.number, seed: dreamResult.seed?.slice(0, 200) },
           storedToMemoryBridge: !!memoryBridgeRef,
         };
+      },
+    },
+
+    // ─── Agent Live Bus tools ─────────────────────────────────
+    {
+      name: 'bus_publish',
+      group: 'fleet',
+      risk: 'safe',
+      description: 'Publish a message to a topic on the Agent Live Bus. All agents subscribed to that topic will receive it.',
+      parameters: object({
+        topic: string(200, { description: 'Topic name, e.g. "commerce.done", "analysis.ready"' }),
+        message: string(8000, { description: 'Message content (text or JSON)' }),
+      }, ['topic', 'message']),
+      execute: async ({ args }, ctx) => {
+        const from = ctx?.agentId || 'unknown';
+        return publish(from, String(args.topic), String(args.message));
+      },
+    },
+    {
+      name: 'bus_dm',
+      group: 'fleet',
+      risk: 'safe',
+      description: 'Send a direct message to another agent on the Agent Live Bus.',
+      parameters: object({
+        toAgentId: string(100, { description: 'Target agent ID' }),
+        message: string(8000, { description: 'Message content' }),
+      }, ['toAgentId', 'message']),
+      execute: async ({ args }, ctx) => {
+        const from = ctx?.agentId || 'unknown';
+        return directMessage(from, String(args.toAgentId), String(args.message));
+      },
+    },
+    {
+      name: 'bus_read',
+      group: 'fleet',
+      risk: 'safe',
+      description: 'Read your inbox from the Agent Live Bus — messages from subscribed topics and direct messages to you.',
+      parameters: object({
+        limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Max messages to return (default 20)' },
+      }),
+      execute: async ({ args }, ctx) => {
+        const agentId = ctx?.agentId || 'unknown';
+        const limit = Math.min(100, Math.max(1, parseInt(args.limit) || 20));
+        const messages = inbox(agentId, { limit });
+        return { messages, count: messages.length };
       },
     },
   ];

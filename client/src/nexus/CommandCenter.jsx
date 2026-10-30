@@ -12,6 +12,7 @@ const WIDGETS = [
   { id: 'automations', label: 'Automations', icon: '⟳', color: '#06b6d4', panel: 'automations' },
   { id: 'browser', label: 'Browser', icon: '◉', color: '#7c3aed', panel: 'browser' },
   { id: 'deploy', label: 'Deploy API', icon: '⚙', color: '#f97316', panel: 'deploy' },
+  { id: 'bus', label: 'Agent Bus', icon: '↔', color: '#22d3ee', panel: 'bus' },
   { id: 'outlier', label: 'Outlier Board', icon: '◎', color: '#eab308', panel: 'outlier' },
 ];
 
@@ -23,6 +24,7 @@ const EVENT_STYLES = {
   v3: { icon: '◈', color: '#10b981', drawer: 'dashboard' },
   tasks: { icon: '⟳', color: '#06b6d4', drawer: 'automations' },
   deploy: { icon: '⚙', color: '#f97316', drawer: 'deploy' },
+  bus: { icon: '↔', color: '#22d3ee', drawer: 'bus' },
   error: { icon: '✗', color: '#ef4444', drawer: 'dashboard' },
 };
 

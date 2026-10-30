@@ -200,5 +200,23 @@ export function migrateWorkspaces() {
     );
     CREATE INDEX IF NOT EXISTS idx_apiusage_slug ON api_usage(slug, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_apiusage_key ON api_usage(key_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS bus_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      from_agent TEXT NOT NULL,
+      to_agent TEXT,
+      topic TEXT,
+      payload TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_bus_topic ON bus_messages(topic, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_bus_to ON bus_messages(to_agent, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS bus_subscriptions (
+      agent_id TEXT NOT NULL,
+      topic TEXT NOT NULL,
+      subscribed_at INTEGER NOT NULL,
+      PRIMARY KEY (agent_id, topic)
+    );
   `);
 }

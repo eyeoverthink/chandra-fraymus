@@ -45,6 +45,11 @@ npm run start        # production server (serves built client)
 - `usage.js` — SQLite usage tracker (per-invocation logging, per-slug/key analytics, global stats)
 - `routes.js` — Deploy catalog, deploy/undeploy, auth-protected `/api/run/:slug`, usage endpoints (7 routes)
 
+### Agent Live Bus (server/fleet/bus*.js)
+- `bus.js` — Core pub/sub engine: publish to topics, direct messages, subscriptions, inbox, history, stats (SQLite-backed + in-memory handlers)
+- `bus-routes.js` — 9 REST endpoints for bus operations (publish, DM, subscribe, topics, history, inbox, subscriptions, stats)
+- Agent tools `bus_publish`, `bus_dm`, `bus_read` in `fleet/tools.js` — agents use these during execution to communicate
+
 ### FRAYMUS Intelligence Stack (server/fraymus/)
 - `entity-store.js` — SQLite-backed Proxy adapter (replaces Base44 cloud store), auto-creates collections
 - `core/identity.js` — Ed25519 sovereign identity, key generation

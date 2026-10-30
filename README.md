@@ -98,6 +98,7 @@ The intelligence stack was merged from two proprietary repos (`fraynix-continuit
 | **19** | Hermes Full Fleet (30/30 executors wired with free local tools) + Agent Delegation fix — all media/code/system/intelligence skills live, `elevenlabs_tts` → `text_to_speech` |
 | **20** | Needle Worker Loop + Motor Live Dispatch — GPU queue processes jobs through Ollama, Motor executes on 4 live compute nodes (local GPU, SSH, GitHub, cloud fallback), 12 new API routes |
 | **21** | Deploy-as-API — workflows become curl-able REST endpoints with Bearer auth, token-bucket rate limiting, per-key usage tracking, deploy catalog, undeploy, Deploy Dashboard panel (10th panel) |
+| **22** | Agent Live Bus — real-time pub/sub message bus for agent-to-agent communication, topic subscriptions, direct messaging, persistent SQLite history, Bus Dashboard panel (11th panel) |
 
 ---
 
@@ -656,7 +657,7 @@ A ReactFlow-based drag-and-drop editor with **34 node types** and topological-so
 
 ## Frontend — Nexus 4-View Interface
 
-Dark-themed React UI with 4 primary views + 9-panel Detail Drawer:
+Dark-themed React UI with 4 primary views + 11-panel Detail Drawer:
 
 | View | Purpose |
 |------|---------|
@@ -672,6 +673,7 @@ Dark-themed React UI with 4 primary views + 9-panel Detail Drawer:
 | Dashboard | System overview, intelligence status, runtime cards, recent activity |
 | Intelligence | Interactive Heart, Dreamer, Ledger, Consciousness Proofs, Cognition, Memory Bridge |
 | Fleet | Agent cards + detail view + task sender + thread viewer |
+| **Agent Bus** | **Live message feed, topic browser, compose (publish/DM), subscription viewer, real-time WebSocket updates** |
 | Commerce | 4-pipeline launcher + run history |
 | **Deploy API** | **Deployed endpoints catalog, API key management, usage analytics, curl examples** |
 | Automations | Cron scheduler with error handling |
@@ -739,6 +741,20 @@ Dark-themed React UI with 4 primary views + 9-panel Detail Drawer:
 | `/api/deploy/usage/:slug` | GET | No | Per-slug usage stats + recent invocations |
 | `/api/deploy/rate-status` | GET | Bearer | Rate limit bucket status for the caller's key |
 
+### Agent Live Bus Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/fleet/bus/publish` | POST | Publish a message to a topic |
+| `/api/fleet/bus/dm` | POST | Direct message to an agent |
+| `/api/fleet/bus/subscribe` | POST | Subscribe an agent to a topic |
+| `/api/fleet/bus/subscribe` | DELETE | Unsubscribe an agent from a topic |
+| `/api/fleet/bus/topics` | GET | List topics with message counts |
+| `/api/fleet/bus/history/:topic` | GET | Message history for a topic |
+| `/api/fleet/bus/inbox/:agentId` | GET | Agent inbox (subs + DMs) |
+| `/api/fleet/bus/subscriptions` | GET | List all subscriptions |
+| `/api/fleet/bus/stats` | GET | Aggregate bus statistics |
+
 ### Core Endpoints
 
 | Endpoint | Method | Description |
@@ -795,11 +811,11 @@ Dark-themed React UI with 4 primary views + 9-panel Detail Drawer:
 | Workflow Definitions | 19 |
 | Canvas Node Types | 36 |
 | Entity Schemas | 49 |
-| Fleet Tools | 13 (7 fleet + 6 intelligence) |
-| API Endpoints | 190+ |
+| Fleet Tools | 16 (7 fleet + 6 intelligence + 3 bus) |
+| API Endpoints | 200+ |
 | Product Types (Apparel) | 24 |
 | Frontend Views | 4 (Command Center, Constellation, Canvas, Library) |
-| Detail Panels | 10 |
+| Detail Panels | 11 |
 | FRAYMUS Tools | 42 |
 | MCP Gateway Tools | 18 |
 | Max Vertiso Memories | 10,000 |

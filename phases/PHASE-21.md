@@ -1,7 +1,7 @@
 # Phase 21: Deploy-as-API
 
 **Previous:** [Phase 20 — Needle Worker Loop + Motor Live Dispatch](./PHASE-20.md)
-**Next:** Phase 22 (TBD)
+**Next:** [Phase 22 — Agent Live Bus](./PHASE-22.md)
 
 ---
 

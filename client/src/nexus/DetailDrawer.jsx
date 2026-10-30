@@ -9,11 +9,13 @@ import BrowserPanel from '../panels/BrowserPanel.jsx';
 import VertisoPanel from '../panels/VertisoPanel.jsx';
 import OutlierPanel from '../panels/OutlierPanel.jsx';
 import DeployPanel from '../panels/DeployPanel.jsx';
+import BusPanel from '../panels/BusPanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
   intelligence: { component: IntelligencePanel, label: 'Intelligence' },
   fleet: { component: FleetPanel, label: 'Agent Fleet' },
+  bus: { component: BusPanel, label: 'Agent Live Bus' },
   commerce: { component: CommercePanel, label: 'Commerce Pipelines' },
   deploy: { component: DeployPanel, label: 'Deploy-as-API' },
   automations: { component: AutomationsPanel, label: 'Automations' },

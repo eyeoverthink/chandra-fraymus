@@ -44,6 +44,8 @@ import { createCommerceTools } from './commerce/tools.js';
 import { installCommerceRoutes } from './commerce/routes.js';
 import { installCommandRouter } from './command-router.js';
 import { installDeployRoutes } from './deploy-api/routes.js';
+import { initBus } from './fleet/bus.js';
+import { installBusRoutes } from './fleet/bus-routes.js';
 
 export function cloudConfig() {
   if (process.env.FRAYMUS_CLOUD_ENABLED !== '1') return { enabled: false };
@@ -113,6 +115,8 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installFraymusRoutes(app, { autonomy, broadcast, memoryBridge });
   installWorkflowRoutes(app, { broadcast, memoryBridge });
   installFleetRoutes(app);
+  initBus({ broadcast });
+  installBusRoutes(app);
   installMcpEndpoint(app);
   installOAuthRoutes(app);
   installAccessRoutes(app);
