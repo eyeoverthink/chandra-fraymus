@@ -30,7 +30,7 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
     res.json({ stopped: true });
   }));
 
-  app.post('/api/fraymus/autonomy/evolve', route((_req, res) => {
+  app.post('/api/fraymus/autonomy/evolve', route(async (_req, res) => {
     const result = await autonomy.evolveNow();
     broadcast('autonomy', { type: 'evolved', generation: result.generation });
     res.json(result);
@@ -278,6 +278,9 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
       memoryBridge: memoryBridge
         ? { available: true, ...memoryBridge.stats() }
         : { available: false },
+      runtimeIntelligence: memoryBridge
+        ? memoryBridge.recentCognitionTypes()
+        : { types: {}, total: 0, latest: null },
     });
   }));
 }

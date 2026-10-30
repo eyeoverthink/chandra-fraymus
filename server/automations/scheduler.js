@@ -51,11 +51,13 @@ let tickTimer = null;
 let runAgentFn = null;
 let runToolFn = null;
 let broadcastFn = () => {};
+let memoryBridgeRef = null;
 
-export function initScheduler({ runAgent, runTool, broadcast }) {
+export function initScheduler({ runAgent, runTool, broadcast, memoryBridge }) {
   runAgentFn = runAgent;
   runToolFn = runTool;
   broadcastFn = broadcast || (() => {});
+  memoryBridgeRef = memoryBridge || null;
 }
 
 export function startScheduler() {
@@ -115,6 +117,12 @@ export async function runAutomation(userId, automationId, trigger = 'manual') {
     db.prepare('UPDATE automation_runs SET status = ?, output = ?, finished_at = ? WHERE id = ?')
       .run('done', (output || '').slice(0, 50_000), now(), runId);
     broadcastFn('automation', { type: 'run_done', automationId: a.id, runId });
+    if (memoryBridgeRef) {
+      memoryBridgeRef.storeCognitionResult({
+        phase: 'automation_run', type: 'automation', automationName: a.name, kind: a.kind,
+        trigger, status: 'done', response: (output || '').slice(0, 200), durationMs: 0,
+      }).catch(() => {});
+    }
     return { runId, status: 'done', output };
   } catch (e) {
     db.prepare('UPDATE automation_runs SET status = ?, error = ?, finished_at = ? WHERE id = ?')

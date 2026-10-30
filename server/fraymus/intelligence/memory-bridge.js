@@ -98,4 +98,20 @@ export class MemoryBridge {
     const s = this.vertiso.stats(AGENT_ID);
     return { connected: true, agentId: AGENT_ID, ...s };
   }
+
+  recentCognitionTypes(limit = 50) {
+    if (!this.vertiso) return { types: {}, total: 0, latest: null };
+    const rows = this.vertiso.db.prepare(
+      `SELECT json_extract(metadata, '$.type') as mtype, COUNT(*) as n, MAX(created_at) as latest
+       FROM vertiso_memories WHERE agent_id = ? AND namespace = 'cognition'
+       GROUP BY mtype ORDER BY n DESC LIMIT ?`
+    ).all(AGENT_ID, limit);
+    const total = rows.reduce((s, r) => s + r.n, 0);
+    const latest = rows.reduce((m, r) => Math.max(m, r.latest || 0), 0);
+    return {
+      types: Object.fromEntries(rows.map(r => [r.mtype || 'unknown', r.n])),
+      total,
+      latest: latest || null,
+    };
+  }
 }

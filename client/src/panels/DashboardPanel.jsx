@@ -8,6 +8,7 @@ export default function DashboardPanel({ health, wsEvent }) {
   const [intel, setIntel] = useState(null);
   const [autonomy, setAutonomy] = useState(null);
   const [memBridge, setMemBridge] = useState(null);
+  const [runtimeIntel, setRuntimeIntel] = useState(null);
 
   const load = () => {
     fetch('/api/fleet/agents').then(r => r.json()).then(d => setAgents(d.agents || [])).catch(() => {});
@@ -18,6 +19,7 @@ export default function DashboardPanel({ health, wsEvent }) {
       setIntel(d.intelligence || null);
       setAutonomy({ running: d.autonomous, generation: d.generation, fitness: d.fitness, phaseSync: d.phaseSync });
       setMemBridge(d.memoryBridge || null);
+      setRuntimeIntel(d.runtimeIntelligence || null);
     }).catch(() => {});
   };
   useEffect(() => { load(); }, []);
@@ -97,6 +99,30 @@ export default function DashboardPanel({ health, wsEvent }) {
             <div style={{ fontSize: 11, color: '#555' }}>
               gen {autonomy?.generation || 0} · R={typeof autonomy?.phaseSync === 'number' ? autonomy.phaseSync.toFixed(2) : '—'}
             </div>
+          </div>
+        </div>
+      )}
+
+      {runtimeIntel && runtimeIntel.total > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 600, color: '#14b8a6', marginBottom: 10 }}>Runtime Intelligence</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
+            {Object.entries(runtimeIntel.types).map(([type, count]) => (
+              <div key={type} style={{ background: '#111118', borderRadius: 10, padding: 12, border: '1px solid #222', textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#14b8a6' }}>{count}</div>
+                <div style={{ fontSize: 10, color: '#666', marginTop: 2, textTransform: 'capitalize' }}>{type.replace(/_/g, ' ')}</div>
+              </div>
+            ))}
+            <div style={{ background: '#111118', borderRadius: 10, padding: 12, border: '1px solid #14b8a630', textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#f59e0b' }}>{runtimeIntel.total}</div>
+              <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>Total Insights</div>
+            </div>
+            {runtimeIntel.latest && (
+              <div style={{ background: '#111118', borderRadius: 10, padding: 12, border: '1px solid #222', textAlign: 'center' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#a78bfa' }}>{new Date(runtimeIntel.latest).toLocaleTimeString()}</div>
+                <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>Last Insight</div>
+              </div>
+            )}
           </div>
         </div>
       )}

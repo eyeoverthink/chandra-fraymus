@@ -19,7 +19,7 @@ import {createLocalVisionProvider} from './vision/local.js';
 import {createVisionTools} from './vision/tools.js';
 import {createLocalOcrProvider} from './ocr/local.js';
 import {createOcrTools} from './ocr/tools.js';
-import { createFraymusTools, MemoryBridge } from './fraymus-tools.js';
+import { createFraymusTools, MemoryBridge, heart, ledger } from './fraymus-tools.js';
 import { createAutonomyEngine } from './autonomy.js';
 import { installFraymusRoutes } from './fraymus-routes.js';
 import { createWorkflowStore, installWorkflowRoutes } from './workflow/routes.js';
@@ -39,6 +39,7 @@ import { createRSITools } from './vertiso/rsi-tools.js';
 import { installVertisoRoutes } from './vertiso/routes.js';
 import { createYouTubeTools } from './youtube/tools.js';
 import { installYouTubeRoutes } from './youtube/routes.js';
+import { setYouTubeMemoryBridge } from './youtube/service.js';
 import { createCommerceTools } from './commerce/tools.js';
 import { installCommerceRoutes } from './commerce/routes.js';
 
@@ -56,7 +57,6 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   const artifacts = createArtifactStore(join(dataDir, 'assets'), {
     recognizeAudio: (data, { signal } = {}) => transcribeAudio(data, { voiceUrl, fetchImpl, signal }),
   });
-  const web = createWebResearch({ db, ...(webRequestImpl ? { requestPage: webRequestImpl } : {}) });
   const semanticStore=createSemanticIndexStore({db});
   const embeddings=embeddingProvider??createEmbeddingProvider({url:ollamaUrl,fetchImpl});
   const localVision=localVisionProvider??createLocalVisionProvider({url:ollamaUrl,fetchImpl});
@@ -75,9 +75,11 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   try { browserTools = createBrowserTools(); } catch (e) { console.error('runtime: browser tools failed:', e.message); }
   const vertiso = new VertisoMemory({ db, ollamaUrl });
   const memoryBridge = new MemoryBridge(vertiso);
+  const web = createWebResearch({ db, ...(webRequestImpl ? { requestPage: webRequestImpl } : {}), memoryBridge });
   const rsi = new RSIEngine({ db, vertiso, ollamaUrl, broadcast });
   let vertisoTools = [];
   try { vertisoTools = [...createVertisoTools(vertiso), ...createRSITools(rsi)]; } catch (e) { console.error('runtime: vertiso/RSI tools failed:', e.message); }
+  setYouTubeMemoryBridge(memoryBridge);
   let youtubeTools = [];
   try { youtubeTools = createYouTubeTools(); } catch (e) { console.error('runtime: youtube tools failed:', e.message); }
   let commerceTools = [];
@@ -92,6 +94,14 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
       if(agent&&['usage','auxiliary_usage'].includes(event.type)) {
         try { tasks.reconcileUsage(agent.get(event.runId)); }
         catch(error) { broadcast('tasks',{type:'task_usage_sync_error',runId:event.runId,code:error.code??'task_usage_unknown'}); }
+      }
+      if (event.type === 'completed' && event.data?.output) {
+        try {
+          const feeling = heart.feel(event.data.output.slice(0, 500));
+          ledger.record('agent.completed', { runId: event.runId, primary: feeling.primary, intensity: feeling.intensity }, 'agent');
+          if (feeling.intensity > 0.3) memoryBridge.storeHeartReading(feeling).catch(() => {});
+          memoryBridge.storeCognitionResult({ phase: 'agent_run', feeling, response: event.data.output.slice(0, 200), durationMs: 0 }).catch(() => {});
+        } catch (_) {}
       }
       broadcast('agent',event);
     } });

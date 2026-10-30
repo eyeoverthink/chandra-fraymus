@@ -11,7 +11,7 @@ const sourceId = { type: 'string', maxLength: 128 };
 const integer = (minimum, maximum) => ({ type: 'integer', minimum, maximum });
 const resultLimit = run => Math.min(12000, Math.max(256, run?.budget?.maxToolResultChars ?? 12000));
 
-export function createWebResearch({ db, requestPage = requestPublicPage, parsePage = extractWebPage, parseSearch = extractWebPage }) {
+export function createWebResearch({ db, requestPage = requestPublicPage, parsePage = extractWebPage, parseSearch = extractWebPage, memoryBridge }) {
   db.exec(`CREATE TABLE IF NOT EXISTS agent_web_sources (
     id TEXT PRIMARY KEY, run_id TEXT NOT NULL, record_json TEXT NOT NULL, snapshot_hash TEXT NOT NULL,
     stored_bytes INTEGER NOT NULL, created_at INTEGER NOT NULL
@@ -79,6 +79,12 @@ export function createWebResearch({ db, requestPage = requestPublicPage, parsePa
     const source = { ...record, sourceId: randomUUID(), snapshotSha256: sha(serialized) }, result = output(source);
     capacity(run, bytes);
     db.prepare('INSERT INTO agent_web_sources(id,run_id,record_json,snapshot_hash,stored_bytes,created_at) VALUES(?,?,?,?,?,?)').run(source.sourceId, runId(run), serialized, source.snapshotSha256, bytes, Date.now());
+    if (memoryBridge) {
+      memoryBridge.storeCognitionResult({
+        phase: 'web_research', type: 'web_source', url: record.url, title: record.title,
+        response: (record.title || record.url || '').slice(0, 200), durationMs: 0,
+      }).catch(() => {});
+    }
     return result;
   }
   async function fetchPage(url, run, signal) {

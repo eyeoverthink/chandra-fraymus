@@ -391,7 +391,7 @@ listenThenInitialize(server,{host:HOST,port:PORT,initialize:async()=>{
   if (runtime.memoryBridge) setBrainMemoryBridge(runtime.memoryBridge);
   try { await initMcp(join(DATA_DIR, 'mcp-servers.json')); } catch(e) { console.error(`MCP client deferred: ${e.message}`); }
   try {
-    initScheduler({ runAgent: (uid, aid, msg) => startRun(uid, aid, msg), runTool: (uid, tool, args) => callToolDirect(uid, tool, args), broadcast });
+    initScheduler({ runAgent: (uid, aid, msg) => startRun(uid, aid, msg), runTool: (uid, tool, args) => callToolDirect(uid, tool, args), broadcast, memoryBridge: runtime.memoryBridge });
     startScheduler();
   } catch(e) { console.error(`Scheduler deferred: ${e.message}`); }
   if(process.env.FRAYMUS_AUTONOMY_AUTOSTART !== '0') {

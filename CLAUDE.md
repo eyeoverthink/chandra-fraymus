@@ -36,7 +36,7 @@ npm run start        # production server (serves built client)
 - `brain.js` — central reasoning coordinator (full intelligence: Heart emotion + Ledger logging + Memory Bridge storage + dreamer/cognition context + bridge recall)
 - `autonomy.js` — Kuramoto phase sync + intelligence monitoring (consciousness proofs, dreams)
 - `fraymus-tools.js` — FRAYMUS → fleet adapter (42 tools + MemoryBridge export)
-- `fraymus-routes.js` — FRAYMUS API routes (16 intelligence + 8 autonomy + memory search + intelligence cycle endpoints)
+- `fraymus-routes.js` — FRAYMUS API routes (16 intelligence + 8 autonomy + memory search + intelligence cycle + runtime intelligence endpoints)
 
 ### FRAYMUS Intelligence Stack (server/fraymus/)
 - `entity-store.js` — SQLite-backed Proxy adapter (replaces Base44 cloud store), auto-creates collections
@@ -60,7 +60,7 @@ npm run start        # production server (serves built client)
 - `intelligence/dreamer.js` — Ed25519 signed dream protocol (progressive numbered files)
 - `intelligence/cognition.js` — Two-speed pipeline (feel → quick-route → think)
 - `intelligence/ouroboros.js` — Ouroboros RSI + FraymusStrangeLoopSubstrate (4 consciousness proofs)
-- `intelligence/memory-bridge.js` — Intelligence → Vertiso connector (provenance: measured/imagined)
+- `intelligence/memory-bridge.js` — Intelligence → Vertiso connector (provenance: measured/imagined, runtime cognition type queries)
 - `intelligence/hermes.js` — Hermes 30-skill fleet (14 with real executors)
 - `intelligence/motor.js` — Motor compute dispatch (SQLite job persistence)
 - `intelligence/openclaw.js` — OpenClaw gateway (all 23 actions implemented)
@@ -103,20 +103,20 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `routes.js` — workflow CRUD + run API (with node count validation, ownership checks)
 
 ### Other Subsystems
-- `automations/scheduler.js` — cron scheduler with error logging
+- `automations/scheduler.js` — cron scheduler with error logging (intelligence-hooked: stores automation runs to Memory Bridge)
 - `mcp/server.js` — MCP server (exposes tools as MCP)
 - `mcp/client.js` — MCP client bridge (connects to external MCP servers)
 - `mcp/auth.js` — bearer token auth for MCP access
 - `browser/` — Puppeteer headless browser + Chrome extension bridge
-- `agent/` — agent runtime (provider, tools, workspace, code effects, budget)
-- `web/` — web research (search, extract, parse)
+- `agent/` — agent runtime (provider, tools, workspace, code effects, budget; intelligence-hooked at event layer: Heart emotion + Ledger audit + Memory Bridge storage on completed runs)
+- `web/` — web research (search, extract, parse; intelligence-hooked: stores retained pages to Memory Bridge)
 - `retrieval/` — local semantic retrieval (embeddings, vector codec)
 - `vision/` — local vision helper
 - `ocr/` — local OCR (native + PDF)
 - `documents/` — document parser (parse5, PDF, ZIP)
 - `sandbox/` — Docker sandbox (code execution, resource limits)
 - `desktop/` — Windows desktop automation (UIA)
-- `youtube/` — YouTube outlier research
+- `youtube/` — YouTube outlier research (intelligence-hooked: stores outlier saves to Memory Bridge)
 - `transport/` — transport layer (RGBA, vectors, benchmark)
 - `tasks/` — scheduled tasks
 - `sync.js` — external sync service
@@ -127,7 +127,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 
 - `App.jsx` — main layout, tab nav, WebSocket distribution
 - `useWebSocket.js` — single WS connection, exponential backoff (1s→30s cap)
-- `DashboardPanel.jsx` — stats overview, intelligence status cards (mood/dreamer/ledger/cognition/memory-bridge/autonomy), recent activity
+- `DashboardPanel.jsx` — stats overview, intelligence status cards (mood/dreamer/ledger/cognition/memory-bridge/autonomy), runtime intelligence cards (per-type cognition insight counts), recent activity
 - `IntelligencePanel.jsx` — interactive Heart, Dreamer, Ledger, Consciousness Proofs, Cognition, Memory Bridge recall controls
 - `WorkflowCanvas.jsx` — ReactFlow visual workflow builder, 36 node types (reacts to workflow)
 - `FleetPanel.jsx` — agent cards + task sender (reacts to agents/agent/event)

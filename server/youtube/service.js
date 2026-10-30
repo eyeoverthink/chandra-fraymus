@@ -4,6 +4,9 @@ const YT_API = 'https://www.googleapis.com/youtube/v3';
 const API_KEY = process.env.YOUTUBE_API_KEY || '';
 const TIMEOUT = 12_000;
 
+let memoryBridgeRef = null;
+export function setYouTubeMemoryBridge(bridge) { memoryBridgeRef = bridge; }
+
 function apiKey() {
   if (!API_KEY) throw new Error('YOUTUBE_API_KEY not set — add it to .env');
   return API_KEY;
@@ -218,6 +221,12 @@ export function saveToBoard(userId, video, notes = '', searchQuery = '') {
     notes, searchQuery, now,
   );
   logEvent('outlier.save', userId, `${video.title?.slice(0, 60)} (${video.outlierTier})`);
+  if (memoryBridgeRef) {
+    memoryBridgeRef.storeCognitionResult({
+      phase: 'youtube_outlier', type: 'outlier_save', response: `${video.title} (${video.outlierTier}, ${video.viewCount} views)`.slice(0, 200),
+      durationMs: 0, outlierTier: video.outlierTier, viewCount: video.viewCount,
+    }).catch(() => {});
+  }
   return { id: info.lastInsertRowid, saved: true };
 }
 
