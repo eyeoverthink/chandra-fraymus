@@ -113,7 +113,11 @@ export function installTriggerRoutes(app) {
   }));
 
   app.post('/api/fleet/bus/triggers/:id/toggle', route((req, res) => {
-    const enabled = req.body.enabled !== false;
-    res.json(toggleTrigger(req.params.id, enabled));
+    if (req.body.enabled !== undefined) {
+      return res.json(toggleTrigger(req.params.id, req.body.enabled));
+    }
+    const current = db.prepare(`SELECT enabled FROM bus_triggers WHERE id = ?`).get(req.params.id);
+    if (!current) return res.status(404).json({ error: 'trigger not found' });
+    res.json(toggleTrigger(req.params.id, !current.enabled));
   }));
 }
