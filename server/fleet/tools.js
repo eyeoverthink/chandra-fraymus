@@ -3,6 +3,7 @@ import { runPipeline } from '../workflow/engine.js';
 import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
 import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching } from '../fraymus/intelligence/ouroboros.js';
 import { publish, directMessage, inbox } from './bus.js';
+import { storeMemory, recallMemories, agentMemoryStats } from './agent-memory.js';
 
 const now = () => Date.now();
 const clip = (s, n = 8000) => s.length > n ? s.slice(0, n) + '...[truncated]' : s;
@@ -296,6 +297,55 @@ export function createFleetTools({ workflowStore }) {
         const limit = Math.min(100, Math.max(1, parseInt(args.limit) || 20));
         const messages = inbox(agentId, { limit });
         return { messages, count: messages.length };
+      },
+    },
+
+    // ─── Agent Persistent Memory tools ───────────────────────
+    {
+      name: 'agent_remember',
+      group: 'fleet',
+      risk: 'safe',
+      description: 'Store a fact, preference, or learning in your persistent memory. Survives across sessions. Use categories like "fact", "preference", "learning", "context".',
+      parameters: object({
+        category: string(50, { description: 'Memory category: fact, preference, learning, context, outcome' }),
+        key: string(200, { description: 'Unique key for this memory (used for dedup/update)' }),
+        value: string(4000, { description: 'The memory content' }),
+        confidence: { type: 'number', minimum: 0, maximum: 1, description: 'Confidence level 0-1 (default 1.0)' },
+      }, ['category', 'key', 'value']),
+      execute: async ({ args }, ctx) => {
+        const agentId = ctx?.agentId || 'unknown';
+        return storeMemory(agentId, String(args.category), String(args.key), String(args.value), { confidence: args.confidence ?? 1.0, source: 'agent' });
+      },
+    },
+    {
+      name: 'agent_recall',
+      group: 'fleet',
+      risk: 'safe',
+      description: 'Search your persistent memory. Returns memories matching the query or category.',
+      parameters: object({
+        query: string(500, { description: 'Search text (matches key and value)' }),
+        category: string(50, { description: 'Filter by category' }),
+        limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Max results (default 10)' },
+      }),
+      execute: async ({ args }, ctx) => {
+        const agentId = ctx?.agentId || 'unknown';
+        const memories = recallMemories(agentId, {
+          query: args.query || undefined,
+          category: args.category || undefined,
+          limit: Math.min(50, Math.max(1, parseInt(args.limit) || 10)),
+        });
+        return { memories: memories.map(m => ({ id: m.id, category: m.category, key: m.key, value: m.value, confidence: m.confidence, verified: !!m.verified_at })), count: memories.length };
+      },
+    },
+    {
+      name: 'agent_memory_stats',
+      group: 'fleet',
+      risk: 'safe',
+      description: 'Get statistics about your persistent memory store.',
+      parameters: object({}),
+      execute: async (_args, ctx) => {
+        const agentId = ctx?.agentId || 'unknown';
+        return agentMemoryStats(agentId);
       },
     },
   ];

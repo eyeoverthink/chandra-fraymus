@@ -15,7 +15,7 @@ npm run start        # production server (serves built client)
 ## Architecture
 
 - **Server:** Node.js ESM, Express 4, better-sqlite3 (WAL mode), WebSocket broadcast
-- **Client:** Vite + React, 4-view Nexus interface (Command Center, Constellation, Canvas, Library) + Detail Drawer for 9 panels, useWebSocket hook for live updates
+- **Client:** Vite + React, 4-view Nexus interface (Command Center, Constellation, Canvas, Library) + Detail Drawer for 12 panels, useWebSocket hook for live updates
 - **LLM:** Ollama at localhost:11434 (configurable via OLLAMA_BASE_URL)
 - **DB:** SQLite at `data/chandra.db`, migrations in `server/db-migrate.js`
 - **Auth:** Bearer tokens via `server/mcp/auth.js`, loopback-only binding
@@ -49,6 +49,26 @@ npm run start        # production server (serves built client)
 - `bus.js` — Core pub/sub engine: publish to topics, direct messages, subscriptions, inbox, history, stats (SQLite-backed + in-memory handlers)
 - `bus-routes.js` — 9 REST endpoints for bus operations (publish, DM, subscribe, topics, history, inbox, subscriptions, stats)
 - Agent tools `bus_publish`, `bus_dm`, `bus_read` in `fleet/tools.js` — agents use these during execution to communicate
+
+### Event-Driven Orchestration (server/fleet/bus-triggers.js)
+- `bus-triggers.js` — Trigger engine: bus topic events auto-fire linked workflows via `runPipeline()`, CRUD for triggers, enable/disable toggle, fire counting
+- DB table: `bus_triggers` (topic, workflow_id, label, enabled, fire_count, last_fired_at)
+- 4 REST endpoints: GET/POST triggers, DELETE trigger, POST toggle
+
+### Agent Persistent Memory (server/fleet/agent-memory.js)
+- `agent-memory.js` — Per-agent knowledge store with categories, confidence scores, verified/unverified status (inspired by Niles Continuity Plasmid)
+- `storeMemory` / `recallMemories` / `verifyMemory` / `forgetMemory` — CRUD with LIKE-based search
+- `buildPromptContext()` — injects agent's 10 most recent memories into system prompt with [verified]/[unverified] tags
+- `autoStoreFromCompletion()` — auto-stores task + result after every agent run
+- DB table: `agent_memories` (agent_id, category, key, value, confidence, source, access_count, verified_at)
+- 5 REST endpoints + 3 agent tools (`agent_remember`, `agent_recall`, `agent_memory_stats`) — 19 fleet tools total
+
+### System Health Monitor (server/health/monitor.js)
+- `monitor.js` — Polls Ollama, DB, bus, Needle, process memory every 60s; auto-alerts via bus `system.alert` topic
+- Alert rules: `ollama_down` (critical), `needle_backlog` >20 (warning), `error_spike` >10/hr (warning), 5-min cooldown
+- Prunes: metrics >48h, resolved alerts >7d
+- DB tables: `health_metrics`, `health_alerts`
+- 6 REST endpoints + HealthPanel.jsx (12th Detail Drawer panel, red theme, stat cards, resource bars, alert list)
 
 ### FRAYMUS Intelligence Stack (server/fraymus/)
 - `entity-store.js` — SQLite-backed Proxy adapter (replaces Base44 cloud store), auto-creates collections
@@ -92,7 +112,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `manifest.js` — loads agent .md files with frontmatter (id, name, role, tools)
 - `routes.js` — fleet CRUD API
 - `runtime.js` — agent execution runtime (intelligence-enriched: full stack context in prompts — mood/dreamer/cognition/bridge memories, reads Heart on each user message, logs to Ledger, persists strong emotions to Memory Bridge)
-- `tools.js` — fleet management tools (7 fleet + 6 intelligence incl. memory_recall, intelligence_cycle)
+- `tools.js` — fleet management tools (7 fleet + 6 intelligence + 3 bus + 3 agent-memory = 19 tools)
 
 ### Commerce Pipelines (server/commerce/)
 - `shared.js` — shared utilities: `chatOllama`, `parseJSON`, `shopifyHeaders`, `shopifyBase` (API v2024-10), `createCommerceIntel` (intelligence hooks factory for pipelines)
@@ -142,11 +162,11 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `useWebSocket.js` — single WS connection, exponential backoff (1s→30s cap)
 
 ### Nexus Views (client/src/nexus/)
-- `CommandCenter.jsx` — 10-widget grid with live metrics, Intelligence Stack status, Live Activity Stream (WebSocket-driven real-time event feed), integrated CommandBar; widgets open Detail Drawer or navigate to Canvas
+- `CommandCenter.jsx` — 13-widget grid with live metrics, Intelligence Stack status, Live Activity Stream (WebSocket-driven real-time event feed), integrated CommandBar; widgets open Detail Drawer or navigate to Canvas
 - `CommandBar.jsx` — persistent command input with @agent autocomplete, pipeline/workflow launching, response panel with thread polling; routes through `POST /api/command`
 - `ConstellationView.jsx` — living SVG constellation: CHANDRA breathing hub + inner ring (intelligence) + outer ring (capabilities), 15 edge connections, WebSocket-driven node activity pulses (glow + ripple on events, 4s fade), animated dash-flow edges between active nodes, always-visible status badges, hover tooltips, click-to-inspect via drawer
 - `LibraryView.jsx` — unified content archive aggregating commerce runs, workflow runs, outlier saves, agent threads from 7 endpoints; source filter tabs, search, expandable items
-- `DetailDrawer.jsx` — slide-out panel (55% width) rendering any of 9 panels contextually, with backdrop overlay and CSS animation
+- `DetailDrawer.jsx` — slide-out panel (55% width) rendering any of 12 panels contextually, with backdrop overlay and CSS animation
 
 ### Panels (client/src/panels/) — rendered inside Detail Drawer
 - `DashboardPanel.jsx` — stats overview, intelligence status cards, runtime intelligence cards, recent activity
@@ -159,6 +179,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `BrowserPanel.jsx` — headless browser control
 - `VertisoPanel.jsx` — memory stats, recall, RSI evolve/reflect/genome
 - `OutlierPanel.jsx` — YouTube outlier research board
+- `HealthPanel.jsx` — System Health Monitor: stat cards (Ollama/Heap/Alerts/Bus), resource bars, infrastructure grid, alert list with resolve, auto-refresh 30s + WebSocket health events
 
 ## Code Conventions
 

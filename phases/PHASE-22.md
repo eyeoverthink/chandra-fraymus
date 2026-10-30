@@ -2,7 +2,7 @@
 
 **Commit:** (this phase)
 **Previous:** [Phase 21 — Deploy-as-API](./PHASE-21.md)
-**Next:** Phase 23 (TBD)
+**Next:** [Phase 23 — Event-Driven Orchestration + Agent Persistent Memory + System Health Monitor](./PHASE-23.md)
 
 ---
 

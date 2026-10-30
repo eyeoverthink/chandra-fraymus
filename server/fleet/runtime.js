@@ -4,6 +4,7 @@ import { loadManifests, writeOverride, removeOverride } from './manifest.js';
 import { OLLAMA_URL } from '../config.js';
 import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
 import { setMemoryBridgeRef } from './tools.js';
+import { buildPromptContext, autoStoreFromCompletion } from './agent-memory.js';
 
 const MAX_STEPS = 8;
 const MAX_HISTORY = 40;
@@ -137,7 +138,13 @@ async function systemPrompt(agent, userId) {
     } catch (_) {}
   }
 
-  return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}${intelligenceBlock}${bridgeBlock}`;
+  // Agent Persistent Memory — per-agent knowledge store (inspired by Niles Continuity Plasmid verified/against pattern)
+  let agentMemBlock = '';
+  try {
+    agentMemBlock = buildPromptContext(agent.id);
+  } catch (_) {}
+
+  return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}${intelligenceBlock}${bridgeBlock}${agentMemBlock}`;
 }
 
 async function chat(messages, tools, model) {
@@ -259,6 +266,7 @@ async function drive(runId, depth = 0) {
     if (!res.tool_calls.length) {
       setRun(runId, { status: 'done' });
       broadcastFn('fleet', { type: 'done', runId });
+      try { autoStoreFromCompletion(agent.id, lastUser?.content, res.content); } catch (_) {}
       return;
     }
 

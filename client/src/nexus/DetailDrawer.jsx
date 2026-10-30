@@ -10,6 +10,7 @@ import VertisoPanel from '../panels/VertisoPanel.jsx';
 import OutlierPanel from '../panels/OutlierPanel.jsx';
 import DeployPanel from '../panels/DeployPanel.jsx';
 import BusPanel from '../panels/BusPanel.jsx';
+import HealthPanel from '../panels/HealthPanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -23,6 +24,7 @@ const PANELS = {
   browser: { component: BrowserPanel, label: 'Browser' },
   vertiso: { component: VertisoPanel, label: 'Vertiso / RSI' },
   outlier: { component: OutlierPanel, label: 'Outlier Board' },
+  health: { component: HealthPanel, label: 'System Health Monitor' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {

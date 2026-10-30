@@ -46,6 +46,9 @@ import { installCommandRouter } from './command-router.js';
 import { installDeployRoutes } from './deploy-api/routes.js';
 import { initBus } from './fleet/bus.js';
 import { installBusRoutes } from './fleet/bus-routes.js';
+import { initTriggers, installTriggerRoutes } from './fleet/bus-triggers.js';
+import { installAgentMemoryRoutes } from './fleet/agent-memory.js';
+import { initHealthMonitor, installHealthRoutes } from './health/monitor.js';
 
 export function cloudConfig() {
   if (process.env.FRAYMUS_CLOUD_ENABLED !== '1') return { enabled: false };
@@ -117,6 +120,11 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installFleetRoutes(app);
   initBus({ broadcast });
   installBusRoutes(app);
+  initTriggers({ broadcast });
+  installTriggerRoutes(app);
+  installAgentMemoryRoutes(app);
+  initHealthMonitor({ broadcast, ollamaBaseUrl: ollamaUrl });
+  installHealthRoutes(app);
   installMcpEndpoint(app);
   installOAuthRoutes(app);
   installAccessRoutes(app);
@@ -160,7 +168,8 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
     features: ['durable-agent', 'approved-tools', 'attachments', 'document-reader', 'local-semantic-retrieval', 'local-vision-helper', 'local-ocr', 'web-research', 'local-wav-transcription', 'scheduled-tasks', 'voice-proxy', 'transport-lab',
       'fraymus-identity', 'fraymus-encoding', 'fraymus-protocol', 'fraymus-intelligence', 'fraymus-autonomy', 'fraymus-ouroboros', 'fraymus-hermes-30skill', 'fraymus-motor', 'fraymus-openclaw', 'fraymus-kuramoto-sync',
       'visual-workflow-engine', '17-agent-fleet', 'mcp-server-gateway', 'mcp-client-bridge', 'cron-automations',
-      'puppeteer-headless-browser', 'chrome-extension-bridge', 'vertiso-vector-memory', 'recursive-self-improvement'] }));
+      'puppeteer-headless-browser', 'chrome-extension-bridge', 'vertiso-vector-memory', 'recursive-self-improvement',
+      'event-driven-orchestration', 'agent-persistent-memory', 'system-health-monitor'] }));
   app.get('/api/agent/capabilities', route(async (_req, res) => {
     const caps = await agent.capabilities();
     let localOcrHealth;

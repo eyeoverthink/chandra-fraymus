@@ -44,7 +44,7 @@ No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your mode
    ║         Autonomous AI Commerce & Intelligence Platform          ║
    ║                                                                  ║
    ║   17 Agents · 4 Commerce Pipelines · 6 Intelligence Modules     ║
-   ║   36 Workflow Nodes · 19 Workflow Definitions · 13 Fleet Tools   ║
+   ║   36 Workflow Nodes · 19 Workflow Definitions · 19 Fleet Tools   ║
    ║   39 Entity Schemas · Vertiso Vector Memory · Memory Bridge      ║
    ║   Kuramoto Phase Sync · Ouroboros RSI · Ed25519 Identity         ║
    ║                                                                  ║
@@ -99,6 +99,7 @@ The intelligence stack was merged from two proprietary repos (`fraynix-continuit
 | **20** | Needle Worker Loop + Motor Live Dispatch — GPU queue processes jobs through Ollama, Motor executes on 4 live compute nodes (local GPU, SSH, GitHub, cloud fallback), 12 new API routes |
 | **21** | Deploy-as-API — workflows become curl-able REST endpoints with Bearer auth, token-bucket rate limiting, per-key usage tracking, deploy catalog, undeploy, Deploy Dashboard panel (10th panel) |
 | **22** | Agent Live Bus — real-time pub/sub message bus for agent-to-agent communication, topic subscriptions, direct messaging, persistent SQLite history, Bus Dashboard panel (11th panel) |
+| **23** | Event-Driven Orchestration + Agent Persistent Memory + System Health Monitor — bus triggers auto-fire workflows, per-agent knowledge store with verified/unverified pattern and auto-store on completion (3 new agent tools, 19 total), real-time health polling with auto-alerts via bus, Health Dashboard panel (12th panel, 15 new API endpoints) |
 
 ---
 

@@ -218,5 +218,51 @@ export function migrateWorkspaces() {
       subscribed_at INTEGER NOT NULL,
       PRIMARY KEY (agent_id, topic)
     );
+
+    CREATE TABLE IF NOT EXISTS bus_triggers (
+      id TEXT PRIMARY KEY,
+      topic TEXT NOT NULL,
+      workflow_id TEXT NOT NULL,
+      label TEXT,
+      enabled INTEGER DEFAULT 1,
+      fire_count INTEGER DEFAULT 0,
+      last_fired_at INTEGER,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_bustrig_topic ON bus_triggers(topic);
+
+    CREATE TABLE IF NOT EXISTS agent_memories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agent_id TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'general',
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      confidence REAL DEFAULT 1.0,
+      source TEXT DEFAULT 'agent',
+      access_count INTEGER DEFAULT 0,
+      verified_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_agentmem_agent ON agent_memories(agent_id, updated_at DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_agentmem_key ON agent_memories(agent_id, key);
+
+    CREATE TABLE IF NOT EXISTS health_metrics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      metric TEXT NOT NULL,
+      value REAL NOT NULL,
+      collected_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_hmetric ON health_metrics(metric, collected_at DESC);
+
+    CREATE TABLE IF NOT EXISTS health_alerts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      rule TEXT NOT NULL,
+      severity TEXT NOT NULL DEFAULT 'warning',
+      message TEXT NOT NULL,
+      resolved INTEGER DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_halert ON health_alerts(resolved, created_at DESC);
   `);
 }

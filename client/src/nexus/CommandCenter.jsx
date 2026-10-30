@@ -14,6 +14,7 @@ const WIDGETS = [
   { id: 'deploy', label: 'Deploy API', icon: '⚙', color: '#f97316', panel: 'deploy' },
   { id: 'bus', label: 'Agent Bus', icon: '↔', color: '#22d3ee', panel: 'bus' },
   { id: 'outlier', label: 'Outlier Board', icon: '◎', color: '#eab308', panel: 'outlier' },
+  { id: 'health', label: 'Health Monitor', icon: '♥', color: '#ef4444', panel: 'health' },
 ];
 
 const EVENT_STYLES = {
@@ -25,6 +26,7 @@ const EVENT_STYLES = {
   tasks: { icon: '⟳', color: '#06b6d4', drawer: 'automations' },
   deploy: { icon: '⚙', color: '#f97316', drawer: 'deploy' },
   bus: { icon: '↔', color: '#22d3ee', drawer: 'bus' },
+  health: { icon: '♥', color: '#ef4444', drawer: 'health' },
   error: { icon: '✗', color: '#ef4444', drawer: 'dashboard' },
 };
 
