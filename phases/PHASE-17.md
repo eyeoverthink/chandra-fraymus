@@ -1,6 +1,6 @@
 # Phase 17: Living Constellation — Real-Time System Visualization
 
-**Commit:** *(pending)*
+**Commit:** `05fc280`
 **Date:** 2026-10-30
 **Previous:** [Phase 16 — Command Bar + Live Activity Stream](PHASE-16.md)
 **Next:** *(next phase)*
