@@ -23,6 +23,7 @@ import MemoryBrowser from '../panels/MemoryBrowser.jsx';
 import RunHistory from '../panels/RunHistory.jsx';
 import EvolutionLog from '../panels/EvolutionLog.jsx';
 import SystemPulse from '../panels/SystemPulse.jsx';
+import LeaderboardPanel from '../panels/LeaderboardPanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -48,6 +49,7 @@ const PANELS = {
   'run-history': { component: RunHistory, label: 'Run History' },
   evolution: { component: EvolutionLog, label: 'Evolution Log' },
   pulse: { component: SystemPulse, label: 'System Pulse' },
+  leaderboard: { component: LeaderboardPanel, label: 'Agent Leaderboard' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {

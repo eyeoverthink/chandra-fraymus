@@ -53,6 +53,7 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 45 | Run History Panel | — | 6 files | [PHASE-45.md](PHASE-45.md) |
 | 46 | Evolution Log Panel | — | 6 files | [PHASE-46.md](PHASE-46.md) |
 | 47 | System Pulse Panel | — | 6 files | [PHASE-47.md](PHASE-47.md) |
+| 48 | Agent Leaderboard Panel | — | 6 files | [PHASE-48.md](PHASE-48.md) |
 
 ## Convention
 

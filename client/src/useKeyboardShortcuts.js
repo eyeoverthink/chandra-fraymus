@@ -14,6 +14,7 @@ const SHORTCUTS = [
   { key: '0', ctrl: false, action: 'run-history', label: 'Run History' },
   { key: 'e', ctrl: true, action: 'evolution', label: 'Evolution Log' },
   { key: 'p', ctrl: true, action: 'pulse', label: 'System Pulse' },
+  { key: 'l', ctrl: true, action: 'leaderboard', label: 'Agent Leaderboard' },
   { key: 'Escape', ctrl: false, action: 'close', label: 'Close drawer / search' },
   { key: '?', ctrl: false, action: 'help', label: 'Show shortcuts' },
 ];
@@ -45,6 +46,12 @@ export default function useKeyboardShortcuts({ onAction }) {
     if (e.ctrlKey && e.key === 'p') {
       e.preventDefault();
       onAction('pulse');
+      return;
+    }
+
+    if (e.ctrlKey && e.key === 'l') {
+      e.preventDefault();
+      onAction('leaderboard');
       return;
     }
 

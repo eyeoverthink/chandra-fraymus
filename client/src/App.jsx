@@ -38,6 +38,7 @@ export default function App() {
     if (action === 'run-history') { setDrawer({ panel: 'run-history', title: 'Run History' }); return; }
     if (action === 'evolution') { setDrawer({ panel: 'evolution', title: 'Evolution Log' }); return; }
     if (action === 'pulse') { setDrawer({ panel: 'pulse', title: 'System Pulse' }); return; }
+    if (action === 'leaderboard') { setDrawer({ panel: 'leaderboard', title: 'Agent Leaderboard' }); return; }
     if (action.startsWith('view:')) {
       setView(action.slice(5));
       setDrawer(null);
@@ -164,6 +165,16 @@ export default function App() {
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
           >
             <span style={{ fontSize: 12 }}>♥</span> Pulse
+          </button>
+          <button onClick={() => openDrawer('leaderboard', 'Agent Leaderboard')} style={{
+            background: 'none', border: '1px solid #333', borderRadius: 6,
+            color: '#666', fontSize: 13, padding: '4px 10px', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
+          }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#f59e0b'; e.currentTarget.style.color = '#f59e0b'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
+          >
+            <span style={{ fontSize: 12 }}>★</span> Board
           </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: '#555' }}>
