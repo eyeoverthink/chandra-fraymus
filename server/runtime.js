@@ -108,7 +108,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installExtensionRoutes(app);
   installVertisoRoutes(app, { vertiso, rsi });
   installYouTubeRoutes(app);
-  installCommerceRoutes(app);
+  installCommerceRoutes(app, { memoryBridge });
 
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
   const known = id => {

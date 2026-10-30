@@ -58,7 +58,7 @@ No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your mode
 
 ---
 
-## What's New — Phases 1–9
+## What's New — Phases 1–10
 
 The intelligence stack was merged from two proprietary repos (`fraynix-continuity` and `fraynix-dreamer-120b`) and deeply integrated across every surface of the system:
 
@@ -73,6 +73,7 @@ The intelligence stack was merged from two proprietary repos (`fraynix-continuit
 | **7** | Memory Bridge wired through workflow engine (all 4 intelligence handlers persist results) and fleet runtime (strong emotions auto-stored), Memory Recall UI in Intelligence panel |
 | **8** | `memory_recall` workflow node + fleet tool, Dashboard Memory Bridge & Autonomy status cards, health endpoint Memory Bridge status |
 | **9** | Intelligence-enriched fleet prompts (full stack context + bridge memories), autonomy Memory Bridge recall before evolution, `intelligence_cycle` tool/node/endpoint + UI |
+| **10** | Brain intelligence completion (Memory Bridge + dreamer/cognition context in brain.js), Commerce Intelligence Hooks (`createCommerceIntel` factory wired into Content-to-Commerce pipeline — emotion analysis, memory recall, insight storage) |
 
 ---
 

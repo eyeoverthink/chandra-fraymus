@@ -41,3 +41,18 @@ export function shopifyBase() {
   const store = process.env.SHOPIFY_STORE_DOMAIN;
   return store ? `https://${store}/admin/api/2024-10` : null;
 }
+
+export function createCommerceIntel(memoryBridge, heart) {
+  if (!memoryBridge || !heart) return null;
+  return {
+    analyzeContent(text) {
+      try { return heart.feel(text); } catch { return null; }
+    },
+    async recallInsights(query, limit = 3) {
+      try { return await memoryBridge.recallRelated(query, limit); } catch { return []; }
+    },
+    storeInsight(data) {
+      memoryBridge.storeCognitionResult(data).catch(() => {});
+    },
+  };
+}

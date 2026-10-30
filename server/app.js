@@ -9,7 +9,7 @@ import { localBoundary, allowedRequest } from './local-http.js';
 import { installRuntime, apiError } from './runtime.js';
 import { installStatic } from './static.js';
 import { listenThenInitialize } from './lifecycle.js';
-import { modelForAgent, replyWithModel } from './brain.js';
+import { modelForAgent, replyWithModel, setBrainMemoryBridge } from './brain.js';
 import { ingestFleetSnapshot } from './fleet.js';
 import { migrateWorkspaces } from './db-migrate.js';
 import { join } from 'node:path';
@@ -388,6 +388,7 @@ listenThenInitialize(server,{host:HOST,port:PORT,initialize:async()=>{
   await runtime.tasks.start();
   if(stopping)return;
   try { initFleet({ broadcast, vertiso: runtime.vertiso, rsi: runtime.rsi, memoryBridge: runtime.memoryBridge }); } catch(e) { console.error(`Fleet init deferred: ${e.message}`); }
+  if (runtime.memoryBridge) setBrainMemoryBridge(runtime.memoryBridge);
   try { await initMcp(join(DATA_DIR, 'mcp-servers.json')); } catch(e) { console.error(`MCP client deferred: ${e.message}`); }
   try {
     initScheduler({ runAgent: (uid, aid, msg) => startRun(uid, aid, msg), runTool: (uid, tool, args) => callToolDirect(uid, tool, args), broadcast });

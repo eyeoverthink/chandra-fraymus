@@ -33,7 +33,7 @@ npm run start        # production server (serves built client)
 - `data-lock.js` — prevents multiple server instances via port lock
 - `static.js` — serves production client build
 - `v3.js` — Fraymus V3 bulletproof recursive security engine
-- `brain.js` — central reasoning coordinator (emotion-aware via Heart + Ledger)
+- `brain.js` — central reasoning coordinator (full intelligence: Heart emotion + Ledger logging + Memory Bridge storage + dreamer/cognition context + bridge recall)
 - `autonomy.js` — Kuramoto phase sync + intelligence monitoring (consciousness proofs, dreams)
 - `fraymus-tools.js` — FRAYMUS → fleet adapter (42 tools + MemoryBridge export)
 - `fraymus-routes.js` — FRAYMUS API routes (16 intelligence + 8 autonomy + memory search + intelligence cycle endpoints)
@@ -83,12 +83,12 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `tools.js` — fleet management tools (7 fleet + 6 intelligence incl. memory_recall, intelligence_cycle)
 
 ### Commerce Pipelines (server/commerce/)
-- `shared.js` — shared utilities: `chatOllama`, `parseJSON`, `shopifyHeaders`, `shopifyBase` (API v2024-10)
-- `pipeline.js` — Content-to-Commerce (LLM generates products → Shopify publish)
+- `shared.js` — shared utilities: `chatOllama`, `parseJSON`, `shopifyHeaders`, `shopifyBase` (API v2024-10), `createCommerceIntel` (intelligence hooks factory for pipelines)
+- `pipeline.js` — Content-to-Commerce (LLM generates products → Shopify publish, intelligence-hooked: recalls past insights, emotion-analyzes content, stores pipeline results to Memory Bridge)
 - `apparel-pipeline.js` — Apparel Production (trend scout → designer → Printify → Shopify sync)
 - `mystery-shopper.js` — Mystery Shopper (Shopify store audit + automated fixes for tags/SEO/pricing/images)
 - `store-fixer.js` — Store Fixer (bulk Shopify fixes via applier)
-- `routes.js` — commerce REST endpoints
+- `routes.js` — commerce REST endpoints (receives memoryBridge, creates intel hooks via `createCommerceIntel`)
 - `tools.js` — commerce agent tools
 
 ### Vertiso Memory + RSI (server/vertiso/)

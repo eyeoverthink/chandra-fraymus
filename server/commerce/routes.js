@@ -1,4 +1,6 @@
 import { db } from '../db.js';
+import { heart } from '../fraymus-tools.js';
+import { createCommerceIntel } from './shared.js';
 import {
   runContentCommercePipeline,
   runResearcher,
@@ -35,7 +37,8 @@ function safeParse(str, fallback) {
   try { return JSON.parse(str); } catch { return fallback; }
 }
 
-export function installCommerceRoutes(app) {
+export function installCommerceRoutes(app, { memoryBridge } = {}) {
+  const intel = createCommerceIntel(memoryBridge, heart);
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
 
   // Run the full 5-stage pipeline
@@ -44,7 +47,7 @@ export function installCommerceRoutes(app) {
     if (!topic) return res.status(400).json({ error: 'topic required' });
     const result = await runContentCommercePipeline(
       { topic, contentType: contentType || 'both', sources: sources || 'both' },
-      { autoPublish: autoPublish !== false },
+      { autoPublish: autoPublish !== false, intel },
     );
     res.json(result);
   }));

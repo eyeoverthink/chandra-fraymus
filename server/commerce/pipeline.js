@@ -318,8 +318,18 @@ export async function runShopifyPublish(ceoOutput, opts = {}) {
 export async function runContentCommercePipeline(input, opts = {}) {
   const t0 = Date.now();
   const stages = {};
+  const { intel } = opts;
 
   try {
+    // Recall past commerce insights before research
+    let priorInsights = [];
+    if (intel) {
+      try {
+        priorInsights = await intel.recallInsights(`commerce pipeline: ${input.topic}`, 3);
+        if (priorInsights.length) stages.intel_recall = { count: priorInsights.length };
+      } catch (_) {}
+    }
+
     const research = await runResearcher(input, opts);
     stages.researcher = { status: 'ok', data: research, durationMs: Date.now() - t0 };
 
@@ -331,6 +341,15 @@ export async function runContentCommercePipeline(input, opts = {}) {
     const reviewed = await runReviewer(created, opts);
     stages.reviewer = { status: 'ok', data: reviewed, durationMs: Date.now() - t2 };
 
+    // Emotion-analyze final content
+    if (intel && reviewed.finalContent) {
+      try {
+        const snippet = JSON.stringify(reviewed.finalContent).slice(0, 500);
+        const emotion = intel.analyzeContent(snippet);
+        if (emotion) stages.intel_emotion = { primary: emotion.primary, sentiment: emotion.sentiment };
+      } catch (_) {}
+    }
+
     const t3 = Date.now();
     const logged = await runCeoLogger(reviewed, opts);
     stages.ceo = { status: 'ok', data: logged, durationMs: Date.now() - t3 };
@@ -339,6 +358,19 @@ export async function runContentCommercePipeline(input, opts = {}) {
       const t4 = Date.now();
       const published = await runShopifyPublish(logged, opts);
       stages.shopify = { status: 'ok', data: published, durationMs: Date.now() - t4 };
+    }
+
+    // Store pipeline result as intelligence insight
+    if (intel) {
+      intel.storeInsight({
+        type: 'commerce_pipeline',
+        topic: input.topic,
+        approved: logged.approved,
+        score: logged.score,
+        emotion: stages.intel_emotion || null,
+        priorMemories: priorInsights.length,
+        durationMs: Date.now() - t0,
+      });
     }
 
     return {
