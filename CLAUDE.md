@@ -133,7 +133,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 ### Nexus Views (client/src/nexus/)
 - `CommandCenter.jsx` — 10-widget grid with live metrics, Intelligence Stack status, Live Activity Stream (WebSocket-driven real-time event feed), integrated CommandBar; widgets open Detail Drawer or navigate to Canvas
 - `CommandBar.jsx` — persistent command input with @agent autocomplete, pipeline/workflow launching, response panel with thread polling; routes through `POST /api/command`
-- `ConstellationView.jsx` — interactive SVG node graph: CHANDRA hub + inner ring (intelligence) + outer ring (capabilities), 15 edge connections with hover highlighting, click-to-inspect via drawer
+- `ConstellationView.jsx` — living SVG constellation: CHANDRA breathing hub + inner ring (intelligence) + outer ring (capabilities), 15 edge connections, WebSocket-driven node activity pulses (glow + ripple on events, 4s fade), animated dash-flow edges between active nodes, always-visible status badges, hover tooltips, click-to-inspect via drawer
 - `LibraryView.jsx` — unified content archive aggregating commerce runs, workflow runs, outlier saves, agent threads from 7 endpoints; source filter tabs, search, expandable items
 - `DetailDrawer.jsx` — slide-out panel (55% width) rendering any of 9 panels contextually, with backdrop overlay and CSS animation
 

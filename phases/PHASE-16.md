@@ -3,7 +3,7 @@
 **Commit:** `9fdb842`
 **Date:** 2026-10-30
 **Previous:** [Phase 15 — Chandra Nexus Unified Interface](PHASE-15.md)
-**Next:** *(next phase)*
+**Next:** [Phase 17 — Living Constellation](PHASE-17.md)
 
 ---
 
