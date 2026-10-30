@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-30
 **Prev:** [Phase 25 — Generator-Verifier-Executor Loop](PHASE-25.md)
-**Next:** TBD
+**Next:** [Phase 27 — NUDP/1 Sovereign Mesh Protocol](PHASE-27.md)
 
 ---
 

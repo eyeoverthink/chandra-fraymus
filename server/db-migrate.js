@@ -332,5 +332,32 @@ export function migrateWorkspaces() {
       created_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_daemon ON daemon_cycles(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS nudp_packets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      packet_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      source_id INTEGER NOT NULL,
+      seq INTEGER NOT NULL,
+      flags TEXT DEFAULT '[]',
+      hop_limit INTEGER NOT NULL,
+      tlvs TEXT DEFAULT '[]',
+      raw_size INTEGER NOT NULL,
+      wasm_wrapped INTEGER DEFAULT 0,
+      from_addr TEXT,
+      log_hash TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_nudp_src ON nudp_packets(source_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_nudp_type ON nudp_packets(type, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS nudp_peers (
+      source_id INTEGER PRIMARY KEY,
+      addr TEXT,
+      port INTEGER,
+      last_seen INTEGER NOT NULL,
+      hello_count INTEGER DEFAULT 0,
+      meta TEXT DEFAULT '{}'
+    );
   `);
 }

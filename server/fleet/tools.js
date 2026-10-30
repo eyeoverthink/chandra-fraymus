@@ -8,6 +8,13 @@ import { forgeAgent, listForgedAgents } from './forge.js';
 import { synthesizeWorkflow } from '../workflow/synthesizer.js';
 import { runVerifierLoop, listLoops as listVerifierLoops } from '../intelligence/verifier-loop.js';
 import { startDaemon, stopDaemon, getDaemonStatus, runCycle, listCycles } from '../daemon/engine.js';
+import {
+  encodeNUDP, decodeNUDP, MSG, FLAG, TLV, MSG_NAMES,
+  helloPacket, telemetryPacket, alertPacket, welfarePacket,
+  nextSeq, sourceIdFromPubkey,
+} from '../fraymus/protocol/nudp.js';
+import { wrapWasm } from '../fraymus/encoding/wasm.js';
+import { getNode } from '../fraymus/protocol/mesh-node.js';
 
 const now = () => Date.now();
 const clip = (s, n = 8000) => s.length > n ? s.slice(0, n) + '...[truncated]' : s;
@@ -448,6 +455,106 @@ export function createFleetTools({ workflowStore }) {
           case 'cycles': return { cycles: listCycles({ limit: args.limit || 20 }) };
           default: return { error: 'Unknown action. Use: start, stop, status, cycle, cycles' };
         }
+      },
+    },
+    // ─── NUDP/1 Mesh Protocol tools ──────────────────────
+    {
+      name: 'nudp_encode',
+      group: 'mesh',
+      risk: 'safe',
+      description: 'Encode a NUDP/1 sovereign mesh datagram. Types: HELLO, TELEMETRY, ALERT, WELFARE, ACK. Returns hex and base64.',
+      parameters: object({
+        type: string(20, { description: 'Message type: HELLO, TELEMETRY, ALERT, WELFARE, ACK' }),
+        sourceId: { type: 'integer', description: 'Source node ID (first 4 bytes of identity hash)' },
+        flags: { type: 'array', items: { type: 'string' }, description: 'Flags: ACK_REQ, VIA_RADIO, OFFICIAL' },
+        hopLimit: { type: 'integer', minimum: 0, maximum: 255, description: 'Hop limit (default 4)' },
+        tlvs: { type: 'array', items: { type: 'object' }, description: 'TLV entries: [{type: "TEMPERATURE", value: 2350}, ...]' },
+      }, ['type']),
+      execute: async ({ args }) => {
+        const msgType = MSG[String(args.type).toUpperCase()];
+        if (msgType == null) throw new Error(`Unknown type: ${args.type}`);
+        let flagBits = 0;
+        if (Array.isArray(args.flags)) {
+          for (const f of args.flags) flagBits |= FLAG[f.toUpperCase()] || 0;
+        }
+        const parsedTlvs = (args.tlvs || []).map(t => ({
+          type: typeof t.type === 'string' ? TLV[t.type.toUpperCase()] : t.type,
+          value: t.value,
+        }));
+        const buf = encodeNUDP({
+          type: msgType, flags: flagBits,
+          hopLimit: args.hopLimit ?? 4,
+          sourceId: args.sourceId ?? 0,
+          seq: nextSeq(), tlvs: parsedTlvs,
+        });
+        return {
+          size: buf.length,
+          hex: Array.from(buf, b => b.toString(16).padStart(2, '0')).join(''),
+          base64: Buffer.from(buf).toString('base64'),
+        };
+      },
+    },
+    {
+      name: 'nudp_decode',
+      group: 'mesh',
+      risk: 'safe',
+      description: 'Decode a NUDP/1 datagram from hex or base64. Returns parsed header, flags, TLVs, and CRC validation.',
+      parameters: object({
+        hex: string(4000, { description: 'Hex-encoded datagram' }),
+        base64: string(4000, { description: 'Base64-encoded datagram' }),
+      }),
+      execute: async ({ args }) => {
+        let buf;
+        if (args.hex) buf = new Uint8Array((args.hex.match(/../g) || []).map(x => parseInt(x, 16)));
+        else if (args.base64) buf = new Uint8Array(Buffer.from(args.base64, 'base64'));
+        else throw new Error('hex or base64 required');
+        return decodeNUDP(buf);
+      },
+    },
+    {
+      name: 'nudp_wrap_wasm',
+      group: 'mesh',
+      risk: 'safe',
+      description: 'Encode a NUDP/1 datagram and wrap it in a FRAYMUS WASM container with Ed25519 identity, SHA-256 baseline, and DNA encoding.',
+      parameters: object({
+        type: string(20, { description: 'HELLO, TELEMETRY, ALERT, WELFARE, ACK' }),
+        sourceId: { type: 'integer' },
+        flags: { type: 'array', items: { type: 'string' } },
+        tlvs: { type: 'array', items: { type: 'object' } },
+      }, ['type']),
+      execute: async ({ args }) => {
+        const msgType = MSG[String(args.type).toUpperCase()];
+        if (msgType == null) throw new Error(`Unknown type: ${args.type}`);
+        let flagBits = 0;
+        if (Array.isArray(args.flags)) {
+          for (const f of args.flags) flagBits |= FLAG[f.toUpperCase()] || 0;
+        }
+        const parsedTlvs = (args.tlvs || []).map(t => ({
+          type: typeof t.type === 'string' ? TLV[t.type.toUpperCase()] : t.type,
+          value: t.value,
+        }));
+        const datagram = encodeNUDP({
+          type: msgType, flags: flagBits, hopLimit: 4,
+          sourceId: args.sourceId ?? 0, seq: nextSeq(), tlvs: parsedTlvs,
+        });
+        const wasmBuf = wrapWasm(datagram);
+        return {
+          datagramSize: datagram.length,
+          wasmSize: wasmBuf.length,
+          wasmBase64: Buffer.from(wasmBuf).toString('base64'),
+        };
+      },
+    },
+    {
+      name: 'nudp_node_status',
+      group: 'mesh',
+      risk: 'safe',
+      description: 'Get the status of the local NUDP/1 mesh node: running state, peer count, packet stats.',
+      parameters: object({}),
+      execute: async () => {
+        const node = getNode();
+        if (!node) return { running: false, message: 'No mesh node created. Start via /api/nudp/node/start.' };
+        return node.status();
       },
     },
   ];

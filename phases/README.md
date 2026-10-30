@@ -32,6 +32,7 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 24 | Agent Self-Evolution Engine | `a669e00` | 5 files | [PHASE-24.md](PHASE-24.md) |
 | 25 | Generator-Verifier-Executor Loop | — | 4 files | [PHASE-25.md](PHASE-25.md) |
 | 26 | Background Evolution Daemon | — | 4 files | [PHASE-26.md](PHASE-26.md) |
+| 27 | NUDP/1 Sovereign Mesh Protocol | — | 7 files | [PHASE-27.md](PHASE-27.md) |
 
 ## Convention
 

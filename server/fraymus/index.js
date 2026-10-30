@@ -44,6 +44,13 @@ export {
 
 export { liveRegister, liveDirectory, liveSend, liveInbox, liveRetire } from './protocol/hub.js';
 export { postSigned, verifyChain } from './protocol/mesh.js';
+export {
+  NUDP_MAGIC, NUDP_VERSION, MSG, FLAG, TLV,
+  encodeNUDP, decodeNUDP, encodeTLVs, decodeTLVs,
+  helloPacket, telemetryPacket, alertPacket, welfarePacket, ackPacket,
+  sourceIdFromPubkey, nextSeq,
+} from './protocol/nudp.js';
+export { MeshNode, createNode, getNode, destroyNode, NUDP_PORT } from './protocol/mesh-node.js';
 export { signThought, matrix, matrixDna } from './protocol/hive.js';
 export { presenceStatus, presenceColor, isChainHealthy } from './protocol/presence.js';
 

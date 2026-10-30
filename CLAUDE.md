@@ -120,6 +120,9 @@ npm run start        # production server (serves built client)
 - `protocol/v13.js` — V13 signed mesh protocol
 - `protocol/hub.js` — relay hub (with 15s fetch timeout)
 - `protocol/mesh.js` — peer mesh networking
+- `protocol/nudp.js` — NUDP/1 binary datagram encoder/decoder (magic 0x4E44, TLV payload, CRC32)
+- `protocol/mesh-node.js` — Mesh node behavior engine (UDP :47331, HELLO beacons, dedup ring, hop forwarding, sealed log)
+- `protocol/nudp-routes.js` — 11 NUDP REST endpoints (encode, decode, wrap, transmute, node control, packet log)
 - `protocol/presence.js` — agent presence tracking
 - `protocol/hive.js` — hive coordination
 - `intelligence/heart.js` — Heart emotion engine (7 dimensions, ~350 word lexicon, sarcasm detection)
