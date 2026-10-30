@@ -240,6 +240,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `OutlierPanel.jsx` — YouTube outlier research board
 - `HealthPanel.jsx` — System Health Monitor: stat cards (Ollama/Heap/Alerts/Bus), resource bars, infrastructure grid, alert list with resolve, auto-refresh 30s + WebSocket health events
 - `MediaPanel.jsx` — Unified Media Hub: 5-tab interface for Images (Sharp), Video (ffmpeg), TTS (Piper/edge-tts/SAPI), STT (faster-whisper/SAPI), OCR (Windows Media OCR)
+- `ForgePanel.jsx` — Agent Forge + Workflow Synthesis: 2-tab interface for forging agents from goals (POST /api/fleet/forge) and synthesizing workflows from descriptions (POST /api/workflows/synthesize), with history views and delete
 
 ## Code Conventions
 

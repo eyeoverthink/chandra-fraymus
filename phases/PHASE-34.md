@@ -5,7 +5,7 @@
 | **Phase** | 34 |
 | **Title** | Error Boundary + System Resilience |
 | **Prev** | [Phase 33 — Media Hub Panel](PHASE-33.md) |
-| **Next** | Phase 35 (TBD) |
+| **Next** | [Phase 35 — Agent Forge + Synthesis Panel](PHASE-35.md) |
 
 ## Summary
 

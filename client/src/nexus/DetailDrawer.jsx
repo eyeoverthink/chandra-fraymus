@@ -13,6 +13,7 @@ import DeployPanel from '../panels/DeployPanel.jsx';
 import BusPanel from '../panels/BusPanel.jsx';
 import HealthPanel from '../panels/HealthPanel.jsx';
 import MediaPanel from '../panels/MediaPanel.jsx';
+import ForgePanel from '../panels/ForgePanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -28,6 +29,7 @@ const PANELS = {
   outlier: { component: OutlierPanel, label: 'Outlier Board' },
   health: { component: HealthPanel, label: 'System Health Monitor' },
   media: { component: MediaPanel, label: 'Media Hub' },
+  forge: { component: ForgePanel, label: 'Forge + Synthesis' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {
