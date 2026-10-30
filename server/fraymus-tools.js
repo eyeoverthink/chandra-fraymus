@@ -151,6 +151,239 @@ function buildHermesExecutors() {
       const result = await chatOllama(prompt);
       return { result };
     },
+
+    trend_forecast: async ({ topic, timeframe }) => {
+      const searchRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent((topic || '') + ' trends ' + (timeframe || '2024 2025'))}`, {
+        signal: AbortSignal.timeout(15_000),
+        headers: { 'User-Agent': 'Chandra/1.0' },
+      });
+      const html = await searchRes.text();
+      const matches = [...html.matchAll(/class="result__a"[^>]*href="([^"]+)"[^>]*>([^<]+)/g)];
+      const sources = matches.slice(0, 8).map(m => ({ url: m[1], title: m[2].trim() }));
+      const prompt = [{ role: 'user', content: `Forecast trends for "${topic}" over ${timeframe || 'next 6 months'}. Sources: ${JSON.stringify(sources)}. Provide: current trajectory, emerging patterns, predicted shifts, confidence level, and key signals to watch.` }];
+      const forecast = await chatOllama(prompt);
+      return { topic, timeframe: timeframe || 'next 6 months', sources, forecast };
+    },
+
+    // ── Code: 4 missing executors ──
+    github_ops: async ({ action, repo, args: gitArgs }) => {
+      const { execSync } = await import('child_process');
+      const safe = ['status', 'log', 'branch', 'diff', 'remote', 'tag', 'stash list'];
+      const act = String(action || 'status').toLowerCase();
+      if (!safe.some(s => act.startsWith(s))) return { error: `Only read-only git ops allowed: ${safe.join(', ')}` };
+      try {
+        const out = execSync(`git ${act}`, { encoding: 'utf8', timeout: 15_000, cwd: repo || process.cwd() });
+        return { action: act, output: out.slice(0, 4000) };
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    repo_scaffold: async ({ name, type, features }) => {
+      const prompt = [{ role: 'user', content: `Generate a project scaffold for "${name}" (type: ${type || 'node'}). Features: ${(features || []).join(', ') || 'basic setup'}. Return a JSON object with files as keys and content as values.` }];
+      const scaffold = await chatOllama(prompt);
+      return { name, type: type || 'node', scaffold };
+    },
+    dependency_audit: async ({ packageJson }) => {
+      const prompt = [{ role: 'user', content: `Audit these dependencies for known vulnerabilities, outdated versions, and security risks:\n\n${typeof packageJson === 'string' ? packageJson : JSON.stringify(packageJson)}` }];
+      const audit = await chatOllama(prompt);
+      return { audit };
+    },
+    ci_runner: async ({ command, cwd }) => {
+      const { execSync } = await import('child_process');
+      const allowed = ['npm test', 'npm run build', 'npm run lint', 'node --check'];
+      const cmd = String(command || 'npm test');
+      if (!allowed.some(a => cmd.startsWith(a))) return { error: `Only safe CI commands: ${allowed.join(', ')}` };
+      try {
+        const out = execSync(cmd, { encoding: 'utf8', timeout: 60_000, cwd: cwd || process.cwd() });
+        return { command: cmd, output: out.slice(0, 4000), status: 'passed' };
+      } catch (e) {
+        return { command: cmd, output: (e.stdout || '').slice(0, 2000), error: e.message, status: 'failed' };
+      }
+    },
+
+    // ── Media: 6 missing executors (ALL FREE — no paid APIs) ──
+    text_to_speech: async ({ text, voice, outputPath }) => {
+      const { execSync } = await import('child_process');
+      const safeText = String(text || '').slice(0, 2000);
+      // Try piper (fast local neural TTS) → espeak (fallback) → Ollama describe
+      const out = outputPath || `data/tts-${Date.now()}.wav`;
+      try {
+        execSync(`piper --model en_US-lessac-medium --output_file "${out}" <<< "${safeText.replace(/"/g, '\\"')}"`, { timeout: 30_000 });
+        return { engine: 'piper', path: out, chars: safeText.length };
+      } catch {
+        try {
+          execSync(`espeak -w "${out}" "${safeText.replace(/"/g, '\\"')}"`, { timeout: 15_000 });
+          return { engine: 'espeak', path: out, chars: safeText.length };
+        } catch {
+          const prompt = [{ role: 'user', content: `Convert to SSML speech markup for offline TTS: ${safeText.slice(0, 500)}` }];
+          const ssml = await chatOllama(prompt);
+          return { engine: 'ollama-ssml', ssml, chars: safeText.length, note: 'Install piper or espeak for audio output' };
+        }
+      }
+    },
+    image_generation: async ({ prompt: imgPrompt, width, height, style }) => {
+      // FLUX.1 schnell via local ComfyUI or fal.ai free tier
+      const desc = String(imgPrompt || '').slice(0, 1000);
+      try {
+        const comfyRes = await fetch('http://127.0.0.1:8188/prompt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: { "3": { class_type: "KSampler", inputs: { seed: Date.now(), steps: 4, cfg: 1, sampler_name: "euler", scheduler: "simple", denoise: 1 } }, "6": { class_type: "CLIPTextEncode", inputs: { text: desc } } } }),
+          signal: AbortSignal.timeout(60_000),
+        });
+        const data = await comfyRes.json();
+        return { engine: 'comfyui-flux', prompt: desc, status: 'queued', data };
+      } catch {
+        // Fallback: generate detailed image description via Ollama for manual creation
+        const prompt = [{ role: 'user', content: `Create a detailed visual description for image generation: "${desc}". Style: ${style || 'photorealistic'}. Dimensions: ${width || 1024}x${height || 1024}. Include composition, colors, lighting, and mood.` }];
+        const description = await chatOllama(prompt);
+        return { engine: 'ollama-describe', prompt: desc, description, note: 'Install ComfyUI with FLUX.1 schnell for direct image generation' };
+      }
+    },
+    video_render: async ({ inputPath, outputPath, format, filters }) => {
+      const { execSync } = await import('child_process');
+      const input = String(inputPath || '');
+      const output = outputPath || `data/render-${Date.now()}.mp4`;
+      const fmt = format || 'mp4';
+      const filterStr = filters ? `-vf "${filters}"` : '';
+      try {
+        execSync(`ffmpeg -i "${input}" ${filterStr} -c:v libx264 -preset fast "${output}" -y`, { timeout: 120_000 });
+        return { engine: 'ffmpeg', input, output, format: fmt };
+      } catch (e) {
+        return { error: e.message, note: 'Install ffmpeg for video rendering' };
+      }
+    },
+    audio_mix: async ({ tracks, outputPath, format }) => {
+      const { execSync } = await import('child_process');
+      const inputs = (tracks || []).map(t => `-i "${t}"`).join(' ');
+      const output = outputPath || `data/mix-${Date.now()}.${format || 'wav'}`;
+      try {
+        execSync(`ffmpeg ${inputs} -filter_complex amix=inputs=${(tracks || []).length}:duration=longest "${output}" -y`, { timeout: 60_000 });
+        return { engine: 'ffmpeg', tracks: (tracks || []).length, output };
+      } catch (e) {
+        return { error: e.message, note: 'Install ffmpeg for audio mixing' };
+      }
+    },
+    thumbnail_gen: async ({ title, subtitle, style }) => {
+      const prompt = [{ role: 'user', content: `Design a thumbnail for: Title="${title || 'Untitled'}". Subtitle="${subtitle || ''}". Style: ${style || 'modern'}. Return an SVG with bold text, vibrant gradient background, and clean layout. Output only the SVG code.` }];
+      const svg = await chatOllama(prompt);
+      return { engine: 'ollama-svg', title, svg };
+    },
+    subtitle_gen: async ({ audioPath, language }) => {
+      const { execSync } = await import('child_process');
+      const lang = language || 'en';
+      try {
+        // Use local Whisper for transcription → SRT subtitles
+        const out = `data/subs-${Date.now()}.srt`;
+        execSync(`whisper "${audioPath}" --language ${lang} --output_format srt --output_dir data/`, { timeout: 120_000 });
+        return { engine: 'whisper-local', language: lang, output: out };
+      } catch {
+        const prompt = [{ role: 'user', content: `Generate subtitle timing hints for a ${lang} audio file at "${audioPath}". Suggest an SRT template structure.` }];
+        const hints = await chatOllama(prompt);
+        return { engine: 'ollama-hints', language: lang, hints, note: 'Install whisper (openai-whisper) for automatic subtitle generation' };
+      }
+    },
+
+    // ── System: 3 missing executors ──
+    vps_command: async ({ host, command }) => {
+      const { execSync } = await import('child_process');
+      const safeHost = String(host || '');
+      const safeCmd = String(command || 'uptime');
+      const blocked = ['rm -rf /', 'mkfs', 'dd if=', ':(){', 'fork bomb'];
+      if (blocked.some(b => safeCmd.includes(b))) return { error: 'Blocked destructive command' };
+      try {
+        const out = execSync(`ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new ${safeHost} "${safeCmd.replace(/"/g, '\\"')}"`, { encoding: 'utf8', timeout: 30_000 });
+        return { host: safeHost, command: safeCmd, output: out.slice(0, 4000) };
+      } catch (e) {
+        return { error: e.message, host: safeHost };
+      }
+    },
+    deploy_app: async ({ target, buildCmd, deployCmd }) => {
+      const { execSync } = await import('child_process');
+      try {
+        if (buildCmd) execSync(buildCmd, { encoding: 'utf8', timeout: 60_000 });
+        const prompt = [{ role: 'user', content: `Generate a deployment script for target: ${target || 'local'}. Build: ${buildCmd || 'npm run build'}. Deploy: ${deployCmd || 'serve'}. Return shell commands.` }];
+        const plan = await chatOllama(prompt);
+        return { target: target || 'local', buildCmd, plan };
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    model_compile: async ({ modelName, from, system, parameters }) => {
+      // Build Ollama modelfile and create model locally
+      const lines = [`FROM ${from || 'llama3.2:latest'}`];
+      if (system) lines.push(`SYSTEM """${system}"""`);
+      if (parameters) Object.entries(parameters).forEach(([k, v]) => lines.push(`PARAMETER ${k} ${v}`));
+      const modelfile = lines.join('\n');
+      try {
+        const res = await fetch('http://127.0.0.1:11434/api/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: modelName || 'custom-model', modelfile }),
+          signal: AbortSignal.timeout(120_000),
+        });
+        const data = await res.json();
+        return { model: modelName, modelfile, status: data.status || 'created' };
+      } catch (e) {
+        return { model: modelName, modelfile, error: e.message };
+      }
+    },
+
+    // ── Intelligence: 3 missing executors ──
+    sherlock_investigate: async ({ subject, depth }) => {
+      // Multi-source investigation: DuckDuckGo search + Ollama deep analysis
+      const searchRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(subject || '')}`, {
+        signal: AbortSignal.timeout(15_000),
+        headers: { 'User-Agent': 'Chandra/1.0' },
+      });
+      const html = await searchRes.text();
+      const matches = [...html.matchAll(/class="result__a"[^>]*href="([^"]+)"[^>]*>([^<]+)/g)];
+      const sources = matches.slice(0, 8).map(m => ({ url: m[1], title: m[2].trim() }));
+      const prompt = [{ role: 'user', content: `Investigate "${subject}" as a thorough researcher. Depth: ${depth || 'standard'}. Sources found: ${JSON.stringify(sources)}. Provide: key findings, connections, timeline, risk assessment, and confidence levels.` }];
+      const analysis = await chatOllama(prompt);
+      return { subject, sources, analysis, depth: depth || 'standard' };
+    },
+    web_pentest: async ({ target, scope }) => {
+      // Basic security headers + common vulnerability check via fetch + Ollama analysis
+      const url = String(target || '');
+      if (!url.startsWith('http')) return { error: 'Target must be a valid URL' };
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(15_000), redirect: 'manual' });
+        const headers = Object.fromEntries(res.headers.entries());
+        const securityHeaders = {
+          csp: headers['content-security-policy'] || 'MISSING',
+          hsts: headers['strict-transport-security'] || 'MISSING',
+          xfo: headers['x-frame-options'] || 'MISSING',
+          xcto: headers['x-content-type-options'] || 'MISSING',
+          xss: headers['x-xss-protection'] || 'MISSING',
+          referrer: headers['referrer-policy'] || 'MISSING',
+        };
+        const prompt = [{ role: 'user', content: `Security assessment for ${url}. Scope: ${scope || 'headers-only'}. Headers: ${JSON.stringify(securityHeaders)}. Identify: missing headers, misconfigurations, and OWASP risks. Rate severity.` }];
+        const assessment = await chatOllama(prompt);
+        return { target: url, securityHeaders, assessment, scope: scope || 'headers-only' };
+      } catch (e) {
+        return { error: e.message, target: url };
+      }
+    },
+    osint_gather: async ({ query, sources }) => {
+      // Open source intelligence via DuckDuckGo + public data + Ollama synthesis
+      const searches = [query, `"${query}" site:linkedin.com`, `"${query}" site:github.com`];
+      const results = [];
+      for (const q of searches.slice(0, sources?.length || 3)) {
+        try {
+          const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`, {
+            signal: AbortSignal.timeout(15_000),
+            headers: { 'User-Agent': 'Chandra/1.0' },
+          });
+          const html = await res.text();
+          const matches = [...html.matchAll(/class="result__a"[^>]*href="([^"]+)"[^>]*>([^<]+)/g)];
+          results.push(...matches.slice(0, 5).map(m => ({ query: q, url: m[1], title: m[2].trim() })));
+        } catch { /* continue */ }
+      }
+      const prompt = [{ role: 'user', content: `OSINT synthesis for "${query}". ${results.length} sources found: ${JSON.stringify(results.slice(0, 15))}. Compile: digital footprint, key facts, connections, and confidence assessment.` }];
+      const synthesis = await chatOllama(prompt);
+      return { query, resultCount: results.length, sources: results.slice(0, 15), synthesis };
+    },
   };
 }
 

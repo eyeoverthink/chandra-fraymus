@@ -3,7 +3,7 @@
 **Commit:** `eea4fe3`
 **Date:** 2026-10-30
 **Previous:** [Phase 17 — Living Constellation](PHASE-17.md)
-**Next:** *(next phase)*
+**Next:** [Phase 19 — Hermes Full Fleet + Agent Collaboration](PHASE-19.md)
 
 ---
 

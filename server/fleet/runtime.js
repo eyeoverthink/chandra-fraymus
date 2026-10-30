@@ -209,7 +209,7 @@ async function executeTool(toolName, args, ctx) {
     return { awaiting_approval: true, approvalId };
   }
   const result = tool.execute
-    ? await tool.execute({ args })
+    ? await tool.execute({ args }, ctx)
     : (tool.run ? await tool.run(args, ctx) : { error: 'tool has no executor' });
   return result;
 }

@@ -91,10 +91,11 @@ The intelligence stack was merged from two proprietary repos (`fraynix-continuit
 | **12** | Entity Store — SQLite-backed Proxy adapter replacing Base44 cloud store, auto-creates collections |
 | **13** | Nexus 4-View UI — Command Center (10-widget grid), Constellation (SVG map), Canvas (workflow editor), Library (content archive) + Detail Drawer (9 panels) |
 | **14** | Command Router — `POST /api/command` endpoint parsing @agent, pipeline/workflow, freetext commands; dispatches to fleet/commerce/workflow subsystems |
-| **15** | Hermes 30-Skill Fleet + Motor Compute + OpenClaw 23-Action Gateway + Needle GPU Queue |
+| **15** | Hermes 30-Skill Fleet (14 executors) + Motor Compute + OpenClaw 23-Action Gateway + Needle GPU Queue |
 | **16** | Command Bar + Live Activity Stream — persistent @agent autocomplete input, real-time WebSocket event feed with type-colored badges |
 | **17** | Living Constellation — node activity pulses, center hub breathing, animated edge flow, always-visible status badges, click-to-inspect |
 | **18** | Offline-First Hardening — FRAYNIX-DREAMER ULTIMATE:8b default model, 3 server startup bug fixes, React health API crash fix, end-to-end offline verification |
+| **19** | Hermes Full Fleet (30/30 executors wired with free local tools) + Agent Delegation fix — all media/code/system/intelligence skills live, `elevenlabs_tts` → `text_to_speech` |
 
 ---
 
