@@ -74,4 +74,4 @@ Added a dedicated Agent Profiles panel that enriches static manifest data with l
 ---
 
 **Previous:** [Phase 42 — System Metrics Panel](PHASE-42.md)
-**Next:** Phase 44 (TBD)
+**Next:** [Phase 44 — Memory Browser Panel](PHASE-44.md)

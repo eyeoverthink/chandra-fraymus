@@ -34,6 +34,7 @@ export default function App() {
     if (action === 'timeline') { setDrawer({ panel: 'timeline', title: 'Activity Timeline' }); return; }
     if (action === 'metrics') { setDrawer({ panel: 'metrics', title: 'System Metrics' }); return; }
     if (action === 'profiles') { setDrawer({ panel: 'profiles', title: 'Agent Profiles' }); return; }
+    if (action === 'memory') { setDrawer({ panel: 'memory', title: 'Memory Browser' }); return; }
     if (action.startsWith('view:')) {
       setView(action.slice(5));
       setDrawer(null);
@@ -120,6 +121,16 @@ export default function App() {
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
           >
             <span style={{ fontSize: 12 }}>⊕</span> Profiles
+          </button>
+          <button onClick={() => openDrawer('memory', 'Memory Browser')} style={{
+            background: 'none', border: '1px solid #333', borderRadius: 6,
+            color: '#666', fontSize: 13, padding: '4px 10px', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
+          }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#10b981'; e.currentTarget.style.color = '#10b981'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
+          >
+            <span style={{ fontSize: 12 }}>⧉</span> Memory
           </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: '#555' }}>

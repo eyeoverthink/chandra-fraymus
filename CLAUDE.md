@@ -230,6 +230,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `ActivityTimeline.jsx` — Unified chronological feed aggregating events from 12 DB tables (runs, workflow_runs, automation_runs, commerce_pipeline_runs, apparel_pipeline_runs, mystery_shopper_runs, store_fixer_runs, bus_messages, health_alerts, reflections, forged_agents, synthesized_workflows); 6 category filters (agent, workflow, commerce, bus, health, evolution); 5s auto-refresh polling; day-grouped timeline with color-coded dots and status badges; 17th Detail Drawer panel
 
 - `AgentProfiles.jsx` — Agent fleet profiles with enriched stats; list view (responsive grid, search filter, role-colored avatars, stat badges) → detail view (stat pills, success rate bar, tool chips, memory confidence, greeting); 19th Detail Drawer panel
+- `MemoryBrowser.jsx` — Agent memory browser: agent overview (total memories, agents list with counts) → per-agent detail view with search, category filter, expandable memory cards showing key/value/confidence/verified/access_count, verify + forget actions; uses existing fleet memory API; 20th Detail Drawer panel
 
 ### Server Routes (continued)
 - `server/metrics.js` — `GET /api/metrics` returns aggregate stats (overview totals, topAgents, topBusTopics, runsByStatus, 7-day recentActivity); queries 12+ tables with COUNT/GROUP BY
