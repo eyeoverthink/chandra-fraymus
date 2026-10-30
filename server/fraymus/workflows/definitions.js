@@ -148,6 +148,39 @@ export const WORKFLOWS = {
     ],
   },
 
+  // ═══ Intelligence Pipeline ═══
+  IntelligenceAnalysisPipeline: {
+    trigger: { source: 'manual', event: 'run' },
+    function: 'intelligencePipeline',
+    action: 'full_analysis',
+    description: 'Heart Feel → Cognition → Consciousness Prove → Dream: full intelligence stack analysis pipeline',
+    canvas_nodes: [
+      { id: 'i1', type: 'heart_feel', position: { x: 100, y: 200 }, data: { type: 'heart_feel', prompt: 'Analyze emotional content' } },
+      { id: 'i2', type: 'cognition', position: { x: 400, y: 100 }, data: { type: 'cognition', prompt: 'Run cognition pipeline' } },
+      { id: 'i3', type: 'consciousness_prove', position: { x: 400, y: 300 }, data: { type: 'consciousness_prove', prompt: 'Run consciousness proofs' } },
+      { id: 'i4', type: 'dream', position: { x: 700, y: 200 }, data: { type: 'dream', prompt: 'Generate dream from analysis', seed: 'intelligence pipeline' } },
+    ],
+    canvas_edges: [
+      { id: 'ie1', source: 'i1', target: 'i2' },
+      { id: 'ie2', source: 'i1', target: 'i3' },
+      { id: 'ie3', source: 'i2', target: 'i4' },
+      { id: 'ie4', source: 'i3', target: 'i4' },
+    ],
+  },
+  ConsciousnessCheckpoint: {
+    trigger: { source: 'manual', event: 'run' },
+    function: 'intelligencePipeline',
+    action: 'consciousness_check',
+    description: 'Heart Feel → Consciousness Prove: emotion-aware consciousness verification',
+    canvas_nodes: [
+      { id: 'c1', type: 'heart_feel', position: { x: 100, y: 200 }, data: { type: 'heart_feel', prompt: 'Read emotional state' } },
+      { id: 'c2', type: 'consciousness_prove', position: { x: 450, y: 200 }, data: { type: 'consciousness_prove', prompt: 'Verify consciousness proofs' } },
+    ],
+    canvas_edges: [
+      { id: 'ce1', source: 'c1', target: 'c2' },
+    ],
+  },
+
   // ═══ External Integration ═══
   GoogleCalendarRealtimeSync: {
     trigger: { source: 'google_calendar', event: 'webhook' },

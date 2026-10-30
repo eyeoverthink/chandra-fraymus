@@ -19,7 +19,7 @@ import {createLocalVisionProvider} from './vision/local.js';
 import {createVisionTools} from './vision/tools.js';
 import {createLocalOcrProvider} from './ocr/local.js';
 import {createOcrTools} from './ocr/tools.js';
-import { createFraymusTools } from './fraymus-tools.js';
+import { createFraymusTools, MemoryBridge } from './fraymus-tools.js';
 import { createAutonomyEngine } from './autonomy.js';
 import { installFraymusRoutes } from './fraymus-routes.js';
 import { createWorkflowStore, installWorkflowRoutes } from './workflow/routes.js';
@@ -74,6 +74,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   let browserTools = [];
   try { browserTools = createBrowserTools(); } catch (e) { console.error('runtime: browser tools failed:', e.message); }
   const vertiso = new VertisoMemory({ db, ollamaUrl });
+  const memoryBridge = new MemoryBridge(vertiso);
   const rsi = new RSIEngine({ db, vertiso, ollamaUrl, broadcast });
   let vertisoTools = [];
   try { vertisoTools = [...createVertisoTools(vertiso), ...createRSITools(rsi)]; } catch (e) { console.error('runtime: vertiso/RSI tools failed:', e.message); }
@@ -94,10 +95,10 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
       }
       broadcast('agent',event);
     } });
-  const autonomy = createAutonomyEngine({ db, broadcast, agent: { get: id => agent.get(id) }, tasks, logEvent: (kind, actor, detail) => {
+  const autonomy = createAutonomyEngine({ db, broadcast, agent: { get: id => agent.get(id) }, tasks, memoryBridge, logEvent: (kind, actor, detail) => {
     try { db.prepare('INSERT INTO events (kind, actor, detail, created_at) VALUES (?, ?, ?, ?)').run(kind, actor, detail, Date.now()); } catch (e) { console.error('runtime: event insert failed:', e.message); }
   }});
-  installFraymusRoutes(app, { autonomy, broadcast });
+  installFraymusRoutes(app, { autonomy, broadcast, memoryBridge });
   installWorkflowRoutes(app, { broadcast });
   installFleetRoutes(app);
   installMcpEndpoint(app);

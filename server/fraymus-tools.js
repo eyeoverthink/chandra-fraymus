@@ -30,6 +30,7 @@ import { Ledger } from './fraymus/intelligence/ledger.js';
 import { Dreamer } from './fraymus/intelligence/dreamer.js';
 import { CognitionPipeline } from './fraymus/intelligence/cognition.js';
 import { SCHEMAS, getSchema, entitiesBySource } from './fraymus/entities/schemas.js';
+import { MemoryBridge } from './fraymus/intelligence/memory-bridge.js';
 import { getWorkflow, scheduledWorkflows, eventTriggeredWorkflows } from './fraymus/workflows/definitions.js';
 import { MCP_TOOLS, getToolDefinition, listTools as listMcpTools } from './fraymus/mcp/tools.js';
 import { AGENTS, ZONES, COMPUTE_NODES, PHI } from './fraymus/core/constants.js';
@@ -153,7 +154,7 @@ function buildHermesExecutors() {
   };
 }
 
-export { ouroboros, hermes, motor, openclaw, controlPlane, needle, heart, ledger, dreamer, cognition };
+export { ouroboros, hermes, motor, openclaw, controlPlane, needle, heart, ledger, dreamer, cognition, MemoryBridge };
 
 export function createFraymusTools() {
   return [

@@ -9,7 +9,7 @@ const AUTONOMY_INTERVAL_MS = 30_000;
 const EVOLUTION_INTERVAL_MS = 300_000;
 const DREAM_CONSOLIDATION_MS = 600_000; // consolidate dreams every 10 minutes
 
-export function createAutonomyEngine({ db, broadcast, agent, tasks, logEvent }) {
+export function createAutonomyEngine({ db, broadcast, agent, tasks, memoryBridge, logEvent }) {
   let identity = null;
   let running = false;
   let autonomyTimer = null;
@@ -76,6 +76,7 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, logEvent }) 
         passed: proofs.filter(p => p.passed).length,
       }, 'autonomy');
       broadcast?.('consciousness', { allPassed, generation });
+      memoryBridge?.storeConsciousnessProof({ allPassed, proofs, architecture: 'FraymusStrangeLoop' }).catch(() => {});
     } catch (_) {}
 
     // Trigger idle dream on significant evolution
@@ -84,7 +85,7 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, logEvent }) 
         `Evolution gen ${generation}: fitness ${fitness.score.toFixed(4)}`,
         [`fitness:${fitness.score.toFixed(4)}`, `gen:${generation}`],
         'evolution'
-      ).catch(() => {});
+      ).then(d => memoryBridge?.storeDream(d).catch(() => {})).catch(() => {});
     }
 
     return { generation, fitness, improved, result };
@@ -119,7 +120,6 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, logEvent }) 
         }
       }
 
-      // Gather intelligence state for pulse
       const mood = heart.recentMood();
       const dreamerState = dreamer.feel();
       const ledgerIntegrity = ledger.verify(10);

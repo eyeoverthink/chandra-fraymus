@@ -36,6 +36,10 @@ const NODE_TYPES = [
   { type: 'description_enhancer', label: 'Description Enhancer', color: '#facc15', icon: '✨' },
   { type: 'price_adjuster', label: 'Price Adjuster', color: '#f97316', icon: '💲' },
   { type: 'shopify_applier', label: 'Shopify Applier', color: '#96bf48', icon: '🚀' },
+  { type: 'heart_feel', label: 'Heart Feel', color: '#f59e0b', icon: '♥' },
+  { type: 'dream', label: 'Dream', color: '#8b5cf6', icon: '☾' },
+  { type: 'consciousness_prove', label: 'Consciousness Prove', color: '#ec4899', icon: '◈' },
+  { type: 'cognition', label: 'Cognition', color: '#22c55e', icon: '⚡' },
 ];
 
 function NodeCard({ data }) {

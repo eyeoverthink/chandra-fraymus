@@ -8,7 +8,7 @@ import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, pr
 
 const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
 
-export function installFraymusRoutes(app, { autonomy, broadcast }) {
+export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge }) {
   // ── Autonomy Engine ──
   app.get('/api/fraymus/autonomy/status', route(async (_req, res) => {
     res.json(autonomy.status());
@@ -94,6 +94,7 @@ export function installFraymusRoutes(app, { autonomy, broadcast }) {
     if (!text) return res.status(400).json({ error: 'text required' });
     const result = heart.feel(text);
     broadcast('heart', { primary: result.primary, intensity: result.intensity });
+    memoryBridge?.storeHeartReading(result).catch(() => {});
     res.json(result);
   }));
 
@@ -130,6 +131,7 @@ export function installFraymusRoutes(app, { autonomy, broadcast }) {
     if (!seed) return res.status(400).json({ error: 'seed required' });
     const result = await dreamer.dream(seed, inputs || [], kind || 'spontaneous');
     broadcast('dreamer', { action: 'dream', number: result.number });
+    memoryBridge?.storeDream(result).catch(() => {});
     res.json(result);
   }));
 
@@ -170,6 +172,7 @@ export function installFraymusRoutes(app, { autonomy, broadcast }) {
     if (!text) return res.status(400).json({ error: 'text required' });
     const result = await cognition.process(text, { skipThink: !!skipThink });
     broadcast('cognition', { phase: result.phase, primary: result.feeling?.primary });
+    memoryBridge?.storeCognitionResult(result).catch(() => {});
     res.json(result);
   }));
 
@@ -189,6 +192,7 @@ export function installFraymusRoutes(app, { autonomy, broadcast }) {
     ];
     const allPassed = proofs.every(p => p.passed);
     broadcast('consciousness', { allPassed, nodeCount });
+    memoryBridge?.storeConsciousnessProof({ allPassed, proofs, architecture: 'FraymusStrangeLoop' }).catch(() => {});
     res.json({ proofs, allPassed, architecture: 'FraymusStrangeLoop', nodeCount });
   }));
 
