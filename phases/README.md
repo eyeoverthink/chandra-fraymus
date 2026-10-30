@@ -47,6 +47,7 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 39 | Keyboard Shortcuts & Quick Actions | — | 5 files | [PHASE-39.md](PHASE-39.md) |
 | 40 | Agent Chat Panel | — | 6 files | [PHASE-40.md](PHASE-40.md) |
 | 41 | Activity Timeline Panel | — | 6 files | [PHASE-41.md](PHASE-41.md) |
+| 42 | System Metrics Panel | — | 6 files | [PHASE-42.md](PHASE-42.md) |
 
 ## Convention
 

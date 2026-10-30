@@ -17,6 +17,7 @@ import ForgePanel from '../panels/ForgePanel.jsx';
 import SettingsPanel from '../panels/SettingsPanel.jsx';
 import AgentChatPanel from '../panels/AgentChatPanel.jsx';
 import ActivityTimeline from '../panels/ActivityTimeline.jsx';
+import SystemMetrics from '../panels/SystemMetrics.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -36,6 +37,7 @@ const PANELS = {
   settings: { component: SettingsPanel, label: 'System Settings' },
   chat: { component: AgentChatPanel, label: 'Agent Chat' },
   timeline: { component: ActivityTimeline, label: 'Activity Timeline' },
+  metrics: { component: SystemMetrics, label: 'System Metrics' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {

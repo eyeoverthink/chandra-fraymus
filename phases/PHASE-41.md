@@ -3,7 +3,7 @@
 **Date:** 2026-10-30
 **Feature Count:** 53 (added `activity-timeline`)
 **Prev:** [Phase 40 — Agent Chat Panel](./PHASE-40.md)
-**Next:** TBD
+**Next:** [Phase 42 — System Metrics Panel](./PHASE-42.md)
 
 ---
 
