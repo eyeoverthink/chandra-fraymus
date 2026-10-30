@@ -6,7 +6,7 @@
 | **Title** | System Settings Panel |
 | **Status** | Complete |
 | **Prev** | [Phase 35 — Agent Forge + Synthesis Panel](PHASE-35.md) |
-| **Next** | Phase 37 (TBD) |
+| **Next** | [Phase 37 — Notification Toast System](PHASE-37.md) |
 
 ## Summary
 

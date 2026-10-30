@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useWebSocket from './useWebSocket.js';
 import ErrorBoundary from './ErrorBoundary.jsx';
+import ToastProvider from './ToastProvider.jsx';
 import WorkflowCanvas from './panels/WorkflowCanvas.jsx';
 import CommandCenter from './nexus/CommandCenter.jsx';
 import ConstellationView from './nexus/ConstellationView.jsx';
@@ -28,6 +29,7 @@ export default function App() {
   const closeDrawer = () => setDrawer(null);
 
   return (
+    <ToastProvider wsEvent={wsEvent}>
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <nav style={{
         display: 'flex', alignItems: 'center', height: 52, padding: '0 20px',
@@ -110,5 +112,6 @@ export default function App() {
         </>
       )}
     </div>
+    </ToastProvider>
   );
 }
