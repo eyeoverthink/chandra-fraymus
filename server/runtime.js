@@ -99,7 +99,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
     try { db.prepare('INSERT INTO events (kind, actor, detail, created_at) VALUES (?, ?, ?, ?)').run(kind, actor, detail, Date.now()); } catch (e) { console.error('runtime: event insert failed:', e.message); }
   }});
   installFraymusRoutes(app, { autonomy, broadcast, memoryBridge });
-  installWorkflowRoutes(app, { broadcast });
+  installWorkflowRoutes(app, { broadcast, memoryBridge });
   installFleetRoutes(app);
   installMcpEndpoint(app);
   installOAuthRoutes(app);
@@ -141,7 +141,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
     workspace, localDefault: true, cloudConfigured: cloud?.enabled === true,sqliteSynchronous:db.prepare('PRAGMA synchronous').get()?.synchronous,
     features: ['durable-agent', 'approved-tools', 'attachments', 'document-reader', 'local-semantic-retrieval', 'local-vision-helper', 'local-ocr', 'web-research', 'local-wav-transcription', 'scheduled-tasks', 'voice-proxy', 'transport-lab',
       'fraymus-identity', 'fraymus-encoding', 'fraymus-protocol', 'fraymus-intelligence', 'fraymus-autonomy', 'fraymus-ouroboros', 'fraymus-hermes-30skill', 'fraymus-motor', 'fraymus-openclaw', 'fraymus-kuramoto-sync',
-      'visual-workflow-engine', '16-agent-fleet', 'mcp-server-gateway', 'mcp-client-bridge', 'cron-automations',
+      'visual-workflow-engine', '17-agent-fleet', 'mcp-server-gateway', 'mcp-client-bridge', 'cron-automations',
       'puppeteer-headless-browser', 'chrome-extension-bridge', 'vertiso-vector-memory', 'recursive-self-improvement'] }));
   app.get('/api/agent/capabilities', route(async (_req, res) => {
     const caps = await agent.capabilities();
@@ -217,7 +217,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
       res.status(response.status).type(response.headers.get('content-type') || 'application/json').send(Buffer.concat(chunks));
     } catch (error) { res.status(503).json({ ok: false, ready: false, error: `Local voice service unavailable: ${error.message}` }); }
   }));
-  return { agent, artifacts, web, desktop, tasks, autonomy, workflowStore, fleetTools, vertiso, rsi, async close() {
+  return { agent, artifacts, web, desktop, tasks, autonomy, workflowStore, fleetTools, vertiso, rsi, memoryBridge, async close() {
     autonomy.stop();
     const scheduling=await tasks.close();
     if(!scheduling.cleanupConfirmed)return {safeToCloseDatabase:false,scheduling};

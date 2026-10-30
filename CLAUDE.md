@@ -79,7 +79,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 
 - `manifest.js` — loads agent .md files with frontmatter (id, name, role, tools)
 - `routes.js` — fleet CRUD API
-- `runtime.js` — agent execution runtime (emotion-aware: reads Heart on each user message, logs to Ledger)
+- `runtime.js` — agent execution runtime (emotion-aware: reads Heart on each user message, logs to Ledger, persists strong emotions to Memory Bridge)
 - `tools.js` — fleet management tools (7 fleet + 4 intelligence)
 
 ### Commerce Pipelines (server/commerce/)
@@ -99,7 +99,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `rsi-tools.js` — agent tools for RSI ops
 
 ### Visual Workflow Engine (server/workflow/)
-- `engine.js` — pipeline executor, 34 node types (incl. 4 intelligence)
+- `engine.js` — pipeline executor, 34 node types (incl. 4 intelligence, all Memory Bridge-wired)
 - `routes.js` — workflow CRUD + run API (with node count validation, ownership checks)
 
 ### Other Subsystems
@@ -128,7 +128,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `App.jsx` — main layout, tab nav, WebSocket distribution
 - `useWebSocket.js` — single WS connection, exponential backoff (1s→30s cap)
 - `DashboardPanel.jsx` — stats overview, intelligence status cards (mood/dreamer/ledger/cognition), recent activity
-- `IntelligencePanel.jsx` — interactive Heart, Dreamer, Ledger, Consciousness Proofs, Cognition controls
+- `IntelligencePanel.jsx` — interactive Heart, Dreamer, Ledger, Consciousness Proofs, Cognition, Memory Bridge recall controls
 - `WorkflowCanvas.jsx` — ReactFlow visual workflow builder, 34 node types (reacts to workflow)
 - `FleetPanel.jsx` — agent cards + task sender (reacts to agents/agent/event)
 - `AutomationsPanel.jsx` — cron scheduler UI with error handling (reacts to event)

@@ -1,4 +1,4 @@
-// Vertiso Memory Tools — Fleet-callable tools for all 16 agents
+// Vertiso Memory Tools — Fleet-callable tools for all 17 agents
 const string = (maxLength, extra = {}) => ({ type: 'string', maxLength, ...extra });
 const object = (properties, required = []) => ({ type: 'object', properties, required, additionalProperties: false });
 

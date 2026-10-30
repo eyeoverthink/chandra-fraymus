@@ -39,7 +39,7 @@ export function createWorkflowStore() {
   };
 }
 
-export function installWorkflowRoutes(app, { broadcast }) {
+export function installWorkflowRoutes(app, { broadcast, memoryBridge }) {
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
 
   app.get('/api/workflows', (_req, res) => {
@@ -87,7 +87,7 @@ export function installWorkflowRoutes(app, { broadcast }) {
   app.post('/api/workflows/:id/run', route(async (req, res) => {
     const wf = getWorkflow(req.params.id);
     if (!wf) return res.status(404).json({ error: 'Workflow not found' });
-    const result = await runPipeline(wf.nodes, wf.edges, { prompt: req.body?.prompt });
+    const result = await runPipeline(wf.nodes, wf.edges, { prompt: req.body?.prompt, memoryBridge });
     const runId = randomUUID();
     db.prepare(`INSERT INTO workflow_runs (id, workflow_id, user_id, status, input_prompt, results, final_image_url, final_html, duration_ms, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
@@ -119,7 +119,7 @@ export function installWorkflowRoutes(app, { broadcast }) {
     if (!wf) return res.status(404).json({ error: 'No deployed workflow with that slug' });
     const nodes = safeParse(wf.nodes, []);
     const edges = safeParse(wf.edges, []);
-    const result = await runPipeline(nodes, edges, { prompt: req.body?.prompt, image: req.body?.image ? Buffer.from(req.body.image, 'base64') : undefined });
+    const result = await runPipeline(nodes, edges, { prompt: req.body?.prompt, image: req.body?.image ? Buffer.from(req.body.image, 'base64') : undefined, memoryBridge });
     res.json(result);
   }));
 }

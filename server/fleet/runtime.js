@@ -14,11 +14,13 @@ let toolRegistry = [];
 let broadcastFn = () => {};
 let vertisoRef = null;
 let rsiRef = null;
+let memoryBridgeRef = null;
 
-export function initFleet({ broadcast, vertiso, rsi }) {
+export function initFleet({ broadcast, vertiso, rsi, memoryBridge }) {
   broadcastFn = broadcast || (() => {});
   vertisoRef = vertiso || null;
   rsiRef = rsi || null;
+  memoryBridgeRef = memoryBridge || null;
   manifests = loadManifests();
   return { agentCount: manifests.size };
 }
@@ -207,6 +209,7 @@ async function drive(runId, depth = 0) {
         if (feeling.intensity > 0.1) {
           emotionNote = ` [User emotion: ${feeling.primary} (${Math.round(feeling.intensity * 100)}%), sentiment: ${feeling.sentiment > 0 ? 'positive' : feeling.sentiment < 0 ? 'negative' : 'neutral'}${feeling.sarcasm ? ', sarcasm detected' : ''}]`;
           ledger.record('fleet.feel', { agent: agent.id, primary: feeling.primary, intensity: feeling.intensity, step }, 'fleet');
+          if (feeling.intensity > 0.3) memoryBridgeRef?.storeHeartReading(feeling).catch(() => {});
         }
       } catch (_) {}
     }

@@ -38,7 +38,7 @@ export default function DashboardPanel({ health, wsEvent }) {
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 24, fontWeight: 700, color: '#a78bfa' }}>Chandra-FRAYMUS Unified Dashboard</h2>
         <p style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
-          Autonomous AI workspace with visual workflows, 16-agent fleet, MCP gateway, and full FRAYMUS intelligence stack.
+          Autonomous AI workspace with visual workflows, 17-agent fleet, MCP gateway, and full FRAYMUS intelligence stack.
         </p>
       </div>
 
@@ -91,7 +91,7 @@ export default function DashboardPanel({ health, wsEvent }) {
               }}>{f}</div>
             ))}
             <div style={{ fontSize: 11, padding: '4px 8px', borderRadius: 4, background: '#ec489920', color: '#ec4899' }}>visual-workflow-engine</div>
-            <div style={{ fontSize: 11, padding: '4px 8px', borderRadius: 4, background: '#ec489920', color: '#ec4899' }}>16-agent-fleet</div>
+            <div style={{ fontSize: 11, padding: '4px 8px', borderRadius: 4, background: '#ec489920', color: '#ec4899' }}>17-agent-fleet</div>
             <div style={{ fontSize: 11, padding: '4px 8px', borderRadius: 4, background: '#ec489920', color: '#ec4899' }}>mcp-server-gateway</div>
             <div style={{ fontSize: 11, padding: '4px 8px', borderRadius: 4, background: '#ec489920', color: '#ec4899' }}>mcp-client-bridge</div>
             <div style={{ fontSize: 11, padding: '4px 8px', borderRadius: 4, background: '#ec489920', color: '#ec4899' }}>cron-automations</div>

@@ -363,6 +363,7 @@ export async function runPipeline(nodes, edges, opts = {}) {
       } else if (k === 'heart_feel') {
         const text = upstreamText || node.data?.text || '';
         const out = heart.feel(text);
+        opts.memoryBridge?.storeHeartReading(out).catch(() => {});
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
 
@@ -371,6 +372,7 @@ export async function runPipeline(nodes, edges, opts = {}) {
         const inputs = node.data?.inputs || [];
         const kind = node.data?.kind || 'workflow';
         const out = await dreamer.dream(seed, inputs, kind);
+        opts.memoryBridge?.storeDream(out).catch(() => {});
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
 
@@ -389,13 +391,15 @@ export async function runPipeline(nodes, edges, opts = {}) {
           architecture: 'FraymusStrangeLoop',
         };
         ledger.record('consciousness.proof.workflow', { allPassed: out.allPassed, passed: proofs.filter(p => p.passed).length }, 'workflow');
+        opts.memoryBridge?.storeConsciousnessProof(out).catch(() => {});
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
 
       } else if (k === 'cognition') {
         const text = upstreamText || node.data?.text || '';
-        const opts = { skipThink: node.data?.skipThink ?? false };
-        const out = await cognition.process(text, opts);
+        const cogOpts = { skipThink: node.data?.skipThink ?? false };
+        const out = await cognition.process(text, cogOpts);
+        opts.memoryBridge?.storeCognitionResult(out).catch(() => {});
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
 

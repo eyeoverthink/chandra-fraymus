@@ -40,22 +40,27 @@ export default function IntelligencePanel({ wsEvent }) {
   const [dreamSeed, setDreamSeed] = useState('');
   const [cognitionText, setCognitionText] = useState('');
   const [cognitionResult, setCognitionResult] = useState(null);
+  const [memoryQuery, setMemoryQuery] = useState('');
+  const [memoryResults, setMemoryResults] = useState(null);
+  const [memoryStats, setMemoryStats] = useState(null);
   const [loading, setLoading] = useState({});
 
   const load = useCallback(async () => {
     try {
-      const [m, l, d, dl, c] = await Promise.all([
+      const [m, l, d, dl, c, ms] = await Promise.all([
         fetch('/api/fraymus/heart/mood').then(r => r.json()).catch(() => null),
         fetch('/api/fraymus/ledger/stats').then(r => r.json()).catch(() => null),
         fetch('/api/fraymus/dreamer/feel').then(r => r.json()).catch(() => null),
         fetch('/api/fraymus/dreamer/list?limit=10').then(r => r.json()).catch(() => null),
         fetch('/api/fraymus/cognition/status').then(r => r.json()).catch(() => null),
+        fetch('/api/fraymus/memory/stats').then(r => r.json()).catch(() => null),
       ]);
       if (m) setMood(m);
       if (l) setLedgerStats(l);
       if (d) setDreamerState(d);
       if (dl?.dreams) setDreams(dl.dreams);
       if (c) setCognitionStatus(c);
+      if (ms) setMemoryStats(ms);
     } catch (_) {}
   }, []);
 
@@ -122,10 +127,23 @@ export default function IntelligencePanel({ wsEvent }) {
     setLoading(l => ({ ...l, cognition: false }));
   };
 
+  const doMemoryRecall = async () => {
+    if (!memoryQuery.trim()) return;
+    setLoading(l => ({ ...l, memory: true }));
+    try {
+      const r = await fetch('/api/fraymus/memory/recall', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: memoryQuery, limit: 10 }),
+      }).then(r => r.json());
+      setMemoryResults(r);
+    } catch (_) {}
+    setLoading(l => ({ ...l, memory: false }));
+  };
+
   return (
     <div style={{ padding: 24, maxWidth: 1200 }}>
       <h2 style={{ fontSize: 22, fontWeight: 700, color: '#a78bfa', marginBottom: 4 }}>Intelligence Stack</h2>
-      <p style={{ color: '#666', fontSize: 13, marginBottom: 20 }}>Heart + Ledger + Dreamer + Cognition + Consciousness Proofs</p>
+      <p style={{ color: '#666', fontSize: 13, marginBottom: 20 }}>Heart + Ledger + Dreamer + Cognition + Consciousness Proofs + Memory Bridge</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16 }}>
 
@@ -235,6 +253,44 @@ export default function IntelligencePanel({ wsEvent }) {
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '4px 0', borderBottom: '1px solid #1a1a2e' }}>
                   <span style={{ color: '#ddd', fontFamily: 'monospace' }}>{p.proof}</span>
                   <span style={badge(p.passed ? '#22c55e' : '#ef4444')}>{p.passed ? 'PASS' : 'FAIL'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Memory Bridge — Recall */}
+        <div style={card}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#14b8a6', marginBottom: 12 }}>🌉 Memory Bridge — Recall</h3>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <input value={memoryQuery} onChange={e => setMemoryQuery(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && doMemoryRecall()}
+              placeholder="Search intelligence memories..."
+              style={{ flex: 1, padding: '8px 12px', borderRadius: 6, border: '1px solid #333', background: '#0a0a0f', color: '#ddd', fontSize: 13 }}
+            />
+            <button onClick={doMemoryRecall} disabled={loading.memory} style={btn('#14b8a6')}>
+              {loading.memory ? '...' : 'Recall'}
+            </button>
+          </div>
+          {memoryStats?.available && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <span style={badge('#14b8a6')}>Bridge Active</span>
+              {memoryStats.stored != null && <span style={badge('#333')}>{memoryStats.stored} stored</span>}
+            </div>
+          )}
+          {memoryStats && !memoryStats.available && (
+            <div style={{ fontSize: 11, color: '#666', marginBottom: 8 }}>Memory Bridge unavailable — Vertiso not connected</div>
+          )}
+          {memoryResults && (
+            <div style={{ maxHeight: 200, overflow: 'auto' }}>
+              {memoryResults.count === 0 && <div style={{ fontSize: 12, color: '#666' }}>No memories found for "{memoryQuery}"</div>}
+              {(memoryResults.memories || []).map((m, i) => (
+                <div key={i} style={{ padding: '6px 8px', marginBottom: 4, background: '#1a1a2e', borderRadius: 6, fontSize: 12 }}>
+                  <div style={{ color: '#ddd', lineHeight: 1.4 }}>{(m.content || '').slice(0, 200)}</div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                    {m.provenance && <span style={badge('#14b8a6')}>{m.provenance}</span>}
+                    {m.score != null && <span style={badge('#333')}>{(m.score * 100).toFixed(0)}% match</span>}
+                  </div>
                 </div>
               ))}
             </div>
