@@ -6,6 +6,7 @@ const SHORTCUTS = [
   { key: '2', ctrl: false, action: 'view:constellation', label: 'Constellation' },
   { key: '3', ctrl: false, action: 'view:canvas', label: 'Canvas' },
   { key: '4', ctrl: false, action: 'view:library', label: 'Library' },
+  { key: '5', ctrl: false, action: 'chat', label: 'Agent Chat' },
   { key: 'Escape', ctrl: false, action: 'close', label: 'Close drawer / search' },
   { key: '?', ctrl: false, action: 'help', label: 'Show shortcuts' },
 ];
@@ -38,6 +39,11 @@ export default function useKeyboardShortcuts({ onAction }) {
     if (e.key >= '1' && e.key <= '4' && !e.ctrlKey && !e.altKey && !e.metaKey) {
       const views = ['command', 'constellation', 'canvas', 'library'];
       onAction(`view:${views[parseInt(e.key) - 1]}`);
+      return;
+    }
+
+    if (e.key === '5' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      onAction('chat');
       return;
     }
   }, [onAction]);

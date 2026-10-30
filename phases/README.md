@@ -45,6 +45,7 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 37 | Notification Toast System | — | 3 files | [PHASE-37.md](PHASE-37.md) |
 | 38 | Global Search | — | 4 files | [PHASE-38.md](PHASE-38.md) |
 | 39 | Keyboard Shortcuts & Quick Actions | — | 5 files | [PHASE-39.md](PHASE-39.md) |
+| 40 | Agent Chat Panel | — | 6 files | [PHASE-40.md](PHASE-40.md) |
 
 ## Convention
 

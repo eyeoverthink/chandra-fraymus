@@ -224,6 +224,9 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `useKeyboardShortcuts.js` — Global keyboard shortcut hook; registers `keydown` on document; 7 shortcuts (Ctrl+K search, 1-4 view switch, Escape close, ? help); suppresses number/? keys when focus is in input/textarea; exports `SHORTCUTS` array as single source of truth
 - `ShortcutHelp.jsx` — Modal overlay showing all keyboard shortcuts; reads `SHORTCUTS` from useKeyboardShortcuts.js; dark themed with purple kbd styling, backdrop click to close
 
+### Panels (client/src/panels/) — rendered inside Detail Drawer (continued)
+- `AgentChatPanel.jsx` — Conversational chat interface for any agent; agent picker grid → chat bubble view with polling (1.5s) for agent responses; optimistic message rendering, role-based bubble styling (user indigo right-aligned, agent purple left-aligned), auto-scroll, typing indicator; reuses POST /api/fleet/runs + GET /api/fleet/threads/:id; 16th Detail Drawer panel
+
 ### Nexus Views (client/src/nexus/)
 - `CommandCenter.jsx` — 14-widget grid with live metrics, Intelligence Stack status, Live Activity Stream (WebSocket-driven real-time event feed), integrated CommandBar; widgets open Detail Drawer or navigate to Canvas
 - `CommandBar.jsx` — persistent command input with @agent autocomplete, pipeline/workflow launching, response panel with thread polling; routes through `POST /api/command`

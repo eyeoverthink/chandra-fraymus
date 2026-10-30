@@ -30,6 +30,7 @@ export default function App() {
     if (action === 'help') { setShowHelp(h => !h); return; }
     if (action === 'search') { setSearchOpen(true); return; }
     if (action === 'close') { setDrawer(null); setShowHelp(false); setSearchOpen(false); return; }
+    if (action === 'chat') { setDrawer({ panel: 'chat', title: 'Agent Chat' }); return; }
     if (action.startsWith('view:')) {
       setView(action.slice(5));
       setDrawer(null);
@@ -75,8 +76,18 @@ export default function App() {
           ))}
         </div>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: '#555' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#555' }}>
           <GlobalSearch onOpenDrawer={openDrawer} onNavigate={setView} externalOpen={searchOpen} onExternalClose={() => setSearchOpen(false)} />
+          <button onClick={() => openDrawer('chat', 'Agent Chat')} style={{
+            background: 'none', border: '1px solid #333', borderRadius: 6,
+            color: '#666', fontSize: 13, padding: '4px 10px', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
+          }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#a78bfa'; e.currentTarget.style.color = '#a78bfa'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
+          >
+            <span style={{ fontSize: 12 }}>◈</span> Chat
+          </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: '#555' }}>
           {wsStatus !== 'connected' && (

@@ -3,7 +3,7 @@
 **Date:** 2026-10-30
 **Feature Count:** 51 (added `keyboard-shortcuts`)
 **Prev:** [Phase 38 — Global Search](./PHASE-38.md)
-**Next:** [Phase 40 — TBD](./PHASE-40.md)
+**Next:** [Phase 40 — Agent Chat Panel](./PHASE-40.md)
 
 ---
 
