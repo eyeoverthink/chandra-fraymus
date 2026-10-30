@@ -44,7 +44,7 @@ No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your mode
    ║         Autonomous AI Commerce & Intelligence Platform          ║
    ║                                                                  ║
    ║   17 Agents · 4 Commerce Pipelines · 6 Intelligence Modules     ║
-   ║   35 Workflow Nodes · 18 Workflow Definitions · 12 Fleet Tools   ║
+   ║   36 Workflow Nodes · 18 Workflow Definitions · 13 Fleet Tools   ║
    ║   39 Entity Schemas · Vertiso Vector Memory · Memory Bridge      ║
    ║   Kuramoto Phase Sync · Ouroboros RSI · Ed25519 Identity         ║
    ║                                                                  ║
@@ -58,7 +58,7 @@ No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your mode
 
 ---
 
-## What's New — Phases 1–8
+## What's New — Phases 1–9
 
 The intelligence stack was merged from two proprietary repos (`fraynix-continuity` and `fraynix-dreamer-120b`) and deeply integrated across every surface of the system:
 
@@ -72,6 +72,7 @@ The intelligence stack was merged from two proprietary repos (`fraynix-continuit
 | **6** | Emotion-aware fleet — Heart reads on every message, Ledger logging, FRAYMUS system prompt with intelligence section, memory search endpoints |
 | **7** | Memory Bridge wired through workflow engine (all 4 intelligence handlers persist results) and fleet runtime (strong emotions auto-stored), Memory Recall UI in Intelligence panel |
 | **8** | `memory_recall` workflow node + fleet tool, Dashboard Memory Bridge & Autonomy status cards, health endpoint Memory Bridge status |
+| **9** | Intelligence-enriched fleet prompts (full stack context + bridge memories), autonomy Memory Bridge recall before evolution, `intelligence_cycle` tool/node/endpoint + UI |
 
 ---
 
@@ -498,7 +499,7 @@ A ReactFlow-based drag-and-drop editor with **34 node types** and topological-so
 | **Video Director** | Short-form video maker | Video content creation and editing |
 | **YouTube Researcher** | YouTube outlier analyst | Trend research and demand signal detection |
 
-### Fleet Tools (12)
+### Fleet Tools (13)
 
 | Tool | Group | Safety | Description |
 |------|-------|--------|-------------|
@@ -514,6 +515,7 @@ A ReactFlow-based drag-and-drop editor with **34 node types** and topological-so
 | `consciousness_prove` | intelligence | Safe | Run 4 mathematical consciousness proofs |
 | `cognition_process` | intelligence | Safe | Run text through the two-speed cognition pipeline |
 | `memory_recall` | intelligence | Safe | Search intelligence memories in the Vertiso Memory Bridge |
+| `intelligence_cycle` | intelligence | Safe | Run full intelligence stack: feel → cognition → consciousness → dream |
 
 ---
 
@@ -681,9 +683,9 @@ A ReactFlow-based drag-and-drop editor with **34 node types** and topological-so
 | Intelligence Modules | 6 (Heart, Ledger, Dreamer, Cognition, Consciousness, Memory Bridge) |
 | Hermes Skills | 30 |
 | Workflow Definitions | 18 |
-| Canvas Node Types | 35 |
+| Canvas Node Types | 36 |
 | Entity Schemas | 39 |
-| Fleet Tools | 12 (7 fleet + 5 intelligence) |
+| Fleet Tools | 13 (7 fleet + 6 intelligence) |
 | API Endpoints | 180+ |
 | Product Types (Apparel) | 24 |
 | Frontend Panels | 9 |

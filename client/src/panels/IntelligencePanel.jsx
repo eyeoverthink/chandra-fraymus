@@ -43,6 +43,8 @@ export default function IntelligencePanel({ wsEvent }) {
   const [memoryQuery, setMemoryQuery] = useState('');
   const [memoryResults, setMemoryResults] = useState(null);
   const [memoryStats, setMemoryStats] = useState(null);
+  const [cycleText, setCycleText] = useState('');
+  const [cycleResult, setCycleResult] = useState(null);
   const [loading, setLoading] = useState({});
 
   const load = useCallback(async () => {
@@ -66,7 +68,7 @@ export default function IntelligencePanel({ wsEvent }) {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    if (['heart', 'ledger', 'dreamer', 'cognition', 'consciousness'].includes(wsEvent?.channel)) load();
+    if (['heart', 'ledger', 'dreamer', 'cognition', 'consciousness', 'intelligence'].includes(wsEvent?.channel)) load();
   }, [wsEvent, load]);
 
   const doFeel = async () => {
@@ -138,6 +140,20 @@ export default function IntelligencePanel({ wsEvent }) {
       setMemoryResults(r);
     } catch (_) {}
     setLoading(l => ({ ...l, memory: false }));
+  };
+
+  const doCycle = async () => {
+    if (!cycleText.trim()) return;
+    setLoading(l => ({ ...l, cycle: true }));
+    try {
+      const r = await fetch('/api/fraymus/intelligence/cycle', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: cycleText }),
+      }).then(r => r.json());
+      setCycleResult(r);
+      load();
+    } catch (_) {}
+    setLoading(l => ({ ...l, cycle: false }));
   };
 
   return (
@@ -293,6 +309,50 @@ export default function IntelligencePanel({ wsEvent }) {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* Full Intelligence Cycle */}
+        <div style={card}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#d946ef', marginBottom: 12 }}>🔮 Full Intelligence Cycle</h3>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <input value={cycleText} onChange={e => setCycleText(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && doCycle()}
+              placeholder="Run full stack: feel → think → prove → dream..."
+              style={{ flex: 1, padding: '8px 12px', borderRadius: 6, border: '1px solid #333', background: '#0a0a0f', color: '#ddd', fontSize: 13 }}
+            />
+            <button onClick={doCycle} disabled={loading.cycle} style={btn('#d946ef')}>
+              {loading.cycle ? '...' : 'Cycle'}
+            </button>
+          </div>
+          {cycleResult && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div style={{ padding: 8, background: '#1a1a2e', borderRadius: 6 }}>
+                <div style={{ fontSize: 10, color: '#666', marginBottom: 2 }}>Heart</div>
+                <span style={badge(EMOTION_COLORS[cycleResult.feeling?.primary] || '#666')}>
+                  {cycleResult.feeling?.primary} ({Math.round((cycleResult.feeling?.intensity || 0) * 100)}%)
+                </span>
+              </div>
+              <div style={{ padding: 8, background: '#1a1a2e', borderRadius: 6 }}>
+                <div style={{ fontSize: 10, color: '#666', marginBottom: 2 }}>Cognition</div>
+                <span style={badge('#22c55e')}>{cycleResult.cognition?.phase}</span>
+              </div>
+              <div style={{ padding: 8, background: '#1a1a2e', borderRadius: 6 }}>
+                <div style={{ fontSize: 10, color: '#666', marginBottom: 2 }}>Consciousness</div>
+                <span style={badge(cycleResult.consciousness?.allPassed ? '#22c55e' : '#ef4444')}>
+                  {cycleResult.consciousness?.passed}/{cycleResult.consciousness?.total} passed
+                </span>
+              </div>
+              <div style={{ padding: 8, background: '#1a1a2e', borderRadius: 6 }}>
+                <div style={{ fontSize: 10, color: '#666', marginBottom: 2 }}>Dream</div>
+                <span style={badge('#8b5cf6')}>#{cycleResult.dream?.number}</span>
+              </div>
+              {cycleResult.storedToMemoryBridge && (
+                <div style={{ gridColumn: 'span 2', fontSize: 11, color: '#14b8a6', textAlign: 'center' }}>
+                  All results stored to Memory Bridge
+                </div>
+              )}
             </div>
           )}
         </div>

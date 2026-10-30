@@ -202,5 +202,55 @@ export function createFleetTools({ workflowStore }) {
         return { memories, count: memories.length };
       },
     },
+    {
+      name: 'intelligence_cycle',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Run a full intelligence cycle: Heart feel → Cognition process → Consciousness prove → Dream — stores all results to Memory Bridge and returns the composite.',
+      parameters: object({ text: string(4000), dreamKind: string(50, { default: 'cycle' }) }, ['text']),
+      run: async (args, ctx) => {
+        const text = String(args.text || '').trim();
+        if (!text) throw new Error('text required');
+
+        const feeling = heart.feel(text);
+        memoryBridgeRef?.storeHeartReading(feeling).catch(() => {});
+
+        const cogResult = await cognition.process(text, { skipThink: false });
+        memoryBridgeRef?.storeCognitionResult(cogResult).catch(() => {});
+
+        const substrate = new FraymusStrangeLoopSubstrate(4);
+        const proofs = [
+          proofEffectiveInformation(substrate),
+          proofPhiMIP(substrate),
+          proofMirrorProtocol(substrate),
+          proofCounterfactualBranching(substrate),
+        ];
+        const allPassed = proofs.every(p => p.passed);
+        memoryBridgeRef?.storeConsciousnessProof({ allPassed, proofs, architecture: 'FraymusStrangeLoop' }).catch(() => {});
+
+        const dreamResult = await dreamer.dream(
+          `Cycle on: ${text.slice(0, 200)}. Emotion: ${feeling.primary} (${Math.round(feeling.intensity * 100)}%). Cognition: ${cogResult.phase}.`,
+          [`cycle`, `emotion:${feeling.primary}`],
+          args.dreamKind || 'cycle'
+        );
+        memoryBridgeRef?.storeDream(dreamResult).catch(() => {});
+
+        ledger.record('intelligence.cycle', {
+          primary: feeling.primary,
+          intensity: feeling.intensity,
+          cogPhase: cogResult.phase,
+          allPassed,
+          dreamNumber: dreamResult.number,
+        }, 'fleet');
+
+        return {
+          feeling: { primary: feeling.primary, intensity: feeling.intensity, sentiment: feeling.sentiment },
+          cognition: { phase: cogResult.phase, answer: cogResult.answer?.slice(0, 500) },
+          consciousness: { allPassed, passed: proofs.filter(p => p.passed).length, total: proofs.length },
+          dream: { number: dreamResult.number, seed: dreamResult.seed?.slice(0, 200) },
+          storedToMemoryBridge: !!memoryBridgeRef,
+        };
+      },
+    },
   ];
 }

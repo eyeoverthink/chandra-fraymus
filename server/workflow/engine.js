@@ -87,6 +87,7 @@ function nodeKind(type) {
   if (type === 'consciousness_prove') return 'consciousness_prove';
   if (type === 'cognition') return 'cognition';
   if (type === 'memory_recall') return 'memory_recall';
+  if (type === 'intelligence_cycle') return 'intelligence_cycle';
   return 'unknown';
 }
 
@@ -415,6 +416,42 @@ export async function runPipeline(nodes, edges, opts = {}) {
           r.data = { memories, count: memories.length, query };
           r.text = JSON.stringify(r.data);
         }
+        texts[id] = r.text;
+
+      } else if (k === 'intelligence_cycle') {
+        const text = upstreamText || node.data?.prompt || '';
+        if (!text) throw new Error('intelligence_cycle requires input text');
+
+        const feeling = heart.feel(text);
+        opts.memoryBridge?.storeHeartReading(feeling).catch(() => {});
+
+        const cogResult = await cognition.process(text, { skipThink: false });
+        opts.memoryBridge?.storeCognitionResult(cogResult).catch(() => {});
+
+        const substrate = new FraymusStrangeLoopSubstrate(4);
+        const proofs = [
+          proofEffectiveInformation(substrate),
+          proofPhiMIP(substrate),
+          proofMirrorProtocol(substrate),
+          proofCounterfactualBranching(substrate),
+        ];
+        const allPassed = proofs.every(p => p.passed);
+        opts.memoryBridge?.storeConsciousnessProof({ allPassed, proofs, architecture: 'FraymusStrangeLoop' }).catch(() => {});
+
+        const dreamResult = await dreamer.dream(
+          `Cycle: ${text.slice(0, 200)}. Emotion: ${feeling.primary}. Cognition: ${cogResult.phase}.`,
+          ['cycle', `emotion:${feeling.primary}`],
+          node.data?.dreamKind || 'cycle'
+        );
+        opts.memoryBridge?.storeDream(dreamResult).catch(() => {});
+
+        r.data = {
+          feeling: { primary: feeling.primary, intensity: feeling.intensity, sentiment: feeling.sentiment },
+          cognition: { phase: cogResult.phase },
+          consciousness: { allPassed, passed: proofs.filter(p => p.passed).length },
+          dream: { number: dreamResult.number },
+        };
+        r.text = JSON.stringify(r.data);
         texts[id] = r.text;
 
       } else {

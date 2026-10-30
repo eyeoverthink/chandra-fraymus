@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { db } from '../db.js';
 import { loadManifests, writeOverride, removeOverride } from './manifest.js';
 import { OLLAMA_URL } from '../config.js';
-import { heart, ledger } from '../fraymus-tools.js';
+import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
 import { setMemoryBridgeRef } from './tools.js';
 
 const MAX_STEPS = 8;
@@ -103,16 +103,41 @@ async function systemPrompt(agent, userId) {
     } catch (e) { console.error('fleet: RSI genome read failed:', e.message); }
   }
 
-  // Intelligence context — current emotional state
+  // Intelligence context — full stack awareness
   let intelligenceBlock = '';
   try {
     const mood = heart.recentMood();
+    const dreamerState = dreamer.feel();
+    const cogStatus = cognition.status();
+    const parts = [];
+
     if (mood.readings > 0) {
-      intelligenceBlock = `\n\nIntelligence context — current mood: ${mood.mood} (${mood.readings} readings). You have emotional awareness via the heart_feel tool and can dream via the dream tool.`;
+      parts.push(`mood: ${mood.mood} (${mood.readings} readings)`);
+    }
+    if (dreamerState.dreamCount > 0) {
+      parts.push(`dreamer: ${dreamerState.state}, ${dreamerState.dreamCount} dreams`);
+    }
+    if (cogStatus.contextLength > 0) {
+      parts.push(`cognition: ${cogStatus.contextLength} ctx entries`);
+    }
+
+    if (parts.length > 0) {
+      intelligenceBlock = `\n\nIntelligence context — ${parts.join(' · ')}. Tools: heart_feel (emotion), dream (imagination), consciousness_prove (proofs), cognition_process (reasoning), memory_recall (Vertiso bridge search).`;
     }
   } catch (_) {}
 
-  return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}${intelligenceBlock}`;
+  // Memory Bridge — recent intelligence memories relevant to this agent
+  let bridgeBlock = '';
+  if (memoryBridgeRef) {
+    try {
+      const bridgeMem = await memoryBridgeRef.recallRelated(agent.name + ' ' + (agent.role || ''), 3);
+      if (bridgeMem.length) {
+        bridgeBlock = `\n\nMemory Bridge (recent intelligence):\n${bridgeMem.map(m => `- [${m.provenance || 'unknown'}] ${String(m.content || m.text || '').slice(0, 200)}`).join('\n')}`;
+      }
+    } catch (_) {}
+  }
+
+  return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}${intelligenceBlock}${bridgeBlock}`;
 }
 
 async function chat(messages, tools, model) {

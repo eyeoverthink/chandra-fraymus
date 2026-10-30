@@ -31,7 +31,7 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
   }));
 
   app.post('/api/fraymus/autonomy/evolve', route((_req, res) => {
-    const result = autonomy.evolveNow();
+    const result = await autonomy.evolveNow();
     broadcast('autonomy', { type: 'evolved', generation: result.generation });
     res.json(result);
   }));
@@ -208,6 +208,45 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
   app.get('/api/fraymus/memory/stats', route(async (_req, res) => {
     if (!memoryBridge) return res.json({ available: false });
     res.json({ available: true, ...memoryBridge.stats() });
+  }));
+
+  // ── Intelligence Cycle (full stack in one call) ──
+  app.post('/api/fraymus/intelligence/cycle', route(async (req, res) => {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ error: 'text required' });
+
+    const feeling = heart.feel(text);
+    memoryBridge?.storeHeartReading(feeling).catch(() => {});
+
+    const cogResult = await cognition.process(text, { skipThink: false });
+    memoryBridge?.storeCognitionResult(cogResult).catch(() => {});
+
+    const substrate = new FraymusStrangeLoopSubstrate(4);
+    const proofs = [
+      proofEffectiveInformation(substrate),
+      proofPhiMIP(substrate),
+      proofMirrorProtocol(substrate),
+      proofCounterfactualBranching(substrate),
+    ];
+    const allPassed = proofs.every(p => p.passed);
+    memoryBridge?.storeConsciousnessProof({ allPassed, proofs, architecture: 'FraymusStrangeLoop' }).catch(() => {});
+
+    const dreamResult = await dreamer.dream(
+      `Cycle: ${text.slice(0, 200)}. Emotion: ${feeling.primary}. Cognition: ${cogResult.phase}.`,
+      ['cycle', `emotion:${feeling.primary}`],
+      'cycle'
+    );
+    memoryBridge?.storeDream(dreamResult).catch(() => {});
+
+    broadcast('intelligence', { type: 'cycle', primary: feeling.primary });
+
+    res.json({
+      feeling: { primary: feeling.primary, intensity: feeling.intensity, sentiment: feeling.sentiment, sarcasm: feeling.sarcasm },
+      cognition: { phase: cogResult.phase, answer: cogResult.answer?.slice(0, 500), durationMs: cogResult.durationMs },
+      consciousness: { allPassed, passed: proofs.filter(p => p.passed).length, total: proofs.length },
+      dream: { number: dreamResult.number, seed: dreamResult.seed?.slice(0, 200) },
+      storedToMemoryBridge: !!memoryBridge,
+    });
   }));
 
   // ── Master Health ──

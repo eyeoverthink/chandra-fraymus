@@ -41,6 +41,7 @@ const NODE_TYPES = [
   { type: 'consciousness_prove', label: 'Consciousness Prove', color: '#ec4899', icon: '◈' },
   { type: 'cognition', label: 'Cognition', color: '#22c55e', icon: '⚡' },
   { type: 'memory_recall', label: 'Memory Recall', color: '#14b8a6', icon: '🌉' },
+  { type: 'intelligence_cycle', label: 'Intelligence Cycle', color: '#d946ef', icon: '🔮' },
 ];
 
 function NodeCard({ data }) {

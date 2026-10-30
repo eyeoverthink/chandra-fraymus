@@ -36,7 +36,7 @@ npm run start        # production server (serves built client)
 - `brain.js` — central reasoning coordinator (emotion-aware via Heart + Ledger)
 - `autonomy.js` — Kuramoto phase sync + intelligence monitoring (consciousness proofs, dreams)
 - `fraymus-tools.js` — FRAYMUS → fleet adapter (42 tools + MemoryBridge export)
-- `fraymus-routes.js` — FRAYMUS API routes (16 intelligence + 8 autonomy + memory search endpoints)
+- `fraymus-routes.js` — FRAYMUS API routes (16 intelligence + 8 autonomy + memory search + intelligence cycle endpoints)
 
 ### FRAYMUS Intelligence Stack (server/fraymus/)
 - `entity-store.js` — SQLite-backed Proxy adapter (replaces Base44 cloud store), auto-creates collections
@@ -79,8 +79,8 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 
 - `manifest.js` — loads agent .md files with frontmatter (id, name, role, tools)
 - `routes.js` — fleet CRUD API
-- `runtime.js` — agent execution runtime (emotion-aware: reads Heart on each user message, logs to Ledger, persists strong emotions to Memory Bridge)
-- `tools.js` — fleet management tools (7 fleet + 5 intelligence incl. memory_recall)
+- `runtime.js` — agent execution runtime (intelligence-enriched: full stack context in prompts — mood/dreamer/cognition/bridge memories, reads Heart on each user message, logs to Ledger, persists strong emotions to Memory Bridge)
+- `tools.js` — fleet management tools (7 fleet + 6 intelligence incl. memory_recall, intelligence_cycle)
 
 ### Commerce Pipelines (server/commerce/)
 - `shared.js` — shared utilities: `chatOllama`, `parseJSON`, `shopifyHeaders`, `shopifyBase` (API v2024-10)
@@ -99,7 +99,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `rsi-tools.js` — agent tools for RSI ops
 
 ### Visual Workflow Engine (server/workflow/)
-- `engine.js` — pipeline executor, 35 node types (incl. 5 intelligence: heart_feel, dream, consciousness_prove, cognition, memory_recall — all Memory Bridge-wired)
+- `engine.js` — pipeline executor, 36 node types (incl. 6 intelligence: heart_feel, dream, consciousness_prove, cognition, memory_recall, intelligence_cycle — all Memory Bridge-wired)
 - `routes.js` — workflow CRUD + run API (with node count validation, ownership checks)
 
 ### Other Subsystems
@@ -129,7 +129,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `useWebSocket.js` — single WS connection, exponential backoff (1s→30s cap)
 - `DashboardPanel.jsx` — stats overview, intelligence status cards (mood/dreamer/ledger/cognition/memory-bridge/autonomy), recent activity
 - `IntelligencePanel.jsx` — interactive Heart, Dreamer, Ledger, Consciousness Proofs, Cognition, Memory Bridge recall controls
-- `WorkflowCanvas.jsx` — ReactFlow visual workflow builder, 35 node types (reacts to workflow)
+- `WorkflowCanvas.jsx` — ReactFlow visual workflow builder, 36 node types (reacts to workflow)
 - `FleetPanel.jsx` — agent cards + task sender (reacts to agents/agent/event)
 - `AutomationsPanel.jsx` — cron scheduler UI with error handling (reacts to event)
 - `McpPanel.jsx` — MCP server info + client connections

@@ -46,14 +46,23 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, memoryBridge
     return { R: newR, phases: phaseState, locked: newR > 0.9 };
   }
 
-  function runEvolutionCycle() {
+  async function runEvolutionCycle() {
     generation++;
+
+    // Recall relevant intelligence memories before evolving
+    let priorInsights = [];
+    if (memoryBridge) {
+      try {
+        priorInsights = await memoryBridge.recallRelated(`evolution generation ${generation} fitness improvement`, 3);
+      } catch (_) {}
+    }
+
     const result = ouroboros.evolve({ populationSize: 8, mutationRate: 0.15 });
     const fitness = ouroboros.fitness();
     const improved = fitness.score > lastFitness;
     lastFitness = fitness.score;
 
-    log('evolve', `Gen ${generation} · fitness=${fitness.score.toFixed(4)} · ${improved ? 'IMPROVED' : 'stable'}`);
+    log('evolve', `Gen ${generation} · fitness=${fitness.score.toFixed(4)} · ${improved ? 'IMPROVED' : 'stable'}${priorInsights.length ? ` · ${priorInsights.length} prior memories consulted` : ''}`);
 
     if (improved) {
       const skills = hermes.selectOptimal(fitness);
@@ -79,16 +88,27 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, memoryBridge
       memoryBridge?.storeConsciousnessProof({ allPassed, proofs, architecture: 'FraymusStrangeLoop' }).catch(() => {});
     } catch (_) {}
 
-    // Trigger idle dream on significant evolution
+    // Trigger idle dream on significant evolution — include prior memory context
     if (improved && generation > 1) {
+      const dreamSeed = priorInsights.length
+        ? `Evolution gen ${generation}: fitness ${fitness.score.toFixed(4)}. Prior insight: ${String(priorInsights[0].content || priorInsights[0].text || '').slice(0, 200)}`
+        : `Evolution gen ${generation}: fitness ${fitness.score.toFixed(4)}`;
       dreamer.dream(
-        `Evolution gen ${generation}: fitness ${fitness.score.toFixed(4)}`,
+        dreamSeed,
         [`fitness:${fitness.score.toFixed(4)}`, `gen:${generation}`],
         'evolution'
       ).then(d => memoryBridge?.storeDream(d).catch(() => {})).catch(() => {});
     }
 
-    return { generation, fitness, improved, result };
+    // Store evolution event to Memory Bridge for future recall
+    memoryBridge?.storeCognitionResult({
+      phase: 'evolution',
+      text: `Gen ${generation} fitness=${fitness.score.toFixed(4)} ${improved ? 'improved' : 'stable'}`,
+      feeling: heart.recentMood(),
+      priorMemories: priorInsights.length,
+    }).catch(() => {});
+
+    return { generation, fitness, improved, result, priorMemories: priorInsights.length };
   }
 
   async function runDreamConsolidation() {
@@ -160,11 +180,11 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, memoryBridge
       log('start', 'Autonomy engine started');
 
       autonomyTimer = setInterval(() => autonomyPulse(), AUTONOMY_INTERVAL_MS);
-      evolutionTimer = setInterval(() => runEvolutionCycle(), EVOLUTION_INTERVAL_MS);
+      evolutionTimer = setInterval(() => runEvolutionCycle().catch(() => {}), EVOLUTION_INTERVAL_MS);
       dreamTimer = setInterval(() => runDreamConsolidation(), DREAM_CONSOLIDATION_MS);
 
       await autonomyPulse();
-      runEvolutionCycle();
+      await runEvolutionCycle();
     },
 
     stop() {
@@ -200,7 +220,7 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, memoryBridge
       };
     },
 
-    evolveNow() {
+    async evolveNow() {
       return runEvolutionCycle();
     },
 
