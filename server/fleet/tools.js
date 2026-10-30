@@ -19,6 +19,11 @@ import {
   imageInfo, imageResize, imageConvert, imageEffects, imageThumbnail,
   imageUpscale, comfyuiStatus, listMedia,
 } from '../media/image-engine.js';
+import {
+  videoInfo, videoTrim, videoResize as ffVideoResize,
+  videoConvert as ffVideoConvert, videoThumbnail as ffVideoThumb,
+  videoToGif, ffmpegStatus, listVideos, VIDEO_DIR,
+} from '../media/video-engine.js';
 
 const now = () => Date.now();
 const clip = (s, n = 8000) => s.length > n ? s.slice(0, n) + '...[truncated]' : s;
@@ -698,6 +703,156 @@ export function createFleetTools({ workflowStore }) {
         limit: { type: 'integer', description: 'Max files to list (default 50)' },
       }),
       execute: async ({ limit }) => ({ files: listMedia(limit) }),
+    },
+    // ─── Video Processing tools (ffmpeg) ─────────────────
+    {
+      name: 'video_info',
+      group: 'video',
+      risk: 'safe',
+      description: 'Get video metadata: duration, resolution, codec, fps, bitrate. Input: base64 video or /video/ path.',
+      parameters: object({
+        base64: string(200000, { description: 'Base64-encoded video' }),
+        path: string(500, { description: 'Path to video in /video/ directory' }),
+      }),
+      execute: async ({ base64, path: vidPath }) => {
+        let input;
+        if (base64) input = base64;
+        else if (vidPath) {
+          const { readFileSync } = await import('node:fs');
+          const { join } = await import('node:path');
+          input = readFileSync(join(VIDEO_DIR, vidPath.replace(/^\/video\//, '')));
+        } else return { error: 'base64 or path required' };
+        return videoInfo(input);
+      },
+    },
+    {
+      name: 'video_trim',
+      group: 'video',
+      risk: 'safe',
+      description: 'Trim video to a time range. Fast copy-mode trim with start/end timestamps.',
+      parameters: object({
+        base64: string(200000, { description: 'Base64-encoded video' }),
+        path: string(500, { description: 'Path to video in /video/ directory' }),
+        start: string(20, { description: 'Start time (e.g. "00:00:05" or "5")' }),
+        end: string(20, { description: 'End time (e.g. "00:00:30" or "30")' }),
+        duration: string(20, { description: 'Duration instead of end' }),
+      }),
+      execute: async ({ base64, path: vidPath, start, end, duration }) => {
+        let input;
+        if (base64) input = base64;
+        else if (vidPath) {
+          const { readFileSync } = await import('node:fs');
+          const { join } = await import('node:path');
+          input = readFileSync(join(VIDEO_DIR, vidPath.replace(/^\/video\//, '')));
+        } else return { error: 'base64 or path required' };
+        return videoTrim(input, { start, end, duration });
+      },
+    },
+    {
+      name: 'video_resize',
+      group: 'video',
+      risk: 'safe',
+      description: 'Resize/scale video to new dimensions using libx264.',
+      parameters: object({
+        base64: string(200000, { description: 'Base64-encoded video' }),
+        path: string(500, { description: 'Path to video in /video/ directory' }),
+        width: { type: 'integer', description: 'Target width (use -2 to auto-scale)' },
+        height: { type: 'integer', description: 'Target height (use -2 to auto-scale)' },
+      }),
+      execute: async ({ base64, path: vidPath, width, height }) => {
+        let input;
+        if (base64) input = base64;
+        else if (vidPath) {
+          const { readFileSync } = await import('node:fs');
+          const { join } = await import('node:path');
+          input = readFileSync(join(VIDEO_DIR, vidPath.replace(/^\/video\//, '')));
+        } else return { error: 'base64 or path required' };
+        return ffVideoResize(input, { width, height });
+      },
+    },
+    {
+      name: 'video_convert',
+      group: 'video',
+      risk: 'safe',
+      description: 'Convert video format (mp4, webm, mkv). Automatically selects optimal codec.',
+      parameters: object({
+        base64: string(200000, { description: 'Base64-encoded video' }),
+        path: string(500, { description: 'Path to video in /video/ directory' }),
+        format: string(10, { description: 'Target format: mp4, webm, mkv' }),
+      }),
+      execute: async ({ base64, path: vidPath, format }) => {
+        let input;
+        if (base64) input = base64;
+        else if (vidPath) {
+          const { readFileSync } = await import('node:fs');
+          const { join } = await import('node:path');
+          input = readFileSync(join(VIDEO_DIR, vidPath.replace(/^\/video\//, '')));
+        } else return { error: 'base64 or path required' };
+        return ffVideoConvert(input, { format });
+      },
+    },
+    {
+      name: 'video_thumbnail',
+      group: 'video',
+      risk: 'safe',
+      description: 'Extract a single frame from video as a PNG image.',
+      parameters: object({
+        base64: string(200000, { description: 'Base64-encoded video' }),
+        path: string(500, { description: 'Path to video in /video/ directory' }),
+        time: string(20, { description: 'Timestamp to extract (default "00:00:01")' }),
+      }),
+      execute: async ({ base64, path: vidPath, time }) => {
+        let input;
+        if (base64) input = base64;
+        else if (vidPath) {
+          const { readFileSync } = await import('node:fs');
+          const { join } = await import('node:path');
+          input = readFileSync(join(VIDEO_DIR, vidPath.replace(/^\/video\//, '')));
+        } else return { error: 'base64 or path required' };
+        return ffVideoThumb(input, { time });
+      },
+    },
+    {
+      name: 'video_to_gif',
+      group: 'video',
+      risk: 'safe',
+      description: 'Convert a video clip to an optimized animated GIF with palette generation.',
+      parameters: object({
+        base64: string(200000, { description: 'Base64-encoded video' }),
+        path: string(500, { description: 'Path to video in /video/ directory' }),
+        width: { type: 'integer', description: 'GIF width in px (default 480)' },
+        fps: { type: 'integer', description: 'Frame rate (default 10)' },
+        start: string(20, { description: 'Start time' }),
+        duration: string(20, { description: 'Duration (default "5")' }),
+      }),
+      execute: async ({ base64, path: vidPath, width, fps, start, duration }) => {
+        let input;
+        if (base64) input = base64;
+        else if (vidPath) {
+          const { readFileSync } = await import('node:fs');
+          const { join } = await import('node:path');
+          input = readFileSync(join(VIDEO_DIR, vidPath.replace(/^\/video\//, '')));
+        } else return { error: 'base64 or path required' };
+        return videoToGif(input, { width, fps, start, duration });
+      },
+    },
+    {
+      name: 'ffmpeg_status',
+      group: 'video',
+      risk: 'safe',
+      description: 'Check if ffmpeg is installed and available.',
+      parameters: object({}),
+      execute: async () => ffmpegStatus(),
+    },
+    {
+      name: 'video_list',
+      group: 'video',
+      risk: 'safe',
+      description: 'List processed video files in the output directory.',
+      parameters: object({
+        limit: { type: 'integer', description: 'Max files to list (default 50)' },
+      }),
+      execute: async ({ limit }) => ({ files: listVideos(limit) }),
     },
   ];
 }

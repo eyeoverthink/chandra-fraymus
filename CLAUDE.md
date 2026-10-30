@@ -176,6 +176,10 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `image-engine.js` — Sharp-based image processing (resize, crop, convert, effects, composite, watermark, thumbnail, upscale, create) + ComfyUI/FLUX.1 bridge
 - `image-routes.js` — 15+ REST endpoints for image operations with multer file uploads, serves `/media/:file` static images
 
+### Video Pipeline (server/media/)
+- `video-engine.js` — ffmpeg-based video processing (info, thumbnail, trim, resize, convert, extract-audio, gif, concat, overlay-text, frames) via child process spawning
+- `video-routes.js` — 13 REST endpoints for video operations with multer file uploads (100MB limit), serves `/video/:file` static videos
+
 ### Other Subsystems
 - `automations/scheduler.js` — cron scheduler with error logging (intelligence-hooked: stores automation runs to Memory Bridge)
 - `mcp/server.js` — MCP server (exposes tools as MCP)

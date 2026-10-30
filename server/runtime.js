@@ -56,6 +56,7 @@ import { installVerifierRoutes } from './intelligence/verifier-loop.js';
 import { installDaemonRoutes, startDaemon } from './daemon/engine.js';
 import { installNUDPRoutes } from './fraymus/protocol/nudp-routes.js';
 import { installImageRoutes } from './media/image-routes.js';
+import { installVideoRoutes } from './media/video-routes.js';
 
 export function cloudConfig() {
   if (process.env.FRAYMUS_CLOUD_ENABLED !== '1') return { enabled: false };
@@ -139,6 +140,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installDaemonRoutes(app);
   installNUDPRoutes(app);
   installImageRoutes(app);
+  installVideoRoutes(app);
   startReflectionLoop();
   installMcpEndpoint(app);
   installOAuthRoutes(app);
@@ -185,7 +187,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
       'visual-workflow-engine', '17-agent-fleet', 'mcp-server-gateway', 'mcp-client-bridge', 'cron-automations',
       'puppeteer-headless-browser', 'chrome-extension-bridge', 'vertiso-vector-memory', 'recursive-self-improvement',
       'event-driven-orchestration', 'agent-persistent-memory', 'system-health-monitor',
-      'agent-forge', 'workflow-synthesis', 'reflection-loop', 'nudp-mesh-protocol', 'sharp-image-engine', 'comfyui-bridge'] }));
+      'agent-forge', 'workflow-synthesis', 'reflection-loop', 'nudp-mesh-protocol', 'sharp-image-engine', 'comfyui-bridge', 'ffmpeg-video-pipeline'] }));
   app.get('/api/agent/capabilities', route(async (_req, res) => {
     const caps = await agent.capabilities();
     let localOcrHealth;

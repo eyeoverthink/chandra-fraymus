@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-30
 **Prev:** [Phase 27 — NUDP/1 Sovereign Mesh Protocol](PHASE-27.md)
-**Next:** TBD
+**Next:** [Phase 29 — Local Video Pipeline (ffmpeg)](PHASE-29.md)
 
 ---
 

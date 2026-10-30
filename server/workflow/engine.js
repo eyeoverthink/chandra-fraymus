@@ -7,6 +7,11 @@ import {
   imageWatermark, imageThumbnail, imageUpscale as sharpUpscale,
   comfyuiGenerate, comfyuiResult, comfyuiFetchImage,
 } from '../media/image-engine.js';
+import {
+  videoInfo, videoTrim, videoResize as ffVideoResize,
+  videoConvert as ffVideoConvert, videoThumbnail as ffVideoThumb,
+  videoToGif, VIDEO_DIR,
+} from '../media/video-engine.js';
 import { chatOllama, createCommerceIntel } from '../commerce/shared.js';
 import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
 import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching } from '../fraymus/intelligence/ouroboros.js';
@@ -70,6 +75,11 @@ function nodeKind(type) {
   if (type === 'image_effects') return 'image_effects';
   if (type === 'image_watermark') return 'image_watermark';
   if (type === 'image_thumbnail') return 'image_thumbnail';
+  if (type === 'video_trim') return 'video_trim';
+  if (type === 'video_resize') return 'video_resize';
+  if (type === 'video_convert') return 'video_convert';
+  if (type === 'video_thumbnail') return 'video_thumbnail';
+  if (type === 'video_gif') return 'video_gif';
   if (type.includes('html') || type === 'preview') return 'preview';
   if (type.includes('fraymus') || type.startsWith('tool:')) return 'fraymus_tool';
   if (type === 'code' || type === 'sandbox') return 'code';
@@ -313,6 +323,64 @@ export async function runPipeline(nodes, edges, opts = {}) {
           r.text = `Thumbnail ${result.width}x${result.height}`;
           buffers[id] = (await import('node:fs')).readFileSync(result.path);
         } else { r.text = 'image_thumbnail: no input image'; }
+        texts[id] = r.text;
+      } else if (k === 'video_trim') {
+        if (upstreamImg) {
+          const vidBuf = typeof upstreamImg === 'string'
+            ? (await import('node:fs')).readFileSync(upstreamImg.replace(/^\/outputs\//, join(OUT_DIR, '')).replace(/^\/video\//, join(VIDEO_DIR, '/')))
+            : upstreamImg;
+          const result = await videoTrim(vidBuf, { start: node.data?.start, end: node.data?.end, duration: node.data?.duration });
+          r.text = `Trimmed video: ${result.size} bytes`;
+          r.videoUrl = result.url;
+          buffers[id] = (await import('node:fs')).readFileSync(result.path);
+        } else { r.text = 'video_trim: no input video'; }
+        texts[id] = r.text;
+      } else if (k === 'video_resize') {
+        if (upstreamImg) {
+          const vidBuf = typeof upstreamImg === 'string'
+            ? (await import('node:fs')).readFileSync(upstreamImg.replace(/^\/outputs\//, join(OUT_DIR, '')).replace(/^\/video\//, join(VIDEO_DIR, '/')))
+            : upstreamImg;
+          const result = await ffVideoResize(vidBuf, { width: node.data?.width, height: node.data?.height });
+          r.text = `Resized video to ${result.width}x${result.height}`;
+          r.videoUrl = result.url;
+          buffers[id] = (await import('node:fs')).readFileSync(result.path);
+        } else { r.text = 'video_resize: no input video'; }
+        texts[id] = r.text;
+      } else if (k === 'video_convert') {
+        if (upstreamImg) {
+          const vidBuf = typeof upstreamImg === 'string'
+            ? (await import('node:fs')).readFileSync(upstreamImg.replace(/^\/outputs\//, join(OUT_DIR, '')).replace(/^\/video\//, join(VIDEO_DIR, '/')))
+            : upstreamImg;
+          const result = await ffVideoConvert(vidBuf, { format: node.data?.format || 'webm' });
+          r.text = `Converted to ${result.format} (${result.size} bytes)`;
+          r.videoUrl = result.url;
+          buffers[id] = (await import('node:fs')).readFileSync(result.path);
+        } else { r.text = 'video_convert: no input video'; }
+        texts[id] = r.text;
+      } else if (k === 'video_thumbnail') {
+        if (upstreamImg) {
+          const vidBuf = typeof upstreamImg === 'string'
+            ? (await import('node:fs')).readFileSync(upstreamImg.replace(/^\/outputs\//, join(OUT_DIR, '')).replace(/^\/video\//, join(VIDEO_DIR, '/')))
+            : upstreamImg;
+          const result = await ffVideoThumb(vidBuf, { time: node.data?.time || '00:00:01' });
+          r.imageUrl = result.url;
+          r.text = `Extracted frame at ${result.time}`;
+          buffers[id] = (await import('node:fs')).readFileSync(result.path);
+        } else { r.text = 'video_thumbnail: no input video'; }
+        texts[id] = r.text;
+      } else if (k === 'video_gif') {
+        if (upstreamImg) {
+          const vidBuf = typeof upstreamImg === 'string'
+            ? (await import('node:fs')).readFileSync(upstreamImg.replace(/^\/outputs\//, join(OUT_DIR, '')).replace(/^\/video\//, join(VIDEO_DIR, '/')))
+            : upstreamImg;
+          const result = await videoToGif(vidBuf, {
+            width: node.data?.width || 480, fps: node.data?.fps || 10,
+            start: node.data?.start, duration: node.data?.duration || '3',
+          });
+          r.imageUrl = result.url;
+          r.text = `Converted to GIF (${result.width}px, ${result.fps}fps)`;
+          buffers[id] = (await import('node:fs')).readFileSync(result.path);
+        } else { r.text = 'video_gif: no input video'; }
         texts[id] = r.text;
       } else if (k === 'preview') {
         const src = incoming.map(s => results[s]?.imageUrl).filter(Boolean).pop();

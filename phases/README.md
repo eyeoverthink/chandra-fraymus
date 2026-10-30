@@ -34,6 +34,7 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 26 | Background Evolution Daemon | — | 4 files | [PHASE-26.md](PHASE-26.md) |
 | 27 | NUDP/1 Sovereign Mesh Protocol | — | 7 files | [PHASE-27.md](PHASE-27.md) |
 | 28 | Local Image Processing Engine | — | 6 files | [PHASE-28.md](PHASE-28.md) |
+| 29 | Local Video Pipeline (ffmpeg) | — | 6 files | [PHASE-29.md](PHASE-29.md) |
 
 ## Convention
 
