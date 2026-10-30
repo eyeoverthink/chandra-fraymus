@@ -52,6 +52,7 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 44 | Memory Browser Panel | — | 5 files | [PHASE-44.md](PHASE-44.md) |
 | 45 | Run History Panel | — | 6 files | [PHASE-45.md](PHASE-45.md) |
 | 46 | Evolution Log Panel | — | 6 files | [PHASE-46.md](PHASE-46.md) |
+| 47 | System Pulse Panel | — | 6 files | [PHASE-47.md](PHASE-47.md) |
 
 ## Convention
 
