@@ -43,6 +43,7 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 35 | Agent Forge + Synthesis Panel | — | 4 files | [PHASE-35.md](PHASE-35.md) |
 | 36 | System Settings Panel | — | 5 files | [PHASE-36.md](PHASE-36.md) |
 | 37 | Notification Toast System | — | 3 files | [PHASE-37.md](PHASE-37.md) |
+| 38 | Global Search | — | 4 files | [PHASE-38.md](PHASE-38.md) |
 
 ## Convention
 

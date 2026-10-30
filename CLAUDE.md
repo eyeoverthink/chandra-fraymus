@@ -220,6 +220,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `useWebSocket.js` — single WS connection, exponential backoff (1s→30s cap), returns `{ lastEvent, wsStatus }`
 - `ErrorBoundary.jsx` — React class component error boundary; wraps all 4 Nexus views + all 13 drawer panels; shows crash UI with retry + stack trace; POSTs errors to `/api/client-error`
 - `ToastProvider.jsx` — React context provider wrapping App root; auto-subscribes to 17 WebSocket event types via WS_MAP; 6 toast variants (info/success/warning/error/agent/system); max 6 visible, 4s auto-dismiss, click-to-dismiss; exports `useToast()` hook with `push(msg, variant, duration)` and `dismiss(id)` for manual use
+- `GlobalSearch.jsx` — Nav bar search component; queries `GET /api/search?q=` across 8 DB tables (agents, workflows, memories, bus, commerce, threads, reflections, forged); 250ms debounce, categorized dropdown with color-coded headers, click-to-navigate to panels
 
 ### Nexus Views (client/src/nexus/)
 - `CommandCenter.jsx` — 14-widget grid with live metrics, Intelligence Stack status, Live Activity Stream (WebSocket-driven real-time event feed), integrated CommandBar; widgets open Detail Drawer or navigate to Canvas

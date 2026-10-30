@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import useWebSocket from './useWebSocket.js';
 import ErrorBoundary from './ErrorBoundary.jsx';
 import ToastProvider from './ToastProvider.jsx';
+import GlobalSearch from './GlobalSearch.jsx';
 import WorkflowCanvas from './panels/WorkflowCanvas.jsx';
 import CommandCenter from './nexus/CommandCenter.jsx';
 import ConstellationView from './nexus/ConstellationView.jsx';
@@ -59,6 +60,9 @@ export default function App() {
         </div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: '#555' }}>
+          <GlobalSearch onOpenDrawer={openDrawer} onNavigate={setView} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: '#555' }}>
           {wsStatus !== 'connected' && (
             <span style={{
               display: 'flex', alignItems: 'center', gap: 4,

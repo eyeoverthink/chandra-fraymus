@@ -5,7 +5,7 @@
 | **Phase** | 37 |
 | **Feature** | `notification-toasts` |
 | **Prev** | [Phase 36 — System Settings Panel](PHASE-36.md) |
-| **Next** | Phase 38 (TBD) |
+| **Next** | [Phase 38 — Global Search](PHASE-38.md) |
 
 ## What It Does
 
