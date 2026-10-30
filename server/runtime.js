@@ -70,17 +70,17 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   const workflowStore = createWorkflowStore();
   const fleetTools = createFleetTools({ workflowStore });
   let mcpImported = [];
-  try { mcpImported = getImportedTools(); } catch {}
+  try { mcpImported = getImportedTools(); } catch (e) { console.error('runtime: MCP tool import failed:', e.message); }
   let browserTools = [];
-  try { browserTools = createBrowserTools(); } catch {}
+  try { browserTools = createBrowserTools(); } catch (e) { console.error('runtime: browser tools failed:', e.message); }
   const vertiso = new VertisoMemory({ db, ollamaUrl });
   const rsi = new RSIEngine({ db, vertiso, ollamaUrl, broadcast });
   let vertisoTools = [];
-  try { vertisoTools = [...createVertisoTools(vertiso), ...createRSITools(rsi)]; } catch {}
+  try { vertisoTools = [...createVertisoTools(vertiso), ...createRSITools(rsi)]; } catch (e) { console.error('runtime: vertiso/RSI tools failed:', e.message); }
   let youtubeTools = [];
-  try { youtubeTools = createYouTubeTools(); } catch {}
+  try { youtubeTools = createYouTubeTools(); } catch (e) { console.error('runtime: youtube tools failed:', e.message); }
   let commerceTools = [];
-  try { commerceTools = createCommerceTools(); } catch {}
+  try { commerceTools = createCommerceTools(); } catch (e) { console.error('runtime: commerce tools failed:', e.message); }
   agent = createAgentService({ db, workspace, ollamaUrl, fetchImpl,
     cloud, codeExecutor, desktopBroker:desktop, extraTools: [...createExtensionTools(artifacts, web),...desktop.tools(),
       ...createTaskTools({scheduler:tasks,db,now:taskClock,onReceipt:(id,receipt)=>agent?.recordTaskReceipt(id,receipt)}),
@@ -95,7 +95,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
       broadcast('agent',event);
     } });
   const autonomy = createAutonomyEngine({ db, broadcast, agent: { get: id => agent.get(id) }, tasks, logEvent: (kind, actor, detail) => {
-    try { db.prepare('INSERT INTO events (kind, actor, detail, created_at) VALUES (?, ?, ?, ?)').run(kind, actor, detail, Date.now()); } catch {}
+    try { db.prepare('INSERT INTO events (kind, actor, detail, created_at) VALUES (?, ?, ?, ?)').run(kind, actor, detail, Date.now()); } catch (e) { console.error('runtime: event insert failed:', e.message); }
   }});
   installFraymusRoutes(app, { autonomy, broadcast });
   installWorkflowRoutes(app, { broadcast });

@@ -10,6 +10,10 @@ import { runPageGenerator, runCollectionOrganizer, runDescriptionEnhancer, runPr
 
 const OUT_DIR = join(DATA_DIR, 'outputs');
 
+function safeParse(str, fallback = {}) {
+  try { return JSON.parse(str); } catch { return fallback; }
+}
+
 export async function saveImage(png) {
   const name = `${Date.now()}-${randomBytes(4).toString('hex')}.png`;
   mkdirSync(OUT_DIR, { recursive: true });
@@ -144,22 +148,22 @@ export async function runPipeline(nodes, edges, opts = {}) {
         r.data = out;
       } else if (k === 'copywriter') {
         const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
-        const out = await runCreator(prev || JSON.parse(upstreamText || '{}'));
+        const out = await runCreator(prev || safeParse(upstreamText));
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
       } else if (k === 'reviewer') {
         const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
-        const out = await runReviewer(prev || JSON.parse(upstreamText || '{}'));
+        const out = await runReviewer(prev || safeParse(upstreamText));
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
       } else if (k === 'ceo_logger') {
         const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
-        const out = await runCeoLogger(prev || JSON.parse(upstreamText || '{}'));
+        const out = await runCeoLogger(prev || safeParse(upstreamText));
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
       } else if (k === 'shopify_publish') {
         const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
-        const out = await runShopifyPublish(prev || JSON.parse(upstreamText || '{}'));
+        const out = await runShopifyPublish(prev || safeParse(upstreamText));
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
 
@@ -170,12 +174,12 @@ export async function runPipeline(nodes, edges, opts = {}) {
         r.data = out;
       } else if (k === 'apparel_designer') {
         const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
-        const out = await runDesigner(prev || JSON.parse(upstreamText || '{}'));
+        const out = await runDesigner(prev || safeParse(upstreamText));
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
       } else if (k === 'printify_push') {
         const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
-        const out = await runPrintifyPush(prev || JSON.parse(upstreamText || '{}'));
+        const out = await runPrintifyPush(prev || safeParse(upstreamText));
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
       } else if (k === 'shopify_sync') {
@@ -200,12 +204,12 @@ export async function runPipeline(nodes, edges, opts = {}) {
         r.data = out;
       } else if (k === 'ux_auditor') {
         const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
-        const out = await runUxAuditor(prev || JSON.parse(upstreamText || '{}'));
+        const out = await runUxAuditor(prev || safeParse(upstreamText));
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
       } else if (k === 'price_analyst') {
         const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
-        const out = await runPriceAnalyst(prev || JSON.parse(upstreamText || '{}'));
+        const out = await runPriceAnalyst(prev || safeParse(upstreamText));
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
       } else if (k === 'shopper_report') {
@@ -220,22 +224,22 @@ export async function runPipeline(nodes, edges, opts = {}) {
       // ── Store fixer nodes ─────────────────────────────────────
       } else if (k === 'page_generator') {
         const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
-        const out = await runPageGenerator(prev || JSON.parse(upstreamText || '{}'));
+        const out = await runPageGenerator(prev || safeParse(upstreamText));
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
       } else if (k === 'collection_organizer') {
         const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
-        const out = await runCollectionOrganizer(prev || JSON.parse(upstreamText || '{}'));
+        const out = await runCollectionOrganizer(prev || safeParse(upstreamText));
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
       } else if (k === 'description_enhancer') {
         const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
-        const out = await runDescriptionEnhancer(prev || JSON.parse(upstreamText || '{}'));
+        const out = await runDescriptionEnhancer(prev || safeParse(upstreamText));
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
       } else if (k === 'price_adjuster') {
         const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop();
-        const out = await runPriceAdjuster(prev || JSON.parse(upstreamText || '{}'));
+        const out = await runPriceAdjuster(prev || safeParse(upstreamText));
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
       } else if (k === 'shopify_applier') {

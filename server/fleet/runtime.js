@@ -83,7 +83,7 @@ async function systemPrompt(agent, userId) {
       if (vMem.length) {
         vertisoBlock = `\n\nVertiso memories (semantic):\n${vMem.map(m => `- [${m.score.toFixed(2)}] ${m.content.slice(0, 200)}`).join('\n')}`;
       }
-    } catch {}
+    } catch (e) { console.error('fleet: vertiso recall failed:', e.message); }
   }
 
   // RSI genome parameters
@@ -95,7 +95,7 @@ async function systemPrompt(agent, userId) {
       if (gen > 0) {
         genomeBlock = `\n\nRSI Genome (gen ${gen}): temp=${genome.temperature?.toFixed(2)}, exploration=${genome.explorationRate?.toFixed(2)}, creativity=${genome.creativityBias?.toFixed(2)}, verbosity=${genome.verbosity?.toFixed(2)}, memDepth=${genome.memoryRecallDepth}`;
       }
-    } catch {}
+    } catch (e) { console.error('fleet: RSI genome read failed:', e.message); }
   }
 
   return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}`;
