@@ -12,6 +12,7 @@ import {
   videoConvert as ffVideoConvert, videoThumbnail as ffVideoThumb,
   videoToGif, VIDEO_DIR,
 } from '../media/video-engine.js';
+import { ttsSpeak } from '../media/tts-engine.js';
 import { chatOllama, createCommerceIntel } from '../commerce/shared.js';
 import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
 import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching } from '../fraymus/intelligence/ouroboros.js';
@@ -80,6 +81,7 @@ function nodeKind(type) {
   if (type === 'video_convert') return 'video_convert';
   if (type === 'video_thumbnail') return 'video_thumbnail';
   if (type === 'video_gif') return 'video_gif';
+  if (type === 'tts_speak') return 'tts_speak';
   if (type.includes('html') || type === 'preview') return 'preview';
   if (type.includes('fraymus') || type.startsWith('tool:')) return 'fraymus_tool';
   if (type === 'code' || type === 'sandbox') return 'code';
@@ -381,6 +383,14 @@ export async function runPipeline(nodes, edges, opts = {}) {
           r.text = `Converted to GIF (${result.width}px, ${result.fps}fps)`;
           buffers[id] = (await import('node:fs')).readFileSync(result.path);
         } else { r.text = 'video_gif: no input video'; }
+        texts[id] = r.text;
+      } else if (k === 'tts_speak') {
+        const spText = upstreamText || node.data?.text || 'Hello from Chandra';
+        const result = await ttsSpeak(spText, {
+          voice: node.data?.voice, rate: node.data?.rate, engine: node.data?.engine,
+        });
+        r.audioUrl = result.url;
+        r.text = `Speech generated (${result.engine}): ${result.size} bytes, ~${result.durationEstimate}s`;
         texts[id] = r.text;
       } else if (k === 'preview') {
         const src = incoming.map(s => results[s]?.imageUrl).filter(Boolean).pop();

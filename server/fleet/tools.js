@@ -24,6 +24,9 @@ import {
   videoConvert as ffVideoConvert, videoThumbnail as ffVideoThumb,
   videoToGif, ffmpegStatus, listVideos, VIDEO_DIR,
 } from '../media/video-engine.js';
+import {
+  ttsSpeak, ttsVoices, ttsStatus, listTTSFiles,
+} from '../media/tts-engine.js';
 
 const now = () => Date.now();
 const clip = (s, n = 8000) => s.length > n ? s.slice(0, n) + '...[truncated]' : s;
@@ -853,6 +856,52 @@ export function createFleetTools({ workflowStore }) {
         limit: { type: 'integer', description: 'Max files to list (default 50)' },
       }),
       execute: async ({ limit }) => ({ files: listVideos(limit) }),
+    },
+    // ─── Text-to-Speech tools ────────────────────────
+    {
+      name: 'tts_speak',
+      group: 'tts',
+      risk: 'safe',
+      description: 'Convert text to speech audio. Uses edge-tts (free), Piper (offline), or Windows SAPI as fallback chain. Returns URL to audio file.',
+      parameters: object({
+        text: string(5000, { description: 'Text to speak (max 5000 chars)' }),
+        voice: string(100, { description: 'Voice name (e.g. "en-US-AriaNeural" for edge-tts)' }),
+        rate: string(20, { description: 'Speech rate (e.g. "+20%" or "-10%")' }),
+        engine: string(20, { description: 'Force engine: edge-tts, piper, sapi' }),
+      }, ['text']),
+      execute: async ({ args }) => ttsSpeak(String(args.text), {
+        voice: args.voice ? String(args.voice) : undefined,
+        rate: args.rate ? String(args.rate) : undefined,
+        engine: args.engine ? String(args.engine) : undefined,
+      }),
+    },
+    {
+      name: 'tts_voices',
+      group: 'tts',
+      risk: 'safe',
+      description: 'List available TTS voices for the active engine.',
+      parameters: object({
+        engine: string(20, { description: 'Specific engine to query: edge-tts, sapi' }),
+      }),
+      execute: async ({ args }) => ttsVoices(args.engine ? String(args.engine) : undefined),
+    },
+    {
+      name: 'tts_status',
+      group: 'tts',
+      risk: 'safe',
+      description: 'Check which TTS engines are available and their capabilities.',
+      parameters: object({}),
+      execute: async () => ttsStatus(),
+    },
+    {
+      name: 'tts_list',
+      group: 'tts',
+      risk: 'safe',
+      description: 'List generated speech audio files.',
+      parameters: object({
+        limit: { type: 'integer', description: 'Max files to list (default 50)' },
+      }),
+      execute: async ({ args }) => ({ files: listTTSFiles(args.limit) }),
     },
   ];
 }

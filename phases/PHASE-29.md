@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-30
 **Prev:** [Phase 28 — Local Image Processing Engine](PHASE-28.md)
-**Next:** TBD
+**Next:** [Phase 30 — TTS Speech Engine](PHASE-30.md)
 
 ---
 
