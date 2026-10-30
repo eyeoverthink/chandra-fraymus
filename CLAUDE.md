@@ -15,7 +15,7 @@ npm run start        # production server (serves built client)
 ## Architecture
 
 - **Server:** Node.js ESM, Express 4, better-sqlite3 (WAL mode), WebSocket broadcast
-- **Client:** Vite + React, 9 panels (incl. Intelligence), useWebSocket hook for live updates
+- **Client:** Vite + React, 10 panels (incl. Intelligence + Commerce), useWebSocket hook for live updates
 - **LLM:** Ollama at localhost:11434 (configurable via OLLAMA_BASE_URL)
 - **DB:** SQLite at `data/chandra.db`, migrations in `server/db-migrate.js`
 - **Auth:** Bearer tokens via `server/mcp/auth.js`, loopback-only binding
@@ -125,12 +125,13 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 
 ## Client Panels (client/src/)
 
-- `App.jsx` — main layout, tab nav, WebSocket distribution
+- `App.jsx` — main layout, 10-tab nav, WebSocket distribution
 - `useWebSocket.js` — single WS connection, exponential backoff (1s→30s cap)
 - `DashboardPanel.jsx` — stats overview, intelligence status cards (mood/dreamer/ledger/cognition/memory-bridge/autonomy), runtime intelligence cards (per-type cognition insight counts), recent activity
 - `IntelligencePanel.jsx` — interactive Heart, Dreamer, Ledger, Consciousness Proofs, Cognition, Memory Bridge recall controls
 - `WorkflowCanvas.jsx` — ReactFlow visual workflow builder, 36 node types (reacts to workflow)
-- `FleetPanel.jsx` — agent cards + task sender (reacts to agents/agent/event)
+- `FleetPanel.jsx` — agent cards + detail view + task sender + thread message viewer with runs/approvals (reacts to agents/agent/event)
+- `CommercePanel.jsx` — 4-pipeline launcher (Content-to-Commerce, Apparel, Mystery Shopper, Store Fixer) + run history with expandable details (reacts to commerce/event)
 - `AutomationsPanel.jsx` — cron scheduler UI with error handling (reacts to event)
 - `McpPanel.jsx` — MCP server info + client connections
 - `BrowserPanel.jsx` — headless browser control
