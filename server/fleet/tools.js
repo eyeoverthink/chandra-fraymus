@@ -7,6 +7,7 @@ import { storeMemory, recallMemories, agentMemoryStats } from './agent-memory.js
 import { forgeAgent, listForgedAgents } from './forge.js';
 import { synthesizeWorkflow } from '../workflow/synthesizer.js';
 import { runVerifierLoop, listLoops as listVerifierLoops } from '../intelligence/verifier-loop.js';
+import { startDaemon, stopDaemon, getDaemonStatus, runCycle, listCycles } from '../daemon/engine.js';
 
 const now = () => Date.now();
 const clip = (s, n = 8000) => s.length > n ? s.slice(0, n) + '...[truncated]' : s;
@@ -424,6 +425,29 @@ export function createFleetTools({ workflowStore }) {
       execute: async ({ args }) => {
         const loops = listVerifierLoops({ limit: args.limit });
         return { loops, count: loops.length };
+      },
+    },
+
+    // ─── Daemon control ────────────────────────────────────────
+    {
+      name: 'daemon_control',
+      group: 'evolution',
+      risk: 'approval',
+      description: 'Control the background evolution daemon. Actions: start (begins cycles), stop (halts cycles), status (current state), cycle (run one cycle now), cycles (list past cycles). Requires approval for start/stop/cycle.',
+      parameters: object({
+        action: string(10, { description: 'start | stop | status | cycle | cycles', enum: ['start', 'stop', 'status', 'cycle', 'cycles'] }),
+        cycleMs: { type: 'integer', minimum: 60000, description: 'Cycle interval in ms (default 1800000 = 30min). Only for start.' },
+        limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Max cycles to return. Only for cycles action.' },
+      }, ['action']),
+      execute: async ({ args }) => {
+        switch (args.action) {
+          case 'start': return startDaemon({ cycleMs: args.cycleMs });
+          case 'stop': return stopDaemon();
+          case 'status': return getDaemonStatus();
+          case 'cycle': return runCycle({ trigger: 'agent' });
+          case 'cycles': return { cycles: listCycles({ limit: args.limit || 20 }) };
+          default: return { error: 'Unknown action. Use: start, stop, status, cycle, cycles' };
+        }
       },
     },
   ];

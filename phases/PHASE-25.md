@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-30
 **Prev:** [Phase 24 — Agent Self-Evolution Engine](PHASE-24.md)
-**Next:** Phase 26 (TBD)
+**Next:** [Phase 26 — Background Evolution Daemon](PHASE-26.md)
 
 ---
 

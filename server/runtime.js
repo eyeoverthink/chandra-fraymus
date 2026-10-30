@@ -53,6 +53,7 @@ import { installForgeRoutes } from './fleet/forge.js';
 import { installSynthesisRoutes } from './workflow/synthesizer.js';
 import { installReflectionRoutes, startReflectionLoop } from './intelligence/reflection.js';
 import { installVerifierRoutes } from './intelligence/verifier-loop.js';
+import { installDaemonRoutes, startDaemon } from './daemon/engine.js';
 
 export function cloudConfig() {
   if (process.env.FRAYMUS_CLOUD_ENABLED !== '1') return { enabled: false };
@@ -133,6 +134,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installForgeRoutes(app);
   installReflectionRoutes(app);
   installVerifierRoutes(app);
+  installDaemonRoutes(app);
   startReflectionLoop();
   installMcpEndpoint(app);
   installOAuthRoutes(app);

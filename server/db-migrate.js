@@ -322,5 +322,15 @@ export function migrateWorkspaces() {
       created_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_vstep ON verification_steps(loop_id, iteration);
+
+    CREATE TABLE IF NOT EXISTS daemon_cycles (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      input_summary TEXT,
+      output TEXT,
+      duration_ms INTEGER DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_daemon ON daemon_cycles(created_at DESC);
   `);
 }

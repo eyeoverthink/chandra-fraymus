@@ -88,7 +88,15 @@ npm run start        # production server (serves built client)
 - Proven code saved as "fossil" in agent_memories (confidence 1.0) + bus event on `system.evolution`
 - DB tables: `verification_loops`, `verification_steps`
 - 3 REST endpoints: POST run, GET loops, GET loops/:id
-- 2 agent tools: `verify_loop`, `verify_list` — 24 fleet tools total
+- 2 agent tools: `verify_loop`, `verify_list`
+
+### Background Evolution Daemon (server/daemon/engine.js)
+- `engine.js` — Persistent background loop: dream consolidation → prompt evolution → reflection
+- Dream consolidation: reads recent bus_messages, workflow_runs, health_alerts, verification_loops → Ollama summarizes → stores learnings as agent_memories (category "dream")
+- Prompt evolution: reads verified fossils from verifier-loop → injects [Proven Patterns] into forged agent system prompts via writeOverride()
+- Configurable cycle interval (default 30min, min 60s), start/stop/status/manual-cycle API
+- DB table: `daemon_cycles`
+- 7 REST endpoints + 1 agent tool (`daemon_control`) — 25 fleet tools total
 
 ### System Health Monitor (server/health/monitor.js)
 - `monitor.js` — Polls Ollama, DB, bus, Needle, process memory every 60s; auto-alerts via bus `system.alert` topic
