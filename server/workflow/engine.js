@@ -1,7 +1,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
-import { DATA_DIR, OLLAMA_URL } from '../config.js';
+import { DATA_DIR } from '../config.js';
+import { chatOllama } from '../commerce/shared.js';
 import { runResearcher, runCreator, runReviewer, runCeoLogger, runShopifyPublish } from '../commerce/pipeline.js';
 import { runTrendScout, runDesigner, runPrintifyPush, runShopifySync, runPricingEngine } from '../commerce/apparel-pipeline.js';
 import { runShopperAgent, runUxAuditor, runPriceAnalyst, runReportAndFix } from '../commerce/mystery-shopper.js';
@@ -39,23 +40,12 @@ export function topoSort(nodes, edges) {
 }
 
 async function callOllama(prompt, systemPrompt) {
-  const body = {
-    model: process.env.FRAYMUS_DEFAULT_MODEL || 'llama3.2',
-    messages: [
-      ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
-      { role: 'user', content: prompt },
-    ],
-    stream: false,
-  };
-  const res = await fetch(`${OLLAMA_URL}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(120_000),
-  });
-  if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`);
-  const data = await res.json();
-  return { text: data.message?.content || '' };
+  const messages = [
+    ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+    { role: 'user', content: prompt },
+  ];
+  const text = await chatOllama(messages);
+  return { text };
 }
 
 function nodeKind(type) {

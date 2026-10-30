@@ -277,15 +277,17 @@ app.post('/api/tools/:id/run', async (req, res) => {
 app.get('/api/automations', (_req, res) => {
   res.json({ automations: listAutomations('system') });
 });
-app.post('/api/automations', async (req, res) => {
-  res.status(201).json(await saveAutomation('system', req.body));
+app.post('/api/automations', async (req, res, next) => {
+  try { res.status(201).json(await saveAutomation('system', req.body)); }
+  catch (e) { next(e); }
 });
-app.delete('/api/automations/:id', async (req, res) => {
-  await deleteAutomation('system', req.params.id);
-  res.json({ ok: true });
+app.delete('/api/automations/:id', async (req, res, next) => {
+  try { await deleteAutomation('system', req.params.id); res.json({ ok: true }); }
+  catch (e) { next(e); }
 });
-app.post('/api/automations/:id/run', async (req, res) => {
-  res.json(await runAutomation('system', req.params.id, 'manual'));
+app.post('/api/automations/:id/run', async (req, res, next) => {
+  try { res.json(await runAutomation('system', req.params.id, 'manual')); }
+  catch (e) { next(e); }
 });
 app.get('/api/automations/:id/runs', (req, res) => {
   res.json({ runs: automationRuns('system', req.params.id) });
@@ -296,8 +298,9 @@ app.get('/api/mcp/servers', (_req, res) => {
   try { res.json({ servers: mcpServers() }); }
   catch { res.json({ servers: [] }); }
 });
-app.post('/api/mcp/import', async (req, res) => {
-  res.json(await importServers(req.body));
+app.post('/api/mcp/import', async (req, res, next) => {
+  try { res.json(await importServers(req.body)); }
+  catch (e) { next(e); }
 });
 app.delete('/api/mcp/servers/:name', (req, res) => {
   removeServer(req.params.name, true);
@@ -334,8 +337,8 @@ let syncing=null;
 const doSync = () => {
   if(syncing)return syncing;
   syncing=background(async()=>{
-    try { ensureV3Initialized(); } catch {}
-    try { ingestFleetSnapshot(); } catch {}
+    try { ensureV3Initialized(); } catch (e) { console.error('sync: v3 init failed:', e.message); }
+    try { ingestFleetSnapshot(); } catch (e) { console.error('sync: fleet snapshot failed:', e.message); }
     await syncAll();
     broadcast('agents', {});broadcast('memory', {});broadcast('event', {});
   }).finally(()=>{syncing=null;});
@@ -344,8 +347,8 @@ const doSync = () => {
 let syncTimer;
 async function stop() {
   if(stopping)return;stopping=true;ready=false;clearInterval(syncTimer);
-  try { stopScheduler(); } catch {}
-  try { await closeBrowser(); } catch {}
+  try { stopScheduler(); } catch (e) { console.error('shutdown: scheduler stop failed:', e.message); }
+  try { await closeBrowser(); } catch (e) { console.error('shutdown: browser close failed:', e.message); }
   if(runtime) {
     let closed=await runtime.close();
     while(!closed.safeToCloseDatabase) {
