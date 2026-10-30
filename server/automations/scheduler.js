@@ -84,7 +84,7 @@ async function tick() {
     if (!matches(cron, date)) continue;
 
     db.prepare('UPDATE automations SET last_minute = ? WHERE id = ?').run(minute, a.id);
-    runAutomation(a.user_id, a.id, 'cron').catch(() => {});
+    runAutomation(a.user_id, a.id, 'cron').catch(e => console.error('scheduler: automation', a.id, 'failed:', e.message));
   }
 }
 

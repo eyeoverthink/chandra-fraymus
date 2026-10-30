@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from 'react';
 
-export default function DashboardPanel({ health }) {
+export default function DashboardPanel({ health, wsEvent }) {
   const [agents, setAgents] = useState([]);
   const [events, setEvents] = useState([]);
   const [workflows, setWorkflows] = useState([]);
   const [mcpServers, setMcpServers] = useState([]);
 
-  useEffect(() => {
+  const load = () => {
     fetch('/api/fleet/agents').then(r => r.json()).then(d => setAgents(d.agents || [])).catch(() => {});
     fetch('/api/events?limit=15').then(r => r.json()).then(d => setEvents(Array.isArray(d) ? d : [])).catch(() => {});
     fetch('/api/workflows').then(r => r.json()).then(d => setWorkflows(d.workflows || [])).catch(() => {});
     fetch('/api/mcp/servers').then(r => r.json()).then(d => setMcpServers(d.servers || d || [])).catch(() => {});
-  }, []);
+  };
+  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (wsEvent?.type && ['agents', 'event', 'workflow', 'v3'].includes(wsEvent.type)) load();
+  }, [wsEvent]);
 
   const features = health?.features || [];
   const fraymusFeatures = features.filter(f => f.startsWith('fraymus-'));

@@ -64,7 +64,7 @@ const defaultEdgeOptions = {
 
 let nodeId = 0;
 
-export default function WorkflowCanvas() {
+export default function WorkflowCanvas({ wsEvent }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [workflows, setWorkflows] = useState([]);
@@ -80,6 +80,9 @@ export default function WorkflowCanvas() {
   }, []);
 
   useEffect(() => { loadWorkflows(); }, [loadWorkflows]);
+  useEffect(() => {
+    if (wsEvent?.type === 'workflow') loadWorkflows();
+  }, [wsEvent, loadWorkflows]);
 
   const onConnect = useCallback(params => setEdges(eds => addEdge(params, eds)), [setEdges]);
 

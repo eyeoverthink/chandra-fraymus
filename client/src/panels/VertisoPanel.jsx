@@ -5,7 +5,7 @@ const btn = { padding: '6px 14px', borderRadius: 6, border: '1px solid #333', ba
 const input = { padding: '6px 10px', borderRadius: 6, border: '1px solid #333', background: '#0d0d14', color: '#ccc', fontSize: 12, flex: 1 };
 const label = { fontSize: 11, color: '#666', marginBottom: 4, display: 'block' };
 
-export default function VertisoPanel() {
+export default function VertisoPanel({ wsEvent }) {
   const [memStats, setMemStats] = useState(null);
   const [rsiStatus, setRsiStatus] = useState(null);
   const [storeAgent, setStoreAgent] = useState('concierge');
@@ -23,6 +23,9 @@ export default function VertisoPanel() {
     fetch('/api/rsi/status').then(r => r.json()).then(setRsiStatus).catch(() => {});
   };
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (wsEvent?.type && ['memory', 'rsi', 'v3'].includes(wsEvent.type)) load();
+  }, [wsEvent]);
 
   const doStore = async () => {
     if (!storeContent.trim()) return;

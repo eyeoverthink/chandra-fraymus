@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
-export default function AutomationsPanel() {
+export default function AutomationsPanel({ wsEvent }) {
   const [automations, setAutomations] = useState([]);
   const [form, setForm] = useState({ name: '', cron: '0 8 * * *', kind: 'agent', agentId: 'concierge', prompt: '' });
   const [agents, setAgents] = useState([]);
@@ -12,6 +12,9 @@ export default function AutomationsPanel() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (wsEvent?.type === 'event') load();
+  }, [wsEvent, load]);
 
   const create = async () => {
     if (!form.name || !form.cron) return;

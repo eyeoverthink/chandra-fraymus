@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import useWebSocket from './useWebSocket.js';
 import WorkflowCanvas from './panels/WorkflowCanvas.jsx';
 import FleetPanel from './panels/FleetPanel.jsx';
 import AutomationsPanel from './panels/AutomationsPanel.jsx';
@@ -22,6 +23,7 @@ const TABS = [
 export default function App() {
   const [tab, setTab] = useState('dashboard');
   const [health, setHealth] = useState(null);
+  const wsEvent = useWebSocket();
 
   useEffect(() => {
     fetch('/api/health').then(r => r.json()).then(setHealth).catch(() => {});
@@ -58,13 +60,13 @@ export default function App() {
       </nav>
 
       <main style={{ flex: 1, overflow: 'auto', background: '#0a0a0f' }}>
-        {tab === 'dashboard' && <DashboardPanel health={health} />}
-        {tab === 'canvas' && <WorkflowCanvas />}
-        {tab === 'fleet' && <FleetPanel />}
-        {tab === 'automations' && <AutomationsPanel />}
+        {tab === 'dashboard' && <DashboardPanel health={health} wsEvent={wsEvent} />}
+        {tab === 'canvas' && <WorkflowCanvas wsEvent={wsEvent} />}
+        {tab === 'fleet' && <FleetPanel wsEvent={wsEvent} />}
+        {tab === 'automations' && <AutomationsPanel wsEvent={wsEvent} />}
         {tab === 'mcp' && <McpPanel />}
         {tab === 'browser' && <BrowserPanel />}
-        {tab === 'vertiso' && <VertisoPanel />}
+        {tab === 'vertiso' && <VertisoPanel wsEvent={wsEvent} />}
         {tab === 'outlier' && <OutlierPanel />}
       </main>
     </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
-export default function FleetPanel() {
+export default function FleetPanel({ wsEvent }) {
   const [agents, setAgents] = useState([]);
   const [threads, setThreads] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState(null);
@@ -14,6 +14,9 @@ export default function FleetPanel() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (wsEvent?.type && ['agents', 'agent', 'event'].includes(wsEvent.type)) load();
+  }, [wsEvent, load]);
 
   const sendMessage = async () => {
     if (!selectedAgent || !message.trim()) return;
