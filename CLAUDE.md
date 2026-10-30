@@ -82,6 +82,14 @@ npm run start        # production server (serves built client)
 - 3 REST endpoints: POST reflect, GET reflections, GET reflections/:id
 - Runs every 30 minutes when autonomy active, skips if no new data
 
+### Generator-Verifier-Executor Loop (server/intelligence/verifier-loop.js)
+- `verifier-loop.js` — Adversarial code generation: Generator writes code → Verifier critiques → Executor runs in child_process → feedback loop until APPROVED or max iterations
+- Supports JavaScript (Node) and Python execution with 15s timeout
+- Proven code saved as "fossil" in agent_memories (confidence 1.0) + bus event on `system.evolution`
+- DB tables: `verification_loops`, `verification_steps`
+- 3 REST endpoints: POST run, GET loops, GET loops/:id
+- 2 agent tools: `verify_loop`, `verify_list` — 24 fleet tools total
+
 ### System Health Monitor (server/health/monitor.js)
 - `monitor.js` — Polls Ollama, DB, bus, Needle, process memory every 60s; auto-alerts via bus `system.alert` topic
 - Alert rules: `ollama_down` (critical), `needle_backlog` >20 (warning), `error_spike` >10/hr (warning), 5-min cooldown

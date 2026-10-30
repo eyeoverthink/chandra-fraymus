@@ -295,5 +295,32 @@ export function migrateWorkspaces() {
       created_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_reflect ON reflections(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS verification_loops (
+      id TEXT PRIMARY KEY,
+      goal TEXT NOT NULL,
+      language TEXT NOT NULL DEFAULT 'auto',
+      max_iterations INTEGER NOT NULL DEFAULT 3,
+      iterations_used INTEGER DEFAULT 0,
+      triggered_by TEXT NOT NULL DEFAULT 'api',
+      status TEXT NOT NULL DEFAULT 'running',
+      final_code TEXT,
+      error TEXT,
+      created_at INTEGER NOT NULL,
+      completed_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_vloop ON verification_loops(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS verification_steps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      loop_id TEXT NOT NULL,
+      iteration INTEGER NOT NULL,
+      role TEXT NOT NULL,
+      input TEXT,
+      output TEXT,
+      verdict TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_vstep ON verification_steps(loop_id, iteration);
   `);
 }

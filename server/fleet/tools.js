@@ -6,6 +6,7 @@ import { publish, directMessage, inbox } from './bus.js';
 import { storeMemory, recallMemories, agentMemoryStats } from './agent-memory.js';
 import { forgeAgent, listForgedAgents } from './forge.js';
 import { synthesizeWorkflow } from '../workflow/synthesizer.js';
+import { runVerifierLoop, listLoops as listVerifierLoops } from '../intelligence/verifier-loop.js';
 
 const now = () => Date.now();
 const clip = (s, n = 8000) => s.length > n ? s.slice(0, n) + '...[truncated]' : s;
@@ -389,6 +390,40 @@ export function createFleetTools({ workflowStore }) {
       execute: async ({ args }, ctx) => {
         const synthesizedBy = ctx?.agentId || 'unknown';
         return synthesizeWorkflow(String(args.goal), { constraints: args.constraints ? String(args.constraints) : undefined, synthesizedBy });
+      },
+    },
+    {
+      name: 'verify_loop',
+      group: 'evolution',
+      risk: 'approval',
+      description: 'Run an adversarial Generator-Verifier-Executor loop on a coding goal. A Generator writes code, a Verifier critiques it, an Executor runs it, and the loop iterates until approved or max iterations. Proven code is saved as a "fossil" in agent memory. Requires approval.',
+      parameters: object({
+        goal: string(2000, { description: 'What the code should do — be specific' }),
+        language: string(20, { description: 'Target language: javascript, python (default: auto-detect)' }),
+        maxIterations: { type: 'integer', minimum: 1, maximum: 5, description: 'Max generate-verify cycles (default 3)' },
+        context: string(4000, { description: 'Additional context, constraints, or requirements' }),
+      }, ['goal']),
+      execute: async ({ args }, ctx) => {
+        const triggeredBy = ctx?.agentId || 'unknown';
+        return runVerifierLoop(String(args.goal), {
+          language: args.language ? String(args.language) : undefined,
+          maxIterations: args.maxIterations,
+          context: args.context ? String(args.context) : undefined,
+          triggeredBy,
+        });
+      },
+    },
+    {
+      name: 'verify_list',
+      group: 'evolution',
+      risk: 'safe',
+      description: 'List past verification loop runs with their status (passed/failed/error).',
+      parameters: object({
+        limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Max loops to return (default 20)' },
+      }),
+      execute: async ({ args }) => {
+        const loops = listVerifierLoops({ limit: args.limit });
+        return { loops, count: loops.length };
       },
     },
   ];

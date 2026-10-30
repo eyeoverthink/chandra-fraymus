@@ -23,6 +23,14 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 15 | Chandra Nexus — Unified Interface | `1fbdf04` | 10 files, 733 ins | [PHASE-15.md](PHASE-15.md) |
 | 16 | Command Bar + Live Activity Stream | `9fdb842` | 7 files, 430 ins | [PHASE-16.md](PHASE-16.md) |
 | 17 | Living Constellation | `05fc280` | 5 files, 174 ins | [PHASE-17.md](PHASE-17.md) |
+| 18 | Offline-First Hardening | — | — | [PHASE-18.md](PHASE-18.md) |
+| 19 | Hermes Full Fleet | — | — | [PHASE-19.md](PHASE-19.md) |
+| 20 | Needle + Motor Live Dispatch | — | — | [PHASE-20.md](PHASE-20.md) |
+| 21 | Deploy-as-API | — | — | [PHASE-21.md](PHASE-21.md) |
+| 22 | Agent Live Bus | — | — | [PHASE-22.md](PHASE-22.md) |
+| 23 | Event-Driven Orchestration + Agent Memory + Health | — | — | [PHASE-23.md](PHASE-23.md) |
+| 24 | Agent Self-Evolution Engine | `a669e00` | 5 files | [PHASE-24.md](PHASE-24.md) |
+| 25 | Generator-Verifier-Executor Loop | — | 4 files | [PHASE-25.md](PHASE-25.md) |
 
 ## Convention
 

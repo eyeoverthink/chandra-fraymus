@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-30
 **Prev:** [Phase 23 — Event-Driven Orchestration + Agent Persistent Memory + System Health Monitor](PHASE-23.md)
-**Next:** Phase 25 (TBD)
+**Next:** [Phase 25 — Generator-Verifier-Executor Loop](PHASE-25.md)
 
 ---
 

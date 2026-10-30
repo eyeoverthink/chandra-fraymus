@@ -52,6 +52,7 @@ import { initHealthMonitor, installHealthRoutes } from './health/monitor.js';
 import { installForgeRoutes } from './fleet/forge.js';
 import { installSynthesisRoutes } from './workflow/synthesizer.js';
 import { installReflectionRoutes, startReflectionLoop } from './intelligence/reflection.js';
+import { installVerifierRoutes } from './intelligence/verifier-loop.js';
 
 export function cloudConfig() {
   if (process.env.FRAYMUS_CLOUD_ENABLED !== '1') return { enabled: false };
@@ -131,6 +132,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installHealthRoutes(app);
   installForgeRoutes(app);
   installReflectionRoutes(app);
+  installVerifierRoutes(app);
   startReflectionLoop();
   installMcpEndpoint(app);
   installOAuthRoutes(app);
