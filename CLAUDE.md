@@ -37,6 +37,7 @@ npm run start        # production server (serves built client)
 - `autonomy.js` — Kuramoto phase sync for agent coordination
 
 ### FRAYMUS Intelligence Stack (server/fraymus/)
+- `entity-store.js` — SQLite-backed Proxy adapter (replaces Base44 cloud store), auto-creates collections
 - `core/identity.js` — Ed25519 sovereign identity, key generation
 - `core/crypto.js` — cryptographic primitives
 - `core/signing.js` — message signing/verification
@@ -52,13 +53,13 @@ npm run start        # production server (serves built client)
 - `protocol/mesh.js` — peer mesh networking
 - `protocol/presence.js` — agent presence tracking
 - `protocol/hive.js` — hive coordination
-- `intelligence/hermes.js` — Hermes 30-skill fleet
-- `intelligence/motor.js` — Motor compute dispatch
-- `intelligence/openclaw.js` — OpenClaw gateway
-- `intelligence/ouroboros.js` — Ouroboros RSI loop
-- `intelligence/needle.js` — needle search
-- `intelligence/niles.js` — Niles reasoning
-- `intelligence/control-plane.js` — intelligence orchestrator
+- `intelligence/hermes.js` — Hermes 30-skill fleet (14 with real executors)
+- `intelligence/motor.js` — Motor compute dispatch (SQLite job persistence)
+- `intelligence/openclaw.js` — OpenClaw gateway (all 23 actions implemented)
+- `intelligence/ouroboros.js` — Ouroboros RSI (real evolution + 5 consciousness tests)
+- `intelligence/needle.js` — Needle GPU inference queue (SQLite persistence)
+- `intelligence/niles.js` — Niles FRAYVM stack machine interpreter
+- `intelligence/control-plane.js` — agent registry, enrollment, broadcast
 - `bridge/cross-tab.js` — cross-tab communication
 - `bridge/orifice.js` — bridge connector
 - `workflows/definitions.js` — FRAYMUS workflow definitions

@@ -86,7 +86,49 @@ export default function YourPanel({ wsEvent }) {
 
 3. Server broadcasts: `broadcast('your-event', { ... })` when data changes
 
-## Adding a New FRAYMUS Module
+## Adding a New FRAYMUS Intelligence Module
+
+1. Create `server/fraymus/intelligence/your-module.js`
+2. Accept `entityStore` in constructor for SQLite persistence:
+```js
+export class YourModule {
+  constructor(entityStore) {
+    this.store = entityStore;
+  }
+  async doWork() {
+    // Persist via entity store — auto-creates collection
+    this.store.YourCollection.create({ data: '...' });
+    this.store.YourCollection.filter({ status: 'active' }, { limit: 50 });
+  }
+}
+```
+3. Export from `server/fraymus/index.js` (re-export + local aliased import for `createMasterSystem`)
+4. Instantiate in `server/fraymus-tools.js` with `entityStore` wired in
+5. Add fleet tools in `createFraymusTools()` if externally callable
+6. Wire into OpenClaw gateway (`intelligence/openclaw.js`) if it should be a gateway action
+7. Test: `node -e "import('./server/fraymus-tools.js').then(m => console.log(m.yourModule))"`
+
+## Adding a Hermes Skill Executor
+
+In `server/fraymus-tools.js`, add to `buildHermesExecutors()`:
+```js
+your_skill_name: async (params) => {
+  // Real implementation — NOT a stub
+  const result = await doRealWork(params);
+  return { result };
+},
+```
+Then register it: `hermes.registerExecutors(buildHermesExecutors())`
+
+## Adding an OpenClaw Gateway Action
+
+In `server/fraymus/intelligence/openclaw.js`, add to the `GATEWAY_ACTIONS` array and add a case in the `handle()` method:
+```js
+case 'your_action':
+  return { action: 'your_action', result: await this.deps.yourModule.doWork(params) };
+```
+
+## Adding a New FRAYMUS Module (non-intelligence)
 
 1. Create `server/fraymus/your-module/your-file.js`
 2. Export functions following ESM pattern

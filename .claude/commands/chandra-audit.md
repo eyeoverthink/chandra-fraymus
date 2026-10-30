@@ -36,6 +36,12 @@ Run through this for every new route handler, fetch call, or DB query:
 - [ ] DELETE/UPDATE scoped with `AND user_id = ?`
 - [ ] JSON.parse on DB data uses `safeParse(str, fallback)`
 
+### Entity Store (FRAYMUS modules)
+- [ ] Module accepts `entityStore` in constructor, uses `this.store`
+- [ ] Collection names are descriptive PascalCase (e.g., `NexusOuroborosNode`)
+- [ ] Filter calls include `{ limit: N }` to prevent unbounded reads
+- [ ] Entity store wired in `fraymus-tools.js`, never instantiated with `null`
+
 ### External API Calls
 - [ ] `AbortSignal.timeout(15_000)` on every fetch()
 - [ ] Error from fetch is caught and logged with context
@@ -69,6 +75,11 @@ Run through this for every new route handler, fetch call, or DB query:
 - Graceful shutdown: HTTP, WS, DB, intervals cleaned
 - No sensitive data in logs
 - Deep subsystems (sandbox, desktop, OCR, transport): integrity chains, quarantine, bounded I/O
+- Entity store: SQLite-backed, all FRAYMUS modules wired (not null)
+- OpenClaw: all 23 gateway actions implemented (no stubs)
+- Hermes: 14 of 30 skills have real executors
+- Ouroboros: real evolution cycles + 5 consciousness tests
+- Workflow engine: all 30 node types have real handlers
 
 ## safeParse Pattern
 ```js

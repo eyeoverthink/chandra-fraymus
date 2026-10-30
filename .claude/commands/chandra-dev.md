@@ -1,5 +1,5 @@
 ---
-description: "Master development skill for the Chandra-FRAYMUS system. Load this before any work on the codebase."
+description: "Master development skill for Chandra-FRAYMUS. Load before any codebase work — architecture, conventions, subsystem map, testing."
 ---
 
 # Chandra-FRAYMUS Development Skill
@@ -12,6 +12,7 @@ You are working on **Chandra-FRAYMUS**, a unified autonomous AI workspace. Befor
 - **Client:** Vite + React, 8 panels, `useWebSocket.js` hook — port 5173
 - **LLM:** Ollama at localhost:11434 (configurable via OLLAMA_BASE_URL)
 - **DB:** SQLite at `data/chandra.db`, migrations in `server/db-migrate.js`
+- **Entity Store:** `server/fraymus/entity-store.js` — SQLite-backed Proxy adapter for FRAYMUS modules
 - **Identity:** Ed25519 sovereign identity in `server/fraymus/core/`
 
 ## Code Conventions (Non-Negotiable)
@@ -31,52 +32,83 @@ You are working on **Chandra-FRAYMUS**, a unified autonomous AI workspace. Befor
 
 ## Key Subsystem Map
 
-| Subsystem | Directory | What It Does |
-|-----------|-----------|-------------|
-| Core Server | `server/app.js`, `server/runtime.js` | Express routes, WebSocket, lifecycle |
-| FRAYMUS Stack | `server/fraymus/` | Identity, encoding, protocol, intelligence |
-| Commerce | `server/commerce/` | 4 pipelines, shared.js, routes.js, tools.js |
-| Agent Fleet | `server/fleet/`, `agents/` | 17 agents, manifest loader, runtime |
-| Vertiso | `server/vertiso/` | Vector memory + RSI engine |
-| Workflows | `server/workflow/` | Visual canvas engine, 30 node types |
-| Automations | `server/automations/` | Cron scheduler |
-| MCP | `server/mcp/` | Server gateway + client bridge |
-| Browser | `server/browser/` | Puppeteer + Chrome extension |
-| Frontend | `client/src/` | 8 panels, App.jsx, useWebSocket.js |
+| Subsystem | Directory | Status |
+|-----------|-----------|--------|
+| Core Server | `server/app.js`, `server/runtime.js` | COMPLETE — Express routes, WebSocket, lifecycle |
+| FRAYMUS Stack | `server/fraymus/` | COMPLETE — Identity, encoding, protocol, intelligence |
+| Entity Store | `server/fraymus/entity-store.js` | COMPLETE — SQLite Proxy adapter for FRAYMUS modules |
+| Commerce | `server/commerce/` | COMPLETE — 4 pipelines, shared.js, routes.js, tools.js |
+| Agent Fleet | `server/fleet/`, `agents/` | COMPLETE — 17 agents, manifest loader, runtime |
+| Vertiso | `server/vertiso/` | COMPLETE — Vector memory + RSI engine |
+| Workflows | `server/workflow/` | COMPLETE — 30 node types, all with real handlers |
+| Automations | `server/automations/` | COMPLETE — Cron scheduler |
+| MCP | `server/mcp/` | COMPLETE — Server gateway + client bridge |
+| Browser | `server/browser/` | COMPLETE — Puppeteer + Chrome extension |
+| Frontend | `client/src/` | COMPLETE — 8 panels, all render real data |
+
+## FRAYMUS Intelligence Stack (all wired to SQLite entity store)
+
+| Module | File | What It Does |
+|--------|------|-------------|
+| Hermes | `intelligence/hermes.js` | 30-skill fleet with 14 real executors |
+| Motor | `intelligence/motor.js` | Job dispatch with SQLite persistence |
+| OpenClaw | `intelligence/openclaw.js` | 23 gateway actions, all implemented |
+| Ouroboros | `intelligence/ouroboros.js` | Real evolution cycles + 5 consciousness tests |
+| Needle | `intelligence/needle.js` | GPU job queue with SQLite persistence |
+| Niles | `intelligence/niles.js` | FRAYVM stack machine interpreter |
+| Control Plane | `intelligence/control-plane.js` | Agent registry, enrollment, coordination |
 
 ## When Adding a New Feature
 
 1. Add the server route in the appropriate subsystem
-2. If it's a commerce feature, add to `server/commerce/shared.js` and `routes.js`
-3. Register fleet tools in the relevant `tools.js` with safety classification
-4. Add a workflow node type in `client/src/panels/WorkflowCanvas.jsx` NODE_TYPES array
-5. Add WebSocket event type if real-time updates are needed
-6. Update panel's `useEffect` to react to the new event type
-7. Run `node --check` on changed files before committing
+2. If it uses FRAYMUS persistence: `import { entityStore } from './fraymus/entity-store.js'`
+3. If it's a commerce feature: add to `server/commerce/routes.js`, use shared.js
+4. Register fleet tools in the relevant `tools.js` with safety: `"safe"` or `"approval_required"`
+5. Add a workflow node type in `WorkflowCanvas.jsx` NODE_TYPES + handler in `engine.js`
+6. Add WebSocket event type if real-time updates needed
+7. Update panel's `useEffect` to react to new event type
+8. Run `node --check` on changed files before committing
 
 ## When Fixing Bugs
 
-1. Check which audit layer the bug falls under (see CLAUDE.md or memory)
+1. Check which audit layer the bug falls under (see /chandra-audit)
 2. Apply the established pattern from that layer
 3. Verify with `node --check` on changed server files
-4. Test in browser if frontend changes (dev server at http://127.0.0.1:5173)
+4. Test in browser if frontend changes: `npm run dev` → http://127.0.0.1:5173
 5. Commit with descriptive message, push to origin/master
 
 ## Testing
 
-- **Syntax check:** `node --check server/path/to/file.js`
-- **Full import:** `node -e "await import('./server/app.js')"` (only if no other instance running)
-- **Health:** `curl http://127.0.0.1:8787/api/health` (31 features expected)
-- **Frontend:** Open http://127.0.0.1:5173, check all 8 panels
-- **WebSocket:** Check browser console for heartbeat pings
+```bash
+# Syntax check
+node --check server/path/to/file.js
 
-## File Counts (as of 2026-10-30)
+# Full import test (only if no other instance running)
+node -e "await import('./server/app.js')"
 
-- 131 server JavaScript files
+# Health endpoint (31 features expected)
+curl http://127.0.0.1:8787/api/health
+
+# Entity store test
+node -e "import('./server/fraymus/entity-store.js').then(m => { const c = m.entityStore.Test; console.log(c.create({x:1})); })"
+
+# FRAYMUS system test
+node -e "import('./server/fraymus/entity-store.js').then(async es => { const {createMasterSystem} = await import('./server/fraymus/index.js'); const sys = createMasterSystem(es.entityStore); console.log(await sys.gateway.handle('status')); })"
+
+# Frontend
+npm run dev  # then open http://127.0.0.1:5173, check all 8 panels
+```
+
+## File Counts (verified 2026-10-30)
+
+- 132 server JavaScript files (including entity-store.js)
 - 175+ API routes
-- 53+ database tables
+- 22+ database tables (16 core + 3 Vertiso + 3 RSI + fraymus_entities)
 - 17 agent manifests
 - 8 frontend panels
-- 30 workflow node types
+- 30 workflow node types (all with real handlers)
 - 31 system features
+- 29 FRAYMUS fleet tools
+- 23 OpenClaw gateway actions
+- 14 Hermes skill executors
 - 9 audit layers completed (all clean)
