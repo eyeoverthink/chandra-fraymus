@@ -207,16 +207,23 @@ export async function runPrintifyPush(designerOutput, opts = {}) {
   for (const product of products) {
     try {
       const blueprintId = mapProductTypeToBlueprint(product.product_type);
-      const providerId = opts.printProviderId || 99; // default provider
+      const providerId = opts.printProviderId || await fetchDefaultProvider(blueprintId);
+
+      const variantResult = await buildPrintifyVariants(product.variants, blueprintId, providerId);
+      if (variantResult.error) {
+        results.push({ title: product.title, status: 'error', error: variantResult.error });
+        continue;
+      }
+      const variantIds = variantResult.variants.map(v => v.id);
 
       const printifyProduct = {
         title: product.title,
         description: product.description_html || product.description || '',
         blueprint_id: blueprintId,
         print_provider_id: providerId,
-        variants: buildPrintifyVariants(product.variants, blueprintId, providerId),
+        variants: variantResult.variants,
         print_areas: [{
-          variant_ids: [], // filled by variants
+          variant_ids: variantIds,
           placeholders: [{
             position: mapPlacement(product.design_spec?.placement),
             images: [{
@@ -243,6 +250,7 @@ export async function runPrintifyPush(designerOutput, opts = {}) {
         printify_id: data.id,
         status: data.id ? 'created' : 'error',
         error: data.id ? null : JSON.stringify(data),
+        variantsFallback: variantResult.fallback || false,
       });
     } catch (e) {
       results.push({ title: product.title, status: 'error', error: e.message });
@@ -267,6 +275,20 @@ function mapProductTypeToBlueprint(type) {
   return map[type] || 6;
 }
 
+async function fetchDefaultProvider(blueprintId) {
+  const headers = printifyHeaders();
+  if (!headers) return 99;
+  try {
+    const res = await fetch(
+      `${PRINTIFY_BASE}/catalog/blueprints/${blueprintId}/print_providers.json`,
+      { headers, signal: AbortSignal.timeout(15_000) }
+    );
+    if (!res.ok) return 99;
+    const providers = await res.json();
+    return providers?.[0]?.id || 99;
+  } catch { return 99; }
+}
+
 function mapPlacement(placement) {
   const map = {
     'front-center': 'front', 'back-full': 'back', 'left-chest': 'front',
@@ -275,17 +297,54 @@ function mapPlacement(placement) {
   return map[placement] || 'front';
 }
 
-function buildPrintifyVariants(variants, blueprintId, providerId) {
+async function fetchPrintifyVariants(blueprintId, providerId) {
+  const headers = printifyHeaders();
+  if (!headers) return [];
+  try {
+    const res = await fetch(
+      `${PRINTIFY_BASE}/catalog/blueprints/${blueprintId}/print_providers/${providerId}/variants.json`,
+      { headers, signal: AbortSignal.timeout(15_000) }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.variants || [];
+  } catch { return []; }
+}
+
+async function buildPrintifyVariants(variants, blueprintId, providerId) {
   const sizes = variants?.sizes || ['S', 'M', 'L', 'XL', '2XL'];
   const colors = variants?.colors || [{ name: 'Black', hex: '#000000' }];
+  const catalogVariants = await fetchPrintifyVariants(blueprintId, providerId);
 
-  return sizes.flatMap((size, si) =>
-    colors.map((color, ci) => ({
-      id: si * 100 + ci + 1,
-      price: 0, // set by pricing engine
-      is_enabled: true,
-    }))
-  );
+  if (!catalogVariants.length) {
+    return { variants: [], error: 'Could not fetch variants from Printify catalog' };
+  }
+
+  const matched = [];
+  for (const size of sizes) {
+    for (const color of colors) {
+      const sizeNorm = size.trim().toUpperCase();
+      const colorNorm = color.name.trim().toLowerCase();
+      const match = catalogVariants.find(v => {
+        const t = (v.title || '').toLowerCase();
+        const sMatch = t.includes(sizeNorm.toLowerCase()) ||
+          t.includes(`/ ${sizeNorm.toLowerCase()}`) ||
+          (v.options?.size || '').toUpperCase() === sizeNorm;
+        const cMatch = t.includes(colorNorm) ||
+          (v.options?.color || '').toLowerCase().includes(colorNorm);
+        return sMatch && cMatch;
+      });
+      if (match) {
+        matched.push({ id: match.id, price: 0, is_enabled: true });
+      }
+    }
+  }
+
+  if (!matched.length) {
+    const fallback = catalogVariants.slice(0, sizes.length * colors.length);
+    return { variants: fallback.map(v => ({ id: v.id, price: 0, is_enabled: true })), fallback: true };
+  }
+  return { variants: matched, fallback: false };
 }
 
 // ── Stage 4: Shopify Sync ─────────────────────────────────────────

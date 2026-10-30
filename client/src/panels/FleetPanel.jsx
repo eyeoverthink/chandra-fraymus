@@ -38,7 +38,7 @@ export default function FleetPanel() {
     <div style={{ padding: 24 }}>
       <h2 style={{ fontSize: 20, fontWeight: 700, color: '#a78bfa', marginBottom: 20 }}>Agent Fleet — 16 Specialist Agents</h2>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260, 1fr))', gap: 12, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, marginBottom: 24 }}>
         {agents.map(a => (
           <div key={a.id} onClick={() => setSelectedAgent(a.id)} style={{
             background: selectedAgent === a.id ? '#1a1a3e' : '#111118',

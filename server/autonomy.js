@@ -13,6 +13,7 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, logEvent }) 
   let autonomyTimer = null;
   let evolutionTimer = null;
   let phaseState = AGENTS.map(() => Math.random() * 2 * Math.PI);
+  const naturalFreqs = AGENTS.map((_, i) => 0.1 + 0.05 * Math.sin(i * PHI));
   let generation = 0;
   let lastFitness = 0;
   let autonomyLog = [];
@@ -36,7 +37,7 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, logEvent }) 
 
   function synchronizePhases() {
     const R = kuramotoR(phaseState);
-    phaseState = kuramotoStep(phaseState, 1.5);
+    phaseState = kuramotoStep(phaseState, naturalFreqs, 1.5);
     const newR = kuramotoR(phaseState);
     if (newR > 0.95 && R <= 0.95) log('sync', `Fleet phase-locked · R=${newR.toFixed(4)}`);
     return { R: newR, phases: phaseState, locked: newR > 0.9 };
