@@ -193,7 +193,7 @@ export function createFleetTools({ workflowStore }) {
       risk: 'safe',
       description: 'Search intelligence memories (heart readings, dreams, cognition results, consciousness proofs) stored in the Vertiso Memory Bridge. Returns semantically similar episodic memories with provenance tags.',
       parameters: object({ query: string(2000), limit: { type: 'integer', default: 5, minimum: 1, maximum: 20 } }, ['query']),
-      run: async (args, ctx) => {
+      execute: async ({ args }) => {
         if (!memoryBridgeRef) return { memories: [], available: false };
         const query = String(args.query || '').trim();
         if (!query) throw new Error('query required');
@@ -208,7 +208,7 @@ export function createFleetTools({ workflowStore }) {
       risk: 'safe',
       description: 'Run a full intelligence cycle: Heart feel → Cognition process → Consciousness prove → Dream — stores all results to Memory Bridge and returns the composite.',
       parameters: object({ text: string(4000), dreamKind: string(50, { default: 'cycle' }) }, ['text']),
-      run: async (args, ctx) => {
+      execute: async ({ args }) => {
         const text = String(args.text || '').trim();
         if (!text) throw new Error('text required');
 

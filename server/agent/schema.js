@@ -40,7 +40,7 @@ export function assertSchema(value, schema, location = 'arguments') {
 // Deliberately a small JSON Schema subset. Unsupported constraints fail closed at registration.
 export function checkSchema(schema, depth = 0) {
   if (!schema || depth > 8 || !['object', 'array', 'string', 'integer', 'number', 'boolean'].includes(schema.type)) fail('invalid_tool', 'Unsupported tool parameter schema');
-  const allowed = new Set(['type', 'description', 'properties', 'required', 'additionalProperties', 'items', 'minItems', 'maxItems', 'minLength', 'maxLength', 'pattern', 'minimum', 'maximum', 'enum']);
+  const allowed = new Set(['type', 'description', 'properties', 'required', 'additionalProperties', 'items', 'minItems', 'maxItems', 'minLength', 'maxLength', 'pattern', 'minimum', 'maximum', 'enum', 'default']);
   for (const key of Object.keys(schema)) if (!allowed.has(key)) fail('invalid_tool', `Unsupported schema constraint: ${key}`);
   if (schema.type === 'object') {
     if (schema.additionalProperties === true) fail('invalid_tool', 'Tool schemas must have fixed properties');

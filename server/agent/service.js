@@ -156,9 +156,12 @@ export function createAgentService({ db, workspace, ollamaUrl, fetchImpl = fetch
   if (!db.prepare('PRAGMA table_info(agent_runs)').all().some(column => column.name === 'provenance_json')) db.exec('ALTER TABLE agent_runs ADD COLUMN provenance_json TEXT');
   const codeEffects=createCodeEffectStore({db,onReceipt:(id,receipt)=>{if(readRun(id))emit(id,'code_receipt',{receipt});}});
   const tools = new Map();
-  if (!Array.isArray(extraTools) || extraTools.length > 128) fail('invalid_tool', 'extraTools must be a bounded array');
+  if (!Array.isArray(extraTools) || extraTools.length > 256) fail('invalid_tool', 'extraTools must be a bounded array');
   for (const tool of [...builtinTools({ db, policy, codeExecutor,codeEffects,onWorkspaceReceipt:(id,receipt)=>{if(readRun(id))emit(id,'workspace_receipt',{receipt});} }), ...extraTools]) {
-    if (!tool || !/^[a-zA-Z][a-zA-Z0-9_.-]{0,63}$/.test(tool.name) || tool.name === 'tools.enable' || tools.has(tool.name) || typeof tool.description !== 'string' || tool.description.length > 2000 || typeof tool.execute !== 'function') fail('invalid_tool', 'Tools require a unique nonreserved name, description, schema and execute function');
+    if (!tool || !/^[a-zA-Z][a-zA-Z0-9_.-]{0,63}$/.test(tool.name) || tool.name === 'tools.enable' || tools.has(tool.name) || typeof tool.description !== 'string' || tool.description.length > 2000 || typeof tool.execute !== 'function') {
+      const reason = !tool ? 'null tool' : !tool.name ? 'no name' : tools.has(tool.name) ? `duplicate: ${tool.name}` : typeof tool.execute !== 'function' ? `no execute: ${tool.name}` : typeof tool.description !== 'string' ? `no desc: ${tool.name}` : `bad name: ${tool.name}`;
+      fail('invalid_tool', `Tool validation failed (${reason})`);
+    }
     if (tool.group !== undefined && (typeof tool.group !== 'string' || !/^[a-z][a-z0-9_-]{0,31}$/.test(tool.group))) fail('invalid_tool', 'Tool group must be a short lowercase identifier');
     checkSchema(tool.parameters);
     if (tool.parameters.type !== 'object') fail('invalid_tool', 'Tool parameters must be an object');
