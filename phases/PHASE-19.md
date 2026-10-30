@@ -1,5 +1,6 @@
 # Phase 19: Hermes Full Fleet + Agent Collaboration
 
+**Commit:** `b6d32c6`
 **Date:** 2026-10-30
 **Previous:** [Phase 18 — Offline-First Hardening](PHASE-18.md)
 **Next:** *(next phase)*
