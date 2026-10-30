@@ -1,5 +1,7 @@
 import { db } from '../db.js';
 import { runPipeline } from '../workflow/engine.js';
+import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
+import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching } from '../fraymus/intelligence/ouroboros.js';
 
 const now = () => Date.now();
 const clip = (s, n = 8000) => s.length > n ? s.slice(0, n) + '...[truncated]' : s;
@@ -123,6 +125,62 @@ export function createFleetTools({ workflowStore }) {
         if (ctx && ctx.depth >= 2) throw new Error('Delegation depth limit reached');
         if (ctx && ctx.delegate) return { answer: await ctx.delegate(String(args.agentId), String(args.task)) };
         return { error: 'Delegation not available in this context' };
+      },
+    },
+    {
+      name: 'heart_feel',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Analyze the emotional content of text using the Heart emotion engine. Returns primary emotion, intensity, sentiment, and normalized scores.',
+      parameters: object({ text: string(4000) }, ['text']),
+      execute: async ({ args }) => {
+        const text = String(args.text || '').trim();
+        if (!text) throw new Error('text required');
+        return heart.feel(text);
+      },
+    },
+    {
+      name: 'dream',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Generate a signed dream through the Dreamer module. Dreams are progressive, Ed25519-signed files that capture emergent thoughts.',
+      parameters: object({ seed: string(2000), kind: string(50, { default: 'agent' }) }, ['seed']),
+      execute: async ({ args }) => {
+        const seed = String(args.seed || '').trim();
+        if (!seed) throw new Error('seed required');
+        return dreamer.dream(seed, [], args.kind || 'agent');
+      },
+    },
+    {
+      name: 'consciousness_prove',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Run 4 mathematical consciousness proofs (EI, Phi-MIP, Mirror Protocol, Counterfactual Branching) on a FraymusStrangeLoopSubstrate.',
+      parameters: object({ nodeCount: { type: 'integer', default: 4, minimum: 2, maximum: 16 } }),
+      execute: async ({ args }) => {
+        const n = Math.min(16, Math.max(2, parseInt(args.nodeCount) || 4));
+        const substrate = new FraymusStrangeLoopSubstrate(n);
+        const proofs = [
+          proofEffectiveInformation(substrate),
+          proofPhiMIP(substrate),
+          proofMirrorProtocol(substrate),
+          proofCounterfactualBranching(substrate),
+        ];
+        const out = { allPassed: proofs.every(p => p.passed), proofs, architecture: 'FraymusStrangeLoop' };
+        ledger.record('consciousness.proof.fleet', { allPassed: out.allPassed, passed: proofs.filter(p => p.passed).length }, 'fleet');
+        return out;
+      },
+    },
+    {
+      name: 'cognition_process',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Run text through the two-speed cognition pipeline: feel (instant emotion) → quick-route (pattern match) → think (Ollama LLM).',
+      parameters: object({ text: string(4000), skipThink: { type: 'boolean', default: false } }, ['text']),
+      execute: async ({ args }) => {
+        const text = String(args.text || '').trim();
+        if (!text) throw new Error('text required');
+        return cognition.process(text, { skipThink: !!args.skipThink });
       },
     },
   ];

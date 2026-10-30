@@ -3,6 +3,8 @@ import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { DATA_DIR } from '../config.js';
 import { chatOllama } from '../commerce/shared.js';
+import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
+import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching } from '../fraymus/intelligence/ouroboros.js';
 import { runResearcher, runCreator, runReviewer, runCeoLogger, runShopifyPublish } from '../commerce/pipeline.js';
 import { runTrendScout, runDesigner, runPrintifyPush, runShopifySync, runPricingEngine } from '../commerce/apparel-pipeline.js';
 import { runShopperAgent, runUxAuditor, runPriceAnalyst, runReportAndFix } from '../commerce/mystery-shopper.js';
@@ -80,6 +82,10 @@ function nodeKind(type) {
   if (type === 'description_enhancer') return 'description_enhancer';
   if (type === 'price_adjuster') return 'price_adjuster';
   if (type === 'shopify_applier') return 'shopify_applier';
+  if (type === 'heart_feel') return 'heart_feel';
+  if (type === 'dream') return 'dream';
+  if (type === 'consciousness_prove') return 'consciousness_prove';
+  if (type === 'cognition') return 'cognition';
   return 'unknown';
 }
 
@@ -350,6 +356,46 @@ export async function runPipeline(nodes, edges, opts = {}) {
         const descData = prevAll.find(d => d.agent === 'description_enhancer') || {};
         const priceData = prevAll.find(d => d.agent === 'price_adjuster') || {};
         const out = await runShopifyApplier(pagesData, collData, descData, priceData);
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+
+      // ── Intelligence stack nodes ──────────────────────────────
+      } else if (k === 'heart_feel') {
+        const text = upstreamText || node.data?.text || '';
+        const out = heart.feel(text);
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+
+      } else if (k === 'dream') {
+        const seed = node.data?.seed || upstreamText || 'workflow dream';
+        const inputs = node.data?.inputs || [];
+        const kind = node.data?.kind || 'workflow';
+        const out = await dreamer.dream(seed, inputs, kind);
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+
+      } else if (k === 'consciousness_prove') {
+        const nodeCount = node.data?.nodeCount || 4;
+        const substrate = new FraymusStrangeLoopSubstrate(nodeCount);
+        const proofs = [
+          proofEffectiveInformation(substrate),
+          proofPhiMIP(substrate),
+          proofMirrorProtocol(substrate),
+          proofCounterfactualBranching(substrate),
+        ];
+        const out = {
+          allPassed: proofs.every(p => p.passed),
+          proofs,
+          architecture: 'FraymusStrangeLoop',
+        };
+        ledger.record('consciousness.proof.workflow', { allPassed: out.allPassed, passed: proofs.filter(p => p.passed).length }, 'workflow');
+        texts[id] = r.text = JSON.stringify(out);
+        r.data = out;
+
+      } else if (k === 'cognition') {
+        const text = upstreamText || node.data?.text || '';
+        const opts = { skipThink: node.data?.skipThink ?? false };
+        const out = await cognition.process(text, opts);
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
 
