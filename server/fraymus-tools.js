@@ -22,7 +22,7 @@ import { HermesFleet } from './fraymus/intelligence/hermes.js';
 import { MotorDispatcher } from './fraymus/intelligence/motor.js';
 import { OpenClawGateway } from './fraymus/intelligence/openclaw.js';
 import { ControlPlane } from './fraymus/intelligence/control-plane.js';
-import { NeedleQueue } from './fraymus/intelligence/needle.js';
+import { NeedleQueue, NeedleWorker } from './fraymus/intelligence/needle.js';
 import { OrificeBridge } from './fraymus/bridge/orifice.js';
 import { NILES_MODEL, FRAYVM_OPCODES, buildModelfile, executeFrayvm } from './fraymus/intelligence/niles.js';
 import { Heart, analyze as heartAnalyze } from './fraymus/intelligence/heart.js';
@@ -54,6 +54,12 @@ const hermes = new HermesFleet(hermesExecutors);
 const motor = new MotorDispatcher(entityStore);
 const controlPlane = new ControlPlane(entityStore);
 const needle = new NeedleQueue(entityStore);
+const needleWorker = new NeedleWorker(needle, {
+  name: 'local-gpu',
+  onJobStart: (job) => console.log(`[Needle] Processing job ${job.id} (${job.model || 'default'})`),
+  onJobDone: (job, result) => console.log(`[Needle] Completed job ${job.id} in ${result.durationMs}ms`),
+  onError: (err) => console.error('[Needle]', err.message),
+});
 const bridge = new OrificeBridge(entityStore);
 const openclaw = new OpenClawGateway({ hermes, motor, ouroboros, controlPlane, bridge, entityStore });
 
@@ -387,7 +393,7 @@ function buildHermesExecutors() {
   };
 }
 
-export { ouroboros, hermes, motor, openclaw, controlPlane, needle, heart, ledger, dreamer, cognition, MemoryBridge };
+export { ouroboros, hermes, motor, openclaw, controlPlane, needle, needleWorker, heart, ledger, dreamer, cognition, MemoryBridge };
 
 export function createFraymusTools() {
   return [

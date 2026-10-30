@@ -37,7 +37,7 @@ npm run start        # production server (serves built client)
 - `brain.js` — central reasoning coordinator (full intelligence: Heart emotion + Ledger logging + Memory Bridge storage + dreamer/cognition context + bridge recall)
 - `autonomy.js` — Kuramoto phase sync + intelligence monitoring (consciousness proofs, dreams)
 - `fraymus-tools.js` — FRAYMUS → fleet adapter (42 tools + MemoryBridge export)
-- `fraymus-routes.js` — FRAYMUS API routes (16 intelligence + 8 autonomy + memory search + intelligence cycle + runtime intelligence endpoints)
+- `fraymus-routes.js` — FRAYMUS API routes (16 intelligence + 8 autonomy + 7 needle + 5 motor + memory search + intelligence cycle + runtime intelligence endpoints)
 
 ### FRAYMUS Intelligence Stack (server/fraymus/)
 - `entity-store.js` — SQLite-backed Proxy adapter (replaces Base44 cloud store), auto-creates collections
@@ -63,9 +63,9 @@ npm run start        # production server (serves built client)
 - `intelligence/ouroboros.js` — Ouroboros RSI + FraymusStrangeLoopSubstrate (4 consciousness proofs)
 - `intelligence/memory-bridge.js` — Intelligence → Vertiso connector (provenance: measured/imagined, runtime cognition type queries)
 - `intelligence/hermes.js` — Hermes 30-skill fleet (30/30 with real executors)
-- `intelligence/motor.js` — Motor compute dispatch (SQLite job persistence)
+- `intelligence/motor.js` — Motor compute dispatch (live node executors: Ollama GPU, SSH, GitHub CLI, cloud fallback)
 - `intelligence/openclaw.js` — OpenClaw gateway (all 23 actions implemented)
-- `intelligence/needle.js` — Needle GPU inference queue (SQLite persistence)
+- `intelligence/needle.js` — Needle GPU inference queue + NeedleWorker polling loop (claims jobs, runs through Ollama)
 - `intelligence/niles.js` — Niles FRAYVM stack machine interpreter
 - `intelligence/control-plane.js` — agent registry, enrollment, broadcast
 - `bridge/cross-tab.js` — cross-tab communication

@@ -1,5 +1,5 @@
 import express from 'express';
-import { createFraymusTools, heart, ledger, dreamer, cognition } from './fraymus-tools.js';
+import { createFraymusTools, heart, ledger, dreamer, cognition, needle, needleWorker, motor } from './fraymus-tools.js';
 import { SCHEMAS, getSchema } from './fraymus/entities/schemas.js';
 import { getWorkflow, scheduledWorkflows, eventTriggeredWorkflows } from './fraymus/workflows/definitions.js';
 import { listTools as listMcpTools } from './fraymus/mcp/tools.js';
@@ -249,6 +249,80 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
     });
   }));
 
+  // ── Needle Worker (GPU inference queue) ──
+  app.post('/api/fraymus/needle/enqueue', route(async (req, res) => {
+    const { model, prompt, params } = req.body;
+    if (!prompt) return res.status(400).json({ error: 'prompt required' });
+    const job = await needle.enqueueJob(model, prompt, params);
+    broadcast('needle', { type: 'enqueued', jobId: job.id });
+    res.json(job);
+  }));
+
+  app.get('/api/fraymus/needle/jobs', route(async (req, res) => {
+    const status = req.query.status || null;
+    const jobs = await needle.listJobs(status);
+    res.json({ jobs, count: jobs.length });
+  }));
+
+  app.get('/api/fraymus/needle/jobs/:id', route(async (req, res) => {
+    const job = await needle.getJob(req.params.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    res.json(job);
+  }));
+
+  app.post('/api/fraymus/needle/worker/start', route(async (_req, res) => {
+    const result = await needleWorker.start();
+    broadcast('needle', { type: 'worker_started', workerId: result.workerId });
+    res.json(result);
+  }));
+
+  app.post('/api/fraymus/needle/worker/stop', route((_req, res) => {
+    const result = needleWorker.stop();
+    broadcast('needle', { type: 'worker_stopped' });
+    res.json(result);
+  }));
+
+  app.get('/api/fraymus/needle/worker/status', route((_req, res) => {
+    res.json(needleWorker.status());
+  }));
+
+  app.get('/api/fraymus/needle/workers', route(async (_req, res) => {
+    const workers = await needle.listWorkers();
+    res.json({ workers, count: workers.length });
+  }));
+
+  // ── Motor Dispatch (cross-node compute) ──
+  app.post('/api/fraymus/motor/dispatch', route(async (req, res) => {
+    const job = req.body;
+    if (!job.prompt && !job.command) return res.status(400).json({ error: 'prompt or command required' });
+    const record = await motor.dispatch(job);
+    broadcast('motor', { type: 'dispatched', jobId: record.job_id, node: record.node });
+    res.json(record);
+  }));
+
+  app.post('/api/fraymus/motor/execute', route(async (req, res) => {
+    const job = req.body;
+    if (!job.prompt && !job.command) return res.status(400).json({ error: 'prompt or command required' });
+    const result = await motor.execute(job);
+    broadcast('motor', { type: 'executed', jobId: result.jobId, node: result.node, status: result.status });
+    res.json(result);
+  }));
+
+  app.get('/api/fraymus/motor/jobs', route(async (req, res) => {
+    const status = req.query.status || null;
+    const jobs = await motor.listJobs(status);
+    res.json({ jobs, count: jobs.length });
+  }));
+
+  app.get('/api/fraymus/motor/health', route(async (_req, res) => {
+    const nodes = await motor.nodeHealth();
+    res.json({ nodes, dispatchCount: motor.dispatchCount });
+  }));
+
+  app.get('/api/fraymus/motor/status', route((_req, res) => {
+    res.json(motor.status());
+  }));
+
   // ── Master Health ──
   app.get('/api/fraymus/health', route(async (_req, res) => {
     const status = autonomy.status();
@@ -274,6 +348,8 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
         mood: heart.recentMood(),
         dreamerState: dreamer.feel(),
         ledgerIntegrity: ledger.verify(10),
+        needleWorker: needleWorker.status(),
+        motorDispatch: motor.status(),
       },
       memoryBridge: memoryBridge
         ? { available: true, ...memoryBridge.stats() }
