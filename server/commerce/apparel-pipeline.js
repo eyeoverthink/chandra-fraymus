@@ -44,7 +44,7 @@ export async function runTrendScout(input, opts = {}) {
         `- "${r.title}" (score: ${r.outlier_score}, views: ${r.view_count})`
       ).join('\n')}`;
     }
-  } catch {}
+  } catch (e) { console.error('apparel: outlier board query failed:', e.message); }
 
   let webTrends = '';
   try {
@@ -56,7 +56,7 @@ export async function runTrendScout(input, opts = {}) {
     if (data.RelatedTopics?.length) {
       webTrends = `\nWeb trends:\n${data.RelatedTopics.slice(0, 10).map(t => `- ${t.Text}`).join('\n')}`;
     }
-  } catch {}
+  } catch (e) { console.error('apparel: web trends fetch failed:', e.message); }
 
   const raw = await chatOllama([
     { role: 'system', content: `You are a fashion trend analyst for the brand ${BRAND.name}. Analyze trends and recommend apparel designs. Respond in JSON.` },
@@ -152,7 +152,7 @@ export async function runPrintifyPush(designerOutput, opts = {}) {
       const res = await fetch(`${PRINTIFY_BASE}/shops.json`, { headers, signal: AbortSignal.timeout(15_000) });
       const shops = await res.json();
       shopId = shops?.[0]?.id;
-    } catch {}
+    } catch (e) { console.error('apparel: Printify shop lookup failed:', e.message); }
   }
   if (!shopId) {
     return { stage: 'printify', status: 'error', error: 'No Printify shop found' };
@@ -390,7 +390,7 @@ async function createSmartCollection(headers, base, title) {
       body: JSON.stringify({ smart_collection: { title, rules, disjunctive: true } }),
       signal: AbortSignal.timeout(15_000),
     });
-  } catch {}
+  } catch (e) { console.error('apparel: collection create failed:', e.message); }
 }
 
 function collectionRules(title) {
@@ -500,7 +500,7 @@ Return JSON:
             }),
             signal: AbortSignal.timeout(15_000),
           });
-        } catch {}
+        } catch (e) { console.error('apparel: price update failed:', e.message); }
       }
     }
   }

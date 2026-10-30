@@ -1,6 +1,6 @@
 import { db } from '../db.js';
 import { randomUUID } from 'node:crypto';
-import { chatOllama } from './shared.js';
+import { chatOllama, shopifyHeaders, shopifyBase } from './shared.js';
 
 const now = () => Date.now();
 
@@ -224,10 +224,10 @@ export async function runShopifyPublish(ceoOutput, opts = {}) {
     return { stage: 'shopify', status: 'skipped', reason: 'Content not approved by QA' };
   }
 
-  const shopifyKey = process.env.SHOPIFY_ACCESS_TOKEN;
-  const shopifyStore = process.env.SHOPIFY_STORE_DOMAIN;
+  const headers = shopifyHeaders();
+  const base = shopifyBase();
 
-  if (!shopifyKey || !shopifyStore) {
+  if (!headers || !base) {
     return {
       stage: 'shopify',
       status: 'draft',
@@ -238,11 +238,6 @@ export async function runShopifyPublish(ceoOutput, opts = {}) {
   }
 
   const results = { products: [], blogs: [] };
-  const headers = {
-    'Content-Type': 'application/json',
-    'X-Shopify-Access-Token': shopifyKey,
-  };
-  const base = `https://${shopifyStore}/admin/api/2024-01`;
 
   if (finalContent?.product) {
     const p = finalContent.product;

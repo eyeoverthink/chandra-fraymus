@@ -1,6 +1,6 @@
 import { db } from '../db.js';
 import { randomUUID } from 'node:crypto';
-import { chatOllama, parseJSON } from './shared.js';
+import { chatOllama, parseJSON, shopifyHeaders, shopifyBase } from './shared.js';
 
 const BRAND = {
   name: 'eyeoverthink®',
@@ -179,11 +179,11 @@ Return JSON:
 
 // ── Agent 5: Shopify Applier ─────────────────────────────────────
 export async function runShopifyApplier(pages, collections, descriptions, prices, opts = {}) {
-  const token = process.env.SHOPIFY_ACCESS_TOKEN;
-  const store = process.env.SHOPIFY_STORE_DOMAIN;
+  const headers = shopifyHeaders();
+  const base = shopifyBase();
   const applied = { pages: [], collections: [], descriptions: [], prices: [] };
 
-  if (!token || !store) {
+  if (!headers || !base) {
     return {
       agent: 'shopify_applier',
       status: 'queued',
@@ -197,9 +197,6 @@ export async function runShopifyApplier(pages, collections, descriptions, prices
       data: { pages, collections, descriptions, prices },
     };
   }
-
-  const base = `https://${store}/admin/api/2024-01`;
-  const headers = { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token };
 
   // Apply pages
   if (pages?.pages?.length) {
