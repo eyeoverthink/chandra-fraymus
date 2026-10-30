@@ -8,6 +8,10 @@ const clip = (s, n = 8000) => s.length > n ? s.slice(0, n) + '...[truncated]' : 
 const string = (maxLength, extra = {}) => ({ type: 'string', maxLength, ...extra });
 const object = (properties, required = []) => ({ type: 'object', properties, required });
 
+let memoryBridgeRef = null;
+
+export function setMemoryBridgeRef(mb) { memoryBridgeRef = mb; }
+
 export function createFleetTools({ workflowStore }) {
   return [
     {
@@ -181,6 +185,21 @@ export function createFleetTools({ workflowStore }) {
         const text = String(args.text || '').trim();
         if (!text) throw new Error('text required');
         return cognition.process(text, { skipThink: !!args.skipThink });
+      },
+    },
+    {
+      name: 'memory_recall',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Search intelligence memories (heart readings, dreams, cognition results, consciousness proofs) stored in the Vertiso Memory Bridge. Returns semantically similar episodic memories with provenance tags.',
+      parameters: object({ query: string(2000), limit: { type: 'integer', default: 5, minimum: 1, maximum: 20 } }, ['query']),
+      run: async (args, ctx) => {
+        if (!memoryBridgeRef) return { memories: [], available: false };
+        const query = String(args.query || '').trim();
+        if (!query) throw new Error('query required');
+        const limit = Math.min(20, Math.max(1, parseInt(args.limit) || 5));
+        const memories = await memoryBridgeRef.recallRelated(query, limit);
+        return { memories, count: memories.length };
       },
     },
   ];

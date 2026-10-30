@@ -86,6 +86,7 @@ function nodeKind(type) {
   if (type === 'dream') return 'dream';
   if (type === 'consciousness_prove') return 'consciousness_prove';
   if (type === 'cognition') return 'cognition';
+  if (type === 'memory_recall') return 'memory_recall';
   return 'unknown';
 }
 
@@ -402,6 +403,19 @@ export async function runPipeline(nodes, edges, opts = {}) {
         opts.memoryBridge?.storeCognitionResult(out).catch(() => {});
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
+
+      } else if (k === 'memory_recall') {
+        const query = upstreamText || node.data?.query || '';
+        const limit = Math.min(20, Math.max(1, parseInt(node.data?.limit) || 5));
+        if (!opts.memoryBridge) {
+          r.text = 'Memory Bridge not available';
+          r.data = { memories: [], available: false };
+        } else {
+          const memories = await opts.memoryBridge.recallRelated(query, limit);
+          r.data = { memories, count: memories.length, query };
+          r.text = JSON.stringify(r.data);
+        }
+        texts[id] = r.text;
 
       } else {
         throw new Error(`Unknown node type: ${node.type}`);

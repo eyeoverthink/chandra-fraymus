@@ -6,13 +6,19 @@ export default function DashboardPanel({ health, wsEvent }) {
   const [workflows, setWorkflows] = useState([]);
   const [mcpServers, setMcpServers] = useState([]);
   const [intel, setIntel] = useState(null);
+  const [autonomy, setAutonomy] = useState(null);
+  const [memBridge, setMemBridge] = useState(null);
 
   const load = () => {
     fetch('/api/fleet/agents').then(r => r.json()).then(d => setAgents(d.agents || [])).catch(() => {});
     fetch('/api/events?limit=15').then(r => r.json()).then(d => setEvents(Array.isArray(d) ? d : [])).catch(() => {});
     fetch('/api/workflows').then(r => r.json()).then(d => setWorkflows(d.workflows || [])).catch(() => {});
     fetch('/api/mcp/servers').then(r => r.json()).then(d => setMcpServers(d.servers || d || [])).catch(() => {});
-    fetch('/api/fraymus/health').then(r => r.json()).then(d => setIntel(d.intelligence || null)).catch(() => {});
+    fetch('/api/fraymus/health').then(r => r.json()).then(d => {
+      setIntel(d.intelligence || null);
+      setAutonomy({ running: d.autonomous, generation: d.generation, fitness: d.fitness, phaseSync: d.phaseSync });
+      setMemBridge(d.memoryBridge || null);
+    }).catch(() => {});
   };
   useEffect(() => { load(); }, []);
   useEffect(() => {
@@ -51,7 +57,7 @@ export default function DashboardPanel({ health, wsEvent }) {
       </div>
 
       {intel && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
           <div style={{ background: '#111118', borderRadius: 12, padding: 16, border: '1px solid #222' }}>
             <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>Heart Mood</div>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#f59e0b', textTransform: 'capitalize' }}>{intel.mood?.mood || 'neutral'}</div>
@@ -74,6 +80,22 @@ export default function DashboardPanel({ health, wsEvent }) {
             <div style={{ fontSize: 18, fontWeight: 700, color: '#22c55e' }}>{intel.cognition?.contextLength || 0} ctx</div>
             <div style={{ fontSize: 11, color: '#555' }}>
               {intel.cognition?.modules ? Object.entries(intel.cognition.modules).filter(([,v]) => v).length : 0} modules active
+            </div>
+          </div>
+          <div style={{ background: '#111118', borderRadius: 12, padding: 16, border: '1px solid #222' }}>
+            <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>Memory Bridge</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: memBridge?.available ? '#14b8a6' : '#666' }}>
+              {memBridge?.available ? 'Active' : 'Standby'}
+            </div>
+            <div style={{ fontSize: 11, color: '#555' }}>{memBridge?.stored || 0} memories stored</div>
+          </div>
+          <div style={{ background: '#111118', borderRadius: 12, padding: 16, border: '1px solid #222' }}>
+            <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>Autonomy Engine</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: autonomy?.running ? '#a78bfa' : '#666' }}>
+              {autonomy?.running ? 'Active' : 'Standby'}
+            </div>
+            <div style={{ fontSize: 11, color: '#555' }}>
+              gen {autonomy?.generation || 0} · R={typeof autonomy?.phaseSync === 'number' ? autonomy.phaseSync.toFixed(2) : '—'}
             </div>
           </div>
         </div>

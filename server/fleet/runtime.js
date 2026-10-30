@@ -3,6 +3,7 @@ import { db } from '../db.js';
 import { loadManifests, writeOverride, removeOverride } from './manifest.js';
 import { OLLAMA_URL } from '../config.js';
 import { heart, ledger } from '../fraymus-tools.js';
+import { setMemoryBridgeRef } from './tools.js';
 
 const MAX_STEPS = 8;
 const MAX_HISTORY = 40;
@@ -21,6 +22,7 @@ export function initFleet({ broadcast, vertiso, rsi, memoryBridge }) {
   vertisoRef = vertiso || null;
   rsiRef = rsi || null;
   memoryBridgeRef = memoryBridge || null;
+  if (memoryBridgeRef) setMemoryBridgeRef(memoryBridgeRef);
   manifests = loadManifests();
   return { agentCount: manifests.size };
 }

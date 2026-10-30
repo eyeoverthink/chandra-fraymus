@@ -236,6 +236,9 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
         dreamerState: dreamer.feel(),
         ledgerIntegrity: ledger.verify(10),
       },
+      memoryBridge: memoryBridge
+        ? { available: true, ...memoryBridge.stats() }
+        : { available: false },
     });
   }));
 }
