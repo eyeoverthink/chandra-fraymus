@@ -4,6 +4,8 @@ import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
 import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching } from '../fraymus/intelligence/ouroboros.js';
 import { publish, directMessage, inbox } from './bus.js';
 import { storeMemory, recallMemories, agentMemoryStats } from './agent-memory.js';
+import { forgeAgent, listForgedAgents } from './forge.js';
+import { synthesizeWorkflow } from '../workflow/synthesizer.js';
 
 const now = () => Date.now();
 const clip = (s, n = 8000) => s.length > n ? s.slice(0, n) + '...[truncated]' : s;
@@ -346,6 +348,47 @@ export function createFleetTools({ workflowStore }) {
       execute: async (_args, ctx) => {
         const agentId = ctx?.agentId || 'unknown';
         return agentMemoryStats(agentId);
+      },
+    },
+
+    // ─── Agent Self-Evolution tools ─────────────────────────
+    {
+      name: 'agent_forge',
+      group: 'evolution',
+      risk: 'approval',
+      description: 'Create a new specialist agent by describing what it should do. The system generates a complete agent manifest and registers it in the fleet. Requires approval.',
+      parameters: object({
+        goal: string(2000, { description: 'What the new agent should do' }),
+        context: string(4000, { description: 'Additional domain knowledge or constraints' }),
+      }, ['goal']),
+      execute: async ({ args }, ctx) => {
+        const forgedBy = ctx?.agentId || 'unknown';
+        return forgeAgent(String(args.goal), { context: args.context ? String(args.context) : undefined, forgedBy });
+      },
+    },
+    {
+      name: 'agent_list_forged',
+      group: 'evolution',
+      risk: 'safe',
+      description: 'List all agents that were created by the forge (vs. manually created).',
+      parameters: object({}),
+      execute: async () => {
+        const forged = listForgedAgents();
+        return { forged: forged.map(f => ({ agentId: f.agent_id, goal: f.goal, forgedBy: f.forged_by, createdAt: f.created_at })), count: forged.length };
+      },
+    },
+    {
+      name: 'workflow_synthesize',
+      group: 'evolution',
+      risk: 'approval',
+      description: 'Compose a new visual workflow from a goal description. The system selects node types, wires them into a DAG, validates, and saves. Requires approval.',
+      parameters: object({
+        goal: string(2000, { description: 'What the workflow should accomplish' }),
+        constraints: string(2000, { description: 'Optional constraints on node types or structure' }),
+      }, ['goal']),
+      execute: async ({ args }, ctx) => {
+        const synthesizedBy = ctx?.agentId || 'unknown';
+        return synthesizeWorkflow(String(args.goal), { constraints: args.constraints ? String(args.constraints) : undefined, synthesizedBy });
       },
     },
   ];

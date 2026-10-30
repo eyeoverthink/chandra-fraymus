@@ -264,5 +264,36 @@ export function migrateWorkspaces() {
       created_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_halert ON health_alerts(resolved, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS forged_agents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agent_id TEXT NOT NULL,
+      forged_by TEXT NOT NULL DEFAULT 'system',
+      goal TEXT NOT NULL,
+      context TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_forged ON forged_agents(agent_id);
+
+    CREATE TABLE IF NOT EXISTS synthesized_workflows (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workflow_id TEXT NOT NULL,
+      synthesized_by TEXT NOT NULL DEFAULT 'system',
+      goal TEXT NOT NULL,
+      node_count INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_synth ON synthesized_workflows(workflow_id);
+
+    CREATE TABLE IF NOT EXISTS reflections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      trigger TEXT NOT NULL DEFAULT 'scheduled',
+      input_summary TEXT NOT NULL,
+      actions_taken TEXT NOT NULL,
+      insights TEXT,
+      duration_ms INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_reflect ON reflections(created_at DESC);
   `);
 }

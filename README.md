@@ -44,7 +44,7 @@ No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your mode
    ║         Autonomous AI Commerce & Intelligence Platform          ║
    ║                                                                  ║
    ║   17 Agents · 4 Commerce Pipelines · 6 Intelligence Modules     ║
-   ║   36 Workflow Nodes · 19 Workflow Definitions · 19 Fleet Tools   ║
+   ║   36 Workflow Nodes · 19 Workflow Definitions · 22 Fleet Tools   ║
    ║   39 Entity Schemas · Vertiso Vector Memory · Memory Bridge      ║
    ║   Kuramoto Phase Sync · Ouroboros RSI · Ed25519 Identity         ║
    ║                                                                  ║
@@ -100,6 +100,7 @@ The intelligence stack was merged from two proprietary repos (`fraynix-continuit
 | **21** | Deploy-as-API — workflows become curl-able REST endpoints with Bearer auth, token-bucket rate limiting, per-key usage tracking, deploy catalog, undeploy, Deploy Dashboard panel (10th panel) |
 | **22** | Agent Live Bus — real-time pub/sub message bus for agent-to-agent communication, topic subscriptions, direct messaging, persistent SQLite history, Bus Dashboard panel (11th panel) |
 | **23** | Event-Driven Orchestration + Agent Persistent Memory + System Health Monitor — bus triggers auto-fire workflows, per-agent knowledge store with verified/unverified pattern and auto-store on completion (3 new agent tools, 19 total), real-time health polling with auto-alerts via bus, Health Dashboard panel (12th panel, 15 new API endpoints) |
+| **24** | Agent Self-Evolution Engine — Agent Forge (LLM generates new agent manifests on demand, 3 API endpoints), Workflow Synthesis (LLM composes DAG workflows from 36 node types, 2 API endpoints), Reflection Loop (scheduled self-analysis reads memories/runs/health/bus, takes up to 5 actions per cycle: forge agents, synthesize workflows, verify/prune memories, 3 API endpoints, 3 new agent tools — 22 total) |
 
 ---
 
@@ -804,7 +805,7 @@ Dark-themed React UI with 4 primary views + 11-panel Detail Drawer:
 
 | Metric | Count |
 |--------|-------|
-| System Features | 31 |
+| System Features | 34 |
 | Agents | 17 |
 | Commerce Pipelines | 4 |
 | Intelligence Modules | 6 (Heart, Ledger, Dreamer, Cognition, Consciousness, Memory Bridge) |
@@ -812,7 +813,7 @@ Dark-themed React UI with 4 primary views + 11-panel Detail Drawer:
 | Workflow Definitions | 19 |
 | Canvas Node Types | 36 |
 | Entity Schemas | 49 |
-| Fleet Tools | 16 (7 fleet + 6 intelligence + 3 bus) |
+| Fleet Tools | 22 (7 fleet + 6 intelligence + 3 bus + 3 agent-memory + 3 evolution) |
 | API Endpoints | 200+ |
 | Product Types (Apparel) | 24 |
 | Frontend Views | 4 (Command Center, Constellation, Canvas, Library) |

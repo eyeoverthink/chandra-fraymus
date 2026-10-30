@@ -49,6 +49,9 @@ import { installBusRoutes } from './fleet/bus-routes.js';
 import { initTriggers, installTriggerRoutes } from './fleet/bus-triggers.js';
 import { installAgentMemoryRoutes } from './fleet/agent-memory.js';
 import { initHealthMonitor, installHealthRoutes } from './health/monitor.js';
+import { installForgeRoutes } from './fleet/forge.js';
+import { installSynthesisRoutes } from './workflow/synthesizer.js';
+import { installReflectionRoutes, startReflectionLoop } from './intelligence/reflection.js';
 
 export function cloudConfig() {
   if (process.env.FRAYMUS_CLOUD_ENABLED !== '1') return { enabled: false };
@@ -125,6 +128,10 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installAgentMemoryRoutes(app);
   initHealthMonitor({ broadcast, ollamaBaseUrl: ollamaUrl });
   installHealthRoutes(app);
+  installForgeRoutes(app);
+  installSynthesisRoutes(app);
+  installReflectionRoutes(app);
+  startReflectionLoop();
   installMcpEndpoint(app);
   installOAuthRoutes(app);
   installAccessRoutes(app);
@@ -169,7 +176,8 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
       'fraymus-identity', 'fraymus-encoding', 'fraymus-protocol', 'fraymus-intelligence', 'fraymus-autonomy', 'fraymus-ouroboros', 'fraymus-hermes-30skill', 'fraymus-motor', 'fraymus-openclaw', 'fraymus-kuramoto-sync',
       'visual-workflow-engine', '17-agent-fleet', 'mcp-server-gateway', 'mcp-client-bridge', 'cron-automations',
       'puppeteer-headless-browser', 'chrome-extension-bridge', 'vertiso-vector-memory', 'recursive-self-improvement',
-      'event-driven-orchestration', 'agent-persistent-memory', 'system-health-monitor'] }));
+      'event-driven-orchestration', 'agent-persistent-memory', 'system-health-monitor',
+      'agent-forge', 'workflow-synthesis', 'reflection-loop'] }));
   app.get('/api/agent/capabilities', route(async (_req, res) => {
     const caps = await agent.capabilities();
     let localOcrHealth;

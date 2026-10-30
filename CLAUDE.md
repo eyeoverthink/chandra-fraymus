@@ -61,7 +61,25 @@ npm run start        # production server (serves built client)
 - `buildPromptContext()` — injects agent's 10 most recent memories into system prompt with [verified]/[unverified] tags
 - `autoStoreFromCompletion()` — auto-stores task + result after every agent run
 - DB table: `agent_memories` (agent_id, category, key, value, confidence, source, access_count, verified_at)
-- 5 REST endpoints + 3 agent tools (`agent_remember`, `agent_recall`, `agent_memory_stats`) — 19 fleet tools total
+- 5 REST endpoints + 3 agent tools (`agent_remember`, `agent_recall`, `agent_memory_stats`)
+
+### Agent Forge (server/fleet/forge.js)
+- `forge.js` — LLM-driven agent manifest generation: goal → Ollama → validated JSON → writeOverride() → fleet reload → runnable immediately
+- DB table: `forged_agents` (agent_id, forged_by, goal, context, created_at)
+- 3 REST endpoints: POST forge, GET forge/history, DELETE forge/:agentId
+- 2 agent tools: `agent_forge`, `agent_list_forged`
+
+### Workflow Synthesis (server/workflow/synthesizer.js)
+- `synthesizer.js` — LLM-driven workflow composition: goal → Ollama → select from 36 node types → validate DAG → save to DB
+- DB table: `synthesized_workflows` (workflow_id, synthesized_by, goal, node_count, created_at)
+- 2 REST endpoints: POST synthesize, GET synthesized
+- 1 agent tool: `workflow_synthesize` — 22 fleet tools total
+
+### Reflection Loop (server/intelligence/reflection.js)
+- `reflection.js` — Scheduled self-analysis: collects agent memories + workflow runs + health metrics + bus activity → Ollama analysis → max 5 actions per cycle (verify_memory, prune_memory, forge_agent, synthesize_workflow, publish_insight)
+- DB table: `reflections` (trigger, input_summary, actions_taken, insights, duration_ms, created_at)
+- 3 REST endpoints: POST reflect, GET reflections, GET reflections/:id
+- Runs every 30 minutes when autonomy active, skips if no new data
 
 ### System Health Monitor (server/health/monitor.js)
 - `monitor.js` — Polls Ollama, DB, bus, Needle, process memory every 60s; auto-alerts via bus `system.alert` topic
@@ -112,7 +130,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `manifest.js` — loads agent .md files with frontmatter (id, name, role, tools)
 - `routes.js` — fleet CRUD API
 - `runtime.js` — agent execution runtime (intelligence-enriched: full stack context in prompts — mood/dreamer/cognition/bridge memories, reads Heart on each user message, logs to Ledger, persists strong emotions to Memory Bridge)
-- `tools.js` — fleet management tools (7 fleet + 6 intelligence + 3 bus + 3 agent-memory = 19 tools)
+- `tools.js` — fleet management tools (7 fleet + 6 intelligence + 3 bus + 3 agent-memory + 3 evolution = 22 tools)
 
 ### Commerce Pipelines (server/commerce/)
 - `shared.js` — shared utilities: `chatOllama`, `parseJSON`, `shopifyHeaders`, `shopifyBase` (API v2024-10), `createCommerceIntel` (intelligence hooks factory for pipelines)

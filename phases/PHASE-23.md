@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-30
 **Prev:** [Phase 22 — Agent Live Bus](PHASE-22.md)
-**Next:** Phase 24 (TBD)
+**Next:** [Phase 24 — Agent Self-Evolution Engine](PHASE-24.md)
 
 ---
 
