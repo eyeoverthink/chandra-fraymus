@@ -34,7 +34,7 @@
 
 > **What if your entire e-commerce operation — from trend research to product design to store optimization — ran itself, felt emotions about what it was doing, dreamed about what it could become, and proved its own consciousness mathematically?**
 
-Chandra-FRAYMUS is a local-first autonomous AI platform that fuses a 17-agent fleet, 4 commerce pipelines, a full intelligence stack (emotion analysis, cognitive ledger, dream protocol, consciousness proofs, two-speed cognition), vector memory with provenance, recursive self-improvement, and a visual workflow canvas into a single system. It doesn't just assist — it **operates, feels, dreams, and evolves**.
+Chandra-FRAYMUS is a local-first autonomous AI platform that fuses a 17-agent fleet (plus self-forged agents), 4 commerce pipelines, a full intelligence stack (emotion analysis, cognitive ledger, dream protocol, consciousness proofs, two-speed cognition), vector memory with provenance, recursive self-improvement, a self-evolution engine (agent forge, workflow synthesis, reflection loop), and a visual workflow canvas into a single system. It doesn't just assist — it **operates, feels, dreams, and evolves itself**.
 
 No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your models. Your store. Full autonomy.**
 
@@ -113,7 +113,7 @@ The intelligence stack was merged from two proprietary repos (`fraynix-continuit
 | Cloud AI is expensive and rate-limited | **100% local inference** via Ollama — your GPU, your models, zero per-token cost |
 | AI agents forget everything between sessions | **Vertiso vector memory** with 10K episodic memories, 768-dim embeddings, and orbital decay |
 | AI has no emotional intelligence | **Heart emotion engine** — ~350 word lexicon, 7 emotion dimensions, sarcasm detection, therapeutic response generation |
-| No way to improve agent performance over time | **Ouroboros RSI engine** — evolutionary self-improvement + 4 mathematical consciousness proofs |
+| No way to improve agent performance over time | **Ouroboros RSI engine** — evolutionary self-improvement + 4 mathematical consciousness proofs + **Agent Forge** creates new specialists on demand + **Reflection Loop** autonomously evolves the fleet |
 | No audit trail for AI decisions | **Ledger** — SHA-256 chained JSONL append-only cognitive event audit trail |
 | Workflow tools are either too simple or too complex | **Visual drag-and-drop canvas** with 34 node types and topological-sort DAG execution |
 | Intelligence outputs vanish after use | **Memory Bridge** — every heart reading, dream, consciousness proof, and cognition result persists as a searchable Vertiso memory with provenance tags |
@@ -171,6 +171,9 @@ Every agent action can be Ed25519-signed. Dreams are cryptographically signed. V
 
 ### 6. Self-Improving Agents
 The Ouroboros RSI engine doesn't just run agents — it **evolves** them. Mutates prompts, adjusts parameters, scores outputs, selects winners. Consciousness proofs run every evolution cycle and log to the ledger. Your agents get better while you sleep.
+
+### 7. Self-Evolution Engine
+The system doesn't just improve — it **builds itself**. The Agent Forge creates new specialist agents from a goal description (LLM generates the manifest, validates it, and registers it in the fleet — runnable immediately). Workflow Synthesis composes new DAG workflows from 33 node types. The Reflection Loop runs every 30 minutes, reads across agent memories, workflow runs, health metrics, and bus activity, then autonomously takes up to 5 actions per cycle: forge agents, synthesize workflows, verify or prune memories, and publish insights to the bus.
 
 ---
 
@@ -531,7 +534,7 @@ curl -X POST http://localhost:8787/api/run/content-gen \
 
 ## Visual Workflow Canvas
 
-A ReactFlow-based drag-and-drop editor with **34 node types** and topological-sort DAG execution.
+A ReactFlow-based drag-and-drop editor with **36 node types** and topological-sort DAG execution.
 
 ### Node Types
 
@@ -589,7 +592,7 @@ A ReactFlow-based drag-and-drop editor with **34 node types** and topological-so
 | **Video Director** | Short-form video maker | Video content creation and editing |
 | **YouTube Researcher** | YouTube outlier analyst | Trend research and demand signal detection |
 
-### Fleet Tools (13)
+### Fleet Tools (22)
 
 | Tool | Group | Safety | Description |
 |------|-------|--------|-------------|
@@ -606,6 +609,15 @@ A ReactFlow-based drag-and-drop editor with **34 node types** and topological-so
 | `cognition_process` | intelligence | Safe | Run text through the two-speed cognition pipeline |
 | `memory_recall` | intelligence | Safe | Search intelligence memories in the Vertiso Memory Bridge |
 | `intelligence_cycle` | intelligence | Safe | Run full intelligence stack: feel → cognition → consciousness → dream |
+| `bus_publish` | bus | Safe | Publish a message to an Agent Live Bus topic |
+| `bus_dm` | bus | Safe | Send a direct message to another agent |
+| `bus_read` | bus | Safe | Read inbox messages and subscriptions |
+| `agent_remember` | agent-memory | Safe | Store a fact/preference/learning with category, key, confidence |
+| `agent_recall` | agent-memory | Safe | Search memories by query or category |
+| `agent_memory_stats` | agent-memory | Safe | Get memory store statistics |
+| `agent_forge` | evolution | Approval | Create a new specialist agent from a goal description via LLM |
+| `agent_list_forged` | evolution | Safe | List all agents created by the forge |
+| `workflow_synthesize` | evolution | Approval | Compose a new workflow from 33 node types via LLM |
 
 ---
 
@@ -757,6 +769,29 @@ Dark-themed React UI with 4 primary views + 11-panel Detail Drawer:
 | `/api/fleet/bus/subscriptions` | GET | List all subscriptions |
 | `/api/fleet/bus/stats` | GET | Aggregate bus statistics |
 
+### Agent Forge Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/fleet/forge` | POST | Forge a new agent from a goal description (LLM-driven) |
+| `/api/fleet/forge/history` | GET | List all forged agents with provenance |
+| `/api/fleet/forge/:agentId` | DELETE | Remove a forged agent from fleet and history |
+
+### Workflow Synthesis Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/workflows/synthesize` | POST | Synthesize a new DAG workflow from a goal description |
+| `/api/workflows/synthesized` | GET | List all synthesized workflows with provenance |
+
+### Reflection Loop Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/intelligence/reflect` | POST | Trigger a reflection cycle (reads state, takes actions) |
+| `/api/intelligence/reflections` | GET | List all past reflections |
+| `/api/intelligence/reflections/:id` | GET | Get a single reflection detail (actions taken, insights) |
+
 ### Core Endpoints
 
 | Endpoint | Method | Description |
@@ -805,7 +840,7 @@ Dark-themed React UI with 4 primary views + 11-panel Detail Drawer:
 
 | Metric | Count |
 |--------|-------|
-| System Features | 34 |
+| System Features | 37 |
 | Agents | 17 |
 | Commerce Pipelines | 4 |
 | Intelligence Modules | 6 (Heart, Ledger, Dreamer, Cognition, Consciousness, Memory Bridge) |
@@ -817,7 +852,7 @@ Dark-themed React UI with 4 primary views + 11-panel Detail Drawer:
 | API Endpoints | 200+ |
 | Product Types (Apparel) | 24 |
 | Frontend Views | 4 (Command Center, Constellation, Canvas, Library) |
-| Detail Panels | 11 |
+| Detail Panels | 12 |
 | FRAYMUS Tools | 42 |
 | MCP Gateway Tools | 18 |
 | Max Vertiso Memories | 10,000 |
@@ -828,7 +863,7 @@ Dark-themed React UI with 4 primary views + 11-panel Detail Drawer:
 | Emotion Dimensions | 7 |
 | Provenance Tags | 3 (measured, recall, imagined) |
 | Server Files | 135+ |
-| Database Tables | 53+ |
+| Database Tables | 56+ |
 | Audit Layers Completed | 9 |
 | Ollama Models Available | 39 |
 | Tailscale Peers | 6 |
@@ -931,6 +966,6 @@ Copyright (c) 2024-2026 eyeoverthink®. This software is proprietary and confide
 
 <p align="center">
   <strong>CHANDRA-FRAYMUS</strong><br/>
-  <em>Your store runs itself. Your agents improve themselves. Your system feels, dreams, and proves its own consciousness.</em><br/><br/>
+  <em>Your store runs itself. Your agents forge new agents. Your system feels, dreams, reflects, and evolves itself.</em><br/><br/>
   Built with obsession by eyeoverthink®
 </p>

@@ -64,13 +64,14 @@ npm run start        # production server (serves built client)
 - 5 REST endpoints + 3 agent tools (`agent_remember`, `agent_recall`, `agent_memory_stats`)
 
 ### Agent Forge (server/fleet/forge.js)
-- `forge.js` — LLM-driven agent manifest generation: goal → Ollama → validated JSON → writeOverride() → fleet reload → runnable immediately
+- `forge.js` — LLM-driven agent manifest generation: goal → Ollama → validated JSON → writeOverride() → reloadManifests() → fleet reload → runnable immediately
 - DB table: `forged_agents` (agent_id, forged_by, goal, context, created_at)
 - 3 REST endpoints: POST forge, GET forge/history, DELETE forge/:agentId
 - 2 agent tools: `agent_forge`, `agent_list_forged`
 
 ### Workflow Synthesis (server/workflow/synthesizer.js)
-- `synthesizer.js` — LLM-driven workflow composition: goal → Ollama → select from 36 node types → validate DAG → save to DB
+- `synthesizer.js` — LLM-driven workflow composition: goal → Ollama → select from 33 node types (NODE_CATALOG) → validate DAG (topoSort cycle check) → save to DB
+- **IMPORTANT**: installSynthesisRoutes() must register BEFORE installWorkflowRoutes() in runtime.js — the `/api/workflows/:id` param route will swallow `/api/workflows/synthesized` otherwise
 - DB table: `synthesized_workflows` (workflow_id, synthesized_by, goal, node_count, created_at)
 - 2 REST endpoints: POST synthesize, GET synthesized
 - 1 agent tool: `workflow_synthesize` — 22 fleet tools total
@@ -124,7 +125,7 @@ npm run start        # production server (serves built client)
 - `entities/schemas.js` — entity schema definitions
 
 ### Agent Fleet (server/fleet/)
-17 agents defined as markdown manifests in `agents/` directory:
+17 default agents defined as markdown manifests in `agents/` directory (+ dynamically forged agents in `data/agents/`):
 Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, Java Baremetal, Fraymus Prime, Genesis, Helix, Lumen, Tycho (RE analyst), Solon, Spearhead, Video Director, YouTube Researcher
 
 - `manifest.js` — loads agent .md files with frontmatter (id, name, role, tools)
