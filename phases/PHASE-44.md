@@ -67,4 +67,4 @@ The existing `installAgentMemoryRoutes()` in `server/fleet/agent-memory.js` alre
 ---
 
 **Previous:** [Phase 43 — Agent Profiles Panel](PHASE-43.md)
-**Next:** Phase 45 (TBD)
+**Next:** [Phase 45 — Run History Panel](PHASE-45.md)

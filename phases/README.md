@@ -50,6 +50,7 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 42 | System Metrics Panel | — | 6 files | [PHASE-42.md](PHASE-42.md) |
 | 43 | Agent Profiles Panel | — | 6 files | [PHASE-43.md](PHASE-43.md) |
 | 44 | Memory Browser Panel | — | 5 files | [PHASE-44.md](PHASE-44.md) |
+| 45 | Run History Panel | — | 6 files | [PHASE-45.md](PHASE-45.md) |
 
 ## Convention
 

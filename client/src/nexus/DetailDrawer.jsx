@@ -20,6 +20,7 @@ import ActivityTimeline from '../panels/ActivityTimeline.jsx';
 import SystemMetrics from '../panels/SystemMetrics.jsx';
 import AgentProfiles from '../panels/AgentProfiles.jsx';
 import MemoryBrowser from '../panels/MemoryBrowser.jsx';
+import RunHistory from '../panels/RunHistory.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -42,6 +43,7 @@ const PANELS = {
   metrics: { component: SystemMetrics, label: 'System Metrics' },
   profiles: { component: AgentProfiles, label: 'Agent Profiles' },
   memory: { component: MemoryBrowser, label: 'Memory Browser' },
+  'run-history': { component: RunHistory, label: 'Run History' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {

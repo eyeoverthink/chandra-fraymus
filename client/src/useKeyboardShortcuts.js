@@ -11,6 +11,7 @@ const SHORTCUTS = [
   { key: '7', ctrl: false, action: 'metrics', label: 'System Metrics' },
   { key: '8', ctrl: false, action: 'profiles', label: 'Agent Profiles' },
   { key: '9', ctrl: false, action: 'memory', label: 'Memory Browser' },
+  { key: '0', ctrl: false, action: 'run-history', label: 'Run History' },
   { key: 'Escape', ctrl: false, action: 'close', label: 'Close drawer / search' },
   { key: '?', ctrl: false, action: 'help', label: 'Show shortcuts' },
 ];
@@ -64,6 +65,10 @@ export default function useKeyboardShortcuts({ onAction }) {
     }
     if (e.key === '9' && !e.ctrlKey && !e.altKey && !e.metaKey) {
       onAction('memory');
+      return;
+    }
+    if (e.key === '0' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      onAction('run-history');
       return;
     }
   }, [onAction]);

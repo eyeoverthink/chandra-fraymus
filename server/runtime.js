@@ -65,6 +65,7 @@ import { installSearchRoutes } from './search.js';
 import timelineRouter from './timeline.js';
 import metricsRouter from './metrics.js';
 import agentProfilesRouter from './agent-profiles.js';
+import runHistoryRouter from './run-history.js';
 
 export function cloudConfig() {
   if (process.env.FRAYMUS_CLOUD_ENABLED !== '1') return { enabled: false };
@@ -157,6 +158,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   app.use(timelineRouter);
   app.use(metricsRouter);
   app.use(agentProfilesRouter);
+  app.use(runHistoryRouter);
   startReflectionLoop();
   installMcpEndpoint(app);
   installOAuthRoutes(app);
@@ -203,7 +205,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
       'visual-workflow-engine', '17-agent-fleet', 'mcp-server-gateway', 'mcp-client-bridge', 'cron-automations',
       'puppeteer-headless-browser', 'chrome-extension-bridge', 'vertiso-vector-memory', 'recursive-self-improvement',
       'event-driven-orchestration', 'agent-persistent-memory', 'system-health-monitor',
-      'agent-forge', 'workflow-synthesis', 'reflection-loop', 'nudp-mesh-protocol', 'sharp-image-engine', 'comfyui-bridge', 'ffmpeg-video-pipeline', 'tts-speech-engine', 'stt-transcription-engine', 'windows-media-ocr-pipeline', 'media-hub-panel', 'error-boundary-resilience', 'forge-synthesis-panel', 'system-settings-panel', 'notification-toasts', 'global-search', 'keyboard-shortcuts', 'agent-chat-panel', 'activity-timeline', 'system-metrics', 'agent-profiles', 'memory-browser'] }));
+      'agent-forge', 'workflow-synthesis', 'reflection-loop', 'nudp-mesh-protocol', 'sharp-image-engine', 'comfyui-bridge', 'ffmpeg-video-pipeline', 'tts-speech-engine', 'stt-transcription-engine', 'windows-media-ocr-pipeline', 'media-hub-panel', 'error-boundary-resilience', 'forge-synthesis-panel', 'system-settings-panel', 'notification-toasts', 'global-search', 'keyboard-shortcuts', 'agent-chat-panel', 'activity-timeline', 'system-metrics', 'agent-profiles', 'memory-browser', 'run-history'] }));
   const clientErrors = [];
   app.post('/api/client-error', express.json(), (req, res) => {
     const { message, stack, component, view, ts } = req.body || {};
