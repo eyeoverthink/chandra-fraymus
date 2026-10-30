@@ -67,20 +67,23 @@ app.use(runtimeRoutes);
 
 // ---------- Agents ----------
 app.get('/api/agents', (_req, res) => {
-  res.json(db.prepare('SELECT * FROM agents ORDER BY name').all());
+  res.json(db.prepare('SELECT * FROM agents ORDER BY name LIMIT 200').all());
 });
 
 app.patch('/api/agents/:id', (req, res) => {
   const { status } = req.body;
-  db.prepare('UPDATE agents SET status = ?, last_seen = ? WHERE id = ?')
+  if (!status || typeof status !== 'string') return res.status(400).json({ error: 'status string required' });
+  const r = db.prepare('UPDATE agents SET status = ?, last_seen = ? WHERE id = ?')
     .run(status, Date.now(), req.params.id);
+  if (!r.changes) return res.status(404).json({ error: 'Agent not found' });
   broadcast('agents', { id: req.params.id });
   res.json({ ok: true });
 });
 
 // ---------- Agent mail ----------
 app.get('/api/mail', (req, res) => {
-  const { to, limit = 100 } = req.query;
+  const { to } = req.query;
+  const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 100));
   const rows = to
     ? db.prepare('SELECT * FROM mail WHERE to_agent = ? OR from_agent = ? ORDER BY created_at DESC LIMIT ?').all(to, to, limit)
     : db.prepare('SELECT * FROM mail ORDER BY created_at DESC LIMIT ?').all(limit);
@@ -90,6 +93,8 @@ app.get('/api/mail', (req, res) => {
 app.post('/api/mail', (req, res) => {
   const { from, to, subject = '', body } = req.body;
   if (!from || !to || !body) return res.status(400).json({ error: 'from, to, body required' });
+  if (typeof body !== 'string' || body.length > 50_000) return res.status(400).json({ error: 'body must be a string under 50k chars' });
+  if (typeof subject !== 'string' || subject.length > 500) return res.status(400).json({ error: 'subject must be under 500 chars' });
   const info = db.prepare('INSERT INTO mail (from_agent, to_agent, subject, body, created_at) VALUES (?, ?, ?, ?, ?)')
     .run(from, to, subject, body, Date.now());
   logEvent('mail', from, `→ ${to}: ${subject || body.slice(0, 60)}`);
@@ -124,13 +129,13 @@ app.post('/api/sessions', (req, res) => {
 
 // ---------- Activity feed ----------
 app.get('/api/events', (req, res) => {
-  const { limit = 100 } = req.query;
+  const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 100));
   res.json(db.prepare('SELECT * FROM events ORDER BY created_at DESC LIMIT ?').all(limit));
 });
 
 // ---------- Memory / KV ----------
 app.get('/api/memory', (_req, res) => {
-  res.json(db.prepare('SELECT * FROM memory ORDER BY updated_at DESC').all());
+  res.json(db.prepare('SELECT * FROM memory ORDER BY updated_at DESC LIMIT 500').all());
 });
 
 app.put('/api/memory/:key', (req, res) => {
@@ -173,7 +178,9 @@ app.post('/api/v3/nonces/clear', (_req, res) => {
 });
 
 app.post('/api/v3/security-level', (req, res) => {
-  const state = setSecurityBits(req.body?.bits);
+  const bits = Number(req.body?.bits);
+  if (!Number.isInteger(bits) || bits < 128 || bits > 4096) return res.status(400).json({ error: 'bits must be an integer 128-4096' });
+  const state = setSecurityBits(bits);
   broadcast('v3', {});
   broadcast('event', {});
   res.json(state);
@@ -317,6 +324,8 @@ app.get('/api/access', (_req, res) => {
 app.post('/api/access/tokens', (req, res) => {
   try {
     const { name = 'default', scopes = 'read run' } = req.body || {};
+    if (typeof name !== 'string' || name.length > 100) return res.status(400).json({ error: 'name must be a string under 100 chars' });
+    if (typeof scopes !== 'string' || scopes.length > 200) return res.status(400).json({ error: 'scopes must be a string under 200 chars' });
     const result = createToken('local', name, scopes);
     res.status(201).json(result);
   } catch (e) { res.status(400).json({ error: e.message }); }

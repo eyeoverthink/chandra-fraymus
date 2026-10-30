@@ -136,7 +136,7 @@ export function saveAutomation(userId, input) {
   const id = input.id || randomUUID();
   parseCron(input.cron);
 
-  const existing = db.prepare('SELECT id FROM automations WHERE id = ?').get(id);
+  const existing = db.prepare('SELECT id FROM automations WHERE id = ? AND user_id = ?').get(id, userId || 'local');
   if (existing) {
     db.prepare(`UPDATE automations SET name = ?, cron = ?, kind = ?, agent_id = ?, tool = ?, payload = ?, enabled = ? WHERE id = ? AND user_id = ?`)
       .run(input.name, input.cron, input.kind || 'agent', input.agentId || input.agent_id || null,

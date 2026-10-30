@@ -51,6 +51,8 @@ export function installWorkflowRoutes(app, { broadcast }) {
   app.post('/api/workflows', route((req, res) => {
     const { name, nodes = [], edges = [] } = req.body;
     if (!name) return res.status(400).json({ error: 'name required' });
+    if (!Array.isArray(nodes) || !Array.isArray(edges)) return res.status(400).json({ error: 'nodes and edges must be arrays' });
+    if (nodes.length > 200) return res.status(400).json({ error: 'too many nodes (200 max)' });
     if (nodes.length) validateWorkflow(nodes, edges);
     const id = randomUUID();
     const t = now();
@@ -72,7 +74,8 @@ export function installWorkflowRoutes(app, { broadcast }) {
   }));
 
   app.delete('/api/workflows/:id', route((req, res) => {
-    db.prepare('DELETE FROM workflows WHERE id = ?').run(req.params.id);
+    const r = db.prepare('DELETE FROM workflows WHERE id = ? AND user_id = ?').run(req.params.id, 'local');
+    if (!r.changes) return res.status(404).json({ error: 'Workflow not found' });
     broadcast('workflow', { type: 'deleted', id: req.params.id });
     res.json({ ok: true });
   }));
