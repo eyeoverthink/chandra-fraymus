@@ -196,6 +196,20 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
     res.json({ proofs, allPassed, architecture: 'FraymusStrangeLoop', nodeCount });
   }));
 
+  // ── Memory Bridge (intelligence memory search) ──
+  app.post('/api/fraymus/memory/recall', route(async (req, res) => {
+    const { query, limit } = req.body;
+    if (!query) return res.status(400).json({ error: 'query required' });
+    if (!memoryBridge) return res.json({ memories: [], available: false });
+    const memories = await memoryBridge.recallRelated(query, Math.min(20, Math.max(1, parseInt(limit) || 5)));
+    res.json({ memories, count: memories.length });
+  }));
+
+  app.get('/api/fraymus/memory/stats', route(async (_req, res) => {
+    if (!memoryBridge) return res.json({ available: false });
+    res.json({ available: true, ...memoryBridge.stats() });
+  }));
+
   // ── Master Health ──
   app.get('/api/fraymus/health', route(async (_req, res) => {
     const status = autonomy.status();

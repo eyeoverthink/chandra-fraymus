@@ -1,6 +1,6 @@
 # Chandra-FRAYMUS
 
-Autonomous AI agent workspace — Express server (port 8787) + Vite React frontend (port 5173).
+Autonomous AI agent workspace with intelligence stack — Express server (port 8787) + Vite React frontend (port 5173).
 
 ## Quick Start
 
@@ -15,7 +15,7 @@ npm run start        # production server (serves built client)
 ## Architecture
 
 - **Server:** Node.js ESM, Express 4, better-sqlite3 (WAL mode), WebSocket broadcast
-- **Client:** Vite + React, 8 panels, useWebSocket hook for live updates
+- **Client:** Vite + React, 9 panels (incl. Intelligence), useWebSocket hook for live updates
 - **LLM:** Ollama at localhost:11434 (configurable via OLLAMA_BASE_URL)
 - **DB:** SQLite at `data/chandra.db`, migrations in `server/db-migrate.js`
 - **Auth:** Bearer tokens via `server/mcp/auth.js`, loopback-only binding
@@ -33,8 +33,10 @@ npm run start        # production server (serves built client)
 - `data-lock.js` — prevents multiple server instances via port lock
 - `static.js` — serves production client build
 - `v3.js` — Fraymus V3 bulletproof recursive security engine
-- `brain.js` — central reasoning coordinator
-- `autonomy.js` — Kuramoto phase sync for agent coordination
+- `brain.js` — central reasoning coordinator (emotion-aware via Heart + Ledger)
+- `autonomy.js` — Kuramoto phase sync + intelligence monitoring (consciousness proofs, dreams)
+- `fraymus-tools.js` — FRAYMUS → fleet adapter (42 tools + MemoryBridge export)
+- `fraymus-routes.js` — FRAYMUS API routes (16 intelligence + 8 autonomy + memory search endpoints)
 
 ### FRAYMUS Intelligence Stack (server/fraymus/)
 - `entity-store.js` — SQLite-backed Proxy adapter (replaces Base44 cloud store), auto-creates collections
@@ -53,16 +55,21 @@ npm run start        # production server (serves built client)
 - `protocol/mesh.js` — peer mesh networking
 - `protocol/presence.js` — agent presence tracking
 - `protocol/hive.js` — hive coordination
+- `intelligence/heart.js` — Heart emotion engine (7 dimensions, ~350 word lexicon, sarcasm detection)
+- `intelligence/ledger.js` — SHA-256 chained JSONL cognitive audit trail
+- `intelligence/dreamer.js` — Ed25519 signed dream protocol (progressive numbered files)
+- `intelligence/cognition.js` — Two-speed pipeline (feel → quick-route → think)
+- `intelligence/ouroboros.js` — Ouroboros RSI + FraymusStrangeLoopSubstrate (4 consciousness proofs)
+- `intelligence/memory-bridge.js` — Intelligence → Vertiso connector (provenance: measured/imagined)
 - `intelligence/hermes.js` — Hermes 30-skill fleet (14 with real executors)
 - `intelligence/motor.js` — Motor compute dispatch (SQLite job persistence)
 - `intelligence/openclaw.js` — OpenClaw gateway (all 23 actions implemented)
-- `intelligence/ouroboros.js` — Ouroboros RSI (real evolution + 5 consciousness tests)
 - `intelligence/needle.js` — Needle GPU inference queue (SQLite persistence)
 - `intelligence/niles.js` — Niles FRAYVM stack machine interpreter
 - `intelligence/control-plane.js` — agent registry, enrollment, broadcast
 - `bridge/cross-tab.js` — cross-tab communication
 - `bridge/orifice.js` — bridge connector
-- `workflows/definitions.js` — FRAYMUS workflow definitions
+- `workflows/definitions.js` — 18 FRAYMUS workflow definitions (incl. 2 intelligence pipelines)
 - `mcp/tools.js` — FRAYMUS-specific MCP tools
 - `entities/schemas.js` — entity schema definitions
 
@@ -72,8 +79,8 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 
 - `manifest.js` — loads agent .md files with frontmatter (id, name, role, tools)
 - `routes.js` — fleet CRUD API
-- `runtime.js` — agent execution runtime
-- `tools.js` — fleet management tools
+- `runtime.js` — agent execution runtime (emotion-aware: reads Heart on each user message, logs to Ledger)
+- `tools.js` — fleet management tools (7 fleet + 4 intelligence)
 
 ### Commerce Pipelines (server/commerce/)
 - `shared.js` — shared utilities: `chatOllama`, `parseJSON`, `shopifyHeaders`, `shopifyBase` (API v2024-10)
@@ -92,7 +99,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `rsi-tools.js` — agent tools for RSI ops
 
 ### Visual Workflow Engine (server/workflow/)
-- `engine.js` — pipeline executor, supports 30+ node types
+- `engine.js` — pipeline executor, 34 node types (incl. 4 intelligence)
 - `routes.js` — workflow CRUD + run API (with node count validation, ownership checks)
 
 ### Other Subsystems
@@ -120,8 +127,9 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 
 - `App.jsx` — main layout, tab nav, WebSocket distribution
 - `useWebSocket.js` — single WS connection, exponential backoff (1s→30s cap)
-- `DashboardPanel.jsx` — stats overview, feature list, recent activity (reacts to agents/event/workflow/v3)
-- `WorkflowCanvas.jsx` — ReactFlow visual workflow builder, 30+ node types (reacts to workflow)
+- `DashboardPanel.jsx` — stats overview, intelligence status cards (mood/dreamer/ledger/cognition), recent activity
+- `IntelligencePanel.jsx` — interactive Heart, Dreamer, Ledger, Consciousness Proofs, Cognition controls
+- `WorkflowCanvas.jsx` — ReactFlow visual workflow builder, 34 node types (reacts to workflow)
 - `FleetPanel.jsx` — agent cards + task sender (reacts to agents/agent/event)
 - `AutomationsPanel.jsx` — cron scheduler UI with error handling (reacts to event)
 - `McpPanel.jsx` — MCP server info + client connections

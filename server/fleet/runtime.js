@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { db } from '../db.js';
 import { loadManifests, writeOverride, removeOverride } from './manifest.js';
 import { OLLAMA_URL } from '../config.js';
+import { heart, ledger } from '../fraymus-tools.js';
 
 const MAX_STEPS = 8;
 const MAX_HISTORY = 40;
@@ -98,7 +99,16 @@ async function systemPrompt(agent, userId) {
     } catch (e) { console.error('fleet: RSI genome read failed:', e.message); }
   }
 
-  return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}`;
+  // Intelligence context — current emotional state
+  let intelligenceBlock = '';
+  try {
+    const mood = heart.recentMood();
+    if (mood.readings > 0) {
+      intelligenceBlock = `\n\nIntelligence context — current mood: ${mood.mood} (${mood.readings} readings). You have emotional awareness via the heart_feel tool and can dream via the dream tool.`;
+    }
+  } catch (_) {}
+
+  return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}${intelligenceBlock}`;
 }
 
 async function chat(messages, tools, model) {
@@ -187,7 +197,22 @@ async function drive(runId, depth = 0) {
 
   for (let step = run.steps || 0; step < MAX_STEPS; step++) {
     const hist = getHistory(run.thread_id);
-    const messages = [{ role: 'system', content: await systemPrompt(agent, userId) }, ...hist];
+
+    // Intelligence: feel the last user message before each LLM call
+    let emotionNote = '';
+    const lastUser = [...hist].reverse().find(m => m.role === 'user');
+    if (lastUser?.content) {
+      try {
+        const feeling = heart.feel(lastUser.content);
+        if (feeling.intensity > 0.1) {
+          emotionNote = ` [User emotion: ${feeling.primary} (${Math.round(feeling.intensity * 100)}%), sentiment: ${feeling.sentiment > 0 ? 'positive' : feeling.sentiment < 0 ? 'negative' : 'neutral'}${feeling.sarcasm ? ', sarcasm detected' : ''}]`;
+          ledger.record('fleet.feel', { agent: agent.id, primary: feeling.primary, intensity: feeling.intensity, step }, 'fleet');
+        }
+      } catch (_) {}
+    }
+
+    const sysContent = (await systemPrompt(agent, userId)) + emotionNote;
+    const messages = [{ role: 'system', content: sysContent }, ...hist];
 
     let res;
     try {
