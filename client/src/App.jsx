@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import useWebSocket from './useWebSocket.js';
 import ErrorBoundary from './ErrorBoundary.jsx';
 import ToastProvider from './ToastProvider.jsx';
 import GlobalSearch from './GlobalSearch.jsx';
+import useKeyboardShortcuts from './useKeyboardShortcuts.js';
+import ShortcutHelp from './ShortcutHelp.jsx';
 import WorkflowCanvas from './panels/WorkflowCanvas.jsx';
 import CommandCenter from './nexus/CommandCenter.jsx';
 import ConstellationView from './nexus/ConstellationView.jsx';
@@ -20,7 +22,21 @@ export default function App() {
   const [view, setView] = useState('command');
   const [health, setHealth] = useState(null);
   const [drawer, setDrawer] = useState(null);
+  const [showHelp, setShowHelp] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const { lastEvent: wsEvent, wsStatus } = useWebSocket();
+
+  const handleShortcut = useCallback((action) => {
+    if (action === 'help') { setShowHelp(h => !h); return; }
+    if (action === 'search') { setSearchOpen(true); return; }
+    if (action === 'close') { setDrawer(null); setShowHelp(false); setSearchOpen(false); return; }
+    if (action.startsWith('view:')) {
+      setView(action.slice(5));
+      setDrawer(null);
+    }
+  }, []);
+
+  useKeyboardShortcuts({ onAction: handleShortcut });
 
   useEffect(() => {
     fetch('/api/health').then(r => r.json()).then(setHealth).catch(() => {});
@@ -60,7 +76,7 @@ export default function App() {
         </div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: '#555' }}>
-          <GlobalSearch onOpenDrawer={openDrawer} onNavigate={setView} />
+          <GlobalSearch onOpenDrawer={openDrawer} onNavigate={setView} externalOpen={searchOpen} onExternalClose={() => setSearchOpen(false)} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: '#555' }}>
           {wsStatus !== 'connected' && (
@@ -115,6 +131,7 @@ export default function App() {
           />
         </>
       )}
+      {showHelp && <ShortcutHelp onClose={() => setShowHelp(false)} />}
     </div>
     </ToastProvider>
   );

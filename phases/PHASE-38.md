@@ -5,7 +5,7 @@
 | **Phase** | 38 |
 | **Feature** | `global-search` |
 | **Prev** | [Phase 37 — Notification Toast System](PHASE-37.md) |
-| **Next** | Phase 39 (TBD) |
+| **Next** | [Phase 39 — Keyboard Shortcuts & Quick Actions](PHASE-39.md) |
 
 ## What It Does
 

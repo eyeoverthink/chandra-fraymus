@@ -11,7 +11,7 @@ const CATEGORY_META = {
   forged:      { icon: '🔧', color: '#fb923c', label: 'Forged Agents' },
 };
 
-export default function GlobalSearch({ onOpenDrawer, onNavigate }) {
+export default function GlobalSearch({ onOpenDrawer, onNavigate, externalOpen, onExternalClose }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -19,6 +19,13 @@ export default function GlobalSearch({ onOpenDrawer, onNavigate }) {
   const inputRef = useRef(null);
   const containerRef = useRef(null);
   const debounceRef = useRef(null);
+
+  useEffect(() => {
+    if (externalOpen) {
+      setOpen(true);
+      onExternalClose?.();
+    }
+  }, [externalOpen, onExternalClose]);
 
   useEffect(() => {
     if (open && inputRef.current) inputRef.current.focus();
