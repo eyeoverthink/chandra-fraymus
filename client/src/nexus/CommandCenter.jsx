@@ -88,7 +88,7 @@ export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigat
     const f = data.fraymus;
     switch (id) {
       case 'system': return f?.autonomous ? 'Autonomous' : health ? 'Online' : 'Connecting...';
-      case 'intelligence': return f?.intelligence?.mood || 'neutral';
+      case 'intelligence': return f?.intelligence?.mood?.mood || 'neutral';
       case 'fleet': return `${(data.fleet || []).length} agents`;
       case 'workflows': return `${(data.workflows || []).length} defined`;
       case 'commerce': return '4 pipelines';
@@ -105,7 +105,7 @@ export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigat
     const f = data.fraymus;
     switch (id) {
       case 'system': return f ? `Gen ${f.generation || 0} · Fitness ${(f.fitness || 0).toFixed(3)}` : '';
-      case 'intelligence': return f?.intelligence ? `Dreams: ${f.intelligence.dreams || 0} · Ledger: ${f.intelligence.ledgerCount || 0}` : '';
+      case 'intelligence': return f?.intelligence ? `Dreams: ${f.intelligence.dreamerState?.dreamCount || 0} · Ledger: ${f.intelligence.ledgerIntegrity?.checked || 0}` : '';
       case 'fleet': return [...new Set((data.fleet || []).map(a => a.model).filter(Boolean))].join(', ');
       case 'memory': return data.memory ? `${data.memory.totalConsolidations || 0} consolidations` : '';
       default: return '';
@@ -169,10 +169,10 @@ export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigat
           <h3 style={{ fontSize: 14, fontWeight: 600, color: '#a78bfa', marginBottom: 14 }}>Intelligence Stack</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
             {[
-              { label: 'Heart Mood', value: data.fraymus.intelligence.mood || 'neutral', color: '#f59e0b' },
-              { label: 'Dreamer', value: `${data.fraymus.intelligence.dreams || 0} dreams`, color: '#8b5cf6' },
-              { label: 'Ledger', value: `${data.fraymus.intelligence.ledgerCount || 0} events`, color: '#06b6d4' },
-              { label: 'Cognition', value: data.fraymus.intelligence.cognitionMode || 'idle', color: '#10b981' },
+              { label: 'Heart Mood', value: data.fraymus.intelligence.mood?.mood || 'neutral', color: '#f59e0b' },
+              { label: 'Dreamer', value: `${data.fraymus.intelligence.dreamerState?.dreamCount || 0} dreams`, color: '#8b5cf6' },
+              { label: 'Ledger', value: `${data.fraymus.intelligence.ledgerIntegrity?.checked || 0} events`, color: '#06b6d4' },
+              { label: 'Cognition', value: data.fraymus.intelligence.cognition ? `${Object.keys(data.fraymus.intelligence.cognition.modules || {}).length} modules` : 'idle', color: '#10b981' },
               { label: 'Memory Bridge', value: data.memory ? `${data.memory.totalMemories} stored` : '—', color: '#a78bfa' },
               { label: 'Autonomy', value: data.fraymus.autonomous ? `Gen ${data.fraymus.generation}` : 'Paused', color: '#22c55e' },
             ].map(s => (

@@ -83,11 +83,11 @@ export default function ConstellationView({ wsEvent, onOpenDrawer, onNavigate })
       setGeneration(d.generation || 0);
       setStatus(prev => ({
         ...prev,
-        heart: d.intelligence?.mood || 'neutral',
-        dreamer: `${d.intelligence?.dreams || 0} dreams`,
-        ledger: `${d.intelligence?.ledgerCount || 0} events`,
-        cognition: d.intelligence?.cognitionMode || 'idle',
-        consciousness: d.intelligence?.proofs || '—',
+        heart: d.intelligence?.mood?.mood || 'neutral',
+        dreamer: `${d.intelligence?.dreamerState?.dreamCount || 0} dreams`,
+        ledger: `${d.intelligence?.ledgerIntegrity?.checked || 0} events`,
+        cognition: d.intelligence?.cognition ? `${Object.keys(d.intelligence.cognition.modules || {}).length} modules` : 'idle',
+        consciousness: d.intelligence?.heart ? 'Active' : '—',
       }));
     }).catch(() => {});
     fetch('/api/fleet/agents').then(r => r.json()).then(d => {
