@@ -6,7 +6,7 @@
 | **Title** | OCR Text Extraction Pipeline |
 | **Status** | Complete |
 | **Prev** | [Phase 31 — Audio Transcription (STT) Pipeline](PHASE-31.md) |
-| **Next** | Phase 33 (TBD) |
+| **Next** | [Phase 33 — Media Hub Panel](PHASE-33.md) |
 
 ## Summary
 

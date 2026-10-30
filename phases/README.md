@@ -38,6 +38,7 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 30 | TTS Speech Engine | — | 6 files | [PHASE-30.md](PHASE-30.md) |
 | 31 | Audio Transcription (STT) | — | 6 files | [PHASE-31.md](PHASE-31.md) |
 | 32 | OCR Pipeline (Windows Media OCR) | — | 6 files | [PHASE-32.md](PHASE-32.md) |
+| 33 | Media Hub Panel | — | 5 files | [PHASE-33.md](PHASE-33.md) |
 
 ## Convention
 

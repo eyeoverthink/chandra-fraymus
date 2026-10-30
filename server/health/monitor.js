@@ -125,7 +125,7 @@ async function collectMetrics() {
   db.prepare(`DELETE FROM health_metrics WHERE collected_at < ?`).run(ts - 172800000);
   db.prepare(`DELETE FROM health_alerts WHERE resolved = 1 AND created_at < ?`).run(ts - 604800000);
 
-  broadcastFn({ type: 'health', event: 'metrics', metrics });
+  broadcastFn('health', { event: 'metrics', metrics });
   return metrics;
 }
 
@@ -133,7 +133,7 @@ function recordAlert(rule, severity, message) {
   db.prepare(
     `INSERT INTO health_alerts (rule, severity, message, resolved, created_at) VALUES (?, ?, ?, 0, ?)`
   ).run(rule, severity, message, now());
-  broadcastFn({ type: 'health', event: 'alert', rule, severity, message });
+  broadcastFn('health', { event: 'alert', rule, severity, message });
 }
 
 export function resolveAlert(id) {

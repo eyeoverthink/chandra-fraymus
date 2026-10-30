@@ -15,7 +15,7 @@ npm run start        # production server (serves built client)
 ## Architecture
 
 - **Server:** Node.js ESM, Express 4, better-sqlite3 (WAL mode), WebSocket broadcast
-- **Client:** Vite + React, 4-view Nexus interface (Command Center, Constellation, Canvas, Library) + Detail Drawer for 12 panels, useWebSocket hook for live updates
+- **Client:** Vite + React, 4-view Nexus interface (Command Center, Constellation, Canvas, Library) + Detail Drawer for 13 panels, useWebSocket hook for live updates
 - **LLM:** Ollama at localhost:11434 (configurable via OLLAMA_BASE_URL)
 - **DB:** SQLite at `data/chandra.db`, migrations in `server/db-migrate.js`
 - **Auth:** Bearer tokens via `server/mcp/auth.js`, loopback-only binding
@@ -220,7 +220,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `useWebSocket.js` — single WS connection, exponential backoff (1s→30s cap)
 
 ### Nexus Views (client/src/nexus/)
-- `CommandCenter.jsx` — 13-widget grid with live metrics, Intelligence Stack status, Live Activity Stream (WebSocket-driven real-time event feed), integrated CommandBar; widgets open Detail Drawer or navigate to Canvas
+- `CommandCenter.jsx` — 14-widget grid with live metrics, Intelligence Stack status, Live Activity Stream (WebSocket-driven real-time event feed), integrated CommandBar; widgets open Detail Drawer or navigate to Canvas
 - `CommandBar.jsx` — persistent command input with @agent autocomplete, pipeline/workflow launching, response panel with thread polling; routes through `POST /api/command`
 - `ConstellationView.jsx` — living SVG constellation: CHANDRA breathing hub + inner ring (intelligence) + outer ring (capabilities), 15 edge connections, WebSocket-driven node activity pulses (glow + ripple on events, 4s fade), animated dash-flow edges between active nodes, always-visible status badges, hover tooltips, click-to-inspect via drawer
 - `LibraryView.jsx` — unified content archive aggregating commerce runs, workflow runs, outlier saves, agent threads from 7 endpoints; source filter tabs, search, expandable items
@@ -238,6 +238,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `VertisoPanel.jsx` — memory stats, recall, RSI evolve/reflect/genome
 - `OutlierPanel.jsx` — YouTube outlier research board
 - `HealthPanel.jsx` — System Health Monitor: stat cards (Ollama/Heap/Alerts/Bus), resource bars, infrastructure grid, alert list with resolve, auto-refresh 30s + WebSocket health events
+- `MediaPanel.jsx` — Unified Media Hub: 5-tab interface for Images (Sharp), Video (ffmpeg), TTS (Piper/edge-tts/SAPI), STT (faster-whisper/SAPI), OCR (Windows Media OCR)
 
 ## Code Conventions
 

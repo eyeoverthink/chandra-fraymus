@@ -15,6 +15,7 @@ const WIDGETS = [
   { id: 'bus', label: 'Agent Bus', icon: '↔', color: '#22d3ee', panel: 'bus' },
   { id: 'outlier', label: 'Outlier Board', icon: '◎', color: '#eab308', panel: 'outlier' },
   { id: 'health', label: 'Health Monitor', icon: '♥', color: '#ef4444', panel: 'health' },
+  { id: 'media', label: 'Media Hub', icon: '▶', color: '#14b8a6', panel: 'media' },
 ];
 
 const EVENT_STYLES = {
@@ -46,8 +47,8 @@ function formatEvent(ev) {
   }
   if (ev.type === 'memory') return `Memory ${p.key ? `"${p.key}"` : ''} updated`;
   if (ev.type === 'v3') return 'V3 security event';
-  if (ev.summary) return ev.summary;
-  return ev.type || 'System event';
+  if (ev.summary) return typeof ev.summary === 'string' ? ev.summary : 'System event';
+  return typeof ev.type === 'string' ? ev.type : 'System event';
 }
 
 export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigate }) {
@@ -103,6 +104,7 @@ export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigat
       case 'automations': return `${(data.automations || []).length} active`;
       case 'browser': return 'Headless + Ext';
       case 'outlier': return 'YouTube Research';
+      case 'media': return '5 engines';
       default: return '—';
     }
   };
