@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import CommandBar from './CommandBar.jsx';
 
 const WIDGETS = [
   { id: 'system', label: 'System Health', icon: '◈', color: '#22c55e', panel: 'dashboard' },
@@ -13,9 +14,41 @@ const WIDGETS = [
   { id: 'outlier', label: 'Outlier Board', icon: '◎', color: '#eab308', panel: 'outlier' },
 ];
 
+const EVENT_STYLES = {
+  agents: { icon: '⚡', color: '#6366f1', drawer: 'fleet' },
+  agent: { icon: '⚡', color: '#6366f1', drawer: 'fleet' },
+  event: { icon: '◆', color: '#a78bfa', drawer: 'dashboard' },
+  memory: { icon: '◇', color: '#a78bfa', drawer: 'vertiso' },
+  v3: { icon: '◈', color: '#10b981', drawer: 'dashboard' },
+  tasks: { icon: '⟳', color: '#06b6d4', drawer: 'automations' },
+  error: { icon: '✗', color: '#ef4444', drawer: 'dashboard' },
+};
+
+function formatEvent(ev) {
+  const p = ev.payload || {};
+  if (ev.type === 'agents' || ev.type === 'agent') {
+    const name = p.agentName || p.agentId || 'Agent';
+    const action = p.action || 'updated';
+    const preview = p.preview ? `: ${p.preview}` : '';
+    return `${name} ${action}${preview}`;
+  }
+  if (ev.type === 'event' && p.source === 'pipeline') {
+    return `${p.pipeline} pipeline ${p.action || 'event'}${p.arg ? ` — ${p.arg}` : ''}`;
+  }
+  if (ev.type === 'event' && p.source === 'workflow') {
+    return `Workflow "${p.workflow}" ${p.action || 'event'}`;
+  }
+  if (ev.type === 'memory') return `Memory ${p.key ? `"${p.key}"` : ''} updated`;
+  if (ev.type === 'v3') return 'V3 security event';
+  if (ev.summary) return ev.summary;
+  return ev.type || 'System event';
+}
+
 export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigate }) {
   const [data, setData] = useState({});
-  const [events, setEvents] = useState([]);
+  const [liveEvents, setLiveEvents] = useState([]);
+  const [newPulse, setNewPulse] = useState(false);
+  const eventIdRef = useRef(0);
 
   const load = () => {
     fetch('/api/fleet/agents').then(r => r.json()).then(d => setData(p => ({ ...p, fleet: d.agents || [] }))).catch(() => {});
@@ -24,12 +57,31 @@ export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigat
     fetch('/api/fraymus/health').then(r => r.json()).then(d => setData(p => ({ ...p, fraymus: d }))).catch(() => {});
     fetch('/api/vertiso/stats').then(r => r.json()).then(d => setData(p => ({ ...p, memory: d }))).catch(() => {});
     fetch('/api/automations').then(r => r.json()).then(d => setData(p => ({ ...p, automations: d.automations || d || [] }))).catch(() => {});
-    fetch('/api/events?limit=20').then(r => r.json()).then(d => setEvents(Array.isArray(d) ? d : [])).catch(() => {});
   };
 
-  useEffect(() => { load(); }, []);
   useEffect(() => {
-    if (wsEvent?.type) load();
+    load();
+    fetch('/api/events?limit=20').then(r => r.json()).then(d => {
+      const initial = (Array.isArray(d) ? d : []).map(ev => ({
+        ...ev, _id: ++eventIdRef.current, _ts: ev.created_at || Date.now(), _live: false,
+      }));
+      setLiveEvents(initial);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!wsEvent?.type || wsEvent.type === 'hello') return;
+    load();
+    const newEv = {
+      type: wsEvent.type,
+      payload: wsEvent.payload || {},
+      _id: ++eventIdRef.current,
+      _ts: Date.now(),
+      _live: true,
+    };
+    setLiveEvents(prev => [newEv, ...prev].slice(0, 100));
+    setNewPulse(true);
+    setTimeout(() => setNewPulse(false), 1500);
   }, [wsEvent]);
 
   const metric = (id) => {
@@ -65,11 +117,27 @@ export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigat
     else if (w.panel) onOpenDrawer?.(w.panel, w.label);
   };
 
+  const handleEventClick = (ev) => {
+    const style = EVENT_STYLES[ev.type] || EVENT_STYLES.event;
+    if (style.drawer) onOpenDrawer?.(style.drawer, style.drawer);
+  };
+
+  const timeAgo = (ts) => {
+    if (!ts) return '';
+    const diff = Date.now() - (typeof ts === 'number' ? ts : new Date(ts).getTime());
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  };
+
   return (
-    <div style={{ padding: 32, maxWidth: 1200, margin: '0 auto' }}>
+    <div style={{ padding: 32, maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ marginBottom: 28 }}>
         <h2 style={{ fontSize: 24, fontWeight: 700, color: '#e0e0e8', marginBottom: 4 }}>Command Center</h2>
-        <p style={{ fontSize: 13, color: '#666' }}>System overview — click any widget to dive deeper</p>
+        <p style={{ fontSize: 13, color: '#666' }}>System overview — click any widget to dive deeper, or type a command below</p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14, marginBottom: 28 }}>
@@ -117,31 +185,59 @@ export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigat
         </div>
       )}
 
-      <div style={{ background: '#111118', borderRadius: 12, padding: 20, border: '1px solid #222' }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, color: '#e0e0e8', marginBottom: 14 }}>Recent Activity</h3>
-        {events.length === 0 && <div style={{ color: '#555', fontSize: 12 }}>No recent events.</div>}
-        <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-          {events.slice(0, 20).map((ev, i) => (
-            <div key={ev.id || i} style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '7px 0', borderBottom: i < events.length - 1 ? '1px solid #1a1a2e' : 'none',
-            }}>
-              <span style={{
-                width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                background: ev.type === 'error' ? '#ef4444' : ev.type === 'agent' ? '#6366f1' : '#a78bfa',
-              }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, color: '#e0e0e8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {ev.summary || ev.type || 'Event'}
+      <div style={{ background: '#111118', borderRadius: 12, padding: 20, border: '1px solid #222', marginBottom: 20, flex: '0 1 auto', minHeight: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <h3 style={{
+            fontSize: 14, fontWeight: 600, color: '#e0e0e8',
+            transition: 'color 0.3s',
+            ...(newPulse ? { color: '#a78bfa' } : {}),
+          }}>
+            {newPulse ? '● ' : ''}Live Activity
+          </h3>
+          {liveEvents.length > 0 && (
+            <button onClick={() => setLiveEvents([])} style={{
+              background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: 11,
+            }}>Clear</button>
+          )}
+        </div>
+        {liveEvents.length === 0 && <div style={{ color: '#555', fontSize: 12 }}>No recent events.</div>}
+        <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+          {liveEvents.slice(0, 50).map((ev) => {
+            const style = EVENT_STYLES[ev.type] || EVENT_STYLES.event;
+            return (
+              <button key={ev._id} onClick={() => handleEventClick(ev)} style={{
+                display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                padding: '7px 0', background: 'transparent',
+                border: 'none', borderBottom: '1px solid #1a1a2e', cursor: 'pointer', textAlign: 'left',
+                animation: ev._live ? 'slideIn 0.3s ease-out' : 'none',
+              }}>
+                <span style={{ fontSize: 12, color: style.color, flexShrink: 0, width: 18, textAlign: 'center' }}>
+                  {style.icon}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, color: '#e0e0e8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {formatEvent(ev)}
+                  </div>
                 </div>
-              </div>
-              <div style={{ fontSize: 10, color: '#555', flexShrink: 0 }}>
-                {ev.created_at ? new Date(ev.created_at).toLocaleTimeString() : ''}
-              </div>
-            </div>
-          ))}
+                <div style={{ fontSize: 10, color: '#555', flexShrink: 0 }}>
+                  {timeAgo(ev._ts)}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
+
+      <div style={{ marginTop: 'auto', paddingTop: 8 }}>
+        <CommandBar onOpenDrawer={onOpenDrawer} />
+      </div>
+
+      <style>{`
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateY(-8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }

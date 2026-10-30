@@ -42,6 +42,7 @@ import { installYouTubeRoutes } from './youtube/routes.js';
 import { setYouTubeMemoryBridge } from './youtube/service.js';
 import { createCommerceTools } from './commerce/tools.js';
 import { installCommerceRoutes } from './commerce/routes.js';
+import { installCommandRouter } from './command-router.js';
 
 export function cloudConfig() {
   if (process.env.FRAYMUS_CLOUD_ENABLED !== '1') return { enabled: false };
@@ -119,6 +120,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installVertisoRoutes(app, { vertiso, rsi });
   installYouTubeRoutes(app);
   installCommerceRoutes(app, { memoryBridge });
+  installCommandRouter(app, { broadcast });
 
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
   const known = id => {

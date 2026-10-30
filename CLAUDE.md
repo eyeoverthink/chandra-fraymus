@@ -28,6 +28,7 @@ npm run start        # production server (serves built client)
 - `config.js` — env validation (HOST, PORT, OLLAMA_URL, VOICE_URL)
 - `db.js` / `db-migrate.js` — SQLite setup, schema migrations
 - `runtime.js` — request handling, error middleware (truncates messages, no stack leaks)
+- `command-router.js` — `POST /api/command` endpoint: parses @agent, run pipeline/workflow, and freetext commands; dispatches to fleet/commerce/workflow subsystems
 - `local-http.js` — CORS, security headers, loopback enforcement
 - `lifecycle.js` — graceful shutdown (HTTP, WS, DB, intervals)
 - `data-lock.js` — prevents multiple server instances via port lock
@@ -130,7 +131,8 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `useWebSocket.js` — single WS connection, exponential backoff (1s→30s cap)
 
 ### Nexus Views (client/src/nexus/)
-- `CommandCenter.jsx` — 10-widget grid with live metrics, Intelligence Stack status, Recent Activity feed; widgets open Detail Drawer or navigate to Canvas
+- `CommandCenter.jsx` — 10-widget grid with live metrics, Intelligence Stack status, Live Activity Stream (WebSocket-driven real-time event feed), integrated CommandBar; widgets open Detail Drawer or navigate to Canvas
+- `CommandBar.jsx` — persistent command input with @agent autocomplete, pipeline/workflow launching, response panel with thread polling; routes through `POST /api/command`
 - `ConstellationView.jsx` — interactive SVG node graph: CHANDRA hub + inner ring (intelligence) + outer ring (capabilities), 15 edge connections with hover highlighting, click-to-inspect via drawer
 - `LibraryView.jsx` — unified content archive aggregating commerce runs, workflow runs, outlier saves, agent threads from 7 endpoints; source filter tabs, search, expandable items
 - `DetailDrawer.jsx` — slide-out panel (55% width) rendering any of 9 panels contextually, with backdrop overlay and CSS animation
