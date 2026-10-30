@@ -20,7 +20,7 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 12 | Runtime Intelligence Completion | `d88e7bd` | 9 files, 91 ins | [PHASE-12.md](PHASE-12.md) |
 | 13 | Backend Visibility Completion | `021fab1` | 4 files, 351 ins | [PHASE-13.md](PHASE-13.md) |
 | 14 | Workflow Canvas Polish | `6aa2f8d` | 4 files, 75 ins | [PHASE-14.md](PHASE-14.md) |
-| 15 | Chandra Nexus — Unified Interface | *(pending)* | 5 files, ~580 ins | [PHASE-15.md](PHASE-15.md) |
+| 15 | Chandra Nexus — Unified Interface | `1fbdf04` | 10 files, 733 ins | [PHASE-15.md](PHASE-15.md) |
 
 ## Convention
 

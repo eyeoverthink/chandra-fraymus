@@ -1,6 +1,6 @@
 # Phase 15: Chandra Nexus — Unified Interface
 
-**Commit:** *(pending)*
+**Commit:** `1fbdf04`
 **Date:** 2026-10-30
 **Previous:** [Phase 14 — Workflow Canvas Polish](PHASE-14.md)
 **Next:** *(next phase)*
