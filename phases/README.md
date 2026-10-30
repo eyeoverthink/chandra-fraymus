@@ -21,7 +21,7 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 13 | Backend Visibility Completion | `021fab1` | 4 files, 351 ins | [PHASE-13.md](PHASE-13.md) |
 | 14 | Workflow Canvas Polish | `6aa2f8d` | 4 files, 75 ins | [PHASE-14.md](PHASE-14.md) |
 | 15 | Chandra Nexus — Unified Interface | `1fbdf04` | 10 files, 733 ins | [PHASE-15.md](PHASE-15.md) |
-| 16 | Command Bar + Live Activity Stream | *(pending)* | 6 files | [PHASE-16.md](PHASE-16.md) |
+| 16 | Command Bar + Live Activity Stream | `9fdb842` | 7 files, 430 ins | [PHASE-16.md](PHASE-16.md) |
 
 ## Convention
 

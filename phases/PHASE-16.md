@@ -1,6 +1,6 @@
 # Phase 16: Command Bar + Live Activity Stream
 
-**Commit:** *(pending)*
+**Commit:** `9fdb842`
 **Date:** 2026-10-30
 **Previous:** [Phase 15 — Chandra Nexus Unified Interface](PHASE-15.md)
 **Next:** *(next phase)*
