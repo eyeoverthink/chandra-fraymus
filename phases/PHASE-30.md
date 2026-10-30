@@ -6,7 +6,7 @@
 | **Title** | Text-to-Speech Pipeline |
 | **Status** | Complete |
 | **Prev** | [Phase 29 — Video Pipeline](PHASE-29.md) |
-| **Next** | Phase 31 (TBD) |
+| **Next** | [Phase 31 — Audio Transcription (STT) Pipeline](PHASE-31.md) |
 
 ## Summary
 

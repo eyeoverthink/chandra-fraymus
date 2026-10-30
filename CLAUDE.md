@@ -184,6 +184,10 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `tts-engine.js` — Multi-engine TTS with fallback chain: Piper (offline neural) → edge-tts (Microsoft neural, 400+ voices) → SAPI (Windows built-in, always available). Cascade catches runtime failures (e.g., edge-tts 403) and falls through.
 - `tts-routes.js` — 5 REST endpoints: speak, voices, status, outputs, file serving
 
+### STT Transcription Engine (server/media/)
+- `stt-engine.js` — Multi-engine STT with fallback chain: faster-whisper (offline neural) → SAPI SR (Windows built-in). Accepts any audio format via ffmpeg conversion to WAV. Saves transcription results as JSON.
+- `stt-routes.js` — 4 REST endpoints: transcribe (multipart/base64), status, outputs, transcription detail
+
 ### Other Subsystems
 - `automations/scheduler.js` — cron scheduler with error logging (intelligence-hooked: stores automation runs to Memory Bridge)
 - `mcp/server.js` — MCP server (exposes tools as MCP)

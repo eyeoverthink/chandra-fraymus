@@ -27,6 +27,9 @@ import {
 import {
   ttsSpeak, ttsVoices, ttsStatus, listTTSFiles,
 } from '../media/tts-engine.js';
+import {
+  sttTranscribe, sttStatus, listSTTFiles,
+} from '../media/stt-engine.js';
 
 const now = () => Date.now();
 const clip = (s, n = 8000) => s.length > n ? s.slice(0, n) + '...[truncated]' : s;
@@ -902,6 +905,41 @@ export function createFleetTools({ workflowStore }) {
         limit: { type: 'integer', description: 'Max files to list (default 50)' },
       }),
       execute: async ({ args }) => ({ files: listTTSFiles(args.limit) }),
+    },
+
+    // ── STT Tools ───────────────────────────
+    {
+      name: 'stt_transcribe',
+      group: 'stt',
+      risk: 'low',
+      description: 'Transcribe audio to text. Accepts base64-encoded audio.',
+      parameters: object({
+        audioBase64: string(0, { description: 'Base64-encoded audio (WAV, MP3, OGG, FLAC, M4A)' }),
+        language: string(20, { description: 'Language code, e.g., en-US (default: en-US for SAPI, en for whisper)' }),
+        engine: string(20, { description: 'Force engine: whisper, sapi' }),
+      }, ['audioBase64']),
+      execute: async ({ args }) => sttTranscribe(String(args.audioBase64), {
+        language: args.language ? String(args.language) : undefined,
+        engine: args.engine ? String(args.engine) : undefined,
+      }),
+    },
+    {
+      name: 'stt_status',
+      group: 'stt',
+      risk: 'safe',
+      description: 'Check which STT engines are available and their capabilities.',
+      parameters: object({}),
+      execute: async () => sttStatus(),
+    },
+    {
+      name: 'stt_list',
+      group: 'stt',
+      risk: 'safe',
+      description: 'List saved transcription results.',
+      parameters: object({
+        limit: { type: 'integer', description: 'Max files to list (default 50)' },
+      }),
+      execute: async ({ args }) => ({ files: listSTTFiles(args.limit) }),
     },
   ];
 }

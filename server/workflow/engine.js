@@ -13,6 +13,7 @@ import {
   videoToGif, VIDEO_DIR,
 } from '../media/video-engine.js';
 import { ttsSpeak } from '../media/tts-engine.js';
+import { sttTranscribe } from '../media/stt-engine.js';
 import { chatOllama, createCommerceIntel } from '../commerce/shared.js';
 import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
 import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching } from '../fraymus/intelligence/ouroboros.js';
@@ -82,6 +83,7 @@ function nodeKind(type) {
   if (type === 'video_thumbnail') return 'video_thumbnail';
   if (type === 'video_gif') return 'video_gif';
   if (type === 'tts_speak') return 'tts_speak';
+  if (type === 'stt_transcribe') return 'stt_transcribe';
   if (type.includes('html') || type === 'preview') return 'preview';
   if (type.includes('fraymus') || type.startsWith('tool:')) return 'fraymus_tool';
   if (type === 'code' || type === 'sandbox') return 'code';
@@ -392,6 +394,17 @@ export async function runPipeline(nodes, edges, opts = {}) {
         r.audioUrl = result.url;
         r.text = `Speech generated (${result.engine}): ${result.size} bytes, ~${result.durationEstimate}s`;
         texts[id] = r.text;
+      } else if (k === 'stt_transcribe') {
+        const audioInput = buffers[incoming[0]] || node.data?.audioBase64;
+        if (audioInput) {
+          const result = await sttTranscribe(audioInput, {
+            language: node.data?.language, engine: node.data?.engine,
+          });
+          r.transcript = result.transcript;
+          r.confidence = result.confidence;
+          r.text = result.transcript;
+          texts[id] = result.transcript;
+        } else { r.text = 'stt_transcribe: no audio input'; }
       } else if (k === 'preview') {
         const src = incoming.map(s => results[s]?.imageUrl).filter(Boolean).pop();
         imageUrl = src;

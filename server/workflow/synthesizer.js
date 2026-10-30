@@ -23,6 +23,7 @@ const NODE_CATALOG = [
   { type: 'video_thumbnail', desc: 'Extract frame from video as image (ffmpeg)' },
   { type: 'video_gif', desc: 'Convert video clip to animated GIF (ffmpeg)' },
   { type: 'tts_speak', desc: 'Convert text to speech audio (edge-tts/Piper/SAPI)' },
+  { type: 'stt_transcribe', desc: 'Transcribe audio to text (faster-whisper/SAPI SR)' },
   { type: 'preview', desc: 'Render HTML preview from text' },
   { type: 'code', desc: 'Execute code in sandbox' },
   { type: 'web_search', desc: 'Search the web via DuckDuckGo' },

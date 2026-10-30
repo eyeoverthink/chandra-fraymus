@@ -36,6 +36,7 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 28 | Local Image Processing Engine | — | 6 files | [PHASE-28.md](PHASE-28.md) |
 | 29 | Local Video Pipeline (ffmpeg) | — | 6 files | [PHASE-29.md](PHASE-29.md) |
 | 30 | TTS Speech Engine | — | 6 files | [PHASE-30.md](PHASE-30.md) |
+| 31 | Audio Transcription (STT) | — | 6 files | [PHASE-31.md](PHASE-31.md) |
 
 ## Convention
 
