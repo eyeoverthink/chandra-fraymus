@@ -20,9 +20,11 @@
     "@js-temporal/polyfill": "0.5.1",
     "better-sqlite3": "^12.4.1",
     "express": "^4.21.2",
+    "multer": "^2.5.0",
     "parse5": "8.0.1",
     "pdfjs-dist": "6.4.299",
     "puppeteer": "^24.0.0",
+    "sharp": "^0.35.5",
     "ws": "^8.18.3",
     "yauzl": "3.4.0"
   },

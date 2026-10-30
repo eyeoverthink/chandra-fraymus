@@ -172,6 +172,10 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `engine.js` — pipeline executor, 36 node types (incl. 6 intelligence: heart_feel, dream, consciousness_prove, cognition, memory_recall, intelligence_cycle — all Memory Bridge-wired; commerce terminal nodes store insights via createCommerceIntel)
 - `routes.js` — workflow CRUD + run API (with node count validation, ownership checks)
 
+### Image Processing Engine (server/media/)
+- `image-engine.js` — Sharp-based image processing (resize, crop, convert, effects, composite, watermark, thumbnail, upscale, create) + ComfyUI/FLUX.1 bridge
+- `image-routes.js` — 15+ REST endpoints for image operations with multer file uploads, serves `/media/:file` static images
+
 ### Other Subsystems
 - `automations/scheduler.js` — cron scheduler with error logging (intelligence-hooked: stores automation runs to Memory Bridge)
 - `mcp/server.js` — MCP server (exposes tools as MCP)

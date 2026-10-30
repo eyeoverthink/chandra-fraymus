@@ -15,6 +15,10 @@ import {
 } from '../fraymus/protocol/nudp.js';
 import { wrapWasm } from '../fraymus/encoding/wasm.js';
 import { getNode } from '../fraymus/protocol/mesh-node.js';
+import {
+  imageInfo, imageResize, imageConvert, imageEffects, imageThumbnail,
+  imageUpscale, comfyuiStatus, listMedia,
+} from '../media/image-engine.js';
 
 const now = () => Date.now();
 const clip = (s, n = 8000) => s.length > n ? s.slice(0, n) + '...[truncated]' : s;
@@ -556,6 +560,144 @@ export function createFleetTools({ workflowStore }) {
         if (!node) return { running: false, message: 'No mesh node created. Start via /api/nudp/node/start.' };
         return node.status();
       },
+    },
+    // ─── Image Processing tools (Sharp) ─────────────────
+    {
+      name: 'image_info',
+      group: 'media',
+      risk: 'safe',
+      description: 'Get image metadata: dimensions, format, channels, size. Input: base64 image or /media/ path.',
+      parameters: object({
+        base64: string(100000, { description: 'Base64-encoded image' }),
+        path: string(500, { description: 'Path to image in /media/ directory' }),
+      }),
+      execute: async ({ base64, path: imgPath }) => {
+        let input;
+        if (base64) input = base64;
+        else if (imgPath) {
+          const { readFileSync } = await import('node:fs');
+          const { join } = await import('node:path');
+          const { MEDIA_DIR } = await import('../media/image-engine.js');
+          input = readFileSync(join(MEDIA_DIR, imgPath.replace(/^\/media\//, '')));
+        } else return { error: 'base64 or path required' };
+        return imageInfo(input);
+      },
+    },
+    {
+      name: 'image_resize',
+      group: 'media',
+      risk: 'safe',
+      description: 'Resize an image to specific dimensions using Sharp. Returns URL to processed image.',
+      parameters: object({
+        base64: string(100000, { description: 'Base64-encoded image' }),
+        path: string(500, { description: 'Path to image in /media/ directory' }),
+        width: { type: 'integer', description: 'Target width (max 8192)' },
+        height: { type: 'integer', description: 'Target height (max 8192)' },
+        fit: string(20, { description: 'Fit mode: cover, contain, fill, inside, outside' }),
+      }),
+      execute: async ({ base64, path: imgPath, width, height, fit }) => {
+        let input;
+        if (base64) input = base64;
+        else if (imgPath) {
+          const { readFileSync } = await import('node:fs');
+          const { join } = await import('node:path');
+          const { MEDIA_DIR } = await import('../media/image-engine.js');
+          input = readFileSync(join(MEDIA_DIR, imgPath.replace(/^\/media\//, '')));
+        } else return { error: 'base64 or path required' };
+        return imageResize(input, { width, height, fit });
+      },
+    },
+    {
+      name: 'image_convert',
+      group: 'media',
+      risk: 'safe',
+      description: 'Convert image format (png, jpeg, webp, avif). Returns URL to converted image.',
+      parameters: object({
+        base64: string(100000, { description: 'Base64-encoded image' }),
+        path: string(500, { description: 'Path to image in /media/ directory' }),
+        format: string(10, { description: 'Target format: png, jpeg, webp, avif' }),
+        quality: { type: 'integer', description: 'Quality 1-100 (default 80)' },
+      }),
+      execute: async ({ base64, path: imgPath, format, quality }) => {
+        let input;
+        if (base64) input = base64;
+        else if (imgPath) {
+          const { readFileSync } = await import('node:fs');
+          const { join } = await import('node:path');
+          const { MEDIA_DIR } = await import('../media/image-engine.js');
+          input = readFileSync(join(MEDIA_DIR, imgPath.replace(/^\/media\//, '')));
+        } else return { error: 'base64 or path required' };
+        return imageConvert(input, { format, quality });
+      },
+    },
+    {
+      name: 'image_effects',
+      group: 'media',
+      risk: 'safe',
+      description: 'Apply effects chain to an image: blur, sharpen, grayscale, rotate, flip, negate, normalize.',
+      parameters: object({
+        base64: string(100000, { description: 'Base64-encoded image' }),
+        path: string(500, { description: 'Path to image in /media/ directory' }),
+        blur: { type: 'number', description: 'Gaussian blur sigma (0.3+)' },
+        sharpen: { type: 'number', description: 'Sharpen sigma' },
+        grayscale: { type: 'boolean', description: 'Convert to grayscale' },
+        rotate: { type: 'number', description: 'Rotation angle in degrees' },
+        flip: { type: 'boolean', description: 'Flip vertically' },
+        flop: { type: 'boolean', description: 'Flip horizontally' },
+        negate: { type: 'boolean', description: 'Invert colors' },
+        normalize: { type: 'boolean', description: 'Normalize contrast' },
+      }),
+      execute: async ({ base64, path: imgPath, ...effects }) => {
+        let input;
+        if (base64) input = base64;
+        else if (imgPath) {
+          const { readFileSync } = await import('node:fs');
+          const { join } = await import('node:path');
+          const { MEDIA_DIR } = await import('../media/image-engine.js');
+          input = readFileSync(join(MEDIA_DIR, imgPath.replace(/^\/media\//, '')));
+        } else return { error: 'base64 or path required' };
+        return imageEffects(input, effects);
+      },
+    },
+    {
+      name: 'image_upscale',
+      group: 'media',
+      risk: 'safe',
+      description: 'Upscale image using Sharp Lanczos3 interpolation. Scale 1-4x.',
+      parameters: object({
+        base64: string(100000, { description: 'Base64-encoded image' }),
+        path: string(500, { description: 'Path to image in /media/ directory' }),
+        scale: { type: 'number', description: 'Scale factor 1-4 (default 2)' },
+      }),
+      execute: async ({ base64, path: imgPath, scale }) => {
+        let input;
+        if (base64) input = base64;
+        else if (imgPath) {
+          const { readFileSync } = await import('node:fs');
+          const { join } = await import('node:path');
+          const { MEDIA_DIR } = await import('../media/image-engine.js');
+          input = readFileSync(join(MEDIA_DIR, imgPath.replace(/^\/media\//, '')));
+        } else return { error: 'base64 or path required' };
+        return imageUpscale(input, scale);
+      },
+    },
+    {
+      name: 'comfyui_status',
+      group: 'media',
+      risk: 'safe',
+      description: 'Check if ComfyUI (FLUX.1 image generation) is running and available.',
+      parameters: object({}),
+      execute: async () => comfyuiStatus(),
+    },
+    {
+      name: 'media_list',
+      group: 'media',
+      risk: 'safe',
+      description: 'List processed media files in the output directory.',
+      parameters: object({
+        limit: { type: 'integer', description: 'Max files to list (default 50)' },
+      }),
+      execute: async ({ limit }) => ({ files: listMedia(limit) }),
     },
   ];
 }

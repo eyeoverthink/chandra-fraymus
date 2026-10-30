@@ -2,6 +2,11 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { DATA_DIR } from '../config.js';
+import {
+  imageResize, imageCrop, imageConvert, imageEffects,
+  imageWatermark, imageThumbnail, imageUpscale as sharpUpscale,
+  comfyuiGenerate, comfyuiResult, comfyuiFetchImage,
+} from '../media/image-engine.js';
 import { chatOllama, createCommerceIntel } from '../commerce/shared.js';
 import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
 import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching } from '../fraymus/intelligence/ouroboros.js';
@@ -59,6 +64,12 @@ function nodeKind(type) {
   if (type.includes('flux') || type === 'image_gen') return 'image_gen';
   if (type.includes('remover') || type === 'bg_remove') return 'bg_remove';
   if (type.includes('upscaler') || type === 'upscale') return 'upscale';
+  if (type === 'image_resize') return 'image_resize';
+  if (type === 'image_crop') return 'image_crop';
+  if (type === 'image_convert') return 'image_convert';
+  if (type === 'image_effects') return 'image_effects';
+  if (type === 'image_watermark') return 'image_watermark';
+  if (type === 'image_thumbnail') return 'image_thumbnail';
   if (type.includes('html') || type === 'preview') return 'preview';
   if (type.includes('fraymus') || type.startsWith('tool:')) return 'fraymus_tool';
   if (type === 'code' || type === 'sandbox') return 'code';
@@ -123,29 +134,39 @@ export async function runPipeline(nodes, edges, opts = {}) {
         texts[id] = r.text = out.text;
       } else if (k === 'image_gen') {
         const prompt = upstreamText || opts.prompt || node.data?.prompt || 'abstract art';
-        const out = await callOllama(
-          `You are an image generation prompt engineer. Given this request, produce a detailed visual description suitable for an AI image generator. Describe composition, colors, style, lighting, mood. Request: "${prompt}"`,
-          'You create rich visual descriptions. Output only the description, no commentary.'
-        );
-        r.text = out.text;
+        const genW = Number(node.data?.width) || 1024;
+        const genH = Number(node.data?.height) || 1024;
         r.imagePrompt = prompt;
-        texts[id] = out.text;
-        // If Ollama has a vision-capable model, attempt actual generation
+        let generated = false;
+        // Try ComfyUI/FLUX.1 first
         try {
-          const genRes = await fetch('http://127.0.0.1:11434/api/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'sdxl', prompt, stream: false }),
-            signal: AbortSignal.timeout(60_000),
-          });
-          if (genRes.ok) {
-            const genData = await genRes.json();
-            if (genData.images?.[0]) {
-              const imgBuf = Buffer.from(genData.images[0], 'base64');
-              r.imageUrl = await saveImage(imgBuf);
+          const job = await comfyuiGenerate(prompt, { width: genW, height: genH, steps: Number(node.data?.steps) || 4 });
+          r.text = `ComfyUI job queued: ${job.promptId}`;
+          // Poll for result (max 90s)
+          const deadline = Date.now() + 90_000;
+          while (Date.now() < deadline) {
+            await new Promise(ok => setTimeout(ok, 2000));
+            const status = await comfyuiResult(job.promptId);
+            if (status.status === 'complete' && status.images?.length) {
+              const fetched = await comfyuiFetchImage(status.images[0].filename, status.images[0].subfolder);
+              r.imageUrl = fetched.url;
+              r.text = `Generated via FLUX.1: ${fetched.width}x${fetched.height}`;
+              generated = true;
+              break;
             }
+            if (status.status === 'error') { r.text = `ComfyUI error: ${JSON.stringify(status.error)}`; break; }
           }
-        } catch { /* Ollama image model not available — visual description still produced */ }
+        } catch { /* ComfyUI not available */ }
+        if (!generated) {
+          // Fallback: generate visual description via Ollama
+          const out = await callOllama(
+            `You are an image generation prompt engineer. Given this request, produce a detailed visual description suitable for an AI image generator. Describe composition, colors, style, lighting, mood. Request: "${prompt}"`,
+            'You create rich visual descriptions. Output only the description, no commentary.'
+          );
+          r.text = out.text;
+          r.note = 'ComfyUI not available — visual description generated. Install ComfyUI + FLUX.1 schnell for actual image generation.';
+        }
+        texts[id] = r.text;
       } else if (k === 'bg_remove') {
         if (upstreamImg) {
           // Attempt rembg via HTTP if available, otherwise use Ollama to describe the foreground
@@ -199,11 +220,99 @@ export async function runPipeline(nodes, edges, opts = {}) {
               r.text = `Upscaler service returned error — image passed through at original resolution`;
             }
           } catch {
-            r.text = `Upscaler: Real-ESRGAN service not running on port 7001 — image passed through. Install with pip install realesrgan`;
+            // Fallback: Sharp Lanczos upscale
+            try {
+              const result = await sharpUpscale(imgBuf, scale);
+              r.imageUrl = result.url;
+              r.text = `Upscaled ${scale}x via Sharp (Lanczos3): ${result.width}x${result.height}`;
+              buffers[id] = (await import('node:fs')).readFileSync(result.path);
+            } catch {
+              r.text = `Upscaler: Real-ESRGAN not running, Sharp fallback failed — image passed through`;
+            }
           }
         } else {
           r.text = `Upscale ${scale}x: no input image provided`;
         }
+        texts[id] = r.text;
+      } else if (k === 'image_resize') {
+        if (upstreamImg) {
+          const imgBuf = typeof upstreamImg === 'string'
+            ? (await import('node:fs')).readFileSync(upstreamImg.replace(/^\/outputs\//, join(OUT_DIR, '')))
+            : upstreamImg;
+          const result = await imageResize(imgBuf, {
+            width: node.data?.width, height: node.data?.height, fit: node.data?.fit,
+          });
+          r.imageUrl = result.url;
+          r.text = `Resized to ${result.width}x${result.height}`;
+          buffers[id] = (await import('node:fs')).readFileSync(result.path);
+        } else { r.text = 'image_resize: no input image'; }
+        texts[id] = r.text;
+      } else if (k === 'image_crop') {
+        if (upstreamImg) {
+          const imgBuf = typeof upstreamImg === 'string'
+            ? (await import('node:fs')).readFileSync(upstreamImg.replace(/^\/outputs\//, join(OUT_DIR, '')))
+            : upstreamImg;
+          const result = await imageCrop(imgBuf, {
+            left: node.data?.left || 0, top: node.data?.top || 0,
+            width: node.data?.width || 256, height: node.data?.height || 256,
+          });
+          r.imageUrl = result.url;
+          r.text = `Cropped to ${result.width}x${result.height}`;
+          buffers[id] = (await import('node:fs')).readFileSync(result.path);
+        } else { r.text = 'image_crop: no input image'; }
+        texts[id] = r.text;
+      } else if (k === 'image_convert') {
+        if (upstreamImg) {
+          const imgBuf = typeof upstreamImg === 'string'
+            ? (await import('node:fs')).readFileSync(upstreamImg.replace(/^\/outputs\//, join(OUT_DIR, '')))
+            : upstreamImg;
+          const result = await imageConvert(imgBuf, {
+            format: node.data?.format || 'webp', quality: node.data?.quality || 80,
+          });
+          r.imageUrl = result.url;
+          r.text = `Converted to ${result.format} (${result.size} bytes)`;
+          buffers[id] = (await import('node:fs')).readFileSync(result.path);
+        } else { r.text = 'image_convert: no input image'; }
+        texts[id] = r.text;
+      } else if (k === 'image_effects') {
+        if (upstreamImg) {
+          const imgBuf = typeof upstreamImg === 'string'
+            ? (await import('node:fs')).readFileSync(upstreamImg.replace(/^\/outputs\//, join(OUT_DIR, '')))
+            : upstreamImg;
+          const result = await imageEffects(imgBuf, {
+            rotate: node.data?.rotate, flip: node.data?.flip, flop: node.data?.flop,
+            grayscale: node.data?.grayscale, negate: node.data?.negate,
+            blur: node.data?.blur, sharpen: node.data?.sharpen,
+            gamma: node.data?.gamma, normalize: node.data?.normalize,
+          });
+          r.imageUrl = result.url;
+          r.text = `Applied effects: ${result.effects.join(', ')}`;
+          buffers[id] = (await import('node:fs')).readFileSync(result.path);
+        } else { r.text = 'image_effects: no input image'; }
+        texts[id] = r.text;
+      } else if (k === 'image_watermark') {
+        if (upstreamImg) {
+          const imgBuf = typeof upstreamImg === 'string'
+            ? (await import('node:fs')).readFileSync(upstreamImg.replace(/^\/outputs\//, join(OUT_DIR, '')))
+            : upstreamImg;
+          const result = await imageWatermark(imgBuf, node.data?.text || 'CHANDRA', {
+            fontSize: node.data?.fontSize, color: node.data?.color, position: node.data?.position,
+          });
+          r.imageUrl = result.url;
+          r.text = `Watermarked: "${result.watermark}"`;
+          buffers[id] = (await import('node:fs')).readFileSync(result.path);
+        } else { r.text = 'image_watermark: no input image'; }
+        texts[id] = r.text;
+      } else if (k === 'image_thumbnail') {
+        if (upstreamImg) {
+          const imgBuf = typeof upstreamImg === 'string'
+            ? (await import('node:fs')).readFileSync(upstreamImg.replace(/^\/outputs\//, join(OUT_DIR, '')))
+            : upstreamImg;
+          const result = await imageThumbnail(imgBuf, node.data?.size || 256);
+          r.imageUrl = result.url;
+          r.text = `Thumbnail ${result.width}x${result.height}`;
+          buffers[id] = (await import('node:fs')).readFileSync(result.path);
+        } else { r.text = 'image_thumbnail: no input image'; }
         texts[id] = r.text;
       } else if (k === 'preview') {
         const src = incoming.map(s => results[s]?.imageUrl).filter(Boolean).pop();

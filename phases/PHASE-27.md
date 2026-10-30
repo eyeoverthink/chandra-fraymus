@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-30
 **Prev:** [Phase 26 — Background Evolution Daemon](PHASE-26.md)
-**Next:** TBD
+**Next:** [Phase 28 — Local Image Processing Engine](PHASE-28.md)
 
 ---
 
