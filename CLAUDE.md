@@ -69,7 +69,7 @@ npm run start        # production server (serves built client)
 - `intelligence/control-plane.js` — agent registry, enrollment, broadcast
 - `bridge/cross-tab.js` — cross-tab communication
 - `bridge/orifice.js` — bridge connector
-- `workflows/definitions.js` — 18 FRAYMUS workflow definitions (incl. 2 intelligence pipelines)
+- `workflows/definitions.js` — 19 FRAYMUS workflow definitions (incl. 2 intelligence pipelines + 1 commerce-intelligence hybrid)
 - `mcp/tools.js` — FRAYMUS-specific MCP tools
 - `entities/schemas.js` — entity schema definitions
 
@@ -85,11 +85,11 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 ### Commerce Pipelines (server/commerce/)
 - `shared.js` — shared utilities: `chatOllama`, `parseJSON`, `shopifyHeaders`, `shopifyBase` (API v2024-10), `createCommerceIntel` (intelligence hooks factory for pipelines)
 - `pipeline.js` — Content-to-Commerce (LLM generates products → Shopify publish, intelligence-hooked: recalls past insights, emotion-analyzes content, stores pipeline results to Memory Bridge)
-- `apparel-pipeline.js` — Apparel Production (trend scout → designer → Printify → Shopify sync)
-- `mystery-shopper.js` — Mystery Shopper (Shopify store audit + automated fixes for tags/SEO/pricing/images)
-- `store-fixer.js` — Store Fixer (bulk Shopify fixes via applier)
+- `apparel-pipeline.js` — Apparel Production (trend scout → designer → Printify → Shopify sync, intelligence-hooked: recalls past insights, emotion-analyzes designs, stores results)
+- `mystery-shopper.js` — Mystery Shopper (Shopify store audit + automated fixes, intelligence-hooked: recalls past audits, emotion-analyzes first impressions, stores grades/scores)
+- `store-fixer.js` — Store Fixer (bulk Shopify fixes via applier, intelligence-hooked: recalls past fixes, stores results)
 - `routes.js` — commerce REST endpoints (receives memoryBridge, creates intel hooks via `createCommerceIntel`)
-- `tools.js` — commerce agent tools
+- `tools.js` — commerce agent tools (17 tools, intelligence-aware via createCommerceIntel — all 4 full pipeline tools pass intel hooks)
 
 ### Vertiso Memory + RSI (server/vertiso/)
 - `memory.js` — vector-similarity episodic memory (store/recall/consolidate)
@@ -99,7 +99,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `rsi-tools.js` — agent tools for RSI ops
 
 ### Visual Workflow Engine (server/workflow/)
-- `engine.js` — pipeline executor, 36 node types (incl. 6 intelligence: heart_feel, dream, consciousness_prove, cognition, memory_recall, intelligence_cycle — all Memory Bridge-wired)
+- `engine.js` — pipeline executor, 36 node types (incl. 6 intelligence: heart_feel, dream, consciousness_prove, cognition, memory_recall, intelligence_cycle — all Memory Bridge-wired; commerce terminal nodes store insights via createCommerceIntel)
 - `routes.js` — workflow CRUD + run API (with node count validation, ownership checks)
 
 ### Other Subsystems

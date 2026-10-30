@@ -1,3 +1,5 @@
+import { heart } from '../fraymus-tools.js';
+import { createCommerceIntel } from './shared.js';
 import {
   runContentCommercePipeline,
   runResearcher,
@@ -12,7 +14,8 @@ import { runStoreFixerPipeline, runPageGenerator, runCollectionOrganizer, runDes
 const string = (maxLength, extra = {}) => ({ type: 'string', maxLength, ...extra });
 const object = (properties, required = []) => ({ type: 'object', properties, required });
 
-export function createCommerceTools() {
+export function createCommerceTools({ memoryBridge } = {}) {
+  const intel = createCommerceIntel(memoryBridge, heart);
   return [
     {
       name: 'commerce.research',
@@ -73,7 +76,7 @@ export function createCommerceTools() {
         sources: string(20, { enum: ['web', 'youtube', 'both'] }),
         autoPublish: { type: 'boolean', description: 'Auto-publish to Shopify if approved (default true)' },
       }, ['topic']),
-      execute: async ({ args }) => runContentCommercePipeline(args, { autoPublish: args.autoPublish }),
+      execute: async ({ args }) => runContentCommercePipeline(args, { autoPublish: args.autoPublish, intel }),
     },
 
     // ── Apparel Pipeline Tools ──────────────────────────────────
@@ -119,7 +122,7 @@ export function createCommerceTools() {
         season: string(50),
         productTypes: { type: 'array', items: { type: 'string' } },
       }),
-      execute: async ({ args }) => runApparelPipeline(args),
+      execute: async ({ args }) => runApparelPipeline(args, { intel }),
     },
 
     // ── Mystery Shopper Tools ───────────────────────────────────
@@ -132,7 +135,7 @@ export function createCommerceTools() {
         storeUrl: string(500, { description: 'Store URL to audit (defaults to configured store)' }),
         autoApply: { type: 'boolean', description: 'Auto-apply safe fixes' },
       }),
-      execute: async ({ args }) => runMysteryShopperPipeline(args, { autoApply: args.autoApply }),
+      execute: async ({ args }) => runMysteryShopperPipeline(args, { autoApply: args.autoApply, intel }),
     },
     {
       name: 'shopper.browse',
@@ -196,7 +199,7 @@ export function createCommerceTools() {
         auditReport: { type: 'object', description: 'Full mystery shopper audit report' },
         draft: { type: 'boolean', description: 'Create pages as drafts (default false)' },
       }),
-      execute: async ({ args }) => runStoreFixerPipeline(args.auditReport || args, { draft: args.draft }),
+      execute: async ({ args }) => runStoreFixerPipeline(args.auditReport || args, { draft: args.draft, intel }),
     },
   ];
 }

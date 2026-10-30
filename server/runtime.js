@@ -81,7 +81,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   let youtubeTools = [];
   try { youtubeTools = createYouTubeTools(); } catch (e) { console.error('runtime: youtube tools failed:', e.message); }
   let commerceTools = [];
-  try { commerceTools = createCommerceTools(); } catch (e) { console.error('runtime: commerce tools failed:', e.message); }
+  try { commerceTools = createCommerceTools({ memoryBridge }); } catch (e) { console.error('runtime: commerce tools failed:', e.message); }
   agent = createAgentService({ db, workspace, ollamaUrl, fetchImpl,
     cloud, codeExecutor, desktopBroker:desktop, extraTools: [...createExtensionTools(artifacts, web),...desktop.tools(),
       ...createTaskTools({scheduler:tasks,db,now:taskClock,onReceipt:(id,receipt)=>agent?.recordTaskReceipt(id,receipt)}),

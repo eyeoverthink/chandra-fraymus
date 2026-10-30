@@ -44,7 +44,7 @@ No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your mode
    ║         Autonomous AI Commerce & Intelligence Platform          ║
    ║                                                                  ║
    ║   17 Agents · 4 Commerce Pipelines · 6 Intelligence Modules     ║
-   ║   36 Workflow Nodes · 18 Workflow Definitions · 13 Fleet Tools   ║
+   ║   36 Workflow Nodes · 19 Workflow Definitions · 13 Fleet Tools   ║
    ║   39 Entity Schemas · Vertiso Vector Memory · Memory Bridge      ║
    ║   Kuramoto Phase Sync · Ouroboros RSI · Ed25519 Identity         ║
    ║                                                                  ║
@@ -58,7 +58,7 @@ No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your mode
 
 ---
 
-## What's New — Phases 1–10
+## What's New — Phases 1–11
 
 The intelligence stack was merged from two proprietary repos (`fraynix-continuity` and `fraynix-dreamer-120b`) and deeply integrated across every surface of the system:
 
@@ -74,6 +74,7 @@ The intelligence stack was merged from two proprietary repos (`fraynix-continuit
 | **8** | `memory_recall` workflow node + fleet tool, Dashboard Memory Bridge & Autonomy status cards, health endpoint Memory Bridge status |
 | **9** | Intelligence-enriched fleet prompts (full stack context + bridge memories), autonomy Memory Bridge recall before evolution, `intelligence_cycle` tool/node/endpoint + UI |
 | **10** | Brain intelligence completion (Memory Bridge + dreamer/cognition context in brain.js), Commerce Intelligence Hooks (`createCommerceIntel` factory wired into Content-to-Commerce pipeline — emotion analysis, memory recall, insight storage) |
+| **11** | Commerce Intelligence Completion — all 4 pipelines intelligence-wired (apparel, mystery-shopper, store-fixer + content-to-commerce), 17 commerce fleet tools intelligence-aware, workflow engine commerce nodes store insights, `IntelligentCommercePipeline` workflow definition (19 total) |
 
 ---
 

@@ -181,6 +181,31 @@ export const WORKFLOWS = {
     ],
   },
 
+  // ═══ Commerce-Intelligence Hybrid ═══
+  IntelligentCommercePipeline: {
+    trigger: { source: 'manual', event: 'run' },
+    function: 'commerceIntelligence',
+    action: 'intelligent_pipeline',
+    description: 'Heart Feel → Research → Create → Review → Memory Recall → Shopify: emotion-aware commerce with memory feedback',
+    canvas_nodes: [
+      { id: 'ci1', type: 'heart_feel', position: { x: 100, y: 200 }, data: { type: 'heart_feel', prompt: 'Analyze emotional resonance of topic' } },
+      { id: 'ci2', type: 'memory_recall', position: { x: 100, y: 350 }, data: { type: 'memory_recall', prompt: 'Recall past commerce insights' } },
+      { id: 'ci3', type: 'researcher', position: { x: 400, y: 275 }, data: { type: 'researcher', prompt: 'Research with emotional + memory context' } },
+      { id: 'ci4', type: 'copywriter', position: { x: 700, y: 275 }, data: { type: 'copywriter' } },
+      { id: 'ci5', type: 'reviewer', position: { x: 1000, y: 275 }, data: { type: 'reviewer' } },
+      { id: 'ci6', type: 'heart_feel', position: { x: 1000, y: 425 }, data: { type: 'heart_feel', prompt: 'Analyze final content emotion' } },
+      { id: 'ci7', type: 'shopify_publish', position: { x: 1300, y: 275 }, data: { type: 'shopify_publish' } },
+    ],
+    canvas_edges: [
+      { id: 'cie1', source: 'ci1', target: 'ci3' },
+      { id: 'cie2', source: 'ci2', target: 'ci3' },
+      { id: 'cie3', source: 'ci3', target: 'ci4' },
+      { id: 'cie4', source: 'ci4', target: 'ci5' },
+      { id: 'cie5', source: 'ci5', target: 'ci6' },
+      { id: 'cie6', source: 'ci5', target: 'ci7' },
+    ],
+  },
+
   // ═══ External Integration ═══
   GoogleCalendarRealtimeSync: {
     trigger: { source: 'google_calendar', event: 'webhook' },

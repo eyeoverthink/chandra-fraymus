@@ -513,6 +513,7 @@ export async function runApparelPipeline(input, opts = {}) {
   const t0 = Date.now();
   const runId = randomUUID();
   const stages = {};
+  const { intel } = opts;
 
   db.prepare(`INSERT INTO apparel_pipeline_runs (id, niche, product_types, status, created_at)
     VALUES (?, ?, ?, 'running', datetime('now'))`).run(
@@ -520,6 +521,15 @@ export async function runApparelPipeline(input, opts = {}) {
   );
 
   try {
+    // Recall past apparel insights
+    let priorInsights = [];
+    if (intel) {
+      try {
+        priorInsights = await intel.recallInsights(`apparel pipeline: ${input.niche || 'streetwear'}`, 3);
+        if (priorInsights.length) stages.intel_recall = { count: priorInsights.length };
+      } catch (_) {}
+    }
+
     const t1 = Date.now();
     const trends = await runTrendScout(input, opts);
     stages.trend_scout = { status: 'ok', data: trends, durationMs: Date.now() - t1 };
@@ -527,6 +537,15 @@ export async function runApparelPipeline(input, opts = {}) {
     const t2 = Date.now();
     const designs = await runDesigner(trends, opts);
     stages.designer = { status: 'ok', data: designs, durationMs: Date.now() - t2 };
+
+    // Emotion-analyze design concepts
+    if (intel && designs.products?.length) {
+      try {
+        const snippet = designs.products.map(p => p.title).join(', ');
+        const emotion = intel.analyzeContent(snippet);
+        if (emotion) stages.intel_emotion = { primary: emotion.primary, sentiment: emotion.sentiment };
+      } catch (_) {}
+    }
 
     const t3 = Date.now();
     const printify = await runPrintifyPush(designs, opts);
@@ -542,6 +561,18 @@ export async function runApparelPipeline(input, opts = {}) {
 
     db.prepare('UPDATE apparel_pipeline_runs SET status = ?, stages = ?, products_created = ? WHERE id = ?')
       .run('success', JSON.stringify(stages), designs.products?.length || 0, runId);
+
+    // Store apparel pipeline result as intelligence insight
+    if (intel) {
+      intel.storeInsight({
+        type: 'apparel_pipeline',
+        niche: input.niche || 'streetwear',
+        productsCreated: designs.products?.length || 0,
+        emotion: stages.intel_emotion || null,
+        priorMemories: priorInsights.length,
+        durationMs: Date.now() - t0,
+      });
+    }
 
     return {
       status: 'success',

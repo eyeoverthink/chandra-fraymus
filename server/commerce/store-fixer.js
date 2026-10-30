@@ -298,8 +298,18 @@ export async function runStoreFixerPipeline(auditReport = {}, opts = {}) {
   const t0 = Date.now();
   const runId = randomUUID();
   const stages = {};
+  const { intel } = opts;
 
   try {
+    // Recall past store fixer insights
+    let priorInsights = [];
+    if (intel) {
+      try {
+        priorInsights = await intel.recallInsights('store fixer pages collections descriptions', 3);
+        if (priorInsights.length) stages.intel_recall = { count: priorInsights.length };
+      } catch (_) {}
+    }
+
     // Stage 1 & 2 & 3 run in parallel — they're independent
     const t1 = Date.now();
     const [pages, collections, descriptions] = await Promise.all([
@@ -333,6 +343,20 @@ export async function runStoreFixerPipeline(auditReport = {}, opts = {}) {
       prices?.adjustments?.length || 0,
       applied.status,
     );
+
+    // Store fixer results as intelligence insight
+    if (intel) {
+      intel.storeInsight({
+        type: 'store_fixer',
+        pagesCreated: pages?.pages?.length || 0,
+        collectionsCreated: collections?.collections?.length || 0,
+        templatesCreated: descriptions?.templates?.length || 0,
+        priceAdjustments: prices?.adjustments?.length || 0,
+        applyStatus: applied.status,
+        priorMemories: priorInsights.length,
+        durationMs: Date.now() - t0,
+      });
+    }
 
     return {
       status: 'success',

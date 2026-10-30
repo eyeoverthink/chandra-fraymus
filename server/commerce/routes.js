@@ -101,7 +101,7 @@ export function installCommerceRoutes(app, { memoryBridge } = {}) {
   // ── Apparel Pipeline ────────────────────────────────────────────
   app.post('/api/apparel/pipeline', route(async (req, res) => {
     const { niche, season, productTypes } = req.body;
-    const result = await runApparelPipeline({ niche, season, productTypes });
+    const result = await runApparelPipeline({ niche, season, productTypes }, { intel });
     res.json(result);
   }));
 
@@ -134,7 +134,7 @@ export function installCommerceRoutes(app, { memoryBridge } = {}) {
 
   // ── Mystery Shopper ─────────────────────────────────────────────
   app.post('/api/shopper/audit', route(async (req, res) => {
-    const result = await runMysteryShopperPipeline(req.body, { autoApply: req.body.autoApply });
+    const result = await runMysteryShopperPipeline(req.body, { autoApply: req.body.autoApply, intel });
     res.json(result);
   }));
 
@@ -167,7 +167,7 @@ export function installCommerceRoutes(app, { memoryBridge } = {}) {
 
   // ── Store Fixer ─────────────────────────────────────────────────
   app.post('/api/fixer/pipeline', route(async (req, res) => {
-    const result = await runStoreFixerPipeline(req.body.auditReport || req.body, { draft: req.body.draft });
+    const result = await runStoreFixerPipeline(req.body.auditReport || req.body, { draft: req.body.draft, intel });
     res.json(result);
   }));
 

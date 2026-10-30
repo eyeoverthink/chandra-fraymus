@@ -327,11 +327,29 @@ async function applyAutomatedFixes(fixes) {
 export async function runMysteryShopperPipeline(input = {}, opts = {}) {
   const t0 = Date.now();
   const stages = {};
+  const { intel } = opts;
 
   try {
+    // Recall past audit insights
+    let priorInsights = [];
+    if (intel) {
+      try {
+        priorInsights = await intel.recallInsights('mystery shopper store audit', 3);
+        if (priorInsights.length) stages.intel_recall = { count: priorInsights.length };
+      } catch (_) {}
+    }
+
     const t1 = Date.now();
     const shopper = await runShopperAgent(input);
     stages.shopper = { status: 'ok', data: shopper, durationMs: Date.now() - t1 };
+
+    // Emotion-analyze the shopper's first impression
+    if (intel && shopper.first_impression) {
+      try {
+        const emotion = intel.analyzeContent(shopper.first_impression.notes || '');
+        if (emotion) stages.intel_emotion = { primary: emotion.primary, sentiment: emotion.sentiment };
+      } catch (_) {}
+    }
 
     const [ux, pricing] = await Promise.all([
       runUxAuditor(shopper, input),
@@ -343,6 +361,19 @@ export async function runMysteryShopperPipeline(input = {}, opts = {}) {
     const t4 = Date.now();
     const report = await runReportAndFix(shopper, ux, pricing, opts);
     stages.report = { status: 'ok', data: report, durationMs: Date.now() - t4 };
+
+    // Store audit results as intelligence insight
+    if (intel) {
+      intel.storeInsight({
+        type: 'mystery_shopper',
+        overallGrade: report.overall_store_grade,
+        scores: report.scores,
+        automatedFixes: report.automated_fixes?.length || 0,
+        emotion: stages.intel_emotion || null,
+        priorMemories: priorInsights.length,
+        durationMs: Date.now() - t0,
+      });
+    }
 
     return {
       status: 'success',

@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { DATA_DIR } from '../config.js';
-import { chatOllama } from '../commerce/shared.js';
+import { chatOllama, createCommerceIntel } from '../commerce/shared.js';
 import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
 import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching } from '../fraymus/intelligence/ouroboros.js';
 import { runResearcher, runCreator, runReviewer, runCeoLogger, runShopifyPublish } from '../commerce/pipeline.js';
@@ -99,6 +99,7 @@ export async function runPipeline(nodes, edges, opts = {}) {
   const buffers = {};
   const texts = {};
   const results = {};
+  const intel = createCommerceIntel(opts.memoryBridge, heart);
   let imageUrl;
   let html;
   let failed = false;
@@ -275,6 +276,7 @@ export async function runPipeline(nodes, edges, opts = {}) {
         const out = await runShopifyPublish(prev || safeParse(upstreamText));
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
+        if (intel) intel.storeInsight({ type: 'workflow_commerce', node: 'shopify_publish', status: out.status });
 
       // ── Apparel pipeline nodes ──────────────────────────────
       } else if (k === 'trend_scout') {
@@ -305,6 +307,7 @@ export async function runPipeline(nodes, edges, opts = {}) {
         const out = await runPricingEngine(shopifyData, designerData);
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
+        if (intel) intel.storeInsight({ type: 'workflow_apparel', node: 'pricing_engine', pricing: out.pricing?.length || 0 });
 
       // ── Mystery shopper nodes ───────────────────────────────
       } else if (k === 'mystery_shopper') {
@@ -329,6 +332,7 @@ export async function runPipeline(nodes, edges, opts = {}) {
         const out = await runReportAndFix(shopperData, uxData, priceData);
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
+        if (intel) intel.storeInsight({ type: 'workflow_shopper', node: 'shopper_report', grade: out.overall_store_grade, scores: out.scores });
 
       // ── Store fixer nodes ─────────────────────────────────────
       } else if (k === 'page_generator') {
@@ -360,6 +364,7 @@ export async function runPipeline(nodes, edges, opts = {}) {
         const out = await runShopifyApplier(pagesData, collData, descData, priceData);
         texts[id] = r.text = JSON.stringify(out);
         r.data = out;
+        if (intel) intel.storeInsight({ type: 'workflow_fixer', node: 'shopify_applier', status: out.status });
 
       // ── Intelligence stack nodes ──────────────────────────────
       } else if (k === 'heart_feel') {
