@@ -183,5 +183,22 @@ export function migrateWorkspaces() {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_sfr_created ON store_fixer_runs(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS api_usage (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key_id TEXT NOT NULL,
+      key_name TEXT,
+      slug TEXT NOT NULL,
+      workflow_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'ok',
+      duration_ms INTEGER DEFAULT 0,
+      input_tokens INTEGER DEFAULT 0,
+      output_tokens INTEGER DEFAULT 0,
+      error TEXT,
+      ip TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_apiusage_slug ON api_usage(slug, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_apiusage_key ON api_usage(key_id, created_at DESC);
   `);
 }

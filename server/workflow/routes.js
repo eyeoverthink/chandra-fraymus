@@ -117,22 +117,5 @@ export function installWorkflowRoutes(app, { broadcast, memoryBridge }) {
     res.json({ runs: runs.map(r => ({ ...r, results: safeParse(r.results, {}) })) });
   }));
 
-  app.post('/api/workflows/:id/deploy', route((req, res) => {
-    const wf = getWorkflow(req.params.id);
-    if (!wf) return res.status(404).json({ error: 'Workflow not found' });
-    const slug = req.body?.slug || wf.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
-    db.prepare('UPDATE workflows SET is_deployed = 1, deploy_slug = ?, updated_at = ? WHERE id = ?')
-      .run(slug, now(), req.params.id);
-    broadcast('workflow', { type: 'deployed', id: req.params.id, slug });
-    res.json({ deployed: true, slug, endpoint: `/api/run/${slug}` });
-  }));
-
-  app.post('/api/run/:slug', route(async (req, res) => {
-    const wf = db.prepare('SELECT * FROM workflows WHERE deploy_slug = ? AND is_deployed = 1').get(req.params.slug);
-    if (!wf) return res.status(404).json({ error: 'No deployed workflow with that slug' });
-    const nodes = safeParse(wf.nodes, []);
-    const edges = safeParse(wf.edges, []);
-    const result = await runPipeline(nodes, edges, { prompt: req.body?.prompt, image: req.body?.image ? Buffer.from(req.body.image, 'base64') : undefined, memoryBridge });
-    res.json(result);
-  }));
+  // Deploy and /api/run/:slug routes moved to server/deploy-api/routes.js (Phase 21 — auth + rate limiting + usage tracking)
 }

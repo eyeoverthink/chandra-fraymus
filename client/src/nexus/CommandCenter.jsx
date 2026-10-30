@@ -11,6 +11,7 @@ const WIDGETS = [
   { id: 'mcp', label: 'MCP Gateway', icon: '⬢', color: '#10b981', panel: 'mcp' },
   { id: 'automations', label: 'Automations', icon: '⟳', color: '#06b6d4', panel: 'automations' },
   { id: 'browser', label: 'Browser', icon: '◉', color: '#7c3aed', panel: 'browser' },
+  { id: 'deploy', label: 'Deploy API', icon: '⚙', color: '#f97316', panel: 'deploy' },
   { id: 'outlier', label: 'Outlier Board', icon: '◎', color: '#eab308', panel: 'outlier' },
 ];
 
@@ -21,6 +22,7 @@ const EVENT_STYLES = {
   memory: { icon: '◇', color: '#a78bfa', drawer: 'vertiso' },
   v3: { icon: '◈', color: '#10b981', drawer: 'dashboard' },
   tasks: { icon: '⟳', color: '#06b6d4', drawer: 'automations' },
+  deploy: { icon: '⚙', color: '#f97316', drawer: 'deploy' },
   error: { icon: '✗', color: '#ef4444', drawer: 'dashboard' },
 };
 

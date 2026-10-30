@@ -2,7 +2,7 @@
 
 **Commit:** `35b3cd1`
 **Previous:** [Phase 19 — Hermes Full Fleet](./PHASE-19.md)
-**Next:** Phase 21 (TBD)
+**Next:** [Phase 21 — Deploy-as-API](./PHASE-21.md)
 
 ---
 

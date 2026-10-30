@@ -97,6 +97,7 @@ The intelligence stack was merged from two proprietary repos (`fraynix-continuit
 | **18** | Offline-First Hardening — FRAYNIX-DREAMER ULTIMATE:8b default model, 3 server startup bug fixes, React health API crash fix, end-to-end offline verification |
 | **19** | Hermes Full Fleet (30/30 executors wired with free local tools) + Agent Delegation fix — all media/code/system/intelligence skills live, `elevenlabs_tts` → `text_to_speech` |
 | **20** | Needle Worker Loop + Motor Live Dispatch — GPU queue processes jobs through Ollama, Motor executes on 4 live compute nodes (local GPU, SSH, GitHub, cloud fallback), 12 new API routes |
+| **21** | Deploy-as-API — workflows become curl-able REST endpoints with Bearer auth, token-bucket rate limiting, per-key usage tracking, deploy catalog, undeploy, Deploy Dashboard panel (10th panel) |
 
 ---
 
@@ -463,6 +464,68 @@ curl -X POST http://localhost:8787/api/fixer/pipeline \
 
 ---
 
+## Deploy-as-API
+
+> **Build a workflow. Deploy it. Call it with `curl`. Track every invocation.**
+
+Any visual workflow can be deployed as a REST endpoint in one click. External services, apps, and scripts call your AI pipelines with a simple `curl` — protected by Bearer token auth, rate-limited per key, with full usage analytics.
+
+```
+  ┌─────────────────────────────────────────────────────────────────┐
+  │                    DEPLOY-AS-API PIPELINE                       │
+  │                                                                 │
+  │  1. Build Workflow     2. Deploy with Slug    3. Call via REST   │
+  │  ┌──────────────┐     ┌──────────────────┐   ┌──────────────┐  │
+  │  │ Visual Canvas │────►│ POST /deploy     │──►│ POST /api/run│  │
+  │  │ 36 node types │     │ → assigns slug   │   │ /:slug       │  │
+  │  └──────────────┘     └──────────────────┘   └──────┬───────┘  │
+  │                                                      │          │
+  │  ┌──────────────┐     ┌──────────────────┐          │          │
+  │  │  API Key     │────►│  Auth Middleware  │◄─────────┘          │
+  │  │  Manager     │     │  Bearer + Scope   │                     │
+  │  └──────────────┘     └────────┬─────────┘                     │
+  │                                │                                │
+  │  ┌──────────────┐     ┌───────▼──────────┐   ┌──────────────┐  │
+  │  │ Rate Limiter │◄────┤  Token Bucket    │──►│ Usage Logger │  │
+  │  │ 60 req/min   │     │  per-key refill  │   │ SQLite stats │  │
+  │  └──────────────┘     └──────────────────┘   └──────────────┘  │
+  └─────────────────────────────────────────────────────────────────┘
+```
+
+### Quick Deploy
+
+```bash
+# 1. Generate an API key
+curl -X POST http://localhost:8787/api/access/tokens \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-app", "scopes": "read run"}'
+# → { "id": "...", "token": "cf_..." }
+
+# 2. Deploy a workflow
+curl -X POST http://localhost:8787/api/workflows/YOUR_WORKFLOW_ID/deploy \
+  -H "Content-Type: application/json" \
+  -d '{"slug": "content-gen"}'
+# → { "deployed": true, "slug": "content-gen", "endpoint": "/api/run/content-gen" }
+
+# 3. Call the deployed endpoint
+curl -X POST http://localhost:8787/api/run/content-gen \
+  -H "Authorization: Bearer cf_YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Write a blog post about sustainable fashion"}'
+```
+
+### Security
+
+| Feature | Detail |
+|---------|--------|
+| **Authentication** | Bearer tokens via existing MCP auth system (SHA-256 hashed, timing-safe comparison) |
+| **Scopes** | `read`, `run`, `admin` — endpoint requires `run` scope |
+| **Rate Limiting** | Token bucket: 60 req/min default, 600 req/min for admin keys, auto-refill |
+| **Usage Tracking** | Every invocation logged to SQLite: key, slug, duration, status, IP |
+| **Slug Protection** | Unique slugs enforced — no two workflows share the same endpoint |
+
+---
+
 ## Visual Workflow Canvas
 
 A ReactFlow-based drag-and-drop editor with **34 node types** and topological-sort DAG execution.
@@ -610,6 +673,7 @@ Dark-themed React UI with 4 primary views + 9-panel Detail Drawer:
 | Intelligence | Interactive Heart, Dreamer, Ledger, Consciousness Proofs, Cognition, Memory Bridge |
 | Fleet | Agent cards + detail view + task sender + thread viewer |
 | Commerce | 4-pipeline launcher + run history |
+| **Deploy API** | **Deployed endpoints catalog, API key management, usage analytics, curl examples** |
 | Automations | Cron scheduler with error handling |
 | MCP Gateway | MCP server info + client connections |
 | Browser | Puppeteer headless + Chrome extension bridge |
@@ -662,6 +726,18 @@ Dark-themed React UI with 4 primary views + 9-panel Detail Drawer:
 | `/api/fixer/collections` | POST | Organize collections only |
 | `/api/fixer/descriptions` | POST | Enhance descriptions only |
 | `/api/fixer/prices` | POST | Adjust prices only |
+
+### Deploy-as-API Endpoints
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/deploy/catalog` | GET | No | List all deployed workflow endpoints |
+| `/api/workflows/:id/deploy` | POST | No | Deploy a workflow with a custom slug |
+| `/api/workflows/:id/undeploy` | POST | No | Remove a workflow deployment |
+| `/api/run/:slug` | POST | Bearer | Execute a deployed workflow (rate-limited, usage-tracked) |
+| `/api/deploy/usage` | GET | No | Global usage statistics |
+| `/api/deploy/usage/:slug` | GET | No | Per-slug usage stats + recent invocations |
+| `/api/deploy/rate-status` | GET | Bearer | Rate limit bucket status for the caller's key |
 
 ### Core Endpoints
 
@@ -720,10 +796,10 @@ Dark-themed React UI with 4 primary views + 9-panel Detail Drawer:
 | Canvas Node Types | 36 |
 | Entity Schemas | 49 |
 | Fleet Tools | 13 (7 fleet + 6 intelligence) |
-| API Endpoints | 180+ |
+| API Endpoints | 190+ |
 | Product Types (Apparel) | 24 |
 | Frontend Views | 4 (Command Center, Constellation, Canvas, Library) |
-| Detail Panels | 9 |
+| Detail Panels | 10 |
 | FRAYMUS Tools | 42 |
 | MCP Gateway Tools | 18 |
 | Max Vertiso Memories | 10,000 |
@@ -796,6 +872,7 @@ chandra-fraymus/
 │   │   ├── workflows/definitions.js # 18 workflow definitions
 │   │   └── mcp/tools.js            # 5 MCP tools
 │   │
+│   ├── deploy-api/                 # Deploy-as-API (auth middleware, rate limiter, usage tracking)
 │   ├── commerce/                   # Commerce Pipelines
 │   ├── vertiso/                    # Vector Memory + RSI
 │   ├── fleet/                      # Agent Fleet (manifest + tools with intelligence)

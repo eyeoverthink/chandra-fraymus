@@ -39,6 +39,12 @@ npm run start        # production server (serves built client)
 - `fraymus-tools.js` — FRAYMUS → fleet adapter (42 tools + MemoryBridge export)
 - `fraymus-routes.js` — FRAYMUS API routes (16 intelligence + 8 autonomy + 7 needle + 5 motor + memory search + intelligence cycle + runtime intelligence endpoints)
 
+### Deploy-as-API (server/deploy-api/)
+- `middleware.js` — Auth middleware (Bearer token validation via mcp/auth, scope checking)
+- `rate-limiter.js` — Token bucket rate limiter (in-memory, 60 req/min default, 600 for admin, auto-refill)
+- `usage.js` — SQLite usage tracker (per-invocation logging, per-slug/key analytics, global stats)
+- `routes.js` — Deploy catalog, deploy/undeploy, auth-protected `/api/run/:slug`, usage endpoints (7 routes)
+
 ### FRAYMUS Intelligence Stack (server/fraymus/)
 - `entity-store.js` — SQLite-backed Proxy adapter (replaces Base44 cloud store), auto-creates collections
 - `core/identity.js` — Ed25519 sovereign identity, key generation
