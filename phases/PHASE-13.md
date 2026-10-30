@@ -3,7 +3,7 @@
 **Commit:** `021fab1`
 **Date:** 2026-10-30
 **Previous:** [Phase 12 — Runtime Intelligence Completion](PHASE-12.md)
-**Next:** Phase 14 (pending)
+**Next:** [Phase 14 — Workflow Canvas Polish](PHASE-14.md)
 
 ## Summary
 

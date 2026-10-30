@@ -44,18 +44,32 @@ const NODE_TYPES = [
   { type: 'intelligence_cycle', label: 'Intelligence Cycle', color: '#d946ef', icon: '🔮' },
 ];
 
+const STATUS_COLORS = { running: '#f59e0b', success: '#22c55e', error: '#ef4444' };
+
 function NodeCard({ data }) {
   const def = NODE_TYPES.find(t => t.type === data.type) || { color: '#666', icon: '⬡', label: data.type };
+  const status = data._status;
+  const borderColor = status ? STATUS_COLORS[status] : `${def.color}40`;
+  const glow = status === 'running' ? `0 0 12px ${STATUS_COLORS.running}60` : status ? `0 0 8px ${STATUS_COLORS[status]}30` : `0 4px 12px ${def.color}15`;
   return (
     <div style={{
-      background: '#1a1a2e', border: `2px solid ${def.color}40`, borderRadius: 12,
-      padding: '12px 16px', minWidth: 160, boxShadow: `0 4px 12px ${def.color}15`,
+      background: '#1a1a2e', border: `2px solid ${borderColor}`, borderRadius: 12,
+      padding: '12px 16px', minWidth: 160, boxShadow: glow,
+      animation: status === 'running' ? 'pulse 1.5s ease-in-out infinite' : undefined,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <span style={{ fontSize: 18 }}>{def.icon}</span>
         <span style={{ fontSize: 13, fontWeight: 600, color: def.color }}>{def.label}</span>
+        {status && (
+          <span style={{ fontSize: 10, marginLeft: 'auto', color: STATUS_COLORS[status], fontWeight: 700 }}>
+            {status === 'running' ? '...' : status === 'success' ? 'OK' : 'ERR'}
+          </span>
+        )}
       </div>
       {data.prompt && <div style={{ fontSize: 11, color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 200 }}>{data.prompt}</div>}
+      {data._durationMs != null && (
+        <div style={{ fontSize: 10, color: '#555', marginTop: 4 }}>{data._durationMs}ms</div>
+      )}
     </div>
   );
 }
@@ -74,6 +88,7 @@ export default function WorkflowCanvas({ wsEvent }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [workflows, setWorkflows] = useState([]);
+  const [definitions, setDefinitions] = useState([]);
   const [currentId, setCurrentId] = useState(null);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
@@ -85,7 +100,11 @@ export default function WorkflowCanvas({ wsEvent }) {
     fetch('/api/workflows').then(r => r.json()).then(d => setWorkflows(d.workflows || [])).catch(() => {});
   }, []);
 
-  useEffect(() => { loadWorkflows(); }, [loadWorkflows]);
+  const loadDefinitions = useCallback(() => {
+    fetch('/api/workflows/definitions').then(r => r.json()).then(d => setDefinitions(d.definitions || [])).catch(() => {});
+  }, []);
+
+  useEffect(() => { loadWorkflows(); loadDefinitions(); }, [loadWorkflows, loadDefinitions]);
   useEffect(() => {
     if (wsEvent?.type === 'workflow') loadWorkflows();
   }, [wsEvent, loadWorkflows]);
@@ -99,6 +118,21 @@ export default function WorkflowCanvas({ wsEvent }) {
       data: { type, prompt: '', label: type },
     }]);
   }, [setNodes]);
+
+  const loadTemplate = useCallback((defName) => {
+    const def = definitions.find(d => d.name === defName);
+    if (!def) return;
+    setCurrentId(null);
+    setResult(null);
+    setName(defName.replace(/([A-Z])/g, ' $1').trim());
+    setNodes(def.nodes.map(n => ({
+      id: n.id, type: 'custom', position: n.position || { x: 100, y: 100 },
+      data: { type: n.type || n.data?.type, prompt: n.data?.prompt || '', label: n.type || n.data?.type },
+    })));
+    setEdges(def.edges.map(e => ({
+      id: e.id || `${e.source}-${e.target}`, source: e.source, target: e.target,
+    })));
+  }, [definitions, setNodes, setEdges]);
 
   const saveWorkflow = useCallback(async () => {
     try {
@@ -119,21 +153,44 @@ export default function WorkflowCanvas({ wsEvent }) {
     } catch (e) { setError(`Save failed: ${e.message}`); }
   }, [nodes, edges, name, currentId, loadWorkflows]);
 
+  const applyNodeStatuses = useCallback((statusMap) => {
+    setNodes(nds => nds.map(n => ({
+      ...n,
+      data: {
+        ...n.data,
+        _status: statusMap[n.id]?.status || null,
+        _durationMs: statusMap[n.id]?.durationMs ?? null,
+      },
+    })));
+  }, [setNodes]);
+
   const runWorkflow = useCallback(async () => {
     if (!currentId) { await saveWorkflow(); }
     setRunning(true);
     setResult(null);
+    const allRunning = {};
+    nodes.forEach(n => { allRunning[n.id] = { status: 'running' }; });
+    applyNodeStatuses(allRunning);
     try {
       const id = currentId || workflows[0]?.id;
       if (!id) return;
       const res = await fetch(`/api/workflows/${id}/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'Run this workflow' }) });
-      setResult(await res.json());
+      const data = await res.json();
+      setResult(data);
+      if (data.results) {
+        const statusMap = {};
+        for (const [nodeId, r] of Object.entries(data.results)) {
+          statusMap[nodeId] = { status: r.error ? 'error' : 'success', durationMs: r.durationMs };
+        }
+        applyNodeStatuses(statusMap);
+      }
     } catch (e) {
       setResult({ error: e.message });
+      applyNodeStatuses({});
     } finally {
       setRunning(false);
     }
-  }, [currentId, saveWorkflow, workflows]);
+  }, [currentId, saveWorkflow, workflows, nodes, applyNodeStatuses]);
 
   const loadWorkflow = useCallback(async (id) => {
     try {
@@ -151,10 +208,11 @@ export default function WorkflowCanvas({ wsEvent }) {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <style>{`@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }`}</style>
       {error && <div style={{ background: '#2d1b1b', border: '1px solid #5b2b2b', padding: '8px 12px', color: '#f87171', fontSize: 13 }}>{error}</div>}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px',
-        background: '#111118', borderBottom: '1px solid #222',
+        background: '#111118', borderBottom: '1px solid #222', flexWrap: 'wrap',
       }}>
         <input value={name} onChange={e => setName(e.target.value)} style={{
           background: '#1a1a2e', border: '1px solid #333', borderRadius: 6, padding: '6px 12px',
@@ -162,13 +220,17 @@ export default function WorkflowCanvas({ wsEvent }) {
         }} />
         <button onClick={saveWorkflow} style={btnStyle('#6366f1')}>Save</button>
         <button onClick={runWorkflow} disabled={running} style={btnStyle('#10b981')}>{running ? 'Running...' : 'Run ▶'}</button>
-        <button onClick={() => { setNodes([]); setEdges([]); setCurrentId(null); setName('New Workflow'); }} style={btnStyle('#666')}>New</button>
+        <button onClick={() => { setNodes([]); setEdges([]); setCurrentId(null); setName('New Workflow'); setResult(null); }} style={btnStyle('#666')}>New</button>
         {workflows.length > 0 && (
-          <select onChange={e => e.target.value && loadWorkflow(e.target.value)} style={{
-            background: '#1a1a2e', border: '1px solid #333', borderRadius: 6, padding: '6px 8px', color: '#e0e0e8', fontSize: 12,
-          }}>
-            <option value="">Load workflow...</option>
+          <select onChange={e => e.target.value && loadWorkflow(e.target.value)} style={selectStyle}>
+            <option value="">Load saved...</option>
             {workflows.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+          </select>
+        )}
+        {definitions.length > 0 && (
+          <select onChange={e => { if (e.target.value) loadTemplate(e.target.value); e.target.value = ''; }} style={{ ...selectStyle, borderColor: '#6366f140' }}>
+            <option value="">Load template ({definitions.length})...</option>
+            {definitions.map(d => <option key={d.name} value={d.name}>{d.name.replace(/([A-Z])/g, ' $1').trim()}</option>)}
           </select>
         )}
       </div>
@@ -209,7 +271,7 @@ export default function WorkflowCanvas({ wsEvent }) {
                 padding: 16, maxWidth: 360, maxHeight: 300, overflow: 'auto', fontSize: 12,
               }}>
                 <div style={{ fontWeight: 600, color: result.status === 'success' ? '#10b981' : '#f43f5e', marginBottom: 8 }}>
-                  {result.status === 'success' ? '✓ Success' : result.error ? '✗ Error' : '✗ Failed'} · {result.durationMs || 0}ms
+                  {result.status === 'success' ? 'OK' : result.error ? 'ERR' : 'FAIL'} · {result.durationMs || 0}ms
                 </div>
                 {result.results && Object.entries(result.results).map(([id, r]) => (
                   <div key={id} style={{ color: r.error ? '#f43f5e' : '#888', marginBottom: 4 }}>
@@ -229,3 +291,8 @@ const btnStyle = (bg) => ({
   background: bg, border: 'none', borderRadius: 6, padding: '6px 14px',
   color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
 });
+
+const selectStyle = {
+  background: '#1a1a2e', border: '1px solid #333', borderRadius: 6,
+  padding: '6px 8px', color: '#e0e0e8', fontSize: 12,
+};

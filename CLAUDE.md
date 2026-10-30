@@ -69,7 +69,7 @@ npm run start        # production server (serves built client)
 - `intelligence/control-plane.js` — agent registry, enrollment, broadcast
 - `bridge/cross-tab.js` — cross-tab communication
 - `bridge/orifice.js` — bridge connector
-- `workflows/definitions.js` — 19 FRAYMUS workflow definitions (incl. 2 intelligence pipelines + 1 commerce-intelligence hybrid)
+- `workflows/definitions.js` — 19 FRAYMUS workflow definitions (incl. 2 intelligence pipelines + 1 commerce-intelligence hybrid), 8 with canvas_nodes/canvas_edges for template loading
 - `mcp/tools.js` — FRAYMUS-specific MCP tools
 - `entities/schemas.js` — entity schema definitions
 
@@ -129,7 +129,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `useWebSocket.js` — single WS connection, exponential backoff (1s→30s cap)
 - `DashboardPanel.jsx` — stats overview, intelligence status cards (mood/dreamer/ledger/cognition/memory-bridge/autonomy), runtime intelligence cards (per-type cognition insight counts), recent activity
 - `IntelligencePanel.jsx` — interactive Heart, Dreamer, Ledger, Consciousness Proofs, Cognition, Memory Bridge recall controls
-- `WorkflowCanvas.jsx` — ReactFlow visual workflow builder, 36 node types (reacts to workflow)
+- `WorkflowCanvas.jsx` — ReactFlow visual workflow builder, 36 node types, 8 pre-built template picker, per-node execution status visualization (reacts to workflow)
 - `FleetPanel.jsx` — agent cards + detail view + task sender + thread message viewer with runs/approvals (reacts to agents/agent/event)
 - `CommercePanel.jsx` — 4-pipeline launcher (Content-to-Commerce, Apparel, Mystery Shopper, Store Fixer) + run history with expandable details (reacts to commerce/event)
 - `AutomationsPanel.jsx` — cron scheduler UI with error handling (reacts to event)

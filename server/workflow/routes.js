@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { db } from '../db.js';
 import { runPipeline, validateWorkflow } from './engine.js';
+import { WORKFLOWS } from '../fraymus/workflows/definitions.js';
 
 const now = () => Date.now();
 
@@ -41,6 +42,18 @@ export function createWorkflowStore() {
 
 export function installWorkflowRoutes(app, { broadcast, memoryBridge }) {
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
+
+  app.get('/api/workflows/definitions', (_req, res) => {
+    const defs = Object.entries(WORKFLOWS)
+      .filter(([, w]) => w.canvas_nodes)
+      .map(([name, w]) => ({
+        name,
+        description: w.description || name,
+        nodes: w.canvas_nodes,
+        edges: w.canvas_edges || [],
+      }));
+    res.json({ definitions: defs });
+  });
 
   app.get('/api/workflows', (_req, res) => {
     res.json({ workflows: listWorkflows() });

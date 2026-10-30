@@ -19,6 +19,7 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 11 | Commerce Intelligence Completion | `8946889` | +4 pipelines wired, commerce tools | Pre-tracked |
 | 12 | Runtime Intelligence Completion | `d88e7bd` | 9 files, 91 ins | [PHASE-12.md](PHASE-12.md) |
 | 13 | Backend Visibility Completion | `021fab1` | 4 files, 351 ins | [PHASE-13.md](PHASE-13.md) |
+| 14 | Workflow Canvas Polish | `6aa2f8d` | 4 files, 75 ins | [PHASE-14.md](PHASE-14.md) |
 
 ## Convention
 
