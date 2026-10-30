@@ -43,7 +43,7 @@ No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your mode
    ║            Autonomous AI Commerce & Intelligence                ║
    ║                                                                  ║
    ║   17 Agents · 4 Commerce Pipelines · 30 Hermes Skills           ║
-   ║   29 Workflow Nodes · 39 Entity Schemas · Vertiso Vector Memory  ║
+   ║   30 Workflow Nodes · 39 Entity Schemas · Vertiso Vector Memory  ║
    ║   Kuramoto Phase Sync · Ouroboros RSI · Ed25519 Identity         ║
    ║                                                                  ║
    ║   ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐       ║
@@ -65,7 +65,7 @@ No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your mode
 | Cloud AI is expensive and rate-limited | **100% local inference** via Ollama — your GPU, your models, zero per-token cost |
 | AI agents forget everything between sessions | **Vertiso vector memory** with 10K episodic memories, 768-dim embeddings, and orbital decay |
 | No way to improve agent performance over time | **Ouroboros RSI engine** — evolutionary self-improvement that mutates, scores, and selects winning strategies across 1,000 generations |
-| Workflow tools are either too simple or too complex | **Visual drag-and-drop canvas** with 29 node types and topological-sort DAG execution |
+| Workflow tools are either too simple or too complex | **Visual drag-and-drop canvas** with 30 node types and topological-sort DAG execution |
 | Print-on-demand setup takes forever | **Apparel pipeline** scouts trends, designs products across 24 product types, pushes to Printify, syncs to Shopify, and optimizes pricing — automatically |
 
 ---
@@ -158,17 +158,37 @@ The frontend starts at **`http://localhost:5173`** with hot-reload.
 
 ## Screenshots
 
-| Dashboard | Workflow Canvas |
-|-----------|-----------------|
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Workflow Canvas](docs/screenshots/workflow-canvas.png) |
+### Dashboard
+![Dashboard](docs/screenshots/dashboard.jpg)
+*System overview — 17 agents, 31 features, 30 FRAYMUS tools, real-time activity feed*
 
-| Agent Fleet | Commerce Pipelines |
-|-------------|-------------------|
-| ![Agent Fleet](docs/screenshots/agent-fleet.png) | ![Commerce](docs/screenshots/commerce.png) |
+### Workflow Canvas
+![Workflow Canvas](docs/screenshots/workflow-canvas.jpg)
+*Visual drag-and-drop editor with 30 node types — LLM, Image Gen, Commerce, FRAYMUS encoding, and more*
 
-| Vertiso Memory | Outlier Board |
-|----------------|---------------|
-| ![Vertiso](docs/screenshots/vertiso.png) | ![Outlier Board](docs/screenshots/outlier-board.png) |
+### Agent Fleet
+![Agent Fleet](docs/screenshots/agent-fleet.jpg)
+*17 specialist agents — from context weaving (Ariadne) to reverse engineering (Tycho) to fleet orchestration (Genesis)*
+
+### Automations
+![Automations](docs/screenshots/automations.jpg)
+*Cron scheduler — schedule any agent with any prompt on any interval*
+
+### MCP Gateway
+![MCP Gateway](docs/screenshots/mcp-gateway.jpg)
+*18 tools exposed via Model Context Protocol — OAuth 2.0 ready, connect external AI tools with bearer tokens*
+
+### Browser
+![Browser](docs/screenshots/browser.jpg)
+*Puppeteer headless browser + Chrome extension bridge — agents can browse, scrape, and interact with the web*
+
+### Vertiso Memory + RSI
+![Vertiso](docs/screenshots/vertiso-rsi.jpg)
+*Vector-similarity episodic memory (768-dim) + recursive self-improvement — store, recall, evolve, reflect, genome*
+
+### Outlier Board
+![Outlier Board](docs/screenshots/outlier-board.jpg)
+*YouTube outlier research — find videos that outperform their channel's subscriber count (proven demand signals)*
 
 ---
 
@@ -380,7 +400,7 @@ Kuramoto phase synchronization keeps the 9-agent fleet in lockstep.
 
 ## Visual Workflow Canvas
 
-A ReactFlow-based drag-and-drop editor with **29 node types** and topological-sort DAG execution.
+A ReactFlow-based drag-and-drop editor with **30 node types** and topological-sort DAG execution.
 
 ### Node Types
 
@@ -416,23 +436,23 @@ Pre-built workflow definitions are included for all 4 commerce pipelines — loa
 
 | Agent | Role | Specialty |
 |-------|------|-----------|
-| **concierge** | Front desk | Routes requests, manages conversations |
-| **eye_sovereign** | Creative director | Brand voice, design direction |
-| **genesis** | Creator | Generates content and products |
-| **fraymus_prime** | System architect | Infrastructure and integration |
-| **ariadne** | Navigator | Information retrieval and research |
-| **solon** | Strategist | Business strategy and analysis |
-| **director** | Project manager | Workflow orchestration |
-| **lumen** | Visual artist | Image and design generation |
-| **video_director** | Video producer | Video content creation |
-| **cantor** | Data scientist | Analytics and pattern detection |
-| **rea_analyst** | Reverse engineer | System analysis and extraction |
-| **spearhead** | Lead developer | Code generation and review |
-| **dev_archivist** | Documentation | Technical writing and records |
-| **forge_keeper** | DevOps | Build, deploy, infrastructure |
-| **helix** | Researcher | Deep research and synthesis |
-| **fraymus_java_baremetal** | Performance | Low-level optimization |
-| **youtube_researcher** | Content analyst | YouTube trend research and outlier detection |
+| **Ariadne** | Context weaver | Threads context across multi-agent conversations |
+| **Cantor** | Multi-voice arranger | Harmonizes outputs from multiple agents |
+| **Concierge** | Front door | Routes requests, manages first-contact conversations |
+| **DevArchivist** | Duplicate and dependency tracer | Finds redundancy and tracks dependencies |
+| **Director** | Interviewer and media producer | Conducts research interviews, produces media |
+| **EYE Sovereign** | Custodian across all agents | Brand voice guardian, creative direction |
+| **ForgeKeeper** | Sandbox and repo verifier | Build verification, sandbox integrity |
+| **Java Baremetal** | Java / C / WASM engineer | Low-level performance optimization |
+| **Fraymus Prime** | Skill federation kernel | Core system architect, skill routing |
+| **Genesis** | Meta manager / fleet orchestrator | Spawns and coordinates agent teams |
+| **Helix** | Seed and Merkle archivist | Integrity verification, Merkle tree management |
+| **Lumen** | Frame and continuity choreographer | Visual continuity across content |
+| **Tycho** | Reverse-engineering analyst | System analysis and extraction |
+| **Solon** | Consensus mediator and scribe | Multi-agent consensus, decision logging |
+| **Spearhead** | Frontier scout | Explores new capabilities and integrations |
+| **Video Director** | Short-form video maker | Video content creation and editing |
+| **YouTube Researcher** | YouTube outlier analyst | Trend research and demand signal detection |
 
 ### Fleet Tools
 
@@ -536,7 +556,7 @@ FRAY_MAGIC    = 0x46524159            (Protocol magic bytes — "FRAY")
 | Tab | Purpose |
 |-----|---------|
 | **Dashboard** | System overview — agent count, workflow count, feature list, recent activity |
-| **Workflow Canvas** | Visual drag-and-drop workflow editor with 29 node types |
+| **Workflow Canvas** | Visual drag-and-drop workflow editor with 30 node types |
 | **Agent Fleet** | Browse, configure, and chat with 17 agents |
 | **Automations** | Cron-based scheduled tasks and triggers |
 | **MCP Gateway** | Model Context Protocol server management |
@@ -737,7 +757,7 @@ chandra-fraymus/
 │   │   └── manifest.js             # Markdown frontmatter parser
 │   │
 │   ├── workflow/                   # Workflow Engine
-│   │   └── engine.js               # Topo-sort DAG execution (29 node kinds)
+│   │   └── engine.js               # Topo-sort DAG execution (30 node kinds)
 │   │
 │   ├── agent/                      # Core agent service
 │   ├── tasks/                      # Task scheduler
@@ -754,7 +774,7 @@ chandra-fraymus/
 │       ├── App.jsx                 # 8-tab layout
 │       └── panels/
 │           ├── DashboardPanel.jsx  # System overview
-│           ├── WorkflowCanvas.jsx  # Visual editor (29 nodes)
+│           ├── WorkflowCanvas.jsx  # Visual editor (30 nodes)
 │           ├── FleetPanel.jsx      # Agent management
 │           ├── AutomationsPanel.jsx # Cron scheduling
 │           ├── McpPanel.jsx        # MCP gateway
@@ -819,22 +839,82 @@ chandra-fraymus/
 
 | Metric | Count |
 |--------|-------|
+| System Features | 31 |
 | Agents | 17 |
 | Commerce Pipelines | 4 |
 | Hermes Skills | 30 |
 | Workflow Definitions | 17 |
-| Canvas Node Types | 29 |
+| Canvas Node Types | 30 |
 | Entity Schemas | 39 |
 | Fleet Tools | 16 |
-| API Endpoints | 40+ |
+| API Endpoints | 175+ |
 | Product Types (Apparel) | 24 |
-| Frontend Tabs | 8 |
+| Frontend Panels | 8 |
 | FRAYMUS Tools | 30 |
-| System Features | 31 |
-| MCP Gateway Tools | 5 |
+| MCP Gateway Tools | 18 |
 | Max Vertiso Memories | 10,000 |
 | RSI Max Generations | 1,000 |
 | Embedding Dimensions | 768 |
+| Server Files | 131 |
+| Database Tables | 53+ |
+| Audit Layers Completed | 9 |
+| Ollama Models Available | 20+ |
+| Tailscale Peers | 6 |
+
+---
+
+## Security & Hardening
+
+Chandra-FRAYMUS has been through a **9-layer systematic audit** — each layer built on the previous one, going deeper into the codebase. 10 commits of real fixes, plus a clean sweep confirming the deep subsystems were already production-grade.
+
+### Audit Layers
+
+| Layer | Focus | Result |
+|-------|-------|--------|
+| **1** | Commerce bugs | Kuramoto NaN fix, FleetPanel CSS, Printify variant IDs, shared commerce utils |
+| **2** | Async safety | Route guards on 4 routes, deduplicated Ollama via shared.js |
+| **3** | WebSocket | 30s heartbeat ping/pong, frontend error handling in 3 panels |
+| **4** | Architecture | Single useWebSocket hook, all panels wired for live updates |
+| **5** | Input validation | 10 fixes — query param clamping, type checks, ownership scoping |
+| **6** | Security/ops | Fetch timeouts on protocol relay, CORS/headers/shutdown confirmed clean |
+| **7** | Edge cases | safeParse for 12 JSON.parse sites, fleet logic bug fix |
+| **8** | Resilience | YouTube limit clamp, silent-catch fixes, MCP error truncation, brain guard |
+| **9** | Clean sweep | 31 files across 10 subsystems — **all clean, zero issues** |
+
+### What's Verified
+
+- All SQL queries use parameterized statements (no injection vectors)
+- All external fetch calls use `AbortSignal.timeout(15_000)`
+- All query params are coerced and clamped (`Math.min(500, Math.max(1, parseInt(val) || 100))`)
+- All DELETE/UPDATE queries are scoped by `user_id`
+- All JSON.parse on DB/external data uses `safeParse(str, fallback)`
+- CORS and security headers set in `local-http.js`
+- Error handler truncates messages, no stack traces leak
+- Graceful shutdown cleans up HTTP, WebSocket, DB connections, and intervals
+- No sensitive data in logs
+- Deep subsystems (sandbox, desktop, OCR, transport) have integrity chains, quarantine patterns, and bounded I/O
+
+---
+
+## Roadmap / Next Steps
+
+### Near-Term
+- [ ] **Dashboard analytics** — charts for agent activity, memory growth, commerce revenue over time
+- [ ] **Workflow templates** — pre-built workflow gallery (one-click import for common pipelines)
+- [ ] **Agent chat UI** — conversational interface to talk directly with any fleet agent
+- [ ] **Commerce analytics dashboard** — track pipeline runs, conversion rates, product performance
+
+### Medium-Term
+- [ ] **Multi-user support** — authentication, per-user agent fleets and memory spaces
+- [ ] **Remote agent mesh** — agents running across Tailscale peers, coordinated via V13 protocol
+- [ ] **Plugin system** — third-party node types for the workflow canvas
+- [ ] **Webhook ingestion** — trigger workflows from external events (GitHub, Stripe, etc.)
+
+### Long-Term
+- [ ] **Mobile companion app** — monitor fleet activity, approve commerce actions on the go
+- [ ] **Distributed RSI** — evolutionary self-improvement across multiple compute nodes
+- [ ] **FRAYMUS Protocol Federation** — connect multiple Chandra instances into a sovereign mesh
+- [ ] **Custom model training** — fine-tune Ollama models on your commerce data and agent interactions
 
 ---
 
