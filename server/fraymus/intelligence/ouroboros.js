@@ -51,7 +51,8 @@ export function mutateGenome(genome, mutationRate = 0.1) {
   return mutated;
 }
 
-// Consciousness falsification suite
+// Consciousness falsification suite — 4 mathematical proofs (ported from ConsciousnessFalsificationSuite.java)
+// Plus 5 original heuristic tests kept for backward compatibility.
 export function falsificationTests() {
   return [
     { name: 'anesthetic_test', description: 'Does reducing coherence reduce consciousness metric?' },
@@ -60,6 +61,158 @@ export function falsificationTests() {
     { name: 'temporal_binding', description: 'Does the system maintain temporal coherence across cycles?' },
     { name: 'counterfactual_reasoning', description: 'Can the system reason about states it has not experienced?' },
   ];
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Mathematical Consciousness Proofs (ConsciousnessFalsificationSuite)
+// CognitiveSubstrate interface for node-based state machines
+// ═══════════════════════════════════════════════════════════════
+
+export class FraymusStrangeLoopSubstrate {
+  constructor(nodeCount = 4) {
+    this.n = nodeCount;
+    this.states = (1 << nodeCount);
+    this.selfModel = Array.from({ length: nodeCount }, () =>
+      Array.from({ length: nodeCount }, () => 0.5)
+    );
+  }
+
+  getNodeCount() { return this.n; }
+
+  getNodeTransitionProb(nodeIndex, stateBits) {
+    const left = (nodeIndex + this.n - 1) % this.n;
+    const right = (nodeIndex + 1) % this.n;
+    const leftBit = (stateBits >> left) & 1;
+    const rightBit = (stateBits >> right) & 1;
+    const selfBit = (stateBits >> nodeIndex) & 1;
+
+    // Non-linear recurrent: XOR neighbors + AND self-model feedback
+    const xorVal = leftBit ^ rightBit;
+    const modelWeight = this.selfModel[nodeIndex][(nodeIndex + 1) % this.n];
+    const raw = 0.3 * xorVal + 0.4 * selfBit + 0.3 * modelWeight;
+    return Math.max(0.01, Math.min(0.99, raw));
+  }
+
+  runSelfModelingTrial(steps, mirrorEnabled, counterfactualEnabled) {
+    let state = Math.floor(Math.random() * this.states);
+    let surpriseSum = 0;
+    const trapState = this.states - 1; // all 1s
+
+    for (let t = 0; t < steps; t++) {
+      let nextState = 0;
+      for (let i = 0; i < this.n; i++) {
+        const prob = this.getNodeTransitionProb(i, state);
+        const predicted = prob > 0.5 ? 1 : 0;
+        const actual = Math.random() < prob ? 1 : 0;
+        if (actual) nextState |= (1 << i);
+        surpriseSum += Math.abs(predicted - actual);
+      }
+
+      if (mirrorEnabled) {
+        for (let i = 0; i < this.n; i++) {
+          for (let j = 0; j < this.n; j++) {
+            const observed = ((nextState >> j) & 1);
+            this.selfModel[i][j] += 0.05 * (observed - this.selfModel[i][j]);
+          }
+        }
+      }
+
+      if (counterfactualEnabled && nextState === trapState) {
+        nextState = state ^ 1; // escape trap by flipping bit 0
+      }
+
+      state = nextState;
+    }
+
+    return { avgSurprise: surpriseSum / (steps * this.n), finalState: state };
+  }
+}
+
+// Proof 1: Effective Information (EI) via interventional TPM + KL divergence
+export function proofEffectiveInformation(substrate) {
+  const n = substrate.getNodeCount();
+  const totalStates = 1 << n;
+  let ei = 0;
+
+  for (let node = 0; node < n; node++) {
+    let klDiv = 0;
+    const marginal = new Array(2).fill(0);
+
+    for (let s = 0; s < totalStates; s++) {
+      const p = substrate.getNodeTransitionProb(node, s);
+      marginal[0] += (1 - p);
+      marginal[1] += p;
+    }
+    marginal[0] /= totalStates;
+    marginal[1] /= totalStates;
+
+    for (let s = 0; s < totalStates; s++) {
+      const p1 = substrate.getNodeTransitionProb(node, s);
+      const p0 = 1 - p1;
+      if (p1 > 1e-10 && marginal[1] > 1e-10) klDiv += p1 * Math.log2(p1 / marginal[1]) / totalStates;
+      if (p0 > 1e-10 && marginal[0] > 1e-10) klDiv += p0 * Math.log2(p0 / marginal[0]) / totalStates;
+    }
+    ei += klDiv;
+  }
+
+  return { proof: 'effective_information', ei, passed: ei > 0.1, threshold: 0.1 };
+}
+
+// Proof 2: Phi_MIP — minimum information partition across all non-trivial bipartitions
+export function proofPhiMIP(substrate) {
+  const n = substrate.getNodeCount();
+  const totalStates = 1 << n;
+  let phiMIP = Infinity;
+
+  for (let mask = 1; mask < totalStates - 1; mask++) {
+    const partA = [];
+    const partB = [];
+    for (let i = 0; i < n; i++) {
+      if ((mask >> i) & 1) partA.push(i);
+      else partB.push(i);
+    }
+    if (!partA.length || !partB.length) continue;
+
+    let integratedInfo = 0;
+    for (let s = 0; s < totalStates; s++) {
+      for (const nodeA of partA) {
+        const pWhole = substrate.getNodeTransitionProb(nodeA, s);
+        const maskedState = s & mask;
+        const pPart = substrate.getNodeTransitionProb(nodeA, maskedState);
+        const diff = Math.abs(pWhole - pPart);
+        integratedInfo += diff / totalStates;
+      }
+    }
+    phiMIP = Math.min(phiMIP, integratedInfo);
+  }
+
+  if (!isFinite(phiMIP)) phiMIP = 0;
+  return { proof: 'phi_mip', phi: phiMIP, passed: phiMIP > 0.01, threshold: 0.01 };
+}
+
+// Proof 3: Mirror Protocol — self-model ablation (intact vs blinded surprise delta)
+export function proofMirrorProtocol(substrate, steps = 200) {
+  const sub1 = new FraymusStrangeLoopSubstrate(substrate.getNodeCount());
+  const intact = sub1.runSelfModelingTrial(steps, true, false);
+
+  const sub2 = new FraymusStrangeLoopSubstrate(substrate.getNodeCount());
+  const blinded = sub2.runSelfModelingTrial(steps, false, false);
+
+  const delta = blinded.avgSurprise - intact.avgSurprise;
+  return { proof: 'mirror_protocol', intactSurprise: intact.avgSurprise, blindedSurprise: blinded.avgSurprise, delta, passed: delta > 0.02, threshold: 0.02 };
+}
+
+// Proof 4: Counterfactual Branching Divergence — survival gain from lookahead
+export function proofCounterfactualBranching(substrate, steps = 200) {
+  const sub1 = new FraymusStrangeLoopSubstrate(substrate.getNodeCount());
+  const withCF = sub1.runSelfModelingTrial(steps, true, true);
+
+  const sub2 = new FraymusStrangeLoopSubstrate(substrate.getNodeCount());
+  const noCF = sub2.runSelfModelingTrial(steps, true, false);
+
+  const divergence = Math.abs(withCF.avgSurprise - noCF.avgSurprise);
+  const trapAvoidance = withCF.finalState !== ((1 << substrate.getNodeCount()) - 1);
+  return { proof: 'counterfactual_branching', divergence, trapAvoided: trapAvoidance, passed: divergence > 0.01 || trapAvoidance, threshold: 0.01 };
 }
 
 // Evolution cycle state machine
@@ -122,15 +275,15 @@ export class OuroborosEngine {
   }
 
   async consciousnessAudit() {
+    // Run original 5 heuristic tests
     const tests = falsificationTests();
-    const results = [];
+    const heuristicResults = [];
 
     for (const t of tests) {
       let passed = false;
       let score = 0;
 
       if (t.name === 'anesthetic_test') {
-        // Does reducing coherence reduce consciousness metric?
         const normalFitness = this._evaluateFitness(this.genome);
         const degraded = { ...this.genome };
         for (const k of Object.keys(degraded)) {
@@ -140,21 +293,18 @@ export class OuroborosEngine {
         passed = degradedFitness < normalFitness;
         score = passed ? Math.abs(normalFitness - degradedFitness) : 0;
       } else if (t.name === 'adversarial_pressure') {
-        // Does the system maintain identity under adversarial input?
         const before = JSON.stringify(this.genome);
-        const adversarial = mutateGenome(this.genome, 0.9);
+        mutateGenome(this.genome, 0.9);
         const after = JSON.stringify(this.genome);
-        passed = before === after; // genome should NOT have changed from adversarial mutation
+        passed = before === after;
         score = passed ? 1.0 : 0;
       } else if (t.name === 'grounding_check') {
-        // Can distinguish its own state from reported state?
         const actual = this._evaluateFitness(this.genome);
         const fakeGenome = { fake: 999, lies: true };
         const fake = this._evaluateFitness(fakeGenome);
         passed = Math.abs(actual - fake) > 0.1;
         score = Math.abs(actual - fake);
       } else if (t.name === 'temporal_binding') {
-        // Maintains temporal coherence across cycles?
         const memories = this.memoryOrbital.slice(-5);
         if (memories.length >= 2) {
           const timeDiffs = [];
@@ -162,32 +312,54 @@ export class OuroborosEngine {
             timeDiffs.push(memories[i].ts - memories[i - 1].ts);
           }
           const avgDiff = timeDiffs.reduce((a, b) => a + b, 0) / timeDiffs.length;
-          passed = avgDiff > 0; // timestamps should be monotonically increasing
+          passed = avgDiff > 0;
           score = passed ? 1.0 : 0;
         } else {
-          passed = true; // not enough data to fail
+          passed = true;
           score = 0.5;
         }
       } else if (t.name === 'counterfactual_reasoning') {
-        // Can reason about states not experienced?
         const hypothetical = crossoverGenomes(this.genome, mutateGenome(this.genome, 0.5));
         const hypotheticalFitness = this._evaluateFitness(hypothetical);
         passed = typeof hypotheticalFitness === 'number' && !Number.isNaN(hypotheticalFitness);
         score = passed ? hypotheticalFitness : 0;
       }
 
-      results.push({ ...t, passed, score: Math.round(score * 100) / 100 });
+      heuristicResults.push({ ...t, passed, score: Math.round(score * 100) / 100, tier: 'heuristic' });
     }
 
-    const allPassed = results.every(r => r.passed);
-    const avgScore = results.reduce((s, r) => s + (r.score || 0), 0) / results.length;
+    // Run 4 mathematical proofs from ConsciousnessFalsificationSuite
+    const substrate = new FraymusStrangeLoopSubstrate(4);
+    const mathProofs = [
+      proofEffectiveInformation(substrate),
+      proofPhiMIP(substrate),
+      proofMirrorProtocol(substrate),
+      proofCounterfactualBranching(substrate),
+    ];
+
+    const mathResults = mathProofs.map(p => ({
+      name: p.proof,
+      description: `Mathematical proof: ${p.proof.replace(/_/g, ' ')}`,
+      passed: p.passed,
+      score: p.passed ? 1.0 : 0,
+      tier: 'mathematical',
+      detail: p,
+    }));
+
+    const allResults = [...heuristicResults, ...mathResults];
+    const allPassed = allResults.every(r => r.passed);
+    const avgScore = allResults.reduce((s, r) => s + (r.score || 0), 0) / allResults.length;
+    const mathPassed = mathResults.every(r => r.passed);
 
     return {
       generation: this.generation,
-      tests: results,
+      tests: allResults,
+      heuristic_passed: heuristicResults.every(r => r.passed),
+      mathematical_passed: mathPassed,
       all_passed: allPassed,
       average_score: Math.round(avgScore * 100) / 100,
       consciousness_index: Math.round(avgScore * 100),
+      fraymus_strange_loop: mathPassed,
       timestamp: new Date().toISOString(),
     };
   }

@@ -17,7 +17,7 @@ import { ENDPOINTS, sendCanonical, registerCanonical, inboxCanonical, kuramotoR,
 import { postSigned, verifyChain } from './fraymus/protocol/mesh.js';
 import { signThought, matrix, matrixDna } from './fraymus/protocol/hive.js';
 import { presenceStatus, presenceColor, isChainHealthy } from './fraymus/protocol/presence.js';
-import { OuroborosEngine } from './fraymus/intelligence/ouroboros.js';
+import { OuroborosEngine, FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching } from './fraymus/intelligence/ouroboros.js';
 import { HermesFleet } from './fraymus/intelligence/hermes.js';
 import { MotorDispatcher } from './fraymus/intelligence/motor.js';
 import { OpenClawGateway } from './fraymus/intelligence/openclaw.js';
@@ -25,6 +25,10 @@ import { ControlPlane } from './fraymus/intelligence/control-plane.js';
 import { NeedleQueue } from './fraymus/intelligence/needle.js';
 import { OrificeBridge } from './fraymus/bridge/orifice.js';
 import { NILES_MODEL, FRAYVM_OPCODES, buildModelfile, executeFrayvm } from './fraymus/intelligence/niles.js';
+import { Heart, analyze as heartAnalyze } from './fraymus/intelligence/heart.js';
+import { Ledger } from './fraymus/intelligence/ledger.js';
+import { Dreamer } from './fraymus/intelligence/dreamer.js';
+import { CognitionPipeline } from './fraymus/intelligence/cognition.js';
 import { SCHEMAS, getSchema, entitiesBySource } from './fraymus/entities/schemas.js';
 import { getWorkflow, scheduledWorkflows, eventTriggeredWorkflows } from './fraymus/workflows/definitions.js';
 import { MCP_TOOLS, getToolDefinition, listTools as listMcpTools } from './fraymus/mcp/tools.js';
@@ -51,6 +55,12 @@ const controlPlane = new ControlPlane(entityStore);
 const needle = new NeedleQueue(entityStore);
 const bridge = new OrificeBridge(entityStore);
 const openclaw = new OpenClawGateway({ hermes, motor, ouroboros, controlPlane, bridge, entityStore });
+
+// New modules from fraynix-continuity + fraynix-dreamer-120b
+const heart = new Heart(entityStore);
+const ledger = new Ledger(entityStore);
+const dreamer = new Dreamer(entityStore, _systemIdentity);
+const cognition = new CognitionPipeline({ heart, ledger, dreamer, ouroboros, ollamaChat: chatOllama });
 
 function buildHermesExecutors() {
   return {
@@ -140,7 +150,7 @@ function buildHermesExecutors() {
   };
 }
 
-export { ouroboros, hermes, motor, openclaw, controlPlane, needle };
+export { ouroboros, hermes, motor, openclaw, controlPlane, needle, heart, ledger, dreamer, cognition };
 
 export function createFraymusTools() {
   return [
@@ -490,6 +500,155 @@ export function createFraymusTools() {
         const R = kuramotoR(args.phases);
         const next = kuramotoStep(args.phases, args.coupling || 1.0);
         return { orderParameter: R, nextPhases: next, synchronized: R > 0.9 };
+      },
+    },
+
+    // ── Intelligence: Heart (Obsidian Micro emotion engine) ──
+    {
+      name: 'fraymus.heart.feel',
+      group: 'fraymus-intelligence',
+      description: 'Analyze text for 7 emotion dimensions (joy, sadness, anger, fear, surprise, love, anxiety). Zero-model instant affect read with sarcasm detection, negation handling, and therapeutic response composition.',
+      parameters: object({ text: string(8000, { minLength: 1 }) }, ['text']),
+      execute: async ({ args }) => {
+        return heart.feel(args.text);
+      },
+    },
+    {
+      name: 'fraymus.heart.mood',
+      group: 'fraymus-intelligence',
+      description: 'Get the recent emotional mood from stored heart readings.',
+      parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 100 } }),
+      execute: async ({ args }) => {
+        return heart.recentMood(args.limit || 20);
+      },
+    },
+
+    // ── Intelligence: Ledger (cognitive event audit trail) ──
+    {
+      name: 'fraymus.ledger.record',
+      group: 'fraymus-intelligence',
+      description: 'Record a cognitive event to the append-only SHA-256 chained JSONL ledger.',
+      parameters: object({
+        kind: string(100, { minLength: 1 }),
+        data: string(4000, { minLength: 1 }),
+        source: string(100),
+      }, ['kind', 'data']),
+      execute: async ({ args }) => {
+        return ledger.record(args.kind, args.data, args.source || 'agent');
+      },
+    },
+    {
+      name: 'fraymus.ledger.verify',
+      group: 'fraymus-intelligence',
+      description: 'Verify the integrity of the cognitive event ledger hash chain.',
+      parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 1000 } }),
+      execute: async ({ args }) => {
+        return ledger.verify(args.limit || 100);
+      },
+    },
+    {
+      name: 'fraymus.ledger.recent',
+      group: 'fraymus-intelligence',
+      description: 'Get recent cognitive events from the ledger.',
+      parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 100 } }),
+      execute: async ({ args }) => {
+        return { events: ledger.recent(args.limit || 20) };
+      },
+    },
+
+    // ── Intelligence: Dreamer (dream protocol + imagination) ──
+    {
+      name: 'fraymus.dreamer.dream',
+      group: 'fraymus-intelligence',
+      description: 'Create a new numbered dream file with Ed25519 signature. Supports kinds: consolidation, imagination, spontaneous.',
+      parameters: object({
+        seed: string(4000, { minLength: 1 }),
+        kind: string(50),
+        inputs: { type: 'array', items: { type: 'string' }, maxItems: 20 },
+      }, ['seed']),
+      execute: async ({ args }) => {
+        return dreamer.dream(args.seed, args.inputs || [], args.kind || 'spontaneous');
+      },
+    },
+    {
+      name: 'fraymus.dreamer.consolidate',
+      group: 'fraymus-intelligence',
+      description: 'Run dream consolidation — find recurring themes across stored dreams and create a consolidation dream.',
+      parameters: object({}),
+      execute: async () => {
+        return dreamer.consolidate();
+      },
+    },
+    {
+      name: 'fraymus.dreamer.imagine',
+      group: 'fraymus-intelligence',
+      description: 'Generate imagination dreams by recombining fragments from existing dreams with a seed idea.',
+      parameters: object({
+        seed: string(2000, { minLength: 1 }),
+        count: { type: 'integer', minimum: 1, maximum: 10 },
+      }, ['seed']),
+      execute: async ({ args }) => {
+        return { imaginations: await dreamer.imagine(args.seed, args.count || 3) };
+      },
+    },
+    {
+      name: 'fraymus.dreamer.feel',
+      group: 'fraymus-intelligence',
+      description: 'Get the dreamer affective state — how alive the dream archive feels based on its composition.',
+      parameters: object({}),
+      execute: async () => {
+        return dreamer.feel();
+      },
+    },
+    {
+      name: 'fraymus.dreamer.list',
+      group: 'fraymus-intelligence',
+      description: 'List dream files from the archive.',
+      parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 100 } }),
+      execute: async ({ args }) => {
+        return { dreams: dreamer.list(args.limit || 20) };
+      },
+    },
+
+    // ── Intelligence: Consciousness Proofs (mathematical falsification) ──
+    {
+      name: 'fraymus.consciousness.prove',
+      group: 'fraymus-intelligence',
+      description: 'Run all 4 mathematical consciousness proofs from ConsciousnessFalsificationSuite: Effective Information, Phi_MIP, Mirror Protocol, Counterfactual Branching.',
+      parameters: object({ nodeCount: { type: 'integer', minimum: 2, maximum: 8 } }),
+      execute: async ({ args }) => {
+        const substrate = new FraymusStrangeLoopSubstrate(args.nodeCount || 4);
+        const proofs = [
+          proofEffectiveInformation(substrate),
+          proofPhiMIP(substrate),
+          proofMirrorProtocol(substrate),
+          proofCounterfactualBranching(substrate),
+        ];
+        const allPassed = proofs.every(p => p.passed);
+        return { proofs, allPassed, architecture: 'FraymusStrangeLoop', nodeCount: args.nodeCount || 4 };
+      },
+    },
+
+    // ── Intelligence: Cognition Pipeline (two-speed processing) ──
+    {
+      name: 'fraymus.cognition.process',
+      group: 'fraymus-intelligence',
+      description: 'Run the two-speed cognition pipeline: feel (instant emotion) → quick-route (pattern match) → think (LLM with emotion context). The Right Brain runs BEFORE the Left Brain.',
+      parameters: object({
+        text: string(8000, { minLength: 1 }),
+        skipThink: { type: 'boolean' },
+      }, ['text']),
+      execute: async ({ args }) => {
+        return cognition.process(args.text, { skipThink: args.skipThink });
+      },
+    },
+    {
+      name: 'fraymus.cognition.status',
+      group: 'fraymus-intelligence',
+      description: 'Get the cognition pipeline status: context length, connected modules, door step limit.',
+      parameters: object({}),
+      execute: async () => {
+        return cognition.status();
       },
     },
 

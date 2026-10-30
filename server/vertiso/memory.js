@@ -31,6 +31,8 @@ export class VertisoMemory {
         last_accessed INTEGER,
         associations TEXT DEFAULT '[]',
         metadata TEXT DEFAULT '{}',
+        provenance TEXT DEFAULT 'measured',
+        confidence REAL DEFAULT 1.0,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
@@ -116,24 +118,27 @@ export class VertisoMemory {
     return (importance + accessBoost) * decay;
   }
 
-  async store({ agentId, content, namespace = 'global', importance = 0.5, metadata = {}, associations = [] }) {
+  async store({ agentId, content, namespace = 'global', importance = 0.5, metadata = {}, associations = [], provenance = 'measured', confidence = 1.0 }) {
     const id = randomUUID();
     const now = Date.now();
     const embedding = await this.embed(content);
     const summary = content.length > 200 ? content.slice(0, 200) + '...' : content;
+    const validProvenance = ['measured', 'recall', 'imagined'].includes(provenance) ? provenance : 'measured';
+    const clampedConfidence = Math.max(0, Math.min(1, confidence));
 
     this.db.prepare(`INSERT INTO vertiso_memories
-      (id, agent_id, namespace, content, summary, embedding, importance, access_count, last_accessed, associations, metadata, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`).run(
+      (id, agent_id, namespace, content, summary, embedding, importance, access_count, last_accessed, associations, metadata, provenance, confidence, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`).run(
       id, agentId, namespace, content, summary,
       embedding ? Buffer.from(embedding.buffer) : null,
       Math.max(0, Math.min(1, importance)),
-      now, JSON.stringify(associations), JSON.stringify(metadata), now, now
+      now, JSON.stringify(associations), JSON.stringify(metadata),
+      validProvenance, clampedConfidence, now, now
     );
 
     if (embedding) this.cache.set(id, embedding);
     this._enforceLimit(agentId, namespace);
-    return { id, stored: true, hasEmbedding: !!embedding };
+    return { id, stored: true, hasEmbedding: !!embedding, provenance: validProvenance, confidence: clampedConfidence };
   }
 
   async recall({ agentId, query, namespace = 'global', limit = 5, minSimilarity = 0.3 }) {
