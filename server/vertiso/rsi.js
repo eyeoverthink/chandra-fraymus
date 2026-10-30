@@ -326,7 +326,7 @@ export class RSIEngine {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: process.env.FRAYMUS_DEFAULT_MODEL || 'llama3.2',
+          model: process.env.FRAYMUS_DEFAULT_MODEL || 'fraynix-dreamer-ultimate:8b',
           prompt: `You are an AI prompt optimizer. Given a system prompt and user feedback, rewrite the system prompt to be more effective.
 
 CURRENT PROMPT:

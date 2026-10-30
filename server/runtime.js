@@ -160,7 +160,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
     let localOcrHealth;
     try { localOcrHealth=await localOcr.health(); }
     catch {localOcrHealth={available:false,engine:'windows-media-ocr',accuracyVerified:false,requiresReview:true,reason:'Local OCR could not be checked'};}
-    const preferredName = process.env.FRAYMUS_DEFAULT_MODEL || 'gpt-oss:20b';
+    const preferredName = process.env.FRAYMUS_DEFAULT_MODEL || 'fraynix-dreamer-ultimate:8b';
     const preferredModel = caps.models.find(m => m.provider === 'ollama' && m.name === preferredName && m.allowed !== false && !m.cloud);
     res.json({ ...caps,localOcr:localOcrHealth,localVision:{configured:true,model:'gemma3:latest',mode:'local-tool',accuracyVerified:false,desktopInputEnabled:false}, ...(preferredModel ? { preferredModel: { name: preferredModel.name, provider: 'ollama' } } : {}), attachmentsEnabled: true, attachmentLimits: { maxFiles: 4, maxBytes: MAX_ASSET_BYTES,
       mimeTypes: ASSET_MIME_TYPES } });

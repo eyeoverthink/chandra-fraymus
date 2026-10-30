@@ -147,7 +147,7 @@ async function chat(messages, tools, model) {
   }));
 
   const body = {
-    model: model || process.env.FRAYMUS_DEFAULT_MODEL || 'llama3.2',
+    model: model || process.env.FRAYMUS_DEFAULT_MODEL || 'fraynix-dreamer-ultimate:8b',
     messages,
     ...(ollamaTools.length ? { tools: ollamaTools } : {}),
     stream: false,

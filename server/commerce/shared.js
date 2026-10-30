@@ -6,7 +6,7 @@ export async function chatOllama(messages, opts = {}) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: opts.model || process.env.FRAYMUS_DEFAULT_MODEL || 'llama3.2',
+      model: opts.model || process.env.FRAYMUS_DEFAULT_MODEL || 'fraynix-dreamer-ultimate:8b',
       messages,
       stream: false,
       options: { temperature: opts.temperature ?? 0.7, num_predict: opts.maxTokens ?? 2048 },

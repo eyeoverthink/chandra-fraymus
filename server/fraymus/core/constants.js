@@ -29,8 +29,8 @@ export const DEFAULT_RELAY = 'https://fraymus-messenger.srv1944678.hstgr.cloud';
 
 export const AGENTS = [
   { name: 'main', model: 'anthropic/claude-sonnet-5', role: 'Driver/gateway' },
-  { name: 'claudette', model: 'ollama/v6.1-machine', role: 'Verifier; system agent' },
-  { name: 'niles', model: 'ollama/Niles-FRAYMUS:v10', role: 'Local brain; Telegram-facing' },
+  { name: 'claudette', model: 'ollama/eyeoverthink/v6.1-machine', role: 'Verifier; system agent' },
+  { name: 'niles', model: 'ollama/niles-fraymus:v9', role: 'Local brain; Telegram-facing' },
   { name: 'hermes', model: 'anthropic/claude-haiku', role: 'Task runner; quick dispatch' },
   { name: 'openclawAlpha', model: 'anthropic/claude-sonnet-5', role: 'Research/build; GitHub ops' },
   { name: 'openclawSigma', model: 'anthropic/claude-sonnet-5', role: 'Deep analysis; evolution' },
