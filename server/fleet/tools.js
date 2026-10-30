@@ -108,7 +108,7 @@ export function createFleetTools({ workflowStore }) {
       execute: async ({ args }) => {
         const wf = workflowStore.getWorkflow(String(args.workflowId));
         if (!wf) throw new Error('Workflow not found');
-        const result = await runPipeline(wf.nodes || JSON.parse(wf.nodes), wf.edges || JSON.parse(wf.edges), { prompt: args.prompt });
+        const result = await runPipeline(wf.nodes, wf.edges, { prompt: args.prompt });
         workflowStore.saveRun({ workflow_id: wf.id, user_id: 'local', status: result.status, input_prompt: args.prompt, results: result.results, final_image_url: result.imageUrl, final_html: result.html, duration_ms: result.durationMs });
         return { status: result.status, imageUrl: result.imageUrl, durationMs: result.durationMs };
       },

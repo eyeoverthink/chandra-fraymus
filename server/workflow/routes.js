@@ -4,10 +4,14 @@ import { runPipeline, validateWorkflow } from './engine.js';
 
 const now = () => Date.now();
 
+function safeParse(str, fallback) {
+  try { return JSON.parse(str); } catch { return fallback; }
+}
+
 function getWorkflow(id) {
   const row = db.prepare('SELECT * FROM workflows WHERE id = ?').get(id);
   if (!row) return null;
-  return { ...row, nodes: JSON.parse(row.nodes), edges: JSON.parse(row.edges) };
+  return { ...row, nodes: safeParse(row.nodes, []), edges: safeParse(row.edges, []) };
 }
 
 function listWorkflows(userId = 'local') {
@@ -20,7 +24,7 @@ export function createWorkflowStore() {
     list: listWorkflows,
     listWorkflows: (userId) => {
       const rows = db.prepare('SELECT * FROM workflows WHERE user_id = ? ORDER BY updated_at DESC').all(userId || 'local');
-      return rows.map(r => ({ ...r, nodes: JSON.parse(r.nodes), edges: JSON.parse(r.edges) }));
+      return rows.map(r => ({ ...r, nodes: safeParse(r.nodes, []), edges: safeParse(r.edges, []) }));
     },
     getWorkflow: (id) => getWorkflow(id),
     consumeCredit: () => true,
@@ -97,7 +101,7 @@ export function installWorkflowRoutes(app, { broadcast }) {
 
   app.get('/api/workflows/:id/runs', route((req, res) => {
     const runs = db.prepare('SELECT * FROM workflow_runs WHERE workflow_id = ? ORDER BY created_at DESC LIMIT 50').all(req.params.id);
-    res.json({ runs: runs.map(r => ({ ...r, results: JSON.parse(r.results || '{}') })) });
+    res.json({ runs: runs.map(r => ({ ...r, results: safeParse(r.results, {}) })) });
   }));
 
   app.post('/api/workflows/:id/deploy', route((req, res) => {
@@ -113,8 +117,8 @@ export function installWorkflowRoutes(app, { broadcast }) {
   app.post('/api/run/:slug', route(async (req, res) => {
     const wf = db.prepare('SELECT * FROM workflows WHERE deploy_slug = ? AND is_deployed = 1').get(req.params.slug);
     if (!wf) return res.status(404).json({ error: 'No deployed workflow with that slug' });
-    const nodes = JSON.parse(wf.nodes);
-    const edges = JSON.parse(wf.edges);
+    const nodes = safeParse(wf.nodes, []);
+    const edges = safeParse(wf.edges, []);
     const result = await runPipeline(nodes, edges, { prompt: req.body?.prompt, image: req.body?.image ? Buffer.from(req.body.image, 'base64') : undefined });
     res.json(result);
   }));

@@ -31,6 +31,10 @@ import {
 
 const now = () => Date.now();
 
+function safeParse(str, fallback) {
+  try { return JSON.parse(str); } catch { return fallback; }
+}
+
 export function installCommerceRoutes(app) {
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
 
@@ -77,7 +81,7 @@ export function installCommerceRoutes(app) {
       `SELECT id, topic, content_type, status, score, issues, created_at
        FROM commerce_pipeline_runs ORDER BY created_at DESC LIMIT 50`
     ).all();
-    res.json({ runs: runs.map(r => ({ ...r, issues: JSON.parse(r.issues || '[]') })) });
+    res.json({ runs: runs.map(r => ({ ...r, issues: safeParse(r.issues, []) })) });
   }));
 
   app.get('/api/commerce/runs/:id', route((req, res) => {
@@ -85,9 +89,9 @@ export function installCommerceRoutes(app) {
     if (!run) return res.status(404).json({ error: 'Run not found' });
     res.json({
       ...run,
-      issues: JSON.parse(run.issues || '[]'),
-      final_content: JSON.parse(run.final_content || '{}'),
-      shopify_result: run.shopify_result ? JSON.parse(run.shopify_result) : null,
+      issues: safeParse(run.issues, []),
+      final_content: safeParse(run.final_content, {}),
+      shopify_result: run.shopify_result ? safeParse(run.shopify_result, null) : null,
     });
   }));
 
@@ -122,7 +126,7 @@ export function installCommerceRoutes(app) {
     const runs = db.prepare(
       'SELECT * FROM apparel_pipeline_runs ORDER BY created_at DESC LIMIT 50'
     ).all();
-    res.json({ runs: runs.map(r => ({ ...r, stages: JSON.parse(r.stages || '{}') })) });
+    res.json({ runs: runs.map(r => ({ ...r, stages: safeParse(r.stages, {}) })) });
   }));
 
   // ── Mystery Shopper ─────────────────────────────────────────────
@@ -150,10 +154,10 @@ export function installCommerceRoutes(app) {
     res.json({
       runs: runs.map(r => ({
         ...r,
-        scores: JSON.parse(r.scores || '{}'),
-        automated_fixes: JSON.parse(r.automated_fixes || '[]'),
-        manual_fixes: JSON.parse(r.manual_fixes || '[]'),
-        strategic: JSON.parse(r.strategic || '[]'),
+        scores: safeParse(r.scores, {}),
+        automated_fixes: safeParse(r.automated_fixes, []),
+        manual_fixes: safeParse(r.manual_fixes, []),
+        strategic: safeParse(r.strategic, []),
       })),
     });
   }));
