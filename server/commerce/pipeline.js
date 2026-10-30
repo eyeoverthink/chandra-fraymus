@@ -1,25 +1,8 @@
-import { OLLAMA_URL } from '../config.js';
 import { db } from '../db.js';
 import { randomUUID } from 'node:crypto';
+import { chatOllama } from './shared.js';
 
 const now = () => Date.now();
-
-async function chatOllama(messages, opts = {}) {
-  const res = await fetch(`${OLLAMA_URL}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: opts.model || process.env.FRAYMUS_DEFAULT_MODEL || 'llama3.2',
-      messages,
-      stream: false,
-      options: { temperature: opts.temperature ?? 0.7, num_predict: opts.maxTokens ?? 2048 },
-    }),
-    signal: AbortSignal.timeout(180_000),
-  });
-  if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`);
-  const data = await res.json();
-  return data.message?.content || '';
-}
 
 // ── Stage 1: Researcher ─────────────────────────────────────────────
 export async function runResearcher(input, opts = {}) {

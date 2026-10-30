@@ -1,51 +1,17 @@
-import { OLLAMA_URL } from '../config.js';
 import { db } from '../db.js';
 import { randomUUID } from 'node:crypto';
-
-async function chatOllama(messages, opts = {}) {
-  const url = process.env.OLLAMA_BASE_URL || OLLAMA_URL || 'http://127.0.0.1:11434';
-  const res = await fetch(`${url}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: opts.model || process.env.FRAYMUS_DEFAULT_MODEL || 'llama3.2',
-      messages,
-      stream: false,
-      options: { temperature: opts.temperature ?? 0.6, num_predict: opts.maxTokens ?? 3072 },
-    }),
-    signal: AbortSignal.timeout(180_000),
-  });
-  if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`);
-  const data = await res.json();
-  return data.message?.content || '';
-}
-
-function parseJSON(raw) {
-  try { return JSON.parse(raw.trim()); } catch {}
-  const fenced = raw.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
-  if (fenced) {
-    try { return JSON.parse(fenced[1].trim()); } catch {}
-  }
-  const braceMatch = raw.match(/\{[\s\S]*\}/);
-  if (braceMatch) {
-    try { return JSON.parse(braceMatch[0]); } catch {}
-  }
-  return { raw };
-}
+import { chatOllama, parseJSON, shopifyHeaders, shopifyBase } from './shared.js';
 
 // ── Agent 1: Shopper ──────────────────────────────────────────────
 export async function runShopperAgent(input = {}) {
   const storeUrl = input.storeUrl || `https://${process.env.SHOPIFY_STORE_DOMAIN || 'eyeoverthink.myshopify.com'}`;
 
   // Fetch store data via Shopify API for the agent to analyze
-  const headers = {};
-  const token = process.env.SHOPIFY_ACCESS_TOKEN;
-  const store = process.env.SHOPIFY_STORE_DOMAIN;
+  const h = shopifyHeaders();
+  const base = shopifyBase();
   let storeData = '';
 
-  if (token && store) {
-    const base = `https://${store}/admin/api/2024-01`;
-    const h = { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token };
+  if (h && base) {
     try {
       const [productsRes, collectionsRes] = await Promise.all([
         fetch(`${base}/products.json?status=active&limit=50`, { headers: h, signal: AbortSignal.timeout(15_000) }),
@@ -244,25 +210,110 @@ Return JSON:
 }
 
 async function applyAutomatedFixes(fixes) {
-  const token = process.env.SHOPIFY_ACCESS_TOKEN;
-  const store = process.env.SHOPIFY_STORE_DOMAIN;
-  if (!token || !store) return { skipped: true, reason: 'Shopify credentials not set' };
+  const headers = shopifyHeaders();
+  const base = shopifyBase();
+  if (!headers || !base) return { skipped: true, reason: 'Shopify credentials not set' };
 
-  const base = `https://${store}/admin/api/2024-01`;
-  const headers = { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token };
+  let products = null;
+  async function getProducts() {
+    if (products) return products;
+    try {
+      const res = await fetch(`${base}/products.json?limit=250`, { headers, signal: AbortSignal.timeout(15_000) });
+      const data = await res.json();
+      products = data.products || [];
+    } catch { products = []; }
+    return products;
+  }
+
   const applied = [];
 
   for (const fix of fixes) {
     if (!fix.can_auto_apply) continue;
     try {
-      if (fix.action === 'update_tags' && fix.target && fix.details) {
-        applied.push({ action: fix.action, status: 'queued', details: fix.details });
-      }
-      if (fix.action === 'update_description' && fix.target) {
-        applied.push({ action: fix.action, status: 'queued', details: fix.details });
-      }
-      if (fix.action === 'update_seo' && fix.target) {
-        applied.push({ action: fix.action, status: 'queued', details: fix.details });
+      if (fix.action === 'update_tags') {
+        const all = await getProducts();
+        const targets = fix.target === 'all' ? all : all.filter(p => String(p.id) === String(fix.target));
+        for (const p of targets) {
+          const newTags = p.tags ? `${p.tags}, ${fix.details}` : fix.details;
+          const res = await fetch(`${base}/products/${p.id}.json`, {
+            method: 'PUT', headers,
+            body: JSON.stringify({ product: { id: p.id, tags: newTags } }),
+            signal: AbortSignal.timeout(15_000),
+          });
+          if (!res.ok) throw new Error(`Shopify ${res.status}`);
+        }
+        applied.push({ action: fix.action, status: 'applied', count: targets.length, details: fix.details });
+
+      } else if (fix.action === 'update_description') {
+        const all = await getProducts();
+        const targets = fix.target === 'all' ? all : all.filter(p => String(p.id) === String(fix.target));
+        for (const p of targets) {
+          const res = await fetch(`${base}/products/${p.id}.json`, {
+            method: 'PUT', headers,
+            body: JSON.stringify({ product: { id: p.id, body_html: fix.details } }),
+            signal: AbortSignal.timeout(15_000),
+          });
+          if (!res.ok) throw new Error(`Shopify ${res.status}`);
+        }
+        applied.push({ action: fix.action, status: 'applied', count: targets.length });
+
+      } else if (fix.action === 'update_seo') {
+        const all = await getProducts();
+        const targets = fix.target === 'all' ? all : all.filter(p => String(p.id) === String(fix.target));
+        for (const p of targets) {
+          const seo = typeof fix.details === 'string' ? { title: fix.details } : fix.details;
+          const metafields = [];
+          if (seo.title) metafields.push({ namespace: 'global', key: 'title_tag', value: seo.title, type: 'single_line_text_field' });
+          if (seo.description) metafields.push({ namespace: 'global', key: 'description_tag', value: seo.description, type: 'single_line_text_field' });
+          if (metafields.length) {
+            const res = await fetch(`${base}/products/${p.id}.json`, {
+              method: 'PUT', headers,
+              body: JSON.stringify({ product: { id: p.id, metafields } }),
+              signal: AbortSignal.timeout(15_000),
+            });
+            if (!res.ok) throw new Error(`Shopify ${res.status}`);
+          }
+        }
+        applied.push({ action: fix.action, status: 'applied', count: targets.length });
+
+      } else if (fix.action === 'update_price') {
+        const all = await getProducts();
+        const targets = fix.target === 'all' ? all : all.filter(p => String(p.id) === String(fix.target));
+        for (const p of targets) {
+          const price = typeof fix.details === 'object' ? fix.details : { price: fix.details };
+          const variants = (p.variants || []).map(v => ({
+            id: v.id,
+            price: String(price.price || v.price),
+            ...(price.compare_at ? { compare_at_price: String(price.compare_at) } : {}),
+          }));
+          const res = await fetch(`${base}/products/${p.id}.json`, {
+            method: 'PUT', headers,
+            body: JSON.stringify({ product: { id: p.id, variants } }),
+            signal: AbortSignal.timeout(15_000),
+          });
+          if (!res.ok) throw new Error(`Shopify ${res.status}`);
+        }
+        applied.push({ action: fix.action, status: 'applied', count: targets.length });
+
+      } else if (fix.action === 'update_images_alt') {
+        const all = await getProducts();
+        const targets = fix.target === 'all' ? all : all.filter(p => String(p.id) === String(fix.target));
+        for (const p of targets) {
+          for (const img of (p.images || [])) {
+            if (!img.alt || img.alt.trim() === '') {
+              const alt = `${p.title} — ${p.product_type || 'product'} by eyeoverthink`;
+              await fetch(`${base}/products/${p.id}/images/${img.id}.json`, {
+                method: 'PUT', headers,
+                body: JSON.stringify({ image: { id: img.id, alt } }),
+                signal: AbortSignal.timeout(10_000),
+              });
+            }
+          }
+        }
+        applied.push({ action: fix.action, status: 'applied', count: targets.length });
+
+      } else {
+        applied.push({ action: fix.action, status: 'skipped', reason: `Unknown action: ${fix.action}` });
       }
     } catch (e) {
       applied.push({ action: fix.action, status: 'error', error: e.message });

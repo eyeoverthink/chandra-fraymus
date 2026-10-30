@@ -1,6 +1,6 @@
-import { OLLAMA_URL } from '../config.js';
 import { db } from '../db.js';
 import { randomUUID } from 'node:crypto';
+import { chatOllama, parseJSON, shopifyHeaders, shopifyBase } from './shared.js';
 
 const PRINTIFY_BASE = 'https://api.printify.com/v1';
 
@@ -8,51 +8,6 @@ function printifyHeaders() {
   const token = process.env.PRINTIFY_ACCESS_TOKEN;
   if (!token) return null;
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
-}
-
-function shopifyHeaders() {
-  const token = process.env.SHOPIFY_ACCESS_TOKEN;
-  if (!token) return null;
-  return { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token };
-}
-
-function shopifyBase() {
-  const store = process.env.SHOPIFY_STORE_DOMAIN;
-  return store ? `https://${store}/admin/api/2024-01` : null;
-}
-
-async function chatOllama(messages, opts = {}) {
-  const url = process.env.OLLAMA_BASE_URL || OLLAMA_URL || 'http://127.0.0.1:11434';
-  const res = await fetch(`${url}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: opts.model || process.env.FRAYMUS_DEFAULT_MODEL || 'llama3.2',
-      messages,
-      stream: false,
-      options: { temperature: opts.temperature ?? 0.7, num_predict: opts.maxTokens ?? 2048 },
-    }),
-    signal: AbortSignal.timeout(180_000),
-  });
-  if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`);
-  const data = await res.json();
-  return data.message?.content || '';
-}
-
-function parseJSON(raw) {
-  // Try direct parse first
-  try { return JSON.parse(raw.trim()); } catch {}
-  // Strip markdown code fences and try again
-  const fenced = raw.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
-  if (fenced) {
-    try { return JSON.parse(fenced[1].trim()); } catch {}
-  }
-  // Last resort: find the first { ... } block
-  const braceMatch = raw.match(/\{[\s\S]*\}/);
-  if (braceMatch) {
-    try { return JSON.parse(braceMatch[0]); } catch {}
-  }
-  return { raw };
 }
 
 // ── Brand constants ───────────────────────────────────────────────

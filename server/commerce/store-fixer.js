@@ -1,6 +1,6 @@
-import { OLLAMA_URL } from '../config.js';
 import { db } from '../db.js';
 import { randomUUID } from 'node:crypto';
+import { chatOllama, parseJSON } from './shared.js';
 
 const BRAND = {
   name: 'eyeoverthink®',
@@ -8,37 +8,6 @@ const BRAND = {
   vendor: 'eyeoverthink®',
   voice: 'confident, creative, streetwear-forward, authentic',
 };
-
-async function chatOllama(messages, opts = {}) {
-  const url = process.env.OLLAMA_BASE_URL || OLLAMA_URL || 'http://127.0.0.1:11434';
-  const res = await fetch(`${url}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: opts.model || process.env.FRAYMUS_DEFAULT_MODEL || 'llama3.2',
-      messages,
-      stream: false,
-      options: { temperature: opts.temperature ?? 0.5, num_predict: opts.maxTokens ?? 4096 },
-    }),
-    signal: AbortSignal.timeout(180_000),
-  });
-  if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`);
-  const data = await res.json();
-  return data.message?.content || '';
-}
-
-function parseJSON(raw) {
-  try { return JSON.parse(raw.trim()); } catch {}
-  const fenced = raw.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
-  if (fenced) {
-    try { return JSON.parse(fenced[1].trim()); } catch {}
-  }
-  const braceMatch = raw.match(/\{[\s\S]*\}/);
-  if (braceMatch) {
-    try { return JSON.parse(braceMatch[0]); } catch {}
-  }
-  return { raw };
-}
 
 // ── Agent 1: Page Generator ──────────────────────────────────────
 export async function runPageGenerator(auditData = {}) {
