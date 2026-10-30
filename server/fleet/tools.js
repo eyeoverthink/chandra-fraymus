@@ -30,6 +30,9 @@ import {
 import {
   sttTranscribe, sttStatus, listSTTFiles,
 } from '../media/stt-engine.js';
+import {
+  ocrRecognize, ocrStatus, listOCRFiles,
+} from '../media/ocr-engine.js';
 
 const now = () => Date.now();
 const clip = (s, n = 8000) => s.length > n ? s.slice(0, n) + '...[truncated]' : s;
@@ -940,6 +943,38 @@ export function createFleetTools({ workflowStore }) {
         limit: { type: 'integer', description: 'Max files to list (default 50)' },
       }),
       execute: async ({ args }) => ({ files: listSTTFiles(args.limit) }),
+    },
+    // ── OCR Tools ──────────────────────────────
+    {
+      name: 'ocr_recognize',
+      group: 'ocr',
+      risk: 'low',
+      description: 'Extract text from an image using Windows Media OCR. Accepts base64-encoded PNG/JPEG.',
+      parameters: object({
+        imageBase64: string(0, { description: 'Base64-encoded PNG or JPEG image (max 4 MiB)' }),
+        language: string(20, { description: 'Language code (default: en-US, currently only en-US supported)' }),
+      }, ['imageBase64']),
+      execute: async ({ args }) => ocrRecognize(String(args.imageBase64), {
+        language: args.language ? String(args.language) : undefined,
+      }),
+    },
+    {
+      name: 'ocr_status',
+      group: 'ocr',
+      risk: 'safe',
+      description: 'Check OCR engine availability and supported languages.',
+      parameters: object({}),
+      execute: async () => ocrStatus(),
+    },
+    {
+      name: 'ocr_list',
+      group: 'ocr',
+      risk: 'safe',
+      description: 'List saved OCR results.',
+      parameters: object({
+        limit: { type: 'integer', description: 'Max files to list (default 50)' },
+      }),
+      execute: async ({ args }) => ({ files: await listOCRFiles(args.limit) }),
     },
   ];
 }

@@ -6,7 +6,7 @@
 | **Title** | Speech-to-Text Transcription Pipeline |
 | **Status** | Complete |
 | **Prev** | [Phase 30 — TTS Speech Engine](PHASE-30.md) |
-| **Next** | Phase 32 (TBD) |
+| **Next** | [Phase 32 — OCR Pipeline (Windows Media OCR)](PHASE-32.md) |
 
 ## Summary
 

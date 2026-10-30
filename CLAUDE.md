@@ -188,6 +188,10 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `stt-engine.js` — Multi-engine STT with fallback chain: faster-whisper (offline neural) → SAPI SR (Windows built-in). Accepts any audio format via ffmpeg conversion to WAV. Saves transcription results as JSON.
 - `stt-routes.js` — 4 REST endpoints: transcribe (multipart/base64), status, outputs, transcription detail
 
+### OCR Pipeline (server/media/)
+- `ocr-engine.js` — Windows Media OCR via PowerShell/WinRT. Accepts PNG/JPEG (Buffer, base64, data URI). Reuses `server/ocr/windows-ocr.ps1` for production-quality WinRT async handling. Saves results as JSON.
+- `ocr-routes.js` — 4 REST endpoints: recognize (multipart/base64), status, outputs, result detail
+
 ### Other Subsystems
 - `automations/scheduler.js` — cron scheduler with error logging (intelligence-hooked: stores automation runs to Memory Bridge)
 - `mcp/server.js` — MCP server (exposes tools as MCP)

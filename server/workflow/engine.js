@@ -14,6 +14,7 @@ import {
 } from '../media/video-engine.js';
 import { ttsSpeak } from '../media/tts-engine.js';
 import { sttTranscribe } from '../media/stt-engine.js';
+import { ocrRecognize } from '../media/ocr-engine.js';
 import { chatOllama, createCommerceIntel } from '../commerce/shared.js';
 import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
 import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching } from '../fraymus/intelligence/ouroboros.js';
@@ -84,6 +85,7 @@ function nodeKind(type) {
   if (type === 'video_gif') return 'video_gif';
   if (type === 'tts_speak') return 'tts_speak';
   if (type === 'stt_transcribe') return 'stt_transcribe';
+  if (type === 'ocr_recognize') return 'ocr_recognize';
   if (type.includes('html') || type === 'preview') return 'preview';
   if (type.includes('fraymus') || type.startsWith('tool:')) return 'fraymus_tool';
   if (type === 'code' || type === 'sandbox') return 'code';
@@ -405,6 +407,18 @@ export async function runPipeline(nodes, edges, opts = {}) {
           r.text = result.transcript;
           texts[id] = result.transcript;
         } else { r.text = 'stt_transcribe: no audio input'; }
+      } else if (k === 'ocr_recognize') {
+        const imageInput = buffers[incoming[0]] || node.data?.imageBase64;
+        if (imageInput) {
+          const result = await ocrRecognize(imageInput, {
+            language: node.data?.language,
+          });
+          r.ocrText = result.text;
+          r.wordCount = result.wordCount;
+          r.lines = result.lines;
+          r.text = result.text;
+          texts[id] = result.text;
+        } else { r.text = 'ocr_recognize: no image input'; }
       } else if (k === 'preview') {
         const src = incoming.map(s => results[s]?.imageUrl).filter(Boolean).pop();
         imageUrl = src;
