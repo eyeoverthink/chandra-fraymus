@@ -1,6 +1,7 @@
 import { db } from '../db.js';
 import { chatOllama } from '../commerce/shared.js';
 import { writeOverride, loadManifests, removeOverride } from './manifest.js';
+import { reloadManifests } from './runtime.js';
 import { publish } from './bus.js';
 
 const now = () => Date.now();
@@ -61,6 +62,7 @@ export async function forgeAgent(goal, { context, forgedBy = 'system' } = {}) {
   }
 
   writeOverride(manifest);
+  try { reloadManifests(); } catch (_) {}
 
   db.prepare(
     `INSERT INTO forged_agents (agent_id, forged_by, goal, context, created_at) VALUES (?, ?, ?, ?, ?)`
@@ -93,6 +95,7 @@ export function removeForgedAgent(agentId) {
   const row = db.prepare(`SELECT * FROM forged_agents WHERE agent_id = ?`).get(agentId);
   if (!row) return { removed: false, error: 'Not a forged agent' };
   removeOverride(agentId);
+  try { reloadManifests(); } catch (_) {}
   db.prepare(`DELETE FROM forged_agents WHERE agent_id = ?`).run(agentId);
 
   try {

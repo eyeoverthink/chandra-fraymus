@@ -119,6 +119,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
     try { db.prepare('INSERT INTO events (kind, actor, detail, created_at) VALUES (?, ?, ?, ?)').run(kind, actor, detail, Date.now()); } catch (e) { console.error('runtime: event insert failed:', e.message); }
   }});
   installFraymusRoutes(app, { autonomy, broadcast, memoryBridge });
+  installSynthesisRoutes(app);
   installWorkflowRoutes(app, { broadcast, memoryBridge });
   installFleetRoutes(app);
   initBus({ broadcast });
@@ -129,7 +130,6 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   initHealthMonitor({ broadcast, ollamaBaseUrl: ollamaUrl });
   installHealthRoutes(app);
   installForgeRoutes(app);
-  installSynthesisRoutes(app);
   installReflectionRoutes(app);
   startReflectionLoop();
   installMcpEndpoint(app);
