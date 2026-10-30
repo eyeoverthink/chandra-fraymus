@@ -89,7 +89,7 @@ export function installDeployRoutes(app, { broadcast, memoryBridge }) {
     res.json({ stats, recent });
   }));
 
-  app.get('/api/deploy/rate-status', route((req, res) => {
+  app.get('/api/deploy/rate-status', optionalApiKey(), route((req, res) => {
     const principal = req.apiPrincipal;
     if (!principal) return res.json({ note: 'No API key provided — rate limit applies per key' });
     res.json(bucketStatus(principal.via));
