@@ -1,4 +1,5 @@
 import React from 'react';
+import ErrorBoundary from '../ErrorBoundary.jsx';
 import DashboardPanel from '../panels/DashboardPanel.jsx';
 import IntelligencePanel from '../panels/IntelligencePanel.jsx';
 import FleetPanel from '../panels/FleetPanel.jsx';
@@ -61,7 +62,9 @@ export default function DetailDrawer({ panel, title, onClose, wsEvent, health })
       </div>
 
       <div style={{ flex: 1, overflow: 'auto' }}>
-        <Component {...props} />
+        <ErrorBoundary label={cfg.label}>
+          <Component {...props} />
+        </ErrorBoundary>
       </div>
     </div>
   );

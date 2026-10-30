@@ -6,7 +6,7 @@
 | **Title** | Media Hub Panel |
 | **Status** | Complete |
 | **Prev** | [Phase 32 — OCR Pipeline](PHASE-32.md) |
-| **Next** | Phase 34 (TBD) |
+| **Next** | [Phase 34 — Error Boundary + System Resilience](PHASE-34.md) |
 
 ## Summary
 

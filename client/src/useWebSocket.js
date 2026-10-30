@@ -4,12 +4,17 @@ export default function useWebSocket() {
   const wsRef = useRef(null);
   const retriesRef = useRef(0);
   const [lastEvent, setLastEvent] = useState({ type: null, ts: 0 });
+  const [wsStatus, setWsStatus] = useState('connecting');
 
   const connect = useCallback(() => {
+    setWsStatus('connecting');
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(`${proto}//${location.host}/ws`);
 
-    ws.onopen = () => { retriesRef.current = 0; };
+    ws.onopen = () => {
+      retriesRef.current = 0;
+      setWsStatus('connected');
+    };
 
     ws.onmessage = (e) => {
       try {
@@ -22,9 +27,14 @@ export default function useWebSocket() {
 
     ws.onclose = () => {
       wsRef.current = null;
+      setWsStatus('reconnecting');
       const delay = Math.min(1000 * 2 ** retriesRef.current, 30000);
       retriesRef.current++;
       setTimeout(connect, delay);
+    };
+
+    ws.onerror = () => {
+      setWsStatus('error');
     };
 
     wsRef.current = ws;
@@ -35,5 +45,5 @@ export default function useWebSocket() {
     return () => { if (wsRef.current) wsRef.current.close(); };
   }, [connect]);
 
-  return lastEvent;
+  return { lastEvent, wsStatus };
 }

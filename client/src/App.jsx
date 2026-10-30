@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import useWebSocket from './useWebSocket.js';
+import ErrorBoundary from './ErrorBoundary.jsx';
 import WorkflowCanvas from './panels/WorkflowCanvas.jsx';
 import CommandCenter from './nexus/CommandCenter.jsx';
 import ConstellationView from './nexus/ConstellationView.jsx';
@@ -17,7 +18,7 @@ export default function App() {
   const [view, setView] = useState('command');
   const [health, setHealth] = useState(null);
   const [drawer, setDrawer] = useState(null);
-  const wsEvent = useWebSocket();
+  const { lastEvent: wsEvent, wsStatus } = useWebSocket();
 
   useEffect(() => {
     fetch('/api/health').then(r => r.json()).then(setHealth).catch(() => {});
@@ -55,20 +56,45 @@ export default function App() {
           ))}
         </div>
 
-        <div style={{ marginLeft: 'auto', fontSize: 11, color: '#555' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: '#555' }}>
+          {wsStatus !== 'connected' && (
+            <span style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              color: wsStatus === 'reconnecting' ? '#f59e0b' : '#f87171',
+              animation: wsStatus === 'reconnecting' ? 'pulse 1.5s infinite' : 'none',
+            }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: wsStatus === 'reconnecting' ? '#f59e0b' : '#f87171',
+              }} />
+              {wsStatus === 'connecting' ? 'Connecting...' : wsStatus === 'reconnecting' ? 'Reconnecting...' : 'Connection error'}
+            </span>
+          )}
           {health ? `Port 8787 · ${health.features?.length || 0} features` : 'Connecting...'}
         </div>
       </nav>
 
       <main style={{ flex: 1, overflow: 'auto', background: '#0a0a0f', position: 'relative' }}>
         {view === 'command' && (
-          <CommandCenter health={health} wsEvent={wsEvent} onOpenDrawer={openDrawer} onNavigate={setView} />
+          <ErrorBoundary label="Command Center">
+            <CommandCenter health={health} wsEvent={wsEvent} onOpenDrawer={openDrawer} onNavigate={setView} />
+          </ErrorBoundary>
         )}
         {view === 'constellation' && (
-          <ConstellationView wsEvent={wsEvent} onOpenDrawer={openDrawer} onNavigate={setView} />
+          <ErrorBoundary label="Constellation">
+            <ConstellationView wsEvent={wsEvent} onOpenDrawer={openDrawer} onNavigate={setView} />
+          </ErrorBoundary>
         )}
-        {view === 'canvas' && <WorkflowCanvas wsEvent={wsEvent} />}
-        {view === 'library' && <LibraryView wsEvent={wsEvent} onOpenDrawer={openDrawer} />}
+        {view === 'canvas' && (
+          <ErrorBoundary label="Canvas">
+            <WorkflowCanvas wsEvent={wsEvent} />
+          </ErrorBoundary>
+        )}
+        {view === 'library' && (
+          <ErrorBoundary label="Library">
+            <LibraryView wsEvent={wsEvent} onOpenDrawer={openDrawer} />
+          </ErrorBoundary>
+        )}
       </main>
 
       {drawer && (

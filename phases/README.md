@@ -39,6 +39,7 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 31 | Audio Transcription (STT) | — | 6 files | [PHASE-31.md](PHASE-31.md) |
 | 32 | OCR Pipeline (Windows Media OCR) | — | 6 files | [PHASE-32.md](PHASE-32.md) |
 | 33 | Media Hub Panel | — | 5 files | [PHASE-33.md](PHASE-33.md) |
+| 34 | Error Boundary + System Resilience | — | 6 files | [PHASE-34.md](PHASE-34.md) |
 
 ## Convention
 
