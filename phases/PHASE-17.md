@@ -3,7 +3,7 @@
 **Commit:** `05fc280`
 **Date:** 2026-10-30
 **Previous:** [Phase 16 — Command Bar + Live Activity Stream](PHASE-16.md)
-**Next:** *(next phase)*
+**Next:** [Phase 18 — Offline-First Hardening](PHASE-18.md)
 
 ---
 

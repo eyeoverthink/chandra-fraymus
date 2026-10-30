@@ -58,7 +58,20 @@ No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your mode
 
 ---
 
-## What's New — Phases 1–11
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/command-center.jpg" alt="Command Center" width="48%" />
+  <img src="docs/screenshots/constellation.jpg" alt="Constellation" width="48%" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/canvas.jpg" alt="Workflow Canvas" width="48%" />
+  <img src="docs/screenshots/library.jpg" alt="Library" width="48%" />
+</p>
+
+---
+
+## What's New — Phases 1–18
 
 The intelligence stack was merged from two proprietary repos (`fraynix-continuity` and `fraynix-dreamer-120b`) and deeply integrated across every surface of the system:
 
@@ -75,6 +88,13 @@ The intelligence stack was merged from two proprietary repos (`fraynix-continuit
 | **9** | Intelligence-enriched fleet prompts (full stack context + bridge memories), autonomy Memory Bridge recall before evolution, `intelligence_cycle` tool/node/endpoint + UI |
 | **10** | Brain intelligence completion (Memory Bridge + dreamer/cognition context in brain.js), Commerce Intelligence Hooks (`createCommerceIntel` factory wired into Content-to-Commerce pipeline — emotion analysis, memory recall, insight storage) |
 | **11** | Commerce Intelligence Completion — all 4 pipelines intelligence-wired (apparel, mystery-shopper, store-fixer + content-to-commerce), 17 commerce fleet tools intelligence-aware, workflow engine commerce nodes store insights, `IntelligentCommercePipeline` workflow definition (19 total) |
+| **12** | Entity Store — SQLite-backed Proxy adapter replacing Base44 cloud store, auto-creates collections |
+| **13** | Nexus 4-View UI — Command Center (10-widget grid), Constellation (SVG map), Canvas (workflow editor), Library (content archive) + Detail Drawer (9 panels) |
+| **14** | Command Router — `POST /api/command` endpoint parsing @agent, pipeline/workflow, freetext commands; dispatches to fleet/commerce/workflow subsystems |
+| **15** | Hermes 30-Skill Fleet + Motor Compute + OpenClaw 23-Action Gateway + Needle GPU Queue |
+| **16** | Command Bar + Live Activity Stream — persistent @agent autocomplete input, real-time WebSocket event feed with type-colored badges |
+| **17** | Living Constellation — node activity pulses, center hub breathing, animated edge flow, always-visible status badges, click-to-inspect |
+| **18** | Offline-First Hardening — FRAYNIX-DREAMER ULTIMATE:8b default model, 3 server startup bug fixes, React health API crash fix, end-to-end offline verification |
 
 ---
 
@@ -177,7 +197,7 @@ Edit `.env` with your credentials:
 ```env
 # Required — Local AI
 OLLAMA_BASE_URL=http://127.0.0.1:11434
-FRAYMUS_DEFAULT_MODEL=llama3.2
+FRAYMUS_DEFAULT_MODEL=fraynix-dreamer-ultimate:8b
 
 # Commerce — Shopify (unlocks store fixer + content pipeline)
 SHOPIFY_ACCESS_TOKEN=shpat_your_token_here
@@ -569,21 +589,30 @@ A ReactFlow-based drag-and-drop editor with **34 node types** and topological-so
 
 ---
 
-## Frontend
+## Frontend — Nexus 4-View Interface
 
-9 tabs in a dark-themed React dashboard:
+Dark-themed React UI with 4 primary views + 9-panel Detail Drawer:
 
-| Tab | Purpose |
-|-----|---------|
-| **Dashboard** | System overview — agent count, workflow count, features, intelligence status cards (mood, dreamer, ledger, cognition) |
-| **Intelligence** | Interactive Heart emotion analysis, Dream protocol, Ledger status, Consciousness proofs, Cognition pipeline |
-| **Workflow Canvas** | Visual drag-and-drop workflow editor with 34 node types |
-| **Agent Fleet** | Browse, configure, and chat with 17 agents |
-| **Automations** | Cron-based scheduled tasks and triggers |
-| **MCP Gateway** | Model Context Protocol server management |
-| **Browser** | Puppeteer headless browser + Chrome extension bridge |
-| **Vertiso / RSI** | Vector memory inspector + RSI evolution dashboard |
-| **Outlier Board** | YouTube research with outlier detection and scoring |
+| View | Purpose |
+|------|---------|
+| **Command Center** | 10-widget grid with live metrics, Intelligence Stack status cards, Live Activity Stream (WebSocket event feed), integrated Command Bar with @agent autocomplete |
+| **Constellation** | Living SVG system map — CHANDRA breathing hub, inner ring (intelligence), outer ring (capabilities), node activity pulses, animated edge flow, always-visible status badges |
+| **Canvas** | Visual drag-and-drop workflow editor with 36 node types, 8 pre-built templates, per-node execution status |
+| **Library** | Unified content archive aggregating commerce runs, workflow runs, outlier saves, agent threads from 7 endpoints |
+
+**Detail Drawer** (slide-out 55% panel, accessible from any view):
+
+| Panel | Content |
+|-------|---------|
+| Dashboard | System overview, intelligence status, runtime cards, recent activity |
+| Intelligence | Interactive Heart, Dreamer, Ledger, Consciousness Proofs, Cognition, Memory Bridge |
+| Fleet | Agent cards + detail view + task sender + thread viewer |
+| Commerce | 4-pipeline launcher + run history |
+| Automations | Cron scheduler with error handling |
+| MCP Gateway | MCP server info + client connections |
+| Browser | Puppeteer headless + Chrome extension bridge |
+| Vertiso / RSI | Vector memory inspector + RSI evolution dashboard |
+| Outlier Board | YouTube research with outlier detection and scoring |
 
 ---
 
@@ -650,7 +679,7 @@ A ReactFlow-based drag-and-drop editor with **34 node types** and topological-so
 
 ## Workflow Definitions
 
-18 pre-built workflows ready to deploy:
+19 pre-built workflows ready to deploy:
 
 | Workflow | Trigger | Description |
 |----------|---------|-------------|
@@ -671,6 +700,7 @@ A ReactFlow-based drag-and-drop editor with **34 node types** and topological-so
 | StoreFixerPipeline | Manual | 5-agent store fixer |
 | **IntelligenceAnalysisPipeline** | **Manual** | **Heart → Cognition + Consciousness → Dream** |
 | **ConsciousnessCheckpoint** | **Manual** | **Heart → Consciousness verification** |
+| **IntelligentCommercePipeline** | **Manual** | **Commerce + intelligence hooks end-to-end** |
 | GoogleCalendarRealtimeSync | Webhook | Real-time calendar sync |
 
 ---
@@ -684,13 +714,14 @@ A ReactFlow-based drag-and-drop editor with **34 node types** and topological-so
 | Commerce Pipelines | 4 |
 | Intelligence Modules | 6 (Heart, Ledger, Dreamer, Cognition, Consciousness, Memory Bridge) |
 | Hermes Skills | 30 |
-| Workflow Definitions | 18 |
+| Workflow Definitions | 19 |
 | Canvas Node Types | 36 |
-| Entity Schemas | 39 |
+| Entity Schemas | 49 |
 | Fleet Tools | 13 (7 fleet + 6 intelligence) |
 | API Endpoints | 180+ |
 | Product Types (Apparel) | 24 |
-| Frontend Panels | 9 |
+| Frontend Views | 4 (Command Center, Constellation, Canvas, Library) |
+| Detail Panels | 9 |
 | FRAYMUS Tools | 42 |
 | MCP Gateway Tools | 18 |
 | Max Vertiso Memories | 10,000 |
@@ -703,7 +734,7 @@ A ReactFlow-based drag-and-drop editor with **34 node types** and topological-so
 | Server Files | 135+ |
 | Database Tables | 53+ |
 | Audit Layers Completed | 9 |
-| Ollama Models Available | 20+ |
+| Ollama Models Available | 39 |
 | Tailscale Peers | 6 |
 
 ---
