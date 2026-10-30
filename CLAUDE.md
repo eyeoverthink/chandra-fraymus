@@ -226,6 +226,10 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 
 ### Panels (client/src/panels/) — rendered inside Detail Drawer (continued)
 - `AgentChatPanel.jsx` — Conversational chat interface for any agent; agent picker grid → chat bubble view with polling (1.5s) for agent responses; optimistic message rendering, role-based bubble styling (user indigo right-aligned, agent purple left-aligned), auto-scroll, typing indicator; reuses POST /api/fleet/runs + GET /api/fleet/threads/:id; 16th Detail Drawer panel
+- `ActivityTimeline.jsx` — Unified chronological feed aggregating events from 12 DB tables (runs, workflow_runs, automation_runs, commerce_pipeline_runs, apparel_pipeline_runs, mystery_shopper_runs, store_fixer_runs, bus_messages, health_alerts, reflections, forged_agents, synthesized_workflows); 6 category filters (agent, workflow, commerce, bus, health, evolution); 5s auto-refresh polling; day-grouped timeline with color-coded dots and status badges; 17th Detail Drawer panel
+
+### Server Routes (continued)
+- `server/timeline.js` — `GET /api/timeline` aggregates events from 12 tables, normalizes timestamps (handles both INTEGER and TEXT formats), returns `{ events, categories, total }`; supports `?limit=N` and `?category=X` query params
 
 ### Nexus Views (client/src/nexus/)
 - `CommandCenter.jsx` — 14-widget grid with live metrics, Intelligence Stack status, Live Activity Stream (WebSocket-driven real-time event feed), integrated CommandBar; widgets open Detail Drawer or navigate to Canvas

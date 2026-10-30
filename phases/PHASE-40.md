@@ -3,7 +3,7 @@
 **Date:** 2026-10-30
 **Feature Count:** 52 (added `agent-chat-panel`)
 **Prev:** [Phase 39 — Keyboard Shortcuts & Quick Actions](./PHASE-39.md)
-**Next:** [Phase 41 — TBD](./PHASE-41.md)
+**Next:** [Phase 41 — Activity Timeline Panel](./PHASE-41.md)
 
 ---
 

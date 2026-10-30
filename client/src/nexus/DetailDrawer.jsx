@@ -16,6 +16,7 @@ import MediaPanel from '../panels/MediaPanel.jsx';
 import ForgePanel from '../panels/ForgePanel.jsx';
 import SettingsPanel from '../panels/SettingsPanel.jsx';
 import AgentChatPanel from '../panels/AgentChatPanel.jsx';
+import ActivityTimeline from '../panels/ActivityTimeline.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -34,6 +35,7 @@ const PANELS = {
   forge: { component: ForgePanel, label: 'Forge + Synthesis' },
   settings: { component: SettingsPanel, label: 'System Settings' },
   chat: { component: AgentChatPanel, label: 'Agent Chat' },
+  timeline: { component: ActivityTimeline, label: 'Activity Timeline' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {

@@ -7,6 +7,7 @@ const SHORTCUTS = [
   { key: '3', ctrl: false, action: 'view:canvas', label: 'Canvas' },
   { key: '4', ctrl: false, action: 'view:library', label: 'Library' },
   { key: '5', ctrl: false, action: 'chat', label: 'Agent Chat' },
+  { key: '6', ctrl: false, action: 'timeline', label: 'Activity Timeline' },
   { key: 'Escape', ctrl: false, action: 'close', label: 'Close drawer / search' },
   { key: '?', ctrl: false, action: 'help', label: 'Show shortcuts' },
 ];
@@ -44,6 +45,10 @@ export default function useKeyboardShortcuts({ onAction }) {
 
     if (e.key === '5' && !e.ctrlKey && !e.altKey && !e.metaKey) {
       onAction('chat');
+      return;
+    }
+    if (e.key === '6' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      onAction('timeline');
       return;
     }
   }, [onAction]);

@@ -31,6 +31,7 @@ export default function App() {
     if (action === 'search') { setSearchOpen(true); return; }
     if (action === 'close') { setDrawer(null); setShowHelp(false); setSearchOpen(false); return; }
     if (action === 'chat') { setDrawer({ panel: 'chat', title: 'Agent Chat' }); return; }
+    if (action === 'timeline') { setDrawer({ panel: 'timeline', title: 'Activity Timeline' }); return; }
     if (action.startsWith('view:')) {
       setView(action.slice(5));
       setDrawer(null);
@@ -87,6 +88,16 @@ export default function App() {
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
           >
             <span style={{ fontSize: 12 }}>◈</span> Chat
+          </button>
+          <button onClick={() => openDrawer('timeline', 'Activity Timeline')} style={{
+            background: 'none', border: '1px solid #333', borderRadius: 6,
+            color: '#666', fontSize: 13, padding: '4px 10px', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
+          }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#34d399'; e.currentTarget.style.color = '#34d399'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
+          >
+            <span style={{ fontSize: 12 }}>⏱</span> Timeline
           </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: '#555' }}>
