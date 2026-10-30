@@ -229,9 +229,12 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `SystemMetrics.jsx` — Operational metrics dashboard: 6 top stat cards (agent runs, success rate, workflows, bus messages, alerts, reflections), 2 evolution cards, 4 commerce cards, 7-day SVG sparkline, runs-by-status badges, top agents + bus topics horizontal bar charts; reusable StatCard, BarChart, MiniSparkline components; 18th Detail Drawer panel
 - `ActivityTimeline.jsx` — Unified chronological feed aggregating events from 12 DB tables (runs, workflow_runs, automation_runs, commerce_pipeline_runs, apparel_pipeline_runs, mystery_shopper_runs, store_fixer_runs, bus_messages, health_alerts, reflections, forged_agents, synthesized_workflows); 6 category filters (agent, workflow, commerce, bus, health, evolution); 5s auto-refresh polling; day-grouped timeline with color-coded dots and status badges; 17th Detail Drawer panel
 
+- `AgentProfiles.jsx` — Agent fleet profiles with enriched stats; list view (responsive grid, search filter, role-colored avatars, stat badges) → detail view (stat pills, success rate bar, tool chips, memory confidence, greeting); 19th Detail Drawer panel
+
 ### Server Routes (continued)
 - `server/metrics.js` — `GET /api/metrics` returns aggregate stats (overview totals, topAgents, topBusTopics, runsByStatus, 7-day recentActivity); queries 12+ tables with COUNT/GROUP BY
 - `server/timeline.js` — `GET /api/timeline` aggregates events from 12 tables, normalizes timestamps (handles both INTEGER and TEXT formats), returns `{ events, categories, total }`; supports `?limit=N` and `?category=X` query params
+- `server/agent-profiles.js` — `GET /api/agent-profiles` returns all agents enriched with run stats, bus activity, memory counts; `GET /api/agent-profiles/:id` for single agent; batch SQL to avoid N+1
 
 ### Nexus Views (client/src/nexus/)
 - `CommandCenter.jsx` — 14-widget grid with live metrics, Intelligence Stack status, Live Activity Stream (WebSocket-driven real-time event feed), integrated CommandBar; widgets open Detail Drawer or navigate to Canvas

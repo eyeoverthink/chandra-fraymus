@@ -48,6 +48,7 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 40 | Agent Chat Panel | — | 6 files | [PHASE-40.md](PHASE-40.md) |
 | 41 | Activity Timeline Panel | — | 6 files | [PHASE-41.md](PHASE-41.md) |
 | 42 | System Metrics Panel | — | 6 files | [PHASE-42.md](PHASE-42.md) |
+| 43 | Agent Profiles Panel | — | 6 files | [PHASE-43.md](PHASE-43.md) |
 
 ## Convention
 

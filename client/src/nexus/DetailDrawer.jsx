@@ -18,6 +18,7 @@ import SettingsPanel from '../panels/SettingsPanel.jsx';
 import AgentChatPanel from '../panels/AgentChatPanel.jsx';
 import ActivityTimeline from '../panels/ActivityTimeline.jsx';
 import SystemMetrics from '../panels/SystemMetrics.jsx';
+import AgentProfiles from '../panels/AgentProfiles.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -38,6 +39,7 @@ const PANELS = {
   chat: { component: AgentChatPanel, label: 'Agent Chat' },
   timeline: { component: ActivityTimeline, label: 'Activity Timeline' },
   metrics: { component: SystemMetrics, label: 'System Metrics' },
+  profiles: { component: AgentProfiles, label: 'Agent Profiles' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {

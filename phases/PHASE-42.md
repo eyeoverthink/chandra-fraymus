@@ -3,7 +3,7 @@
 **Date:** 2026-10-30
 **Feature Count:** 54 (added `system-metrics`)
 **Prev:** [Phase 41 — Activity Timeline Panel](./PHASE-41.md)
-**Next:** TBD
+**Next:** [Phase 43 — Agent Profiles Panel](./PHASE-43.md)
 
 ---
 
