@@ -232,12 +232,14 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `AgentProfiles.jsx` — Agent fleet profiles with enriched stats; list view (responsive grid, search filter, role-colored avatars, stat badges) → detail view (stat pills, success rate bar, tool chips, memory confidence, greeting); 19th Detail Drawer panel
 - `MemoryBrowser.jsx` — Agent memory browser: agent overview (total memories, agents list with counts) → per-agent detail view with search, category filter, expandable memory cards showing key/value/confidence/verified/access_count, verify + forget actions; uses existing fleet memory API; 20th Detail Drawer panel
 - `RunHistory.jsx` — Unified run history: aggregates 7 run tables into sortable/filterable timeline; list view with type chips (7 types: Agent/Workflow/Automation/Commerce/Apparel/Mystery/Fixer), status dots, relative timestamps → detail view with stat pills (type-specific: model, steps, duration, score, grade, products); 21st Detail Drawer panel
+- `EvolutionLog.jsx` — Autonomous intelligence log: aggregates reflections, verification loops, daemon cycles, forged agents, synthesized workflows; type-coded event cards, stat chips, verification step drill-down; 22nd Detail Drawer panel
 
 ### Server Routes (continued)
 - `server/metrics.js` — `GET /api/metrics` returns aggregate stats (overview totals, topAgents, topBusTopics, runsByStatus, 7-day recentActivity); queries 12+ tables with COUNT/GROUP BY
 - `server/timeline.js` — `GET /api/timeline` aggregates events from 12 tables, normalizes timestamps (handles both INTEGER and TEXT formats), returns `{ events, categories, total }`; supports `?limit=N` and `?category=X` query params
 - `server/agent-profiles.js` — `GET /api/agent-profiles` returns all agents enriched with run stats, bus activity, memory counts; `GET /api/agent-profiles/:id` for single agent; batch SQL to avoid N+1
 - `server/run-history.js` — `GET /api/run-history` aggregates 7 run tables (runs, workflow_runs, automation_runs, commerce/apparel/mystery-shopper/store-fixer pipeline runs) into unified `{id, type, status, label, detail, meta, timestamp}` shape; `?type=X&status=Y&limit=N&offset=M` filtering; `GET /api/run-history/stats` returns per-type counts
+- `server/evolution-log.js` — `GET /api/evolution-log` aggregates 5 autonomy tables (reflections, verification_loops, daemon_cycles, forged_agents, synthesized_workflows); `?type=X&limit=N` filtering; `GET /api/evolution-log/stats` returns counts + verification success rate + avg reflection duration; `GET /api/evolution-log/verification/:id/steps` returns step-by-step drill-down
 
 ### Nexus Views (client/src/nexus/)
 - `CommandCenter.jsx` — 14-widget grid with live metrics, Intelligence Stack status, Live Activity Stream (WebSocket-driven real-time event feed), integrated CommandBar; widgets open Detail Drawer or navigate to Canvas

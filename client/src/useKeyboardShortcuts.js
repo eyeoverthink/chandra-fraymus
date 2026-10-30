@@ -12,6 +12,7 @@ const SHORTCUTS = [
   { key: '8', ctrl: false, action: 'profiles', label: 'Agent Profiles' },
   { key: '9', ctrl: false, action: 'memory', label: 'Memory Browser' },
   { key: '0', ctrl: false, action: 'run-history', label: 'Run History' },
+  { key: 'e', ctrl: true, action: 'evolution', label: 'Evolution Log' },
   { key: 'Escape', ctrl: false, action: 'close', label: 'Close drawer / search' },
   { key: '?', ctrl: false, action: 'help', label: 'Show shortcuts' },
 ];
@@ -31,6 +32,12 @@ export default function useKeyboardShortcuts({ onAction }) {
     if (e.ctrlKey && e.key === 'k') {
       e.preventDefault();
       onAction('search');
+      return;
+    }
+
+    if (e.ctrlKey && e.key === 'e') {
+      e.preventDefault();
+      onAction('evolution');
       return;
     }
 
