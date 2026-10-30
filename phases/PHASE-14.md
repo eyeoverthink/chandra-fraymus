@@ -3,7 +3,7 @@
 **Commit:** `6aa2f8d`
 **Date:** 2026-10-30
 **Previous:** [Phase 13 — Backend Visibility Completion](PHASE-13.md)
-**Next:** Phase 15 (pending)
+**Next:** [Phase 15 — Chandra Nexus Unified Interface](PHASE-15.md)
 
 ## Summary
 

@@ -15,7 +15,7 @@ npm run start        # production server (serves built client)
 ## Architecture
 
 - **Server:** Node.js ESM, Express 4, better-sqlite3 (WAL mode), WebSocket broadcast
-- **Client:** Vite + React, 10 panels (incl. Intelligence + Commerce), useWebSocket hook for live updates
+- **Client:** Vite + React, 4-view Nexus interface (Command Center, Constellation, Canvas, Library) + Detail Drawer for 9 panels, useWebSocket hook for live updates
 - **LLM:** Ollama at localhost:11434 (configurable via OLLAMA_BASE_URL)
 - **DB:** SQLite at `data/chandra.db`, migrations in `server/db-migrate.js`
 - **Auth:** Bearer tokens via `server/mcp/auth.js`, loopback-only binding
@@ -123,19 +123,28 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `audio.js` — audio/WAV transcription
 - `artifacts.js` — artifact management
 
-## Client Panels (client/src/)
+## Client — Nexus Interface (client/src/)
 
-- `App.jsx` — main layout, 10-tab nav, WebSocket distribution
+### Core
+- `App.jsx` — 4-view Nexus top nav (Command Center, Constellation, Canvas, Library) + Detail Drawer state, WebSocket distribution
 - `useWebSocket.js` — single WS connection, exponential backoff (1s→30s cap)
-- `DashboardPanel.jsx` — stats overview, intelligence status cards (mood/dreamer/ledger/cognition/memory-bridge/autonomy), runtime intelligence cards (per-type cognition insight counts), recent activity
+
+### Nexus Views (client/src/nexus/)
+- `CommandCenter.jsx` — 10-widget grid with live metrics, Intelligence Stack status, Recent Activity feed; widgets open Detail Drawer or navigate to Canvas
+- `ConstellationView.jsx` — interactive SVG node graph: CHANDRA hub + inner ring (intelligence) + outer ring (capabilities), 15 edge connections with hover highlighting, click-to-inspect via drawer
+- `LibraryView.jsx` — unified content archive aggregating commerce runs, workflow runs, outlier saves, agent threads from 7 endpoints; source filter tabs, search, expandable items
+- `DetailDrawer.jsx` — slide-out panel (55% width) rendering any of 9 panels contextually, with backdrop overlay and CSS animation
+
+### Panels (client/src/panels/) — rendered inside Detail Drawer
+- `DashboardPanel.jsx` — stats overview, intelligence status cards, runtime intelligence cards, recent activity
 - `IntelligencePanel.jsx` — interactive Heart, Dreamer, Ledger, Consciousness Proofs, Cognition, Memory Bridge recall controls
-- `WorkflowCanvas.jsx` — ReactFlow visual workflow builder, 36 node types, 8 pre-built template picker, per-node execution status visualization (reacts to workflow)
-- `FleetPanel.jsx` — agent cards + detail view + task sender + thread message viewer with runs/approvals (reacts to agents/agent/event)
-- `CommercePanel.jsx` — 4-pipeline launcher (Content-to-Commerce, Apparel, Mystery Shopper, Store Fixer) + run history with expandable details (reacts to commerce/event)
-- `AutomationsPanel.jsx` — cron scheduler UI with error handling (reacts to event)
+- `WorkflowCanvas.jsx` — ReactFlow visual workflow builder, 36 node types, 8 pre-built template picker, per-node execution status (also used as Canvas view directly)
+- `FleetPanel.jsx` — agent cards + detail view + task sender + thread message viewer with runs/approvals
+- `CommercePanel.jsx` — 4-pipeline launcher + run history with expandable details
+- `AutomationsPanel.jsx` — cron scheduler UI with error handling
 - `McpPanel.jsx` — MCP server info + client connections
 - `BrowserPanel.jsx` — headless browser control
-- `VertisoPanel.jsx` — memory stats, recall, RSI evolve/reflect/genome (reacts to memory/rsi/v3)
+- `VertisoPanel.jsx` — memory stats, recall, RSI evolve/reflect/genome
 - `OutlierPanel.jsx` — YouTube outlier research board
 
 ## Code Conventions
