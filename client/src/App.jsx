@@ -18,6 +18,64 @@ const VIEWS = [
   { id: 'library', label: 'Library', icon: '▤' },
 ];
 
+const NAV_BUTTONS = [
+  { panel: 'chat', title: 'Agent Chat', icon: '◈', label: 'Chat', color: '#a78bfa' },
+  { panel: 'timeline', title: 'Activity Timeline', icon: '⏱', label: 'Timeline', color: '#34d399' },
+  { panel: 'metrics', title: 'System Metrics', icon: '◉', label: 'Metrics', color: '#60a5fa' },
+  { panel: 'profiles', title: 'Agent Profiles', icon: '⊕', label: 'Profiles', color: '#f59e0b' },
+  { panel: 'memory', title: 'Memory Browser', icon: '⧉', label: 'Memory', color: '#10b981' },
+  { panel: 'run-history', title: 'Run History', icon: '▶', label: 'Runs', color: '#f87171' },
+  { panel: 'evolution', title: 'Evolution Log', icon: '◎', label: 'Evo', color: '#a78bfa' },
+  { panel: 'pulse', title: 'System Pulse', icon: '♥', label: 'Pulse', color: '#34d399' },
+  { panel: 'leaderboard', title: 'Agent Leaderboard', icon: '★', label: 'Board', color: '#f59e0b' },
+  { panel: 'collab', title: 'Agent Collaboration', icon: '⊗', label: 'Collab', color: '#7c3aed' },
+];
+
+function NavButton({ btn, openDrawer }) {
+  return (
+    <button onClick={() => openDrawer(btn.panel, btn.title)} className="nav-btn" style={{
+      background: 'none', border: '1px solid #333', borderRadius: 6,
+      color: '#666', fontSize: 13, padding: '4px 10px', cursor: 'pointer',
+      display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
+      whiteSpace: 'nowrap',
+    }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = btn.color; e.currentTarget.style.color = btn.color; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
+    >
+      <span style={{ fontSize: 12 }}>{btn.icon}</span>
+      <span className="nav-btn-label">{btn.label}</span>
+    </button>
+  );
+}
+
+const RESPONSIVE_CSS = `
+  @media (max-width: 1024px) {
+    .nav-btn-label { display: none !important; }
+    .nav-btn { padding: 4px 8px !important; min-width: 32px; justify-content: center; }
+    .view-label { display: none !important; }
+    .nav-panels { gap: 4px !important; flex-wrap: wrap !important; }
+    .chandra-title { margin-right: 12px !important; }
+  }
+  @media (max-width: 768px) {
+    .chandra-nav { height: auto !important; padding: 8px 12px !important; flex-wrap: wrap !important; gap: 8px !important; }
+    .chandra-title { margin-right: 8px !important; }
+    .chandra-title h1 { font-size: 14px !important; }
+    .nav-views { gap: 1px !important; }
+    .nav-views button { padding: 6px 10px !important; font-size: 12px !important; }
+    .nav-panels { order: 3; width: 100%; overflow-x: auto; padding: 4px 0; -webkit-overflow-scrolling: touch; }
+    .nav-panels::-webkit-scrollbar { height: 3px; }
+    .nav-panels::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+    .nav-status { order: 2; }
+    .detail-drawer { width: 100% !important; min-width: 0 !important; max-width: 100% !important; }
+  }
+  @media (max-width: 480px) {
+    .chandra-nav { padding: 6px 8px !important; }
+    .nav-views button { padding: 4px 6px !important; font-size: 11px !important; }
+    .nav-btn { padding: 3px 6px !important; font-size: 11px !important; }
+    .nav-btn span:first-child { font-size: 10px !important; }
+  }
+`;
+
 export default function App() {
   const [view, setView] = useState('command');
   const [health, setHealth] = useState(null);
@@ -57,19 +115,20 @@ export default function App() {
 
   return (
     <ToastProvider wsEvent={wsEvent}>
+    <style dangerouslySetInnerHTML={{ __html: RESPONSIVE_CSS }} />
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <nav style={{
+      <nav className="chandra-nav" style={{
         display: 'flex', alignItems: 'center', height: 52, padding: '0 20px',
         background: '#111118', borderBottom: '1px solid #222', flexShrink: 0, gap: 4,
       }}>
-        <div style={{
-          display: 'flex', alignItems: 'baseline', gap: 8, marginRight: 32,
+        <div className="chandra-title" style={{
+          display: 'flex', alignItems: 'baseline', gap: 8, marginRight: 32, flexShrink: 0,
         }}>
           <h1 style={{ fontSize: 16, fontWeight: 700, color: '#a78bfa', letterSpacing: 1, margin: 0 }}>CHANDRA</h1>
           <span style={{ fontSize: 10, color: '#555' }}>NEXUS</span>
         </div>
 
-        <div style={{ display: 'flex', gap: 2 }}>
+        <div className="nav-views" style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
           {VIEWS.map(v => (
             <button key={v.id} onClick={() => { setView(v.id); closeDrawer(); }} style={{
               display: 'flex', alignItems: 'center', gap: 6,
@@ -80,115 +139,16 @@ export default function App() {
               transition: 'all 0.15s',
             }}>
               <span style={{ fontSize: 14 }}>{v.icon}</span>
-              {v.label}
+              <span className="view-label">{v.label}</span>
             </button>
           ))}
         </div>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#555' }}>
+        <div className="nav-panels" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           <GlobalSearch onOpenDrawer={openDrawer} onNavigate={setView} externalOpen={searchOpen} onExternalClose={() => setSearchOpen(false)} />
-          <button onClick={() => openDrawer('chat', 'Agent Chat')} style={{
-            background: 'none', border: '1px solid #333', borderRadius: 6,
-            color: '#666', fontSize: 13, padding: '4px 10px', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
-          }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#a78bfa'; e.currentTarget.style.color = '#a78bfa'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
-          >
-            <span style={{ fontSize: 12 }}>◈</span> Chat
-          </button>
-          <button onClick={() => openDrawer('timeline', 'Activity Timeline')} style={{
-            background: 'none', border: '1px solid #333', borderRadius: 6,
-            color: '#666', fontSize: 13, padding: '4px 10px', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
-          }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#34d399'; e.currentTarget.style.color = '#34d399'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
-          >
-            <span style={{ fontSize: 12 }}>⏱</span> Timeline
-          </button>
-          <button onClick={() => openDrawer('metrics', 'System Metrics')} style={{
-            background: 'none', border: '1px solid #333', borderRadius: 6,
-            color: '#666', fontSize: 13, padding: '4px 10px', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
-          }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#60a5fa'; e.currentTarget.style.color = '#60a5fa'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
-          >
-            <span style={{ fontSize: 12 }}>◉</span> Metrics
-          </button>
-          <button onClick={() => openDrawer('profiles', 'Agent Profiles')} style={{
-            background: 'none', border: '1px solid #333', borderRadius: 6,
-            color: '#666', fontSize: 13, padding: '4px 10px', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
-          }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#f59e0b'; e.currentTarget.style.color = '#f59e0b'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
-          >
-            <span style={{ fontSize: 12 }}>⊕</span> Profiles
-          </button>
-          <button onClick={() => openDrawer('memory', 'Memory Browser')} style={{
-            background: 'none', border: '1px solid #333', borderRadius: 6,
-            color: '#666', fontSize: 13, padding: '4px 10px', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
-          }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#10b981'; e.currentTarget.style.color = '#10b981'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
-          >
-            <span style={{ fontSize: 12 }}>⧉</span> Memory
-          </button>
-          <button onClick={() => openDrawer('run-history', 'Run History')} style={{
-            background: 'none', border: '1px solid #333', borderRadius: 6,
-            color: '#666', fontSize: 13, padding: '4px 10px', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
-          }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#f87171'; e.currentTarget.style.color = '#f87171'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
-          >
-            <span style={{ fontSize: 12 }}>▶</span> Runs
-          </button>
-          <button onClick={() => openDrawer('evolution', 'Evolution Log')} style={{
-            background: 'none', border: '1px solid #333', borderRadius: 6,
-            color: '#666', fontSize: 13, padding: '4px 10px', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
-          }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#a78bfa'; e.currentTarget.style.color = '#a78bfa'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
-          >
-            <span style={{ fontSize: 12 }}>◎</span> Evo
-          </button>
-          <button onClick={() => openDrawer('pulse', 'System Pulse')} style={{
-            background: 'none', border: '1px solid #333', borderRadius: 6,
-            color: '#666', fontSize: 13, padding: '4px 10px', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
-          }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#34d399'; e.currentTarget.style.color = '#34d399'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
-          >
-            <span style={{ fontSize: 12 }}>♥</span> Pulse
-          </button>
-          <button onClick={() => openDrawer('leaderboard', 'Agent Leaderboard')} style={{
-            background: 'none', border: '1px solid #333', borderRadius: 6,
-            color: '#666', fontSize: 13, padding: '4px 10px', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
-          }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#f59e0b'; e.currentTarget.style.color = '#f59e0b'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
-          >
-            <span style={{ fontSize: 12 }}>★</span> Board
-          </button>
-          <button onClick={() => openDrawer('collab', 'Agent Collaboration')} style={{
-            background: 'none', border: '1px solid #333', borderRadius: 6,
-            color: '#666', fontSize: 13, padding: '4px 10px', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
-          }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#7c3aed'; e.currentTarget.style.color = '#7c3aed'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
-          >
-            <span style={{ fontSize: 12 }}>⊗</span> Collab
-          </button>
+          {NAV_BUTTONS.map(btn => <NavButton key={btn.panel} btn={btn} openDrawer={openDrawer} />)}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: '#555' }}>
+        <div className="nav-status" style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: '#555', flexShrink: 0 }}>
           {wsStatus !== 'connected' && (
             <span style={{
               display: 'flex', alignItems: 'center', gap: 4,

@@ -62,7 +62,7 @@ export default function DetailDrawer({ panel, title, onClose, wsEvent, health })
   if (cfg.needsHealth) props.health = health;
 
   return (
-    <div style={{
+    <div className="detail-drawer" style={{
       position: 'fixed', top: 0, right: 0, bottom: 0,
       width: '55%', minWidth: 480, maxWidth: 900,
       background: '#0a0a0f', borderLeft: '1px solid #222',
