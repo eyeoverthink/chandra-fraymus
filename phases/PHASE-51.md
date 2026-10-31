@@ -68,6 +68,40 @@ Chose pure CSS media queries over a React `useMediaQuery` hook or `window.innerW
 3. **Zero dependencies** — no resize observer polyfills or third-party hooks needed
 4. **Future-proof** — works with any component regardless of rendering strategy
 
+## Content Tests (Post-Phase 51)
+
+End-to-end content verification run across all live subsystems on 2026-10-30.
+
+### API-Level Tests
+| Subsystem | Endpoint | Result |
+|-----------|----------|--------|
+| Health | `GET /api/health` | 61 features, all subsystems online |
+| Fleet Agents | `GET /api/fleet/agents` | 21 agents (17 manifest + 4 forged) |
+| Agent Run | `POST /api/fleet/runs` (Genesis) | Completed, Ollama response stored in messages table |
+| Collab Debate | `POST /api/fleet/collab/sessions` | 3-agent debate (proponent→opponent→judge) completed |
+| Bus Pub/Sub | `POST /api/fleet/bus/publish` | Published to `system.test`, 22 total bus messages |
+| Agent Memory | `GET /api/fleet/agents/:id/memories` | 12 memories across 6 agents, auto-stored from runs |
+| Evolution Log | `GET /api/evolution-log` | 5 events (reflections, daemon cycles, forged agents) |
+| Global Search | `GET /api/search?q=Genesis` | 19 results across 8 tables |
+| Timeline | `GET /api/timeline` | Real activity data from 12 aggregated tables |
+| Metrics | `GET /api/metrics` | 7+ agent runs, 5 workflows, 22 bus messages, 7 reflections |
+
+### Browser-Level Tests
+| View/Panel | Content Verified |
+|------------|-----------------|
+| Command Center | 14-widget grid with live metrics, Intelligence Stack online |
+| Constellation | SVG constellation with CHANDRA hub, inner/outer rings, edge connections |
+| Activity Timeline | Day-grouped timeline with color-coded dots from real events |
+| System Metrics | 6 stat cards with real data, sparklines, bar charts |
+| Collab Panel | Created debate, viewed history, drilled into debate detail |
+| Canvas | Workflow builder with categorized node palette (35 nodes, 6 categories) |
+| Agent Profiles | 21 agent cards with roles, stats, and avatar colors |
+
+### System Counts (Verified)
+- **Features:** 61, **Agents:** 21, **Panels:** 25, **Shortcuts:** 17
+- **DB Tables:** 67, **Agent Memories:** 12, **Bus Messages:** 22
+- **Runs:** 7+, **Reflections:** 7, **Workflows:** 5, **Collab Sessions:** 2
+
 ## Previous Phase
 [Phase 50: Workflow Canvas Polish](PHASE-50.md)
 
