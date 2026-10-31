@@ -117,6 +117,10 @@ npm run start        # production server (serves built client)
 - `encoding/wasm.js` — WASM encoding
 - `encoding/zip.js` — ZIP encoding
 - `encoding/forms.js` — encoding format registry (7 formats)
+- `encoding/codon.js` — Carbon X Layer 2: 64-codon engine (ATG/TAA framing, nibble-pair byte encoding, FNV-1a checksums)
+- `encoding/plasmid.js` — Carbon X Layer 3: circular DNA plasmid forge (ori, promoters, restriction sites, gene scanning, FASTA export)
+- `encoding/carbon.js` — Carbon X Layer 4: organism (genome/proteome/epigenome snapshots, checkpoint/restore as FASTA)
+- `carbon-routes.js` — Carbon X REST API (11 endpoints: encode, decode, stats, forge, digest, fasta, restrict, checkpoint, restore, list, status)
 - `protocol/v13.js` — V13 signed mesh protocol
 - `protocol/hub.js` — relay hub (with 15s fetch timeout)
 - `protocol/mesh.js` — peer mesh networking

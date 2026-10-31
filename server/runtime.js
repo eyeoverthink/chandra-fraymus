@@ -61,6 +61,7 @@ import { installTTSRoutes } from './media/tts-routes.js';
 import { installSTTRoutes } from './media/stt-routes.js';
 import { installOCRRoutes } from './media/ocr-routes.js';
 import editRebuildRouter from './media/edit-rebuild-routes.js';
+import { installCarbonRoutes } from './fraymus/carbon-routes.js';
 import { installSettingsRoutes } from './settings.js';
 import { installSearchRoutes } from './search.js';
 import timelineRouter from './timeline.js';
@@ -161,6 +162,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installSTTRoutes(app);
   installOCRRoutes(app);
   app.use('/api/media/edit-rebuild', editRebuildRouter);
+  installCarbonRoutes(app, { dataDir: DATA_DIR, broadcast, db });
   installSettingsRoutes(app, db);
   installSearchRoutes(app, { db });
   app.use(timelineRouter);
