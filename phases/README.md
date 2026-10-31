@@ -54,6 +54,7 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 46 | Evolution Log Panel | — | 6 files | [PHASE-46.md](PHASE-46.md) |
 | 47 | System Pulse Panel | — | 6 files | [PHASE-47.md](PHASE-47.md) |
 | 48 | Agent Leaderboard Panel | — | 6 files | [PHASE-48.md](PHASE-48.md) |
+| 49 | Agent Collaboration Protocol | — | 7 files | [PHASE-49.md](PHASE-49.md) |
 
 ## Convention
 

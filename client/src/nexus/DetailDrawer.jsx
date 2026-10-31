@@ -24,6 +24,7 @@ import RunHistory from '../panels/RunHistory.jsx';
 import EvolutionLog from '../panels/EvolutionLog.jsx';
 import SystemPulse from '../panels/SystemPulse.jsx';
 import LeaderboardPanel from '../panels/LeaderboardPanel.jsx';
+import CollabPanel from '../panels/CollabPanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -50,6 +51,7 @@ const PANELS = {
   evolution: { component: EvolutionLog, label: 'Evolution Log' },
   pulse: { component: SystemPulse, label: 'System Pulse' },
   leaderboard: { component: LeaderboardPanel, label: 'Agent Leaderboard' },
+  collab: { component: CollabPanel, label: 'Agent Collaboration' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {
