@@ -381,4 +381,36 @@ export class OuroborosEngine {
       .sort((a, b) => b.decay - a.decay)
       .slice(0, limit);
   }
+
+  fitness() {
+    return {
+      generation: this.generation,
+      genomeFitness: this._evaluateFitness(this.genome),
+      genomeSize: Object.keys(this.genome).length,
+      memoryDepth: this.memoryOrbital.length,
+    };
+  }
+
+  async evolve({ populationSize = 8, mutationRate = 0.15 } = {}) {
+    const candidates = [];
+    for (let i = 0; i < populationSize; i++) {
+      const mutated = mutateGenome(this.genome, mutationRate);
+      candidates.push({ genome: mutated, fitness: this._evaluateFitness(mutated) });
+    }
+    candidates.sort((a, b) => b.fitness - a.fitness);
+    const best = candidates[0];
+    const currentFitness = this._evaluateFitness(this.genome);
+    if (best.fitness > currentFitness) {
+      this.genome = best.genome;
+    }
+    this.generation++;
+    return {
+      generation: this.generation,
+      previousFitness: currentFitness,
+      bestCandidateFitness: best.fitness,
+      improved: best.fitness > currentFitness,
+      populationSize,
+      mutationRate,
+    };
+  }
 }

@@ -121,6 +121,42 @@ End-to-end content verification run across all live subsystems on 2026-10-30.
 - **Runs:** 7+, **Reflections:** 7, **Workflows:** 5, **Collab Sessions:** 2
 - **Media Engines:** 5 (Sharp, ffmpeg 9.0.1, edge-tts, SAPI TTS/STT, Windows Media OCR)
 
+### Gap Analysis (Post-Phase 51)
+
+Full systematic audit of all 61 registered features against live API endpoints on 2026-10-30.
+
+#### Summary
+| Category | Count | Notes |
+|----------|-------|-------|
+| Verified working | 46 | All core subsystems operational |
+| Bugs found & fixed | 3 | Identity field mismatch + missing public methods |
+| External dependency | 7 | Need running service (ComfyUI, Ollama models, voice, etc.) |
+| Internal-only | 3 | Runtime plumbing, no standalone test route |
+| Registered but not standalone | 2 | approved-tools, document-reader |
+
+#### Bugs Found & Fixed
+| Bug | Location | Root Cause | Fix |
+|-----|----------|-----------|-----|
+| Identity field mismatch | `server/autonomy.js` (5 refs) | `generateIdentity()` returns `{ pubkey, priv }` but code used `identity.publicKey` / `identity.privateKey` | Changed to `identity.pubkey` (4 refs) and `signText(identity, ...)` (1 ref) |
+| Missing `fitness()` method | `server/fraymus/intelligence/ouroboros.js` | `OuroborosEngine` had `_evaluateFitness()` (private) but no public `fitness()` | Added `fitness()` returning generation + genome fitness + stats |
+| Missing `evolve()` method | `server/fraymus/intelligence/ouroboros.js` | `runCycle()` existed but `evolve()` (called by fraymus-tools) did not | Added `evolve()` with population-based selection using existing `mutateGenome` |
+
+#### External Dependencies (Not Bugs)
+| Feature | Dependency | Status |
+|---------|-----------|--------|
+| comfyui-bridge | ComfyUI/FLUX.1 server running locally | Bridge code exists, returns "fetch failed" without server |
+| local-vision-helper | Ollama vision model (llava) | Works when model loaded |
+| voice-proxy | Voice service at port 9099 | Route wired, service not running |
+| puppeteer-headless-browser | Chromium installed | Available but idle |
+| chrome-extension-bridge | Chrome extension running | Needs extension |
+| mcp-client-bridge | External MCP servers | No servers configured |
+| commerce pipelines (4) | Shopify/Printify API credentials | Routes work, API calls need live store |
+
+#### Affected Routes (Pre-Fix)
+- `GET /api/fraymus/autonomy/identity` — crashed on `identity.publicKey` (undefined)
+- `GET /api/fraymus/intelligence/overview` — crashed on `assessFull()` → `identity.publicKey` then `ouroboros.fitness()`
+- `ouroboros.evolve` tool — called missing method on OuroborosEngine
+
 ## Previous Phase
 [Phase 50: Workflow Canvas Polish](PHASE-50.md)
 

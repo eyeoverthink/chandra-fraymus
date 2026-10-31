@@ -32,7 +32,7 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, memoryBridge
   async function ensureIdentity() {
     if (!identity) {
       identity = await generateIdentity();
-      const num = await numberFromPub(identity.publicKey);
+      const num = await numberFromPub(identity.pubkey);
       log('identity', `Ed25519 identity established · agent #${num}`);
     }
     return identity;
@@ -149,7 +149,7 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, memoryBridge
         mood: mood.mood, dreamCount: dreamerState.dreamCount,
       }, 'autonomy');
 
-      const signed = await signText(identity.privateKey, `pulse:${Date.now()}:R=${sync.R.toFixed(4)}`);
+      const signed = await signText(identity, `pulse:${Date.now()}:R=${sync.R.toFixed(4)}`);
       broadcast?.('autonomy', {
         type: 'pulse',
         ts: Date.now(),
@@ -201,8 +201,8 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, memoryBridge
 
     async identity() {
       const id = await ensureIdentity();
-      const num = await numberFromPub(id.publicKey);
-      return { publicKey: id.publicKey, agentNumber: num };
+      const num = await numberFromPub(id.pubkey);
+      return { publicKey: id.pubkey, agentNumber: num };
     },
 
     status() {
@@ -230,7 +230,7 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, memoryBridge
 
     async assessFull() {
       const id = await ensureIdentity();
-      const num = await numberFromPub(id.publicKey);
+      const num = await numberFromPub(id.pubkey);
       const fitness = ouroboros.fitness();
       const skills = hermes.listSkills();
       const compute = motor.status();
