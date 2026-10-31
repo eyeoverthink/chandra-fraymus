@@ -142,10 +142,17 @@ export function installImageRoutes(app) {
   app.post('/api/media/comfyui/generate', route(async (req, res) => {
     const { prompt, width, height, steps, cfg, seed } = req.body;
     if (!prompt) return res.status(400).json({ error: 'prompt required' });
+    const check = await comfyuiStatus();
+    if (!check.available) {
+      return res.status(503).json({
+        error: 'ComfyUI is not running — start it with FLUX.1 model at ' + (process.env.COMFYUI_URL || 'http://127.0.0.1:8188'),
+        available: false,
+      });
+    }
     try {
       res.json(await comfyuiGenerate(prompt, { width, height, steps, cfg, seed }));
     } catch (e) {
-      res.status(502).json({ error: `ComfyUI unavailable: ${e.message}` });
+      res.status(502).json({ error: `ComfyUI error: ${e.message}` });
     }
   }));
 

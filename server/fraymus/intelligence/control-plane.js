@@ -47,4 +47,14 @@ export class ControlPlane {
     const online = this.listAgents('online');
     return online.map((a) => ({ name: a.name, number: a.number, delivered: true }));
   }
+
+  status() {
+    const all = [...this.registry.values()];
+    return {
+      totalAgents: all.length,
+      online: all.filter(a => a.status === 'online').length,
+      enrolled: all.filter(a => a.enrolled).length,
+      offline: all.filter(a => a.status === 'offline').length,
+    };
+  }
 }

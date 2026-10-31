@@ -65,8 +65,8 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, memoryBridge
     log('evolve', `Gen ${generation} · fitness=${fitness.score.toFixed(4)} · ${improved ? 'IMPROVED' : 'stable'}${priorInsights.length ? ` · ${priorInsights.length} prior memories consulted` : ''}`);
 
     if (improved) {
-      const skills = hermes.selectOptimal(fitness);
-      log('adapt', `Hermes selected ${skills?.length || 0} optimal skills for gen ${generation}`);
+      const skills = hermes.listSkills();
+      log('adapt', `Hermes has ${skills?.length || 0} skills available for gen ${generation}`);
     }
 
     // Run consciousness proofs each evolution cycle and log to ledger
@@ -234,7 +234,7 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, memoryBridge
       const fitness = ouroboros.fitness();
       const skills = hermes.listSkills();
       const compute = motor.status();
-      const gateway = openclaw.listActions();
+      const gateway = openclaw.status();
       const plane = controlPlane.status();
       const sync = synchronizePhases();
 
@@ -249,9 +249,9 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, memoryBridge
         phaseSync: { R: sync.R, locked: sync.locked, agentCount: AGENTS.length },
         intelligence: {
           ouroboros: fitness,
-          hermes: { skills: skills.total || 30 },
+          hermes: { skills: skills.length || 30 },
           motor: compute,
-          openclaw: { actions: gateway.count || 23 },
+          openclaw: { actions: gateway.implemented || 23 },
           heart: { mood: mood.mood, readings: mood.readings },
           dreamer: { state: dreamerState.state, dreamCount: dreamerState.dreamCount, score: dreamerState.score },
           ledger: { valid: ledgerIntegrity.valid, checked: ledgerIntegrity.checked },

@@ -383,15 +383,16 @@ export class OuroborosEngine {
   }
 
   fitness() {
+    const score = this._evaluateFitness(this.genome);
     return {
       generation: this.generation,
-      genomeFitness: this._evaluateFitness(this.genome),
+      score,
       genomeSize: Object.keys(this.genome).length,
       memoryDepth: this.memoryOrbital.length,
     };
   }
 
-  async evolve({ populationSize = 8, mutationRate = 0.15 } = {}) {
+  evolve({ populationSize = 8, mutationRate = 0.15 } = {}) {
     const candidates = [];
     for (let i = 0; i < populationSize; i++) {
       const mutated = mutateGenome(this.genome, mutationRate);
