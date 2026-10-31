@@ -55,6 +55,7 @@ Each phase has its own README documenting exactly what was built, which files ch
 | 47 | System Pulse Panel | — | 6 files | [PHASE-47.md](PHASE-47.md) |
 | 48 | Agent Leaderboard Panel | — | 6 files | [PHASE-48.md](PHASE-48.md) |
 | 49 | Agent Collaboration Protocol | — | 7 files | [PHASE-49.md](PHASE-49.md) |
+| 50 | Workflow Canvas Polish | — | 1 file | [PHASE-50.md](PHASE-50.md) |
 
 ## Convention
 
