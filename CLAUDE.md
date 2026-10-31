@@ -180,6 +180,10 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `video-engine.js` — ffmpeg-based video processing (info, thumbnail, trim, resize, convert, extract-audio, gif, concat, overlay-text, frames) via child process spawning
 - `video-routes.js` — 13 REST endpoints for video operations with multer file uploads (100MB limit), serves `/video/:file` static videos
 
+### Edit Rebuild Pipeline (server/media/) — Free Katana Alternative
+- `edit-rebuild.js` — 5-stage DAG pipeline engine: Scene Detect (ffmpeg) → Shot Plan (Ollama) → Product Place (ComfyUI/FLUX.1) → Animate (Wan/CogVideo or Ken Burns) → Concat (ffmpeg). Each stage standalone, graceful degradation at every level.
+- `edit-rebuild-routes.js` — 5 REST endpoints: full pipeline, status, list, detect-only, plan-only. Mounted at `/api/media/edit-rebuild`
+
 ### TTS Speech Engine (server/media/)
 - `tts-engine.js` — Multi-engine TTS with fallback chain: Piper (offline neural) → edge-tts (Microsoft neural, 400+ voices) → SAPI (Windows built-in, always available). Cascade catches runtime failures (e.g., edge-tts 403) and falls through.
 - `tts-routes.js` — 5 REST endpoints: speak, voices, status, outputs, file serving

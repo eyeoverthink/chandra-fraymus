@@ -206,6 +206,27 @@ export const WORKFLOWS = {
     ],
   },
 
+  // ═══ Edit Rebuild Pipeline (Free Katana) ═══
+  EditRebuildPipeline: {
+    trigger: { source: 'manual', event: 'run' },
+    function: 'editRebuildPipeline',
+    action: 'full_pipeline',
+    description: 'Scene Detect → Shot Plan → Product Place → Animate → Concat: 5-stage video edit rebuild (free Katana alternative)',
+    canvas_nodes: [
+      { id: 'er1', type: 'scene_detect', position: { x: 100, y: 200 }, data: { type: 'scene_detect', prompt: 'Detect scene cuts via ffmpeg' } },
+      { id: 'er2', type: 'shot_plan', position: { x: 350, y: 200 }, data: { type: 'shot_plan', prompt: 'Generate per-shot prompts via Ollama' } },
+      { id: 'er3', type: 'product_place', position: { x: 600, y: 200 }, data: { type: 'product_place', prompt: 'Place product via ComfyUI/FLUX.1' } },
+      { id: 'er4', type: 'animate', position: { x: 850, y: 200 }, data: { type: 'animate', prompt: 'Animate frames (Wan/CogVideo or Ken Burns)' } },
+      { id: 'er5', type: 'concat', position: { x: 1100, y: 200 }, data: { type: 'concat', prompt: 'Stitch clips via ffmpeg' } },
+    ],
+    canvas_edges: [
+      { id: 'ere1', source: 'er1', target: 'er2' },
+      { id: 'ere2', source: 'er2', target: 'er3' },
+      { id: 'ere3', source: 'er3', target: 'er4' },
+      { id: 'ere4', source: 'er4', target: 'er5' },
+    ],
+  },
+
   // ═══ External Integration ═══
   GoogleCalendarRealtimeSync: {
     trigger: { source: 'google_calendar', event: 'webhook' },
