@@ -97,10 +97,29 @@ End-to-end content verification run across all live subsystems on 2026-10-30.
 | Canvas | Workflow builder with categorized node palette (35 nodes, 6 categories) |
 | Agent Profiles | 21 agent cards with roles, stats, and avatar colors |
 
+### Media Pipeline Tests (Free/Offline)
+| Engine | Test | Result |
+|--------|------|--------|
+| Sharp (Images) | `POST /api/media/create` 400x300 PNG | 3,145 bytes, text rendered |
+| Sharp (Images) | `POST /api/media/create` 640x360 PNG | 5,194 bytes, "FRAYMUS OS" |
+| ffmpeg (Video) | Image → 3s MP4 (libx264, 24fps) | 3,997 bytes, H.264 640x360 |
+| ffmpeg (Video) | `POST /api/video/info` | Duration, codec, resolution, bitrate |
+| ffmpeg (Video) | `POST /api/video/thumbnail` | 1,502 bytes PNG at 00:00:01 |
+| ffmpeg (Video) | `POST /api/video/gif` (320px, 10fps) | 1,737 bytes GIF |
+| ffmpeg (Video) | `POST /api/video/resize` (320x180) | 3,526 bytes resized MP4 |
+| ffmpeg (Video) | `POST /api/video/overlay-text` "Sovereign AI" | 5,185 bytes with text burn |
+| TTS (SAPI) | `POST /api/tts/speak` offline | 268,108 bytes WAV (~5s) |
+| TTS (edge-tts) | `POST /api/tts/speak` AriaNeural | 48,096 bytes MP3 (~5s) |
+| STT (SAPI) | `POST /api/stt/transcribe` (WAV→text) | 69% confidence, text recovered |
+| OCR (WinMedia) | `POST /api/ocr/recognize` (PNG) | Engine available, result stored |
+
+**Media output totals:** 9 images, 14 TTS files, 6+ video files, 6 OCR results
+
 ### System Counts (Verified)
 - **Features:** 61, **Agents:** 21, **Panels:** 25, **Shortcuts:** 17
 - **DB Tables:** 67, **Agent Memories:** 12, **Bus Messages:** 22
 - **Runs:** 7+, **Reflections:** 7, **Workflows:** 5, **Collab Sessions:** 2
+- **Media Engines:** 5 (Sharp, ffmpeg 9.0.1, edge-tts, SAPI TTS/STT, Windows Media OCR)
 
 ## Previous Phase
 [Phase 50: Workflow Canvas Polish](PHASE-50.md)
