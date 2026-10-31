@@ -12,10 +12,10 @@
 <p align="center">
   <img src="https://img.shields.io/badge/node-%3E%3D22.13.0-brightgreen" alt="Node" />
   <img src="https://img.shields.io/badge/runtime-Ollama-blueviolet" alt="Ollama" />
-  <img src="https://img.shields.io/badge/agents-17-orange" alt="Agents" />
+  <img src="https://img.shields.io/badge/agents-22-orange" alt="Agents" />
   <img src="https://img.shields.io/badge/skills-30-blue" alt="Skills" />
   <img src="https://img.shields.io/badge/commerce%20pipelines-4-red" alt="Pipelines" />
-  <img src="https://img.shields.io/badge/intelligence%20modules-6-ff69b4" alt="Intelligence" />
+  <img src="https://img.shields.io/badge/intelligence%20modules-8-ff69b4" alt="Intelligence" />
   <img src="https://img.shields.io/badge/license-private-lightgrey" alt="License" />
 </p>
 
@@ -43,8 +43,8 @@ No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your mode
    ║                    CHANDRA-FRAYMUS v2.0.0                       ║
    ║         Autonomous AI Commerce & Intelligence Platform          ║
    ║                                                                  ║
-   ║   17 Agents · 4 Commerce Pipelines · 6 Intelligence Modules     ║
-   ║   36 Workflow Nodes · 19 Workflow Definitions · 22 Fleet Tools   ║
+   ║   22 Agents · 4 Commerce Pipelines · 8 Intelligence Modules     ║
+   ║   36 Workflow Nodes · 20 Workflow Definitions · 22 Fleet Tools   ║
    ║   39 Entity Schemas · Vertiso Vector Memory · Memory Bridge      ║
    ║   Kuramoto Phase Sync · Ouroboros RSI · Ed25519 Identity         ║
    ║                                                                  ║
@@ -68,10 +68,16 @@ No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your mode
   <img src="docs/screenshots/canvas.jpg" alt="Workflow Canvas" width="48%" />
   <img src="docs/screenshots/library.jpg" alt="Library" width="48%" />
 </p>
+<p align="center">
+  <img src="docs/screenshots/05-intelligence-stack.jpg" alt="Intelligence Stack" width="48%" />
+  <img src="docs/screenshots/06-system-metrics.jpg" alt="System Metrics" width="48%" />
+</p>
+
+> **Full system audit:** [docs/SYSTEM-AUDIT.md](docs/SYSTEM-AUDIT.md) — live endpoint data, 62-feature inventory, security summary, architecture diagram
 
 ---
 
-## What's New — Phases 1–18
+## What's New — Phases 1–53
 
 The intelligence stack was merged from two proprietary repos (`fraynix-continuity` and `fraynix-dreamer-120b`) and deeply integrated across every surface of the system:
 
@@ -101,6 +107,12 @@ The intelligence stack was merged from two proprietary repos (`fraynix-continuit
 | **22** | Agent Live Bus — real-time pub/sub message bus for agent-to-agent communication, topic subscriptions, direct messaging, persistent SQLite history, Bus Dashboard panel (11th panel) |
 | **23** | Event-Driven Orchestration + Agent Persistent Memory + System Health Monitor — bus triggers auto-fire workflows, per-agent knowledge store with verified/unverified pattern and auto-store on completion (3 new agent tools, 19 total), real-time health polling with auto-alerts via bus, Health Dashboard panel (12th panel, 15 new API endpoints) |
 | **24** | Agent Self-Evolution Engine — Agent Forge (LLM generates new agent manifests on demand, 3 API endpoints), Workflow Synthesis (LLM composes DAG workflows from 36 node types, 2 API endpoints), Reflection Loop (scheduled self-analysis reads memories/runs/health/bus, takes up to 5 actions per cycle: forge agents, synthesize workflows, verify/prune memories, 3 API endpoints, 3 new agent tools — 22 total) |
+| **25–30** | NUDP mesh protocol, agent collaboration, media engines (Sharp, ComfyUI bridge, ffmpeg video pipeline) |
+| **31–40** | TTS/STT/OCR engines, media hub panel, reflection loop daemon, 10-layer security audit |
+| **41–50** | UI polish wave — system metrics, agent profiles, memory browser, run history, evolution log, system pulse, agent leaderboard, global search, keyboard shortcuts, notification toasts |
+| **51** | Full gap analysis — 61 features audited end-to-end, 46/61 verified working |
+| **52** | Cascading bug sweep — 6 fixes across ouroboros/autonomy/control-plane/image-routes, 49/61 working, 0 bugs |
+| **53** | [Edit Rebuild Pipeline](phases/PHASE-53.md) — 5-stage free Katana alternative (ffmpeg scene detect → Ollama shot plan → ComfyUI product place → Wan/CogVideo animate → ffmpeg concat), graceful degradation, 62 features (50 working) |
 
 ---
 
@@ -801,16 +813,26 @@ Dark-themed React UI with 4 primary views + 11-panel Detail Drawer:
 | `/api/agent/runs` | POST | Start an agent run |
 | `/api/workflows` | GET/POST | List or create workflows |
 | `/api/workflows/:id/run` | POST | Execute a workflow |
-| `/api/fleet/agents` | GET | List all 17 agents |
+| `/api/fleet/agents` | GET | List all 22 agents |
 | `/api/vertiso/memories` | GET/POST | List or store memories |
 | `/api/vertiso/search` | POST | Semantic similarity search |
 | `/api/rsi/evolve` | POST | Trigger evolution cycle |
+
+### Edit Rebuild Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/media/edit-rebuild` | POST | Run full 5-stage video edit rebuild pipeline |
+| `/api/media/edit-rebuild/status` | GET | Engine readiness per stage (graceful degradation) |
+| `/api/media/edit-rebuild/list` | GET | List completed rebuild videos |
+| `/api/media/edit-rebuild/detect` | POST | Stage 1 only — scene detection |
+| `/api/media/edit-rebuild/plan` | POST | Stage 2 only — shot planning |
 
 ---
 
 ## Workflow Definitions
 
-19 pre-built workflows ready to deploy:
+20 pre-built workflows ready to deploy:
 
 | Workflow | Trigger | Description |
 |----------|---------|-------------|
@@ -832,6 +854,7 @@ Dark-themed React UI with 4 primary views + 11-panel Detail Drawer:
 | **IntelligenceAnalysisPipeline** | **Manual** | **Heart → Cognition + Consciousness → Dream** |
 | **ConsciousnessCheckpoint** | **Manual** | **Heart → Consciousness verification** |
 | **IntelligentCommercePipeline** | **Manual** | **Commerce + intelligence hooks end-to-end** |
+| **EditRebuildPipeline** | **Manual** | **5-stage video edit reconstruction (free Katana)** |
 | GoogleCalendarRealtimeSync | Webhook | Real-time calendar sync |
 
 ---
@@ -840,12 +863,12 @@ Dark-themed React UI with 4 primary views + 11-panel Detail Drawer:
 
 | Metric | Count |
 |--------|-------|
-| System Features | 37 |
-| Agents | 17 |
+| System Features | 62 |
+| Agents | 22 (17 default + 5 forged) |
 | Commerce Pipelines | 4 |
-| Intelligence Modules | 6 (Heart, Ledger, Dreamer, Cognition, Consciousness, Memory Bridge) |
+| Intelligence Modules | 8 (Heart, Ledger, Dreamer, Cognition, Consciousness, Memory Bridge, Hermes, Motor) |
 | Hermes Skills | 30 |
-| Workflow Definitions | 19 |
+| Workflow Definitions | 20 |
 | Canvas Node Types | 36 |
 | Entity Schemas | 49 |
 | Fleet Tools | 22 (7 fleet + 6 intelligence + 3 bus + 3 agent-memory + 3 evolution) |
@@ -864,7 +887,8 @@ Dark-themed React UI with 4 primary views + 11-panel Detail Drawer:
 | Provenance Tags | 3 (measured, recall, imagined) |
 | Server Files | 135+ |
 | Database Tables | 56+ |
-| Audit Layers Completed | 9 |
+| Audit Layers Completed | 10 |
+| Phases Completed | 53 |
 | Ollama Models Available | 39 |
 | Tailscale Peers | 6 |
 
