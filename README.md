@@ -1054,6 +1054,17 @@ chandra-fraymus/
 
 All engines are free. No paid API keys required. Graceful fallback chains ensure something always works.
 
+### Video Production Pipeline
+
+The media engines chain together for end-to-end video production — no external tools needed:
+
+```
+Sharp (title cards) ──► ffmpeg (segments + zoompan) ──► ffmpeg (concat) ──► Final MP4
+edge-tts (narration) ──► ffmpeg (silence gaps) ──► ffmpeg (concat audio) ──┘ (mux)
+```
+
+**Proven output:** 77-second 1080p narrated commercial produced entirely by Chandra's own stack — Sharp for image creation/watermark, edge-tts (en-US-GuyNeural) for voiceover, ffmpeg for Ken Burns zoom effects, segment rendering, concatenation, and audio mux. Zero external services.
+
 ---
 
 ## Self-Evolution Engine
