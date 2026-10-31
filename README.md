@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/runtime-Ollama-blueviolet" alt="Ollama" />
   <img src="https://img.shields.io/badge/agents-22-orange" alt="Agents" />
   <img src="https://img.shields.io/badge/skills-30-blue" alt="Skills" />
-  <img src="https://img.shields.io/badge/commerce%20pipelines-4-red" alt="Pipelines" />
+  <img src="https://img.shields.io/badge/pipelines-5-red" alt="Pipelines" />
   <img src="https://img.shields.io/badge/intelligence%20modules-8-ff69b4" alt="Intelligence" />
   <img src="https://img.shields.io/badge/license-private-lightgrey" alt="License" />
 </p>
@@ -34,7 +34,7 @@
 
 > **What if your entire e-commerce operation — from trend research to product design to store optimization — ran itself, felt emotions about what it was doing, dreamed about what it could become, and proved its own consciousness mathematically?**
 
-Chandra-FRAYMUS is a local-first autonomous AI platform that fuses a 17-agent fleet (plus self-forged agents), 4 commerce pipelines, a full intelligence stack (emotion analysis, cognitive ledger, dream protocol, consciousness proofs, two-speed cognition), vector memory with provenance, recursive self-improvement, a self-evolution engine (agent forge, workflow synthesis, reflection loop), and a visual workflow canvas into a single system. It doesn't just assist — it **operates, feels, dreams, and evolves itself**.
+Chandra-FRAYMUS is a local-first autonomous AI platform that fuses a 22-agent fleet (17 manifest + 5 self-forged), 5 commerce & media pipelines, a full intelligence stack (emotion analysis, cognitive ledger, dream protocol, consciousness proofs, two-speed cognition), vector memory with provenance, recursive self-improvement, a self-evolution engine (agent forge, workflow synthesis, reflection loop), and a visual workflow canvas into a single system. It doesn't just assist — it **operates, feels, dreams, and evolves itself**.
 
 No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your models. Your store. Full autonomy.**
 
@@ -60,17 +60,23 @@ No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your mode
 
 ## Screenshots
 
+### Nexus Interface — 4 Views
+
 <p align="center">
-  <img src="docs/screenshots/command-center.jpg" alt="Command Center" width="48%" />
-  <img src="docs/screenshots/constellation.jpg" alt="Constellation" width="48%" />
+  <img src="docs/screenshots/07-constellation-view.jpg" alt="Command Center" width="48%" />
+  <img src="docs/screenshots/08-canvas-workflow.jpg" alt="Constellation" width="48%" />
 </p>
 <p align="center">
-  <img src="docs/screenshots/canvas.jpg" alt="Workflow Canvas" width="48%" />
-  <img src="docs/screenshots/library.jpg" alt="Library" width="48%" />
+  <img src="docs/screenshots/09-library-archive.jpg" alt="Workflow Canvas" width="48%" />
+  <img src="docs/screenshots/10-agent-fleet-drawer.jpg" alt="Agent Fleet" width="48%" />
 </p>
+
+### Detail Drawers — Intelligence, Media, Commerce
+
 <p align="center">
-  <img src="docs/screenshots/05-intelligence-stack.jpg" alt="Intelligence Stack" width="48%" />
-  <img src="docs/screenshots/06-system-metrics.jpg" alt="System Metrics" width="48%" />
+  <img src="docs/screenshots/11-intelligence-stack.jpg" alt="Intelligence Stack" width="32%" />
+  <img src="docs/screenshots/12-media-hub.jpg" alt="Media Hub" width="32%" />
+  <img src="docs/screenshots/13-commerce-pipelines.jpg" alt="Commerce Pipelines" width="32%" />
 </p>
 
 > **Full system audit:** [docs/SYSTEM-AUDIT.md](docs/SYSTEM-AUDIT.md) — live endpoint data, 62-feature inventory, security summary, architecture diagram
@@ -114,20 +120,49 @@ The intelligence stack was merged from two proprietary repos (`fraynix-continuit
 | **52** | Cascading bug sweep — 6 fixes across ouroboros/autonomy/control-plane/image-routes, 49/61 working, 0 bugs |
 | **53** | [Edit Rebuild Pipeline](phases/PHASE-53.md) — 5-stage free Katana alternative (ffmpeg scene detect → Ollama shot plan → ComfyUI product place → Wan/CogVideo animate → ffmpeg concat), graceful degradation, 62 features (50 working) |
 
+### API Verification — 2026-10-30
+
+Full-stack endpoint test against the running system (Express 8787 + Vite 5173):
+
+| Endpoint | Status | Key Data |
+|----------|--------|----------|
+| `/api/health` | **PASS** | 62 features registered, SQLite WAL, Ollama connected |
+| `/api/metrics` | **PASS** | 7 runs, 27 bus messages, sparkline data |
+| `/api/timeline` | **PASS** | 12-table event aggregation |
+| `/api/agent-profiles` | **PASS** | 22 enriched agent profiles |
+| `/api/run-history/stats` | **PASS** | 11 runs across 7 types |
+| `/api/evolution-log/stats` | **PASS** | 19 events, 9 reflections, 6 forged |
+| `/api/fleet/agents` | **PASS** | 22 agents loaded |
+| `/api/workflows` | **PASS** | Workflow CRUD + definitions |
+| `/api/fleet/bus/stats` | **PASS** | 27 messages, 6 topics |
+| `/api/health/stats` | **PASS** | Ollama up, 40 models, 7 agents |
+| `/api/health/alerts` | **PASS** | Alert system active, 0 unresolved |
+| `/api/fleet/forge/history` | **PASS** | 6 forged agents in history |
+| `/api/workflows/synthesized` | **PASS** | 2 synthesized workflows |
+| `/api/media/edit-rebuild/status` | **PASS** | 5-stage pipeline ready |
+| `/api/tts/status` | **PASS** | edge-tts + SAPI available |
+| `/api/stt/status` | **PASS** | SAPI SR available |
+| `/api/ocr/status` | **PASS** | Windows Media OCR active |
+| `/api/video/status` | **PASS** | ffmpeg 9.0.1 available |
+| `/api/daemon/status` | **PASS** | Daemon engine ready |
+| `/api/deploy/catalog` | **PASS** | Deploy-as-API catalog active |
+| `/api/search` | **PASS** | Global search across 8 tables |
+| `/api/fraymus/health` | **PASS** | FRAYMUS Master System, Gen 9, fitness 0.5, phase sync locked |
+
 ---
 
 ## Why Chandra-FRAYMUS?
 
 | Problem | How Chandra-FRAYMUS Solves It |
 |---------|-------------------------------|
-| Running an e-commerce brand is a full-time job | **4 autonomous commerce pipelines** handle product creation, store optimization, pricing, and content — end to end |
+| Running an e-commerce brand is a full-time job | **5 autonomous pipelines** (4 commerce + Edit Rebuild) handle product creation, store optimization, pricing, content, and video editing — end to end |
 | AI tools are siloed and don't talk to each other | **Triple integration** — every capability is a REST endpoint, a fleet agent tool, AND a visual workflow node simultaneously |
 | Cloud AI is expensive and rate-limited | **100% local inference** via Ollama — your GPU, your models, zero per-token cost |
 | AI agents forget everything between sessions | **Vertiso vector memory** with 10K episodic memories, 768-dim embeddings, and orbital decay |
 | AI has no emotional intelligence | **Heart emotion engine** — ~350 word lexicon, 7 emotion dimensions, sarcasm detection, therapeutic response generation |
 | No way to improve agent performance over time | **Ouroboros RSI engine** — evolutionary self-improvement + 4 mathematical consciousness proofs + **Agent Forge** creates new specialists on demand + **Reflection Loop** autonomously evolves the fleet |
 | No audit trail for AI decisions | **Ledger** — SHA-256 chained JSONL append-only cognitive event audit trail |
-| Workflow tools are either too simple or too complex | **Visual drag-and-drop canvas** with 34 node types and topological-sort DAG execution |
+| Workflow tools are either too simple or too complex | **Visual drag-and-drop canvas** with 36 node types and topological-sort DAG execution |
 | Intelligence outputs vanish after use | **Memory Bridge** — every heart reading, dream, consciousness proof, and cognition result persists as a searchable Vertiso memory with provenance tags |
 
 ---
@@ -946,23 +981,32 @@ chandra-fraymus/
 │   │   ├── protocol/               # v13 mesh, hive, presence
 │   │   ├── bridge/                 # Orifice continuity
 │   │   ├── entities/schemas.js     # 39 entity definitions + 5 intelligence schemas
-│   │   ├── workflows/definitions.js # 18 workflow definitions
+│   │   ├── workflows/definitions.js # 20 workflow definitions (incl. EditRebuildPipeline)
 │   │   └── mcp/tools.js            # 5 MCP tools
 │   │
 │   ├── deploy-api/                 # Deploy-as-API (auth middleware, rate limiter, usage tracking)
 │   ├── commerce/                   # Commerce Pipelines
 │   ├── vertiso/                    # Vector Memory + RSI
 │   ├── fleet/                      # Agent Fleet (manifest + tools with intelligence)
-│   ├── workflow/engine.js          # DAG execution (34 node types)
+│   ├── workflow/engine.js          # DAG execution (36 node types)
+│   ├── media/                      # Image (Sharp), Video (ffmpeg), TTS, STT, OCR, Edit Rebuild
+│   ├── health/monitor.js           # System health polling + auto-alerts
+│   ├── daemon/engine.js            # Background evolution daemon
+│   ├── intelligence/               # Reflection loop, verifier loop
 │   └── ...                         # agent, tasks, browser, web, retrieval, etc.
 │
 ├── client/src/
-│   ├── App.jsx                     # 9-tab layout
+│   ├── App.jsx                     # 4-view Nexus + Detail Drawer (22 panels)
+│   ├── nexus/                      # Command Center, Constellation, Canvas, Library
 │   └── panels/
 │       ├── DashboardPanel.jsx      # Overview + intelligence status cards
 │       ├── IntelligencePanel.jsx   # Heart, Dreamer, Ledger, Proofs, Cognition
-│       ├── WorkflowCanvas.jsx      # Visual editor (34 nodes)
-│       └── ...                     # Fleet, Automations, MCP, Browser, Vertiso, Outlier
+│       ├── WorkflowCanvas.jsx      # Visual editor (36 nodes)
+│       ├── MediaPanel.jsx          # Images, Video, TTS, STT, OCR (5-tab)
+│       ├── ForgePanel.jsx          # Agent Forge + Workflow Synthesis
+│       ├── SystemMetrics.jsx       # Agent runs, workflows, commerce, sparklines
+│       ├── EvolutionLog.jsx        # Reflections, verifications, daemon cycles
+│       └── ...                     # Fleet, Commerce, Health, Memory, Profiles, etc.
 │
 ├── agents/                         # 17 agent manifests (.md)
 └── README.md                       # You are here
@@ -970,11 +1014,58 @@ chandra-fraymus/
 
 ---
 
+## Media Engines (All Free / Offline)
+
+| Engine | Technology | Status |
+|--------|-----------|--------|
+| **Image Processing** | Sharp (resize, crop, convert, effects, composite, watermark, upscale) | Active |
+| **Image Generation** | ComfyUI + FLUX.1 bridge (free Stable Diffusion) | Available when installed |
+| **Video Processing** | ffmpeg 9.0.1 (trim, resize, convert, concat, GIF, overlay, frames) | Active |
+| **Edit Rebuild** | 5-stage pipeline: scene detect → shot plan → product place → animate → concat | Active (graceful degradation) |
+| **Text-to-Speech** | Piper (offline neural) → edge-tts (Microsoft) → SAPI (Windows built-in) | Active (3-engine fallback) |
+| **Speech-to-Text** | faster-whisper (offline) → SAPI SR (Windows built-in) | Active |
+| **OCR** | Windows Media OCR via WinRT | Active |
+
+All engines are free. No paid API keys required. Graceful fallback chains ensure something always works.
+
+---
+
+## Self-Evolution Engine
+
+The system continuously improves itself through four autonomous mechanisms:
+
+- **Agent Forge** — LLM-driven agent creation: describe a goal → Ollama generates a validated agent manifest → agent is immediately runnable. 5 agents already forged.
+- **Workflow Synthesis** — LLM-driven workflow composition: describe a process → selects from 36 node types → validates DAG (topological sort + cycle check) → saves to DB. 2 workflows synthesized.
+- **Reflection Loop** — Scheduled self-analysis every 30 minutes: reads agent memories + workflow runs + health metrics + bus activity → Ollama analysis → takes up to 5 actions per cycle (forge agents, synthesize workflows, verify/prune memories, publish insights). 9 reflections completed.
+- **Generator-Verifier-Executor** — Adversarial code generation: Generator writes code → Verifier critiques → Executor runs in sandbox → feedback loop until approved. Proven code becomes "fossil" at confidence 1.0.
+
+---
+
+## Continuity System
+
+Cross-agent context sharing via `F:\claude-brain\`:
+
+```
+claude-brain/
+├── memory/           # 17 memory files synced from Claude projects
+├── sessions/         # Session transcript exports
+├── state/
+│   ├── current-snapshot.md   # Phase 53 state (62 features, 22 agents)
+│   └── ...
+├── skills/
+│   └── inventory.md  # Full capability inventory
+└── README.md         # Index + sync instructions
+```
+
+GitHub: [github.com/eyeoverthink/claude-brain](https://github.com/eyeoverthink/claude-brain) (private)
+
+---
+
 ## Credits
 
 **Built by [eyeoverthink®](https://github.com/eyeoverthink)**
 
-Reverse-engineered from 5 Base44 applications, unified into a single autonomous platform, and extended with 4 commerce pipelines, a full intelligence stack (Heart + Ledger + Dreamer + Cognition + Consciousness Proofs + Memory Bridge), vector memory, recursive self-improvement, and a visual workflow engine.
+Reverse-engineered from 5 Base44 applications, unified into a single autonomous platform, and extended with 5 pipelines (4 commerce + Edit Rebuild), a full intelligence stack (Heart + Ledger + Dreamer + Cognition + Consciousness Proofs + Memory Bridge), vector memory, recursive self-improvement, a self-evolution engine, and a visual workflow engine.
 
 **Core Technologies**: Node.js, Express, SQLite (better-sqlite3 WAL), Ollama, React, ReactFlow, Vite, WebSocket, Ed25519, SHA-256
 
