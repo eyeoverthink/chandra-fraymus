@@ -139,18 +139,18 @@ npm run start        # production server (serves built client)
 - `intelligence/control-plane.js` — agent registry, enrollment, broadcast
 - `bridge/cross-tab.js` — cross-tab communication
 - `bridge/orifice.js` — bridge connector
-- `workflows/definitions.js` — 19 FRAYMUS workflow definitions (incl. 2 intelligence pipelines + 1 commerce-intelligence hybrid), 8 with canvas_nodes/canvas_edges for template loading
+- `workflows/definitions.js` — 20 FRAYMUS workflow definitions (incl. 2 intelligence pipelines + 1 commerce-intelligence hybrid + EditRebuildPipeline), 8 with canvas_nodes/canvas_edges for template loading
 - `mcp/tools.js` — FRAYMUS-specific MCP tools
 - `entities/schemas.js` — entity schema definitions
 
 ### Agent Fleet (server/fleet/)
-17 default agents defined as markdown manifests in `agents/` directory (+ dynamically forged agents in `data/agents/`):
+22 agents total: 17 default manifests in `agents/` directory + 5 forged agents in `data/agents/` (Chandra Debate, Data Serializer, JSON Preferer, Ollama Handyman, Preference Manager):
 Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, Java Baremetal, Fraymus Prime, Genesis, Helix, Lumen, Tycho (RE analyst), Solon, Spearhead, Video Director, YouTube Researcher
 
 - `manifest.js` — loads agent .md files with frontmatter (id, name, role, tools)
 - `routes.js` — fleet CRUD API
 - `runtime.js` — agent execution runtime (intelligence-enriched: full stack context in prompts — mood/dreamer/cognition/bridge memories, reads Heart on each user message, logs to Ledger, persists strong emotions to Memory Bridge)
-- `tools.js` — fleet management tools (7 fleet + 6 intelligence + 3 bus + 3 agent-memory + 3 evolution = 22 tools)
+- `tools.js` — 22 fleet tools (7 fleet + 6 intelligence + 3 bus + 3 agent-memory + 3 evolution)
 
 ### Commerce Pipelines (server/commerce/)
 - `shared.js` — shared utilities: `chatOllama`, `parseJSON`, `shopifyHeaders`, `shopifyBase` (API v2024-10), `createCommerceIntel` (intelligence hooks factory for pipelines)

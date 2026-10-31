@@ -38,9 +38,9 @@ You are working on **Chandra-FRAYMUS**, a unified autonomous AI workspace. Befor
 | FRAYMUS Stack | `server/fraymus/` | COMPLETE — Identity, encoding, protocol, intelligence |
 | Entity Store | `server/fraymus/entity-store.js` | COMPLETE — SQLite Proxy adapter for FRAYMUS modules |
 | Commerce | `server/commerce/` | COMPLETE — 4 pipelines, shared.js, routes.js, tools.js |
-| Agent Fleet | `server/fleet/`, `agents/` | COMPLETE — 17 agents, manifest loader, runtime |
+| Agent Fleet | `server/fleet/`, `agents/` | COMPLETE — 22 agents (17 manifest + 5 forged), manifest loader, runtime |
 | Vertiso | `server/vertiso/` | COMPLETE — Vector memory + RSI engine |
-| Workflows | `server/workflow/` | COMPLETE — 30 node types, all with real handlers |
+| Workflows | `server/workflow/` | COMPLETE — 36 node types, 20 definitions, all with real handlers |
 | Automations | `server/automations/` | COMPLETE — Cron scheduler |
 | MCP | `server/mcp/` | COMPLETE — Server gateway + client bridge |
 | Browser | `server/browser/` | COMPLETE — Puppeteer + Chrome extension |
@@ -86,7 +86,7 @@ node --check server/path/to/file.js
 # Full import test (only if no other instance running)
 node -e "await import('./server/app.js')"
 
-# Health endpoint (31 features expected)
+# Health endpoint (62 features expected)
 curl http://127.0.0.1:8787/api/health
 
 # Entity store test
@@ -99,16 +99,18 @@ node -e "import('./server/fraymus/entity-store.js').then(async es => { const {cr
 npm run dev  # then open http://127.0.0.1:5173, check all 8 panels
 ```
 
-## File Counts (verified 2026-10-30)
+## File Counts (verified 2026-10-31)
 
-- 132 server JavaScript files (including entity-store.js)
-- 175+ API routes
-- 22+ database tables (16 core + 3 Vertiso + 3 RSI + fraymus_entities)
-- 17 agent manifests
-- 8 frontend panels
-- 30 workflow node types (all with real handlers)
-- 31 system features
-- 29 FRAYMUS fleet tools
+- 150+ server JavaScript files
+- 200+ API routes
+- 30+ database tables
+- 22 agents (17 manifest + 5 forged)
+- 25+ frontend panels (4 Nexus views + 13 Detail Drawer + extras)
+- 36 workflow node types (all with real handlers)
+- 20 workflow definitions
+- 62 system features (50/62 verified working)
+- 22 fleet tools
 - 23 OpenClaw gateway actions
-- 14 Hermes skill executors
-- 9 audit layers completed (all clean)
+- 30 Hermes skills (14 with real executors)
+- 10-layer audit completed (all clean)
+- 5 pipelines (4 commerce + Edit Rebuild)

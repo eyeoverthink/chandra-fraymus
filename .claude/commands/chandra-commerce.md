@@ -1,12 +1,12 @@
 ---
-description: "Commerce pipeline development for Chandra-FRAYMUS. Load when working on any of the 4 commerce pipelines, Shopify/Printify integration, or adding new commerce features."
+description: "Commerce pipeline development for Chandra-FRAYMUS. Load when working on any of the 5 pipelines (4 commerce + Edit Rebuild), Shopify/Printify integration, or adding new commerce features."
 ---
 
 # Chandra Commerce Pipeline Skill
 
 ## Architecture
 
-All commerce code lives in `server/commerce/`. Every pipeline stage exists simultaneously as:
+All commerce code lives in `server/commerce/`. Media pipelines in `server/media/`. Every pipeline stage exists simultaneously as:
 1. A **REST API endpoint** (in `routes.js`)
 2. A **fleet agent tool** (in `tools.js`, with safety classification)
 3. A **visual workflow node** (in `client/src/panels/WorkflowCanvas.jsx`)
@@ -81,9 +81,23 @@ The engine (`server/workflow/engine.js`) dispatches by node type — add a handl
 
 Fleet tools with "approval_required" need explicit user confirmation before execution in autonomous mode.
 
+## Pipeline 5: Edit Rebuild (`server/media/edit-rebuild.js`)
+```
+Scene Detect → Shot Plan → Product Place → Animate → Concat
+```
+- POST /api/media/edit-rebuild `{ video, productDescription, instruction, threshold, width, height, fps, model }`
+- 5-stage DAG: ffmpeg scene detect → Ollama shot planning → ComfyUI/FLUX.1 img2img → Wan/CogVideo or Ken Burns → ffmpeg concat
+- **Graceful degradation:** Minimum needs only ffmpeg + Ollama (3/5 stages). ComfyUI offline → reference frame passthrough. No I2V model → Ken Burns pan/zoom via ffmpeg zoompan filter.
+- Additional endpoints: GET /status, GET /list, POST /detect, POST /plan
+
 ## Graceful Degradation
 
 If Shopify/Printify tokens aren't configured:
 - Pipelines still run and generate all content
 - External writes return `status: 'queued'` with the complete payload
 - Adding tokens later lets the queue drain instantly
+
+If ComfyUI/FLUX.1 not installed (Edit Rebuild):
+- Scene detection and shot planning still work (ffmpeg + Ollama only)
+- Product placement falls back to reference frame passthrough
+- Animation falls back to Ken Burns pan/zoom via ffmpeg

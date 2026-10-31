@@ -1,5 +1,5 @@
 ---
-description: "FRAYMUS intelligence stack — Hermes, Motor, OpenClaw, Ouroboros, Needle, ControlPlane, entity store. Load when working on intelligence modules."
+description: "FRAYMUS intelligence stack — 8 modules (Hermes, Motor, OpenClaw, Ouroboros, Needle, Niles FRAYVM, ControlPlane, MemoryBridge) + entity store. Load when working on intelligence modules."
 ---
 
 # FRAYMUS Intelligence Stack Skill
@@ -40,7 +40,7 @@ import { ouroboros, hermes, motor, openclaw, controlPlane, needle } from './fray
 
 ## Hermes Fleet (30 skills, 14 with real executors)
 
-**Categories:** research (5), code (6), media (6), system (6), intelligence (6)
+**Categories:** research (6), code (6), media (6), system (6), intelligence (6)
 
 **Implemented executors (in fraymus-tools.js `buildHermesExecutors()`):**
 - `duckduckgo_search` — real DuckDuckGo HTML scraping
