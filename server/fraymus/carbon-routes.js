@@ -9,7 +9,7 @@ import {
 } from './encoding/carbon.js';
 import { join } from 'path';
 
-export function installCarbonRoutes(app, { dataDir, broadcast, db }) {
+export function installCarbonRoutes(app, { dataDir, broadcast, db, heart, ledger, memoryBridge }) {
   const DATA_DIR = dataDir || process.env.CHANDRA_DATA_DIR || './data';
 
   // ═══ Codon Engine ═══
@@ -77,6 +77,8 @@ export function installCarbonRoutes(app, { dataDir, broadcast, db }) {
       );
 
       if (broadcast) broadcast({ type: 'carbon:plasmid_forged', name, size: plasmid.size });
+      if (ledger) ledger.record('carbon.plasmid.forged', { name, size: plasmid.size, gcContent: plasmid.gcContent }, 'carbon');
+      if (memoryBridge) memoryBridge.storeCognitionResult({ phase: 'carbon_plasmid', feeling: { primary: 'curiosity', intensity: 0.5 }, response: `Plasmid forged: ${name || 'unnamed'}, ${plasmid.size} bases, GC ${plasmid.gcContent}%`, durationMs: 0 }).catch(() => {});
 
       res.json(plasmid);
     } catch (e) { next(e); }
@@ -125,6 +127,8 @@ export function installCarbonRoutes(app, { dataDir, broadcast, db }) {
       const saved = saveCheckpoint(snapshot, DATA_DIR);
 
       if (broadcast) broadcast({ type: 'carbon:checkpoint_created', organism: snapshot.organism, timestamp: snapshot.timestamp });
+      if (ledger) ledger.record('carbon.checkpoint.created', { organism: snapshot.organism, bases: snapshot.stats.totalBases, chromosomes: snapshot.chromosomes }, 'carbon');
+      if (memoryBridge) memoryBridge.storeCognitionResult({ phase: 'carbon_checkpoint', feeling: { primary: 'determination', intensity: 0.6 }, response: `Genome checkpoint: ${snapshot.organism}, ${snapshot.stats.totalBases} bases, ${snapshot.chromosomes} chromosomes`, durationMs: 0 }).catch(() => {});
 
       res.json({
         ...saved,
@@ -153,6 +157,7 @@ export function installCarbonRoutes(app, { dataDir, broadcast, db }) {
       }
 
       if (broadcast) broadcast({ type: 'carbon:restored', agentCount: (workspace.agents || []).length });
+      if (ledger) ledger.record('carbon.restored', { agentCount: (workspace.agents || []).length, workflowCount: (workspace.workflows || []).length }, 'carbon');
 
       res.json({ workspace, restored: true });
     } catch (e) { next(e); }

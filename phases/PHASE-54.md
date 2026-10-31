@@ -93,10 +93,24 @@ Organism (Carbon X):
   ✓ Checkpoint save/load: disk persistence with integrity verification
 ```
 
-## Wiring
+## System Integration (7 subsystems)
 
-- `server/runtime.js` — imports `installCarbonRoutes`, called with `{ dataDir: DATA_DIR, broadcast, db }`
+Carbon X is fully unified with the Chandra-FRAYMUS system across all 7 integration points:
+
+| Subsystem | Integration | Detail |
+|-----------|------------|--------|
+| **Encoding Forms** | `forms.js` expanded 7→9 formats | Codon + plasmid round-trip verification in `allForms()` |
+| **Fleet Tools** | 5 new agent tools (27 total) | `carbon_encode`, `carbon_decode`, `carbon_forge_plasmid`, `carbon_checkpoint`, `carbon_list_checkpoints` |
+| **Workflow Engine** | 3 new node types (39 total) | `carbon_encode`, `carbon_plasmid`, `carbon_checkpoint` — all MemoryBridge-wired |
+| **fraymus-tools** | Adapter exports | All Carbon X functions exported for MCP/external use |
+| **Command Router** | `run carbon` / `run checkpoint` | Dispatches to `/api/carbon/checkpoint` from CommandBar |
+| **Health Features** | Feature flag | `carbon-x-biological-encoding` in 63-feature list |
+| **Intelligence Hooks** | Heart + Ledger + MemoryBridge | `carbon-routes.js` receives full intelligence stack (`heart`, `ledger`, `memoryBridge`) |
+
+- `server/runtime.js` — imports `installCarbonRoutes`, called with `{ dataDir: DATA_DIR, broadcast, db, heart, ledger, memoryBridge }`
 - WebSocket events: `carbon:plasmid_forged`, `carbon:checkpoint_created`, `carbon:restored`
+- Ledger audit trail: `carbon.plasmid.forged`, `carbon.checkpoint.created`, `carbon.restored`
+- MemoryBridge cognition: stores plasmid/checkpoint events via `storeCognitionResult()`
 - Checkpoints saved to `data/carbon/` directory
 
 ## Feature Count

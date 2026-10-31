@@ -17,6 +17,9 @@ import { sttTranscribe } from '../media/stt-engine.js';
 import { ocrRecognize } from '../media/ocr-engine.js';
 import { chatOllama, createCommerceIntel } from '../commerce/shared.js';
 import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
+import { encodeCodon, decodeCodon, codonStats } from '../fraymus/encoding/codon.js';
+import { forgePlasmid, digestPlasmid } from '../fraymus/encoding/plasmid.js';
+import { createGenomeSnapshot, saveCheckpoint } from '../fraymus/encoding/carbon.js';
 import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching } from '../fraymus/intelligence/ouroboros.js';
 import { runResearcher, runCreator, runReviewer, runCeoLogger, runShopifyPublish } from '../commerce/pipeline.js';
 import { runTrendScout, runDesigner, runPrintifyPush, runShopifySync, runPricingEngine } from '../commerce/apparel-pipeline.js';
@@ -115,6 +118,9 @@ function nodeKind(type) {
   if (type === 'cognition') return 'cognition';
   if (type === 'memory_recall') return 'memory_recall';
   if (type === 'intelligence_cycle') return 'intelligence_cycle';
+  if (type === 'carbon_encode') return 'carbon_encode';
+  if (type === 'carbon_plasmid') return 'carbon_plasmid';
+  if (type === 'carbon_checkpoint') return 'carbon_checkpoint';
   return 'unknown';
 }
 
@@ -672,6 +678,45 @@ export async function runPipeline(nodes, edges, opts = {}) {
         };
         r.text = JSON.stringify(r.data);
         texts[id] = r.text;
+
+      // ── Carbon X biological encoding nodes ──────────────────
+      } else if (k === 'carbon_encode') {
+        const text = upstreamText || node.data?.text || '';
+        if (!text) throw new Error('carbon_encode requires input text');
+        const bytes = new TextEncoder().encode(text);
+        const encoded = encodeCodon(bytes);
+        const stats = codonStats(encoded);
+        r.data = { encoded: encoded.slice(0, 200) + (encoded.length > 200 ? '...' : ''), stats, inputSize: bytes.length };
+        r.text = `Codon-encoded ${bytes.length} bytes → ${stats.totalBases} bases (GC ${stats.gcContent}%)`;
+        texts[id] = encoded;
+
+      } else if (k === 'carbon_plasmid') {
+        const payload = upstreamText || node.data?.payload || '';
+        if (!payload) throw new Error('carbon_plasmid requires payload');
+        const plasmid = forgePlasmid(payload, { name: node.data?.name || 'workflow', type: node.data?.type || 'gene' });
+        r.data = { size: plasmid.size, gcContent: plasmid.gcContent, features: plasmid.features.length, integrity: plasmid.integrity.slice(0, 16) };
+        r.text = `Plasmid forged: ${plasmid.size} bases, GC ${plasmid.gcContent}%, ${plasmid.features.length} features`;
+        texts[id] = plasmid.dna;
+        opts.memoryBridge?.storeCognitionResult({ phase: 'carbon_plasmid', feeling: { primary: 'curiosity', intensity: 0.5 }, response: `Workflow plasmid: ${node.data?.name || 'workflow'}, ${plasmid.size} bases`, durationMs: 0 }).catch(() => {});
+
+      } else if (k === 'carbon_checkpoint') {
+        const workspace = {
+          name: node.data?.name || 'workflow-checkpoint',
+          agents: [], workflows: [],
+          settings: { source: 'workflow_node' },
+          tools: [],
+          activeTasks: [], busTopics: [], healthStatus: 'nominal', uptime: 0,
+          memories: [], reflections: [], fossils: [], dreamLog: [],
+        };
+        if (upstreamText) {
+          try { Object.assign(workspace, JSON.parse(upstreamText)); } catch { workspace.settings.rawInput = upstreamText.slice(0, 2000); }
+        }
+        const snapshot = createGenomeSnapshot(workspace);
+        const { filepath } = saveCheckpoint(snapshot, DATA_DIR);
+        r.data = { organism: snapshot.organism, chromosomes: snapshot.chromosomes, totalBases: snapshot.stats.totalBases, filepath };
+        r.text = `Checkpoint: ${snapshot.stats.totalBases} bases, ${snapshot.chromosomes} chromosomes → ${filepath}`;
+        texts[id] = r.text;
+        opts.memoryBridge?.storeCognitionResult({ phase: 'carbon_checkpoint', feeling: { primary: 'determination', intensity: 0.6 }, response: `Workflow checkpoint: ${snapshot.organism}, ${snapshot.stats.totalBases} bases`, durationMs: 0 }).catch(() => {});
 
       } else {
         throw new Error(`Unknown node type: ${node.type}`);

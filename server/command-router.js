@@ -9,6 +9,9 @@ const PIPELINE_ALIASES = {
   'mystery-shopper': 'shopper',
   'fixer': 'fixer',
   'store-fixer': 'fixer',
+  'carbon': 'carbon',
+  'carbon-x': 'carbon',
+  'checkpoint': 'carbon',
 };
 
 const PIPELINE_ENDPOINTS = {
@@ -16,6 +19,7 @@ const PIPELINE_ENDPOINTS = {
   apparel: '/api/apparel/pipeline',
   shopper: '/api/shopper/audit',
   fixer: '/api/fixer/pipeline',
+  carbon: '/api/carbon/checkpoint',
 };
 
 export function installCommandRouter(app, { broadcast }) {

@@ -74,7 +74,7 @@ npm run start        # production server (serves built client)
 - **IMPORTANT**: installSynthesisRoutes() must register BEFORE installWorkflowRoutes() in runtime.js — the `/api/workflows/:id` param route will swallow `/api/workflows/synthesized` otherwise
 - DB table: `synthesized_workflows` (workflow_id, synthesized_by, goal, node_count, created_at)
 - 2 REST endpoints: POST synthesize, GET synthesized
-- 1 agent tool: `workflow_synthesize` — 22 fleet tools total
+- 1 agent tool: `workflow_synthesize` — 27 fleet tools total
 
 ### Reflection Loop (server/intelligence/reflection.js)
 - `reflection.js` — Scheduled self-analysis: collects agent memories + workflow runs + health metrics + bus activity → Ollama analysis → max 5 actions per cycle (verify_memory, prune_memory, forge_agent, synthesize_workflow, publish_insight)
@@ -96,7 +96,7 @@ npm run start        # production server (serves built client)
 - Prompt evolution: reads verified fossils from verifier-loop → injects [Proven Patterns] into forged agent system prompts via writeOverride()
 - Configurable cycle interval (default 30min, min 60s), start/stop/status/manual-cycle API
 - DB table: `daemon_cycles`
-- 7 REST endpoints + 1 agent tool (`daemon_control`) — 25 fleet tools total
+- 7 REST endpoints + 1 agent tool (`daemon_control`) — 30 fleet tools total
 
 ### System Health Monitor (server/health/monitor.js)
 - `monitor.js` — Polls Ollama, DB, bus, Needle, process memory every 60s; auto-alerts via bus `system.alert` topic
@@ -116,7 +116,7 @@ npm run start        # production server (serves built client)
 - `encoding/merkle.js` — Merkle tree integrity
 - `encoding/wasm.js` — WASM encoding
 - `encoding/zip.js` — ZIP encoding
-- `encoding/forms.js` — encoding format registry (7 formats)
+- `encoding/forms.js` — encoding format registry (9 formats, incl. codon + plasmid round-trip)
 - `encoding/codon.js` — Carbon X Layer 2: 64-codon engine (ATG/TAA framing, nibble-pair byte encoding, FNV-1a checksums)
 - `encoding/plasmid.js` — Carbon X Layer 3: circular DNA plasmid forge (ori, promoters, restriction sites, gene scanning, FASTA export)
 - `encoding/carbon.js` — Carbon X Layer 4: organism (genome/proteome/epigenome snapshots, checkpoint/restore as FASTA)
@@ -154,7 +154,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `manifest.js` — loads agent .md files with frontmatter (id, name, role, tools)
 - `routes.js` — fleet CRUD API
 - `runtime.js` — agent execution runtime (intelligence-enriched: full stack context in prompts — mood/dreamer/cognition/bridge memories, reads Heart on each user message, logs to Ledger, persists strong emotions to Memory Bridge)
-- `tools.js` — 22 fleet tools (7 fleet + 6 intelligence + 3 bus + 3 agent-memory + 3 evolution)
+- `tools.js` — 27 fleet tools (7 fleet + 6 intelligence + 3 bus + 3 agent-memory + 3 evolution + 5 carbon)
 
 ### Commerce Pipelines (server/commerce/)
 - `shared.js` — shared utilities: `chatOllama`, `parseJSON`, `shopifyHeaders`, `shopifyBase` (API v2024-10), `createCommerceIntel` (intelligence hooks factory for pipelines)
@@ -173,7 +173,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `rsi-tools.js` — agent tools for RSI ops
 
 ### Visual Workflow Engine (server/workflow/)
-- `engine.js` — pipeline executor, 36 node types (incl. 6 intelligence: heart_feel, dream, consciousness_prove, cognition, memory_recall, intelligence_cycle — all Memory Bridge-wired; commerce terminal nodes store insights via createCommerceIntel)
+- `engine.js` — pipeline executor, 39 node types (incl. 6 intelligence: heart_feel, dream, consciousness_prove, cognition, memory_recall, intelligence_cycle — all Memory Bridge-wired; 3 carbon: carbon_encode, carbon_plasmid, carbon_checkpoint; commerce terminal nodes store insights via createCommerceIntel)
 - `routes.js` — workflow CRUD + run API (with node count validation, ownership checks)
 
 ### Image Processing Engine (server/media/)
@@ -259,7 +259,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 ### Panels (client/src/panels/) — rendered inside Detail Drawer
 - `DashboardPanel.jsx` — stats overview, intelligence status cards, runtime intelligence cards, recent activity
 - `IntelligencePanel.jsx` — interactive Heart, Dreamer, Ledger, Consciousness Proofs, Cognition, Memory Bridge recall controls
-- `WorkflowCanvas.jsx` — ReactFlow visual workflow builder, 36 node types, 8 pre-built template picker, per-node execution status (also used as Canvas view directly)
+- `WorkflowCanvas.jsx` — ReactFlow visual workflow builder, 39 node types, 8 pre-built template picker, per-node execution status (also used as Canvas view directly)
 - `FleetPanel.jsx` — agent cards + detail view + task sender + thread message viewer with runs/approvals
 - `CommercePanel.jsx` — 4-pipeline launcher + run history with expandable details
 - `AutomationsPanel.jsx` — cron scheduler UI with error handling

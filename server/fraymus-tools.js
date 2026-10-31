@@ -34,6 +34,9 @@ import { MemoryBridge } from './fraymus/intelligence/memory-bridge.js';
 import { getWorkflow, scheduledWorkflows, eventTriggeredWorkflows } from './fraymus/workflows/definitions.js';
 import { MCP_TOOLS, getToolDefinition, listTools as listMcpTools } from './fraymus/mcp/tools.js';
 import { AGENTS, ZONES, COMPUTE_NODES, PHI } from './fraymus/core/constants.js';
+import { encodeCodon, decodeCodon, codonStats } from './fraymus/encoding/codon.js';
+import { forgePlasmid, digestPlasmid, plasmidToFasta } from './fraymus/encoding/plasmid.js';
+import { createGenomeSnapshot, restoreFromSnapshot, saveCheckpoint, listCheckpoints, CARBON_VERSION } from './fraymus/encoding/carbon.js';
 
 const string = (maxLength, extra = {}) => ({ type: 'string', maxLength, ...extra });
 const object = (properties, required = []) => ({ type: 'object', properties, required, additionalProperties: false });
@@ -394,6 +397,7 @@ function buildHermesExecutors() {
 }
 
 export { ouroboros, hermes, motor, openclaw, controlPlane, needle, needleWorker, heart, ledger, dreamer, cognition, MemoryBridge };
+export { encodeCodon, decodeCodon, codonStats, forgePlasmid, digestPlasmid, plasmidToFasta, createGenomeSnapshot, restoreFromSnapshot, saveCheckpoint, listCheckpoints, CARBON_VERSION };
 
 export function createFraymusTools() {
   return [

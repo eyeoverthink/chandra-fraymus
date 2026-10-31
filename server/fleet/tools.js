@@ -8,6 +8,9 @@ import { forgeAgent, listForgedAgents } from './forge.js';
 import { synthesizeWorkflow } from '../workflow/synthesizer.js';
 import { runVerifierLoop, listLoops as listVerifierLoops } from '../intelligence/verifier-loop.js';
 import { startDaemon, stopDaemon, getDaemonStatus, runCycle, listCycles } from '../daemon/engine.js';
+import { encodeCodon, decodeCodon, codonStats } from '../fraymus/encoding/codon.js';
+import { forgePlasmid, digestPlasmid, plasmidToFasta } from '../fraymus/encoding/plasmid.js';
+import { createGenomeSnapshot, saveCheckpoint, listCheckpoints } from '../fraymus/encoding/carbon.js';
 import {
   encodeNUDP, decodeNUDP, MSG, FLAG, TLV, MSG_NAMES,
   helloPacket, telemetryPacket, alertPacket, welfarePacket,
@@ -975,6 +978,98 @@ export function createFleetTools({ workflowStore }) {
         limit: { type: 'integer', description: 'Max files to list (default 50)' },
       }),
       execute: async ({ args }) => ({ files: await listOCRFiles(args.limit) }),
+    },
+
+    // ─── Carbon X Biological Encoding tools ─────────────
+    {
+      name: 'carbon_encode',
+      group: 'carbon',
+      risk: 'safe',
+      description: 'Encode text into a biological codon sequence (ATG-framed, nibble-pair encoding). Returns DNA bases, GC content, and stats.',
+      parameters: object({
+        text: string(8000, { description: 'Text to encode as biological DNA' }),
+      }, ['text']),
+      execute: async ({ args }) => {
+        const text = String(args.text || '').trim();
+        if (!text) throw new Error('text required');
+        const bytes = new TextEncoder().encode(text);
+        const encoded = encodeCodon(bytes);
+        const stats = codonStats(encoded);
+        return { encoded, stats, inputSize: bytes.length, expansion: +(encoded.length / bytes.length).toFixed(1) };
+      },
+    },
+    {
+      name: 'carbon_decode',
+      group: 'carbon',
+      risk: 'safe',
+      description: 'Decode a codon DNA sequence back to text. Verifies ATG/TAA framing and FNV-1a checksum.',
+      parameters: object({
+        sequence: string(100000, { description: 'Codon DNA sequence to decode' }),
+      }, ['sequence']),
+      execute: async ({ args }) => {
+        const seq = String(args.sequence || '').trim();
+        if (!seq) throw new Error('sequence required');
+        const bytes = decodeCodon(seq);
+        return { text: new TextDecoder().decode(bytes), size: bytes.length };
+      },
+    },
+    {
+      name: 'carbon_forge_plasmid',
+      group: 'carbon',
+      risk: 'safe',
+      description: 'Forge a biological plasmid from a payload — circular DNA with ori, promoters, restriction sites, and selectable markers. Standard FASTA-compatible output.',
+      parameters: object({
+        payload: string(8000, { description: 'Data to encode into the plasmid' }),
+        name: string(100, { description: 'Plasmid name (default: unnamed)' }),
+        type: string(50, { description: 'Type: gene, operon, transposon, vector (default: gene)' }),
+      }, ['payload']),
+      execute: async ({ args }) => {
+        const payload = String(args.payload || '').trim();
+        if (!payload) throw new Error('payload required');
+        const plasmid = forgePlasmid(payload, { name: args.name, type: args.type });
+        return { size: plasmid.size, gcContent: plasmid.gcContent, features: plasmid.features.length, integrity: plasmid.integrity.slice(0, 16), topology: plasmid.topology };
+      },
+    },
+    {
+      name: 'carbon_checkpoint',
+      group: 'carbon',
+      risk: 'approval',
+      description: 'Create a genome checkpoint of the entire workspace — encodes agents, workflows, bus topics, memories, and reflections as a 3-chromosome FASTA file. Requires approval.',
+      parameters: object({
+        name: string(100, { description: 'Organism name for the checkpoint (default: chandra)' }),
+      }),
+      execute: async ({ args }) => {
+        const agents = db.prepare('SELECT id, name, role FROM agents WHERE user_id = ?').all('local');
+        const workflows = db.prepare('SELECT id, name FROM workflows WHERE user_id = ? LIMIT 50').all('local');
+        const memories = db.prepare('SELECT agent_id, category, key, value FROM agent_memories ORDER BY id DESC LIMIT 50').all();
+        const busTopics = db.prepare('SELECT DISTINCT topic FROM bus_messages ORDER BY id DESC LIMIT 20').all().map(r => r.topic);
+        const reflections = db.prepare('SELECT id, trigger, actions_taken, insights FROM reflections ORDER BY id DESC LIMIT 10').all();
+        const workspace = {
+          name: args.name || 'chandra',
+          agents, workflows,
+          settings: { version: '54', features: 63, stack: 'carbon-x' },
+          tools: [],
+          activeTasks: [], busTopics, healthStatus: 'nominal', uptime: process.uptime(),
+          memories, reflections, fossils: [], dreamLog: [],
+        };
+        const snapshot = createGenomeSnapshot(workspace);
+        const { filepath } = saveCheckpoint(snapshot, process.env.CHANDRA_DATA_DIR || './data');
+        return { organism: snapshot.organism, chromosomes: snapshot.chromosomes, totalBases: snapshot.stats.totalBases, gcContent: snapshot.stats.gcContent, filepath, integrity: snapshot.integrity.slice(0, 16) };
+      },
+    },
+    {
+      name: 'carbon_list_checkpoints',
+      group: 'carbon',
+      risk: 'safe',
+      description: 'List all genome checkpoints saved to disk.',
+      parameters: object({
+        limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Max checkpoints to return (default 20)' },
+      }),
+      execute: async ({ args }) => {
+        const all = listCheckpoints(process.env.CHANDRA_DATA_DIR || './data');
+        const limit = Math.min(50, Math.max(1, parseInt(args.limit) || 20));
+        return { checkpoints: all.slice(0, limit), count: all.length };
+      },
     },
   ];
 }

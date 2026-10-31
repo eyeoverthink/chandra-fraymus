@@ -1,4 +1,4 @@
-// Orchestrator: encode data in all 7 forms at once
+// Orchestrator: encode data in all 9 forms at once (7 original + codon + plasmid)
 import { sha256hex, sha256HexSync, sha256Sync } from '../core/crypto.js';
 import { toEmoji, encodeEmoji, decodeEmoji } from './emoji.js';
 import { encodeDna, decodeDna, gcPercent } from './dna.js';
@@ -6,6 +6,8 @@ import { merkleRoot, merkle41 } from './merkle.js';
 import { frayHeader } from './fray.js';
 import { wrapWasm } from './wasm.js';
 import { zipStore } from './zip.js';
+import { encodeCodon, decodeCodon, codonGcContent, codonStats } from './codon.js';
+import { forgePlasmid, digestPlasmid } from './plasmid.js';
 
 export async function allForms(text) {
   const payload = new TextEncoder().encode(text);
@@ -20,6 +22,23 @@ export async function allForms(text) {
   const m = merkle41(payload);
   const mRoot = merkleRoot(payload);
   const zip = zipStore([{ name: 'payload.bin', data: payload }]);
+
+  // Carbon X: codon encoding (Layer 2)
+  const codon = encodeCodon(payload);
+  const codonBack = decodeCodon(codon);
+  let codonOk = codonBack.length === payload.length;
+  for (let i = 0; codonOk && i < payload.length; i++) if (codonBack[i] !== payload[i]) codonOk = false;
+  const cStats = codonStats(codon);
+
+  // Carbon X: plasmid forge (Layer 3)
+  let plasmidSize = 0;
+  let plasmidOk = false;
+  try {
+    const plasmid = forgePlasmid(text, { name: 'allForms', type: 'gene' });
+    plasmidSize = plasmid.size;
+    const digested = digestPlasmid(plasmid.dna);
+    plasmidOk = digested.verified;
+  } catch { plasmidOk = false; }
 
   const emojiBack = decodeEmoji(stegoEmoji);
   let emojiOk = emojiBack.length === payload.length;
@@ -40,12 +59,19 @@ export async function allForms(text) {
     dnaBases: dna.length,
     gc: gcPercent(dna),
     dnaRoundTrip: dnaOk,
+    codon,
+    codonBases: codon.length,
+    codonGc: cStats.gcContent,
+    codonCodons: cStats.totalCodons,
+    codonRoundTrip: codonOk,
+    plasmidSize,
+    plasmidRoundTrip: plasmidOk,
     merkleRoot: Array.from(mRoot, b => b.toString(16).padStart(2, '0')).join(''),
     fnvMerkleRoot: m.root,
     fnvMerkleCount: m.count,
     frayHeaderSize: 64,
     wasmSize: wasm.length,
     zipSize: zip.length,
-    verified: emojiOk && dnaOk,
+    verified: emojiOk && dnaOk && codonOk && plasmidOk,
   };
 }

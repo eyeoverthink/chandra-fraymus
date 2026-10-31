@@ -162,7 +162,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installSTTRoutes(app);
   installOCRRoutes(app);
   app.use('/api/media/edit-rebuild', editRebuildRouter);
-  installCarbonRoutes(app, { dataDir: DATA_DIR, broadcast, db });
+  installCarbonRoutes(app, { dataDir: DATA_DIR, broadcast, db, heart, ledger, memoryBridge });
   installSettingsRoutes(app, db);
   installSearchRoutes(app, { db });
   app.use(timelineRouter);
@@ -219,7 +219,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
       'visual-workflow-engine', '17-agent-fleet', 'mcp-server-gateway', 'mcp-client-bridge', 'cron-automations',
       'puppeteer-headless-browser', 'chrome-extension-bridge', 'vertiso-vector-memory', 'recursive-self-improvement',
       'event-driven-orchestration', 'agent-persistent-memory', 'system-health-monitor',
-      'agent-forge', 'workflow-synthesis', 'reflection-loop', 'nudp-mesh-protocol', 'sharp-image-engine', 'comfyui-bridge', 'ffmpeg-video-pipeline', 'tts-speech-engine', 'stt-transcription-engine', 'windows-media-ocr-pipeline', 'media-hub-panel', 'error-boundary-resilience', 'forge-synthesis-panel', 'system-settings-panel', 'notification-toasts', 'global-search', 'keyboard-shortcuts', 'agent-chat-panel', 'activity-timeline', 'system-metrics', 'agent-profiles', 'memory-browser', 'run-history', 'evolution-log', 'system-pulse', 'agent-leaderboard', 'agent-collaboration', 'edit-rebuild-pipeline'] }));
+      'agent-forge', 'workflow-synthesis', 'reflection-loop', 'nudp-mesh-protocol', 'sharp-image-engine', 'comfyui-bridge', 'ffmpeg-video-pipeline', 'tts-speech-engine', 'stt-transcription-engine', 'windows-media-ocr-pipeline', 'media-hub-panel', 'error-boundary-resilience', 'forge-synthesis-panel', 'system-settings-panel', 'notification-toasts', 'global-search', 'keyboard-shortcuts', 'agent-chat-panel', 'activity-timeline', 'system-metrics', 'agent-profiles', 'memory-browser', 'run-history', 'evolution-log', 'system-pulse', 'agent-leaderboard', 'agent-collaboration', 'edit-rebuild-pipeline', 'carbon-x-biological-encoding'] }));
   const clientErrors = [];
   app.post('/api/client-error', express.json(), (req, res) => {
     const { message, stack, component, view, ts } = req.body || {};
