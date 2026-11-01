@@ -1,6 +1,6 @@
 # E2E Smoke Report
 
-- Generated: 2026-11-01T13:12:16.652Z
+- Generated: 2026-11-01T13:20:32.777Z
 - Base URL: http://127.0.0.1:8787
 - Passed: YES
 
@@ -9,8 +9,8 @@
 - PASS - fraymus_health (status: 200)
 - PASS - voice_health (status: 200)
 - PASS - partner_route (status: 200)
-- PASS - fleet_agents (status: 200, count: 17)
-- PASS - collab_create (status: 200, id: 0b4e30b4-3e)
+- PASS - fleet_agents (status: 200, count: 18)
+- PASS - collab_create (status: 200, id: b2063c3a-0c)
 
 ## Screenshots
 - PASS - root -> docs/screenshots/e2e-latest/root.png

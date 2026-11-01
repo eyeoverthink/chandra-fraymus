@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-01T13:12:16.652Z",
+  "generatedAt": "2026-11-01T13:20:32.777Z",
   "baseUrl": "http://127.0.0.1:8787",
   "passed": true,
   "checks": [
@@ -32,14 +32,14 @@
       "required": true,
       "pass": true,
       "status": 200,
-      "count": 17
+      "count": 18
     },
     {
       "name": "collab_create",
       "required": true,
       "pass": true,
       "status": 200,
-      "id": "0b4e30b4-3e"
+      "id": "b2063c3a-0c"
     }
   ],
   "screenshotResults": [
@@ -134,10 +134,10 @@
       "ok": true,
       "system": "FRAYMUS Master System",
       "autonomous": true,
-      "generation": 6,
+      "generation": 1,
       "fitness": 0.5,
       "phaseSync": {
-        "R": 0.9997485210071299,
+        "R": 0.9995863161578623,
         "locked": true
       },
       "agents": 9,
@@ -211,10 +211,10 @@
       },
       "runtimeIntelligence": {
         "types": {
-          "cognition": 17
+          "cognition": 19
         },
-        "total": 17,
-        "latest": 1793538668027
+        "total": 19,
+        "latest": 1793539053291
       }
     },
     "voice": {
@@ -250,9 +250,9 @@
       ],
       "emotion_metadata": false
     },
-    "fleetCount": 17,
+    "fleetCount": 18,
     "collabCreate": {
-      "id": "0b4e30b4-3e",
+      "id": "b2063c3a-0c",
       "goal": "Automated E2E smoke check",
       "strategy": "chain",
       "agents": [

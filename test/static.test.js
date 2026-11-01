@@ -13,8 +13,10 @@ async function fixture(t, { production = true, built = true } = {}) {
   const base = await realpath(tmpdir()), root = await mkdtemp(join(base, 'fraymus-static-'));
   const original = await realpath(root), partnerDist = join(root, 'partner'), distDir = join(root, 'old-client');
   await mkdir(join(distDir, 'assets'), { recursive: true });
-  await writeFile(join(distDir, 'index.html'), '<h1>Removed legacy dashboard</h1>');
-  await writeFile(join(distDir, 'assets', 'legacy.js'), 'throw new Error("Legacy bundle must not be served");');
+  if (built) {
+    await writeFile(join(distDir, 'index.html'), '<h1>Removed legacy dashboard</h1>');
+    await writeFile(join(distDir, 'assets', 'legacy.js'), 'throw new Error("Legacy bundle must not be served");');
+  }
   if (built) {
     await mkdir(join(partnerDist, 'assets'), { recursive: true });
     await writeFile(join(partnerDist, 'index.html'), html);

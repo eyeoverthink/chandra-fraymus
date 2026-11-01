@@ -21,6 +21,7 @@
 
 <p align="center">
   <a href="#-quick-start">Quick Start</a> · 
+  <a href="APP-STATUS.md">App Status</a> ·
   <a href="#-intelligence-stack">Intelligence</a> · 
   <a href="#-commerce-pipelines">Commerce</a> · 
   <a href="#-visual-workflow-canvas">Workflows</a> · 
@@ -337,6 +338,7 @@ Artifacts are written to:
 Full operational flow (workspace layout, launcher, triage):
 
 - `docs/E2E-RUNBOOK.md`
+- `APP-STATUS.md`
 
 ---
 

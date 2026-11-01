@@ -26,12 +26,13 @@ if ($Build -or -not (Test-Path -LiteralPath $partnerIndex) -or -not (Test-Path -
     Invoke-Npm $partnerDir @('ci','--include=dev')
     if ($Build -or -not (Test-Path -LiteralPath $partnerIndex)) { Invoke-Npm $partnerDir @('run','build') }
   } elseif ($Build) {
-    Write-Warning "Companion repo not found at $partnerDir. Using local client/dist fallback for /partner/."
+    Write-Warning "Companion repo not found at $partnerDir. Launcher will defer to server/static.js lookup (vendored partner-dist before client fallback)."
   }
   Invoke-Npm $projectDir @('run','build')
 }
-$partnerDistToUse = if (Test-Path -LiteralPath $partnerIndex) { $partnerDist } else { $fallbackPartnerDist }
-$env:CHANDRA_PARTNER_DIST = $partnerDistToUse
+if (-not $env:CHANDRA_PARTNER_DIST -and (Test-Path -LiteralPath $partnerIndex)) {
+  $env:CHANDRA_PARTNER_DIST = $partnerDist
+}
 $owned = @()
 function Start-LocalWorker([string]$Executable, [string]$Entry, [string]$Name, [string]$Directory) {
   $process = Start-Process -FilePath $Executable -ArgumentList @('"' + $Entry + '"') -WorkingDirectory $Directory -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $dataDir "$Name.stdout.log") -RedirectStandardError (Join-Path $dataDir "$Name.stderr.log")
