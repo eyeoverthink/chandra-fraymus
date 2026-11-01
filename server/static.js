@@ -4,10 +4,11 @@ import { join } from 'node:path';
 import { PROJECT_ROOT } from './config.js';
 
 export function installStatic(app, { production = process.env.NODE_ENV === 'production',
-  partnerDist = process.env.CHANDRA_PARTNER_DIST || join(PROJECT_ROOT, '..', 'MyAIPartner', 'dist') } = {}) {
+  partnerDist = process.env.CHANDRA_PARTNER_DIST || join(PROJECT_ROOT, '..', 'MyAIPartner', 'dist'),
+  vendoredDist = process.env.CHANDRA_VENDORED_PARTNER_DIST || join(PROJECT_ROOT, 'partner-dist') } = {}) {
   const fallbackPartnerDist = join(PROJECT_ROOT, 'client', 'dist');
   // vendored real partner build (in-repo, survives fresh clones — no sibling needed):
-  const vendoredPartnerDist = join(PROJECT_ROOT, 'partner-dist');
+  const vendoredPartnerDist = vendoredDist;
   const selectedPartnerDist = existsSync(join(partnerDist, 'index.html'))
     ? partnerDist
     : (existsSync(join(vendoredPartnerDist, 'index.html')) ? vendoredPartnerDist : fallbackPartnerDist);

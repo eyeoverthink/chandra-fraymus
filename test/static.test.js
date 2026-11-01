@@ -22,7 +22,13 @@ async function fixture(t, { production = true, built = true } = {}) {
     await writeFile(join(partnerDist, 'assets', 'chat.css'), 'body{margin:0}');
   }
   const app = express();
-  installStatic(app, { production, partnerDist, distDir });
+  installStatic(app, {
+    production,
+    partnerDist,
+    distDir,
+    // the in-repo vendored build exists in the real repo; isolate per-fixture like partnerDist
+    vendoredDist: built ? partnerDist : join(root, 'no-vendored'),
+  });
   app.get('/api/health', (_req, res) => res.json({ fixture: true }));
   const server = app.listen(0, '127.0.0.1');
   await once(server, 'listening');
