@@ -42,5 +42,8 @@ export function installStatic(app, { production = process.env.NODE_ENV === 'prod
   app.use('/partner/', express.static(selectedPartnerDist, { index: false, redirect: false }));
   // Both entry URLs render the same real application. Its /partner/ asset base
   // remains valid at /; no outer dashboard, iframe or legacy client is served.
-  if (production) app.get(/^\/(?:index\.html)?$/, servePartner);
+  if (production) {
+    app.use(express.static(selectedPartnerDist, { index: false, redirect: false }));
+    app.get(/^\/(?:index\.html)?$/, servePartner);
+  }
 }
