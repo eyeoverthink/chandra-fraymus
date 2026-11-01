@@ -6,7 +6,11 @@ import { PROJECT_ROOT } from './config.js';
 export function installStatic(app, { production = process.env.NODE_ENV === 'production',
   partnerDist = process.env.CHANDRA_PARTNER_DIST || join(PROJECT_ROOT, '..', 'MyAIPartner', 'dist') } = {}) {
   const fallbackPartnerDist = join(PROJECT_ROOT, 'client', 'dist');
-  const selectedPartnerDist = existsSync(join(partnerDist, 'index.html')) ? partnerDist : fallbackPartnerDist;
+  // vendored real partner build (in-repo, survives fresh clones — no sibling needed):
+  const vendoredPartnerDist = join(PROJECT_ROOT, 'partner-dist');
+  const selectedPartnerDist = existsSync(join(partnerDist, 'index.html'))
+    ? partnerDist
+    : (existsSync(join(vendoredPartnerDist, 'index.html')) ? vendoredPartnerDist : fallbackPartnerDist);
   const index = join(selectedPartnerDist, 'index.html');
   const fallbackIndex = join(fallbackPartnerDist, 'index.html');
   const servePartner = (_req, res) => {
