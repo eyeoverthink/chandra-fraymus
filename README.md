@@ -319,6 +319,27 @@ The frontend starts at **`http://localhost:5173`** with hot-reload and 9 tabs.
 
 ---
 
+## E2E Verification (Operator)
+
+Run this from the repo root to generate a pass/fail report and fresh UI screenshots:
+
+```bash
+npm run smoke:e2e
+```
+
+Artifacts are written to:
+
+- `docs/evidence/latest/e2e-smoke-report.json`
+- `docs/evidence/latest/e2e-smoke-report.md`
+- `docs/screenshots/e2e-latest/root.png`
+- `docs/screenshots/e2e-latest/partner.png`
+
+Full operational flow (workspace layout, launcher, triage):
+
+- `docs/E2E-RUNBOOK.md`
+
+---
+
 ## Intelligence Stack
 
 The intelligence stack was merged from `fraynix-continuity` (Heart, Ledger) and `fraynix-dreamer-120b` (Dreamer, Consciousness Proofs) into a unified system wired across REST, autonomy, workflows, fleet, and Vertiso memory.

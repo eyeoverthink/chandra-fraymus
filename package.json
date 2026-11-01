@@ -9,6 +9,7 @@
     "server": "node --env-file=.env server/index.js",
     "client": "npm --prefix client run dev",
     "build": "npm --prefix client run build",
+    "smoke:e2e": "node scripts/e2e-smoke.mjs",
     "start": "node --env-file=.env server/start.js",
     "test": "node --test test/*.test.js",
     "benchmark": "node server/transport/benchmark.js",
