@@ -292,6 +292,10 @@ export default function CollabPanel({ wsEvent }) {
     <div style={{ padding: 16 }}>
       {runHint && (
         <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
           marginBottom: 12,
           padding: '8px 12px',
           borderRadius: 6,
@@ -300,7 +304,24 @@ export default function CollabPanel({ wsEvent }) {
           color: '#c4b5fd',
           fontSize: 12,
         }}>
-          {runHint}
+          <span>{runHint}</span>
+          {activeRunId && (
+            <button
+              onClick={() => viewSession(activeRunId)}
+              style={{
+                background: '#111118',
+                color: '#c4b5fd',
+                border: '1px solid #7c3aed66',
+                borderRadius: 6,
+                padding: '4px 8px',
+                fontSize: 11,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              View live run
+            </button>
+          )}
         </div>
       )}
       <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
