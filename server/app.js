@@ -19,6 +19,7 @@ import { createToken } from './mcp/auth.js';
 import { initScheduler, startScheduler, stopScheduler, listAutomations, saveAutomation, deleteAutomation, runAutomation, automationRuns } from './automations/scheduler.js';
 import { DATA_DIR } from './config.js';
 import { handleExtensionWs } from './browser/extension-bridge.js';
+import { getObsBridge } from './streaming/overlay.js';
 import { closeBrowser } from './browser/service.js';
 import {
   ensureV3Initialized,
@@ -54,6 +55,8 @@ server.on('upgrade', (req, socket, head) => {
   if (!ready || !allowedRequest(req)) { socket.destroy(); return; }
   if (req.url === '/ws/extension') {
     wss.handleUpgrade(req, socket, head, ws => handleExtensionWs(ws, req));
+  } else if (req.url === '/ws/obs') {
+    wss.handleUpgrade(req, socket, head, ws => getObsBridge().addClient(ws));
   } else if (req.url === '/ws') {
     wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
   } else { socket.destroy(); }

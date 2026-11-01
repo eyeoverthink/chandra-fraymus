@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Living Artifact Overlay</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; -webkit-user-select: none; }
+  #overlay { position: fixed; inset: 0; pointer-events: none; }
+  .artifact-card {
+    position: absolute; bottom: 40px; right: 40px;
+    width: 380px; padding: 0;
+    background: linear-gradient(135deg, rgba(15,0,30,0.92), rgba(40,0,80,0.88));
+    border: 2px solid rgba(180,120,255,0.5);
+    border-radius: 16px;
+    box-shadow: 0 0 40px rgba(140,60,255,0.4), 0 0 80px rgba(100,20,200,0.2);
+    transform: translateX(420px);
+    transition: transform 0.6s cubic-bezier(0.22,1,0.36,1), opacity 0.4s;
+    opacity: 0;
+    overflow: hidden;
+  }
+  .artifact-card.show { transform: translateX(0); opacity: 1; }
+  .artifact-card.hide { transform: translateX(420px); opacity: 0; }
+  .card-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 16px 20px 12px;
+    background: linear-gradient(90deg, rgba(120,40,255,0.2), transparent);
+    border-bottom: 1px solid rgba(180,120,255,0.2);
+  }
+  .card-header .emoji { font-size: 28px; }
+  .card-header .label { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(200,160,255,0.7); }
+  .card-header .donor { font-size: 18px; font-weight: 600; color: #e8d0ff; }
+  .card-body { padding: 16px 20px; }
+  .amount { font-size: 32px; font-weight: 700; color: #b060ff; margin-bottom: 8px; }
+  .message { font-size: 14px; color: rgba(220,200,255,0.8); margin-bottom: 12px; line-height: 1.4; max-height: 42px; overflow: hidden; }
+  .artifact-visual { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .artifact-visual canvas { width: 64px; height: 64px; border-radius: 8px; border: 1px solid rgba(180,120,255,0.3); image-rendering: pixelated; }
+  .artifact-meta { font-size: 11px; color: rgba(200,160,255,0.6); }
+  .artifact-meta .hash { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 10px; color: rgba(160,120,220,0.7); }
+  .verification {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 20px 14px;
+    font-size: 12px; color: rgba(100,255,180,0.8);
+    border-top: 1px solid rgba(180,120,255,0.1);
+  }
+  .verification .dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 8px #4ade8088; }
+  .stego-tag { font-size: 18px; position: absolute; top: 16px; right: 20px; opacity: 0.6; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 40px rgba(140,60,255,0.4); } 50% { box-shadow: 0 0 60px rgba(140,60,255,0.6), 0 0 100px rgba(100,20,200,0.3); } }
+  .artifact-card.show { animation: pulse 2s ease-in-out 3; }
+  #watermark { position: fixed; bottom: 10px; left: 10px; font-size: 9px; color: rgba(255,255,255,0.03); pointer-events: none; }
+  #status { position: fixed; top: 8px; left: 8px; font-size: 10px; padding: 4px 8px; border-radius: 4px; background: rgba(0,0,0,0.5); color: rgba(255,255,255,0.4); }
+</style>
+</head>
+<body oncontextmenu="return false" ondragstart="return false">
+<div id="overlay"></div>
+<div id="status">Connecting...</div>
+<div id="watermark">FRAYMUS SOVEREIGN</div>
+<script>
+const DISPLAY_MS = 12000;
+const FADE_MS = 600;
+let ws, retryMs = 1000;
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws/obs`);
+  ws.onopen = () => { document.getElementById('status').textContent = 'Live'; retryMs = 1000; };
+  ws.onclose = () => { document.getElementById('status').textContent = 'Reconnecting...'; setTimeout(connect, retryMs); retryMs = Math.min(retryMs * 1.5, 30000); };
+  ws.onerror = () => ws.close();
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'artifact') showArtifact(msg.payload);
+      if (msg.type === 'history' && Array.isArray(msg.payload)) msg.payload.forEach(a => showArtifact(a));
+    } catch (_) {}
+  };
+}
+
+function showArtifact(a) {
+  const overlay = document.getElementById('overlay');
+  const card = document.createElement('div');
+  card.className = 'artifact-card';
+  const shortHash = (a.sha256 || '').slice(0, 16);
+  card.innerHTML = `
+    <div class="stego-tag">${escHtml(a.stegoEmoji || '')}</div>
+    <div class="card-header">
+      <div class="emoji">&#x1f48e;</div>
+      <div>
+        <div class="label">Living Artifact</div>
+        <div class="donor">${escHtml(a.donorName || 'Anonymous')}</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="amount">$${Number(a.amount || 0).toFixed(2)}</div>
+      ${a.message ? `<div class="message">${escHtml(a.message)}</div>` : ''}
+      <div class="artifact-visual">
+        <canvas id="cv-${a.id}" width="64" height="64"></canvas>
+        <div class="artifact-meta">
+          <div>WASM-bound &middot; Ed25519 signed</div>
+          <div class="hash">${shortHash}...</div>
+          <div>${a.durationMs || 0}ms mint time</div>
+        </div>
+      </div>
+    </div>
+    <div class="verification">
+      <div class="dot"></div>
+      <span>Sovereign &middot; DNA-fingerprinted &middot; Tamper-proof</span>
+    </div>
+  `;
+  overlay.appendChild(card);
+  if (a.pngBase64) renderPng(card.querySelector(`#cv-${a.id}`), a.pngBase64);
+  requestAnimationFrame(() => { card.classList.add('show'); });
+  setTimeout(() => {
+    card.classList.remove('show');
+    card.classList.add('hide');
+    setTimeout(() => card.remove(), FADE_MS);
+  }, DISPLAY_MS);
+}
+
+function renderPng(canvas, b64) {
+  if (!canvas) return;
+  const img = new Image();
+  img.onload = () => {
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  };
+  img.src = 'data:image/png;base64,' + b64;
+}
+
+function escHtml(s) { return String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]); }
+
+connect();
+</script>
+</body>
+</html>

@@ -1,13 +1,20 @@
 // Control Plane — agent registry, enrollment, and coordination
 // Source: Creator Nexus fraymusControlPlane.js (808 lines)
-import { AGENTS } from '../core/constants.js';
+import { AGENTS, FLEET_REGISTRY } from '../core/constants.js';
 
 export class ControlPlane {
   constructor(entityStore) {
     this.store = entityStore;
     this.registry = new Map();
     for (const agent of AGENTS) {
-      this.registry.set(agent.name, { ...agent, status: 'offline', enrolled: false });
+      this.registry.set(agent.name, { ...agent, tier: 'local', status: 'offline', enrolled: false });
+    }
+    for (const [name, info] of Object.entries(FLEET_REGISTRY)) {
+      this.registry.set(`fleet:${name}`, {
+        name, ...info, tier: 'fleet', model: 'claude',
+        status: info.status === 'active' ? 'remote' : 'retired',
+        enrolled: info.status === 'active',
+      });
     }
   }
 

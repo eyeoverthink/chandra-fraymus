@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Living Artifact Demo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { min-height: 100vh; background: linear-gradient(135deg, #0a0014 0%, #1a0030 50%, #0d001a 100%); font-family: 'Segoe UI', system-ui, sans-serif; color: #e8d0ff; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+  h1 { font-size: 22px; font-weight: 600; margin: 16px 0 4px; letter-spacing: 1px; }
+  .subtitle { font-size: 12px; color: rgba(200,160,255,0.5); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 24px; }
+  .form-card { width: 100%; max-width: 400px; background: rgba(30,10,60,0.7); border: 1px solid rgba(140,80,255,0.25); border-radius: 16px; padding: 24px; }
+  label { display: block; font-size: 12px; color: rgba(200,160,255,0.6); margin-bottom: 6px; letter-spacing: 1px; text-transform: uppercase; }
+  input, textarea { width: 100%; padding: 12px 14px; background: rgba(20,5,40,0.8); border: 1px solid rgba(140,80,255,0.3); border-radius: 10px; color: #e8d0ff; font-size: 16px; font-family: inherit; outline: none; margin-bottom: 16px; transition: border-color 0.2s; }
+  input:focus, textarea:focus { border-color: rgba(180,120,255,0.6); }
+  textarea { resize: vertical; min-height: 60px; }
+  input[type="number"] { -moz-appearance: textfield; }
+  input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  button { width: 100%; padding: 14px; background: linear-gradient(135deg, #7c3aed, #a855f7); border: none; border-radius: 10px; color: white; font-size: 16px; font-weight: 600; cursor: pointer; letter-spacing: 1px; transition: transform 0.15s, box-shadow 0.2s; }
+  button:active { transform: scale(0.98); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button:not(:disabled):hover { box-shadow: 0 0 20px rgba(168,85,247,0.4); }
+  #result { width: 100%; max-width: 400px; margin-top: 20px; display: none; }
+  .result-card { background: rgba(30,10,60,0.7); border: 1px solid rgba(100,255,180,0.3); border-radius: 16px; padding: 20px; }
+  .result-card h3 { font-size: 14px; color: #4ade80; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .result-card h3::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 8px #4ade8088; }
+  .result-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px solid rgba(140,80,255,0.1); }
+  .result-row .label { color: rgba(200,160,255,0.5); }
+  .result-row .value { color: #e8d0ff; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 12px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+  .result-visual { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(140,80,255,0.15); }
+  .result-visual canvas { width: 80px; height: 80px; border-radius: 10px; border: 1px solid rgba(180,120,255,0.3); image-rendering: pixelated; }
+  .stego { font-size: 32px; }
+  #error { width: 100%; max-width: 400px; margin-top: 12px; padding: 12px; background: rgba(255,40,40,0.15); border: 1px solid rgba(255,40,40,0.3); border-radius: 10px; color: #ff8888; font-size: 13px; display: none; }
+  .presets { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .preset { padding: 6px 14px; background: rgba(140,80,255,0.15); border: 1px solid rgba(140,80,255,0.25); border-radius: 20px; color: rgba(200,160,255,0.7); font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .preset:hover { background: rgba(140,80,255,0.3); color: #e8d0ff; }
+</style>
+</head>
+<body>
+<h1>Living Artifact</h1>
+<div class="subtitle">Sovereign Emote Demo</div>
+
+<div class="form-card">
+  <label>Your Name</label>
+  <input id="name" type="text" placeholder="Enter donor name" value="">
+
+  <label>Amount ($)</label>
+  <div class="presets">
+    <span class="preset" onclick="setAmount(5)">$5</span>
+    <span class="preset" onclick="setAmount(10)">$10</span>
+    <span class="preset" onclick="setAmount(25)">$25</span>
+    <span class="preset" onclick="setAmount(50)">$50</span>
+    <span class="preset" onclick="setAmount(100)">$100</span>
+  </div>
+  <input id="amount" type="number" placeholder="0.00" min="0" step="0.01">
+
+  <label>Message</label>
+  <textarea id="message" placeholder="Say something..."></textarea>
+
+  <button id="btn" onclick="donate()">Mint Artifact</button>
+</div>
+
+<div id="error"></div>
+
+<div id="result">
+  <div class="result-card">
+    <h3>Artifact Minted</h3>
+    <div id="result-rows"></div>
+    <div class="result-visual">
+      <canvas id="result-canvas" width="80" height="80"></canvas>
+      <div>
+        <div class="stego" id="result-emoji"></div>
+        <div style="font-size:11px;color:rgba(200,160,255,0.5);margin-top:4px;">Steganographic tag</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function setAmount(v) { document.getElementById('amount').value = v; }
+
+async function donate() {
+  const btn = document.getElementById('btn');
+  const errEl = document.getElementById('error');
+  const resEl = document.getElementById('result');
+  errEl.style.display = 'none';
+  resEl.style.display = 'none';
+
+  const name = document.getElementById('name').value.trim();
+  const amount = parseFloat(document.getElementById('amount').value);
+  const message = document.getElementById('message').value.trim();
+
+  if (!name) { showError('Name is required'); return; }
+  if (!amount || amount <= 0) { showError('Enter a valid amount'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Minting...';
+
+  try {
+    const res = await fetch('/api/streaming/simulate-donation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ donor_name: name, amount, message }),
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.error || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    showResult(data);
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Mint Artifact';
+  }
+}
+
+function showError(msg) {
+  const el = document.getElementById('error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function showResult(data) {
+  const a = data.artifact;
+  const rows = [
+    ['ID', a.id],
+    ['SHA-256', (a.sha256 || '').slice(0, 24) + '...'],
+    ['WASM Size', `${a.wasmSize} bytes`],
+    ['DNA Size', `${a.dnaSize} bits`],
+    ['Mint Time', `${data.durationMs}ms`],
+    ['Signed By', a.signed?.from?.slice(0, 16) + '...'],
+  ];
+  const container = document.getElementById('result-rows');
+  container.innerHTML = rows.map(([l, v]) => `<div class="result-row"><span class="label">${l}</span><span class="value">${escHtml(v)}</span></div>`).join('');
+
+  const emojiEl = document.getElementById('result-emoji');
+  emojiEl.textContent = a.stegoEmoji || '';
+
+  document.getElementById('result').style.display = 'block';
+}
+
+function escHtml(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]); }
+</script>
+</body>
+</html>

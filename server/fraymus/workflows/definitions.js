@@ -227,6 +227,23 @@ export const WORKFLOWS = {
     ],
   },
 
+  // ═══ Living Artifact / Sovereign Emote Pipeline ═══
+  StreamingMintPipeline: {
+    trigger: { source: 'manual', event: 'run' },
+    function: 'streamingPipeline',
+    action: 'full_mint',
+    description: 'Capture → Mint (WASM + DNA + Sign + Codon + Plasmid + Emoji + PNG) → Deliver to OBS overlays',
+    canvas_nodes: [
+      { id: 'st1', type: 'stream_capture', position: { x: 100, y: 200 }, data: { type: 'stream_capture', prompt: 'Capture donation moment' } },
+      { id: 'st2', type: 'stream_mint', position: { x: 450, y: 200 }, data: { type: 'stream_mint', prompt: 'Mint Living Artifact (WASM transmute + DNA + Ed25519 sign + codon + plasmid + emoji + RGBA PNG)' } },
+      { id: 'st3', type: 'stream_deliver', position: { x: 800, y: 200 }, data: { type: 'stream_deliver', prompt: 'Deliver to connected OBS overlays via WebSocket' } },
+    ],
+    canvas_edges: [
+      { id: 'ste1', source: 'st1', target: 'st2' },
+      { id: 'ste2', source: 'st2', target: 'st3' },
+    ],
+  },
+
   // ═══ External Integration ═══
   GoogleCalendarRealtimeSync: {
     trigger: { source: 'google_calendar', event: 'webhook' },

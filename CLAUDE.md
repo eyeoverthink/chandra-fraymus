@@ -148,13 +148,28 @@ npm run start        # production server (serves built client)
 - `entities/schemas.js` — entity schema definitions
 
 ### Agent Fleet (server/fleet/)
-22 agents total: 17 default manifests in `agents/` directory + 5 forged agents in `data/agents/` (Chandra Debate, Data Serializer, JSON Preferer, Ollama Handyman, Preference Manager):
-Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, Java Baremetal, Fraymus Prime, Genesis, Helix, Lumen, Tycho (RE analyst), Solon, Spearhead, Video Director, YouTube Researcher
+23 agents total: 18 default manifests in `agents/` directory + 5 forged agents in `data/agents/` (Chandra Debate, Data Serializer, JSON Preferer, Ollama Handyman, Preference Manager):
+Ariadne, Artifact Minter, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, Java Baremetal, Fraymus Prime, Genesis, Helix, Lumen, Tycho (RE analyst), Solon, Spearhead, Video Director, YouTube Researcher
 
 - `manifest.js` — loads agent .md files with frontmatter (id, name, role, tools)
 - `routes.js` — fleet CRUD API
 - `runtime.js` — agent execution runtime (intelligence-enriched: full stack context in prompts — mood/dreamer/cognition/bridge memories, reads Heart on each user message, logs to Ledger, persists strong emotions to Memory Bridge)
 - `tools.js` — 27 fleet tools (7 fleet + 6 intelligence + 3 bus + 3 agent-memory + 3 evolution + 5 carbon)
+
+### Streaming / Living Artifact Pipeline (server/streaming/)
+- `mint.js` — Core minting pipeline: `mintArtifact()` chains transmute() → encodeCodon() → forgePlasmid() → signMessage() → encodeEmoji() → encodeRgbaPng(). Server identity cached in `data/streaming-identity.json`. `verifyArtifact()` checks WASM structure + DNA fingerprint. `createFilelike()` adapter bridges server Buffer to browser File API for transmute().
+- `keys.js` — SQLite tables (`streaming_api_keys`, `streaming_artifacts`) + CRUD. Auto-generates default API key on first boot. B2B-ready: scoped keys with rate limits.
+- `webhook.js` — `createWebhookHandler()` matches Streamlabs donation event format. Handles donation/subscription/bits events, stores to MemoryBridge on mint.
+- `overlay.js` — OBS WebSocket bridge: `createObsBridge()` manages `/ws/obs` clients, maintains artifact history (last 50), serves overlay.html and demo.html. Singleton via `getObsBridge()`.
+- `overlay.html` — OBS Browser Source: transparent background, WebSocket-driven artifact cards with anti-rip (canvas rendering, no right-click), auto-dismiss after 12s.
+- `demo.html` — Phone-friendly donation form for pitch demo. Posts to `/api/streaming/simulate-donation`.
+- `routes.js` — `installStreamingRoutes(app, { broadcast, memoryBridge, db, obsBridge })`: 9 REST endpoints (simulate-donation, webhook, verify, artifacts, keys CRUD, identity, overlay-status) + overlay/demo page serving.
+- `tools.js` — `createStreamingTools()`: 5 fleet tools (streaming.mint_artifact, streaming.verify_artifact, streaming.list_artifacts, streaming.overlay_status, streaming.simulate_donation).
+- **Split-brain architecture**: ALL IP (transmutation, signing, DNA, encoding) stays server-side. Overlay is "dumb glass" — WebSocket receiver + canvas renderer + verification badge only.
+- **WebSocket**: `/ws/obs` upgrade path in app.js routes to `getObsBridge().addClient(ws)`
+- **Command Router**: `run streaming`, `run artifact`, `run mint`, `run living-artifact` all route to simulate-donation
+- **Workflow nodes**: `stream_capture`, `stream_mint`, `stream_deliver` in engine.js; pre-built `StreamingMintPipeline` in definitions.js
+- **Agent**: `agents/artifact-minter.md` — fleet agent with 5 streaming tools
 
 ### Commerce Pipelines (server/commerce/)
 - `shared.js` — shared utilities: `chatOllama`, `parseJSON`, `shopifyHeaders`, `shopifyBase` (API v2024-10), `createCommerceIntel` (intelligence hooks factory for pipelines)
@@ -173,7 +188,7 @@ Ariadne, Cantor, Concierge, DevArchivist, Director, EYE Sovereign, ForgeKeeper, 
 - `rsi-tools.js` — agent tools for RSI ops
 
 ### Visual Workflow Engine (server/workflow/)
-- `engine.js` — pipeline executor, 39 node types (incl. 6 intelligence: heart_feel, dream, consciousness_prove, cognition, memory_recall, intelligence_cycle — all Memory Bridge-wired; 3 carbon: carbon_encode, carbon_plasmid, carbon_checkpoint; commerce terminal nodes store insights via createCommerceIntel)
+- `engine.js` — pipeline executor, 42 node types (incl. 6 intelligence: heart_feel, dream, consciousness_prove, cognition, memory_recall, intelligence_cycle — all Memory Bridge-wired; 3 carbon: carbon_encode, carbon_plasmid, carbon_checkpoint; 3 streaming: stream_capture, stream_mint, stream_deliver; commerce terminal nodes store insights via createCommerceIntel)
 - `routes.js` — workflow CRUD + run API (with node count validation, ownership checks)
 
 ### Image Processing Engine (server/media/)

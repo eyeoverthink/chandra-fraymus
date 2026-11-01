@@ -42,6 +42,9 @@ import { installYouTubeRoutes } from './youtube/routes.js';
 import { setYouTubeMemoryBridge } from './youtube/service.js';
 import { createCommerceTools } from './commerce/tools.js';
 import { installCommerceRoutes } from './commerce/routes.js';
+import { createStreamingTools } from './streaming/tools.js';
+import { installStreamingRoutes } from './streaming/routes.js';
+import { getObsBridge } from './streaming/overlay.js';
 import { installCommandRouter } from './command-router.js';
 import { installDeployRoutes } from './deploy-api/routes.js';
 import { initBus } from './fleet/bus.js';
@@ -55,6 +58,7 @@ import { installReflectionRoutes, startReflectionLoop } from './intelligence/ref
 import { installVerifierRoutes } from './intelligence/verifier-loop.js';
 import { installDaemonRoutes, startDaemon } from './daemon/engine.js';
 import { installNUDPRoutes } from './fraymus/protocol/nudp-routes.js';
+import { installBridgeRoutes } from './fraymus/protocol/bridge-routes.js';
 import { installImageRoutes } from './media/image-routes.js';
 import { installVideoRoutes } from './media/video-routes.js';
 import { installTTSRoutes } from './media/tts-routes.js';
@@ -115,11 +119,14 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   try { youtubeTools = createYouTubeTools(); } catch (e) { console.error('runtime: youtube tools failed:', e.message); }
   let commerceTools = [];
   try { commerceTools = createCommerceTools({ memoryBridge }); } catch (e) { console.error('runtime: commerce tools failed:', e.message); }
+  let streamingTools = [];
+  const obsBridge = getObsBridge();
+  try { streamingTools = createStreamingTools({ memoryBridge, db, dataDir, broadcast, obsBridge }); } catch (e) { console.error('runtime: streaming tools failed:', e.message); }
   agent = createAgentService({ db, workspace, ollamaUrl, fetchImpl,
     cloud, codeExecutor, desktopBroker:desktop, extraTools: [...createExtensionTools(artifacts, web),...desktop.tools(),
       ...createTaskTools({scheduler:tasks,db,now:taskClock,onReceipt:(id,receipt)=>agent?.recordTaskReceipt(id,receipt)}),
       ...createSemanticTools({artifacts,store:semanticStore,embedder:embeddings}),...createVisionTools({artifacts,provider:localVision}),...createOcrTools({artifacts,provider:localOcr}),...createFraymusTools(),
-      ...fleetTools, ...mcpImported, ...browserTools, ...vertisoTools, ...youtubeTools, ...commerceTools],
+      ...fleetTools, ...mcpImported, ...browserTools, ...vertisoTools, ...youtubeTools, ...commerceTools, ...streamingTools],
     resolveAttachments: (ids, options) => artifacts.resolve(ids, options),
     onEvent: event => {
       if(agent&&['usage','auxiliary_usage'].includes(event.type)) {
@@ -156,6 +163,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installVerifierRoutes(app);
   installDaemonRoutes(app);
   installNUDPRoutes(app);
+  installBridgeRoutes(app);
   installImageRoutes(app);
   installVideoRoutes(app);
   installTTSRoutes(app);
@@ -182,6 +190,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installVertisoRoutes(app, { vertiso, rsi });
   installYouTubeRoutes(app);
   installCommerceRoutes(app, { memoryBridge });
+  installStreamingRoutes(app, { broadcast, memoryBridge, db, obsBridge });
   installDeployRoutes(app, { broadcast, memoryBridge });
   installCommandRouter(app, { broadcast });
 

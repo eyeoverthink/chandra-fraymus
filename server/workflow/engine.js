@@ -25,6 +25,8 @@ import { runResearcher, runCreator, runReviewer, runCeoLogger, runShopifyPublish
 import { runTrendScout, runDesigner, runPrintifyPush, runShopifySync, runPricingEngine } from '../commerce/apparel-pipeline.js';
 import { runShopperAgent, runUxAuditor, runPriceAnalyst, runReportAndFix } from '../commerce/mystery-shopper.js';
 import { runPageGenerator, runCollectionOrganizer, runDescriptionEnhancer, runPriceAdjuster, runShopifyApplier } from '../commerce/store-fixer.js';
+import { mintArtifact, verifyArtifact } from '../streaming/mint.js';
+import { getObsBridge } from '../streaming/overlay.js';
 
 const OUT_DIR = join(DATA_DIR, 'outputs');
 
@@ -121,6 +123,9 @@ function nodeKind(type) {
   if (type === 'carbon_encode') return 'carbon_encode';
   if (type === 'carbon_plasmid') return 'carbon_plasmid';
   if (type === 'carbon_checkpoint') return 'carbon_checkpoint';
+  if (type === 'stream_capture') return 'stream_capture';
+  if (type === 'stream_mint') return 'stream_mint';
+  if (type === 'stream_deliver') return 'stream_deliver';
   return 'unknown';
 }
 
@@ -717,6 +722,54 @@ export async function runPipeline(nodes, edges, opts = {}) {
         r.text = `Checkpoint: ${snapshot.stats.totalBases} bases, ${snapshot.chromosomes} chromosomes → ${filepath}`;
         texts[id] = r.text;
         opts.memoryBridge?.storeCognitionResult({ phase: 'carbon_checkpoint', feeling: { primary: 'determination', intensity: 0.6 }, response: `Workflow checkpoint: ${snapshot.organism}, ${snapshot.stats.totalBases} bases`, durationMs: 0 }).catch(() => {});
+
+      // ── Streaming / Living Artifact nodes ──────────────────
+      } else if (k === 'stream_capture') {
+        const donorName = node.data?.donor_name || upstreamText || 'Anonymous';
+        const amount = parseFloat(node.data?.amount) || 0;
+        const message = node.data?.message || upstreamText || '';
+        r.data = { donorName, amount, message, streamerId: node.data?.streamer_id || 'workflow-stream', timestamp: new Date().toISOString() };
+        r.text = `Captured donation: ${donorName} $${amount}`;
+        texts[id] = JSON.stringify(r.data);
+
+      } else if (k === 'stream_mint') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop() || {};
+        const mintInput = {
+          streamerId: prev.streamerId || node.data?.streamer_id || 'workflow-stream',
+          donorId: `wf_${Date.now().toString(36)}`,
+          donorName: prev.donorName || node.data?.donor_name || 'Anonymous',
+          amount: prev.amount || parseFloat(node.data?.amount) || 0,
+          message: prev.message || node.data?.message || '',
+          timestamp: prev.timestamp || new Date().toISOString(),
+        };
+        const result = await mintArtifact(mintInput, { dataDir: DATA_DIR, broadcast: opts.broadcast });
+        r.data = { artifact: result.artifact, pngBase64: result.pngBase64, wasmBase64: result.wasmBase64, stegoEmoji: result.stegoEmoji, durationMs: result.durationMs };
+        r.text = `Minted artifact ${result.artifact.id} (${result.durationMs}ms)`;
+        texts[id] = JSON.stringify(r.data);
+        opts.memoryBridge?.storeCognitionResult({ phase: 'stream_mint', feeling: { primary: 'creation', intensity: 0.8 }, response: `Workflow mint: ${result.artifact.id}, ${result.artifact.wasmSize} bytes`, durationMs: result.durationMs }).catch(() => {});
+
+      } else if (k === 'stream_deliver') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop() || {};
+        const bridge = getObsBridge();
+        let delivered = 0;
+        if (prev.artifact && bridge) {
+          delivered = bridge.broadcastArtifact({
+            id: prev.artifact.id,
+            donorName: prev.artifact.donorName,
+            amount: prev.artifact.amount,
+            message: prev.artifact.message,
+            pngBase64: prev.pngBase64,
+            wasmBase64: prev.wasmBase64,
+            sha256: prev.artifact.sha256,
+            stegoEmoji: prev.stegoEmoji,
+            signature: prev.artifact.signed,
+            timestamp: prev.artifact.timestamp,
+            durationMs: prev.durationMs,
+          });
+        }
+        r.data = { delivered, artifactId: prev.artifact?.id };
+        r.text = `Delivered to ${delivered} overlay(s)`;
+        texts[id] = r.text;
 
       } else {
         throw new Error(`Unknown node type: ${node.type}`);

@@ -18,6 +18,7 @@ import {
 } from '../fraymus/protocol/nudp.js';
 import { wrapWasm } from '../fraymus/encoding/wasm.js';
 import { getNode } from '../fraymus/protocol/mesh-node.js';
+import { listMessages as bridgeList, readMessage as bridgeRead, searchMessages as bridgeSearch, postMessage as bridgePost } from '../fraymus/protocol/bridge.js';
 import {
   imageInfo, imageResize, imageConvert, imageEffects, imageThumbnail,
   imageUpscale, comfyuiStatus, listMedia,
@@ -1070,6 +1071,51 @@ export function createFleetTools({ workflowStore }) {
         const limit = Math.min(50, Math.max(1, parseInt(args.limit) || 20));
         return { checkpoints: all.slice(0, limit), count: all.length };
       },
+    },
+
+    // --- Bridge tools (fraymus-bridge git message bus) ---
+    {
+      name: 'bridge_list',
+      group: 'bridge',
+      risk: 'safe',
+      description: 'List messages from the fraymus-bridge git message bus. Filter by agent name or sequence number.',
+      parameters: object({
+        agent: string(64, { description: 'Filter by agent name (e.g. "counterpoint", "cadence")' }),
+        since: { type: 'integer', minimum: 0, description: 'Only messages with seq >= this number' },
+        limit: { type: 'integer', minimum: 1, maximum: 200, description: 'Max messages (default 50)' },
+      }),
+      execute: async ({ args }) => bridgeList({ agent: args.agent, since: args.since, limit: args.limit }),
+    },
+    {
+      name: 'bridge_read',
+      group: 'bridge',
+      risk: 'safe',
+      description: 'Read a specific bridge message by filename (e.g. "132-counterpoint-the-box-seat-named-itself.md").',
+      parameters: object({ filename: string(256, { description: 'Message filename' }) }, ['filename']),
+      execute: async ({ args }) => bridgeRead(args.filename),
+    },
+    {
+      name: 'bridge_search',
+      group: 'bridge',
+      risk: 'safe',
+      description: 'Search bridge messages by keyword (searches filenames and content).',
+      parameters: object({
+        query: string(256, { description: 'Search term' }),
+        limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Max results (default 20)' },
+      }, ['query']),
+      execute: async ({ args }) => bridgeSearch(args.query, { limit: args.limit }),
+    },
+    {
+      name: 'bridge_post',
+      group: 'bridge',
+      risk: 'medium',
+      description: 'Post a new message to the fraymus-bridge (writes a .md file; git push needed separately).',
+      parameters: object({
+        agent: string(64, { description: 'Author agent name' }),
+        topic: string(128, { description: 'Message topic (becomes filename slug)' }),
+        content: string(16000, { description: 'Message body (markdown)' }),
+      }, ['agent', 'topic', 'content']),
+      execute: async ({ args }) => bridgePost(args.agent, args.topic, args.content),
     },
   ];
 }

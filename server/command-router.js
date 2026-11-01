@@ -12,6 +12,10 @@ const PIPELINE_ALIASES = {
   'carbon': 'carbon',
   'carbon-x': 'carbon',
   'checkpoint': 'carbon',
+  'streaming': 'streaming',
+  'artifact': 'streaming',
+  'mint': 'streaming',
+  'living-artifact': 'streaming',
 };
 
 const PIPELINE_ENDPOINTS = {
@@ -20,6 +24,7 @@ const PIPELINE_ENDPOINTS = {
   shopper: '/api/shopper/audit',
   fixer: '/api/fixer/pipeline',
   carbon: '/api/carbon/checkpoint',
+  streaming: '/api/streaming/simulate-donation',
 };
 
 export function installCommandRouter(app, { broadcast }) {
