@@ -6,21 +6,32 @@ $dataDir = Join-Path $projectDir 'data'
 New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
 $nodeCommand = (Get-Command node -ErrorAction Stop).Source
 $npmCommand = (Get-Command npm.cmd -ErrorAction Stop).Source
-$partnerDir = Join-Path $workspaceDir 'MyAIPartner'
-$voiceEntry = Join-Path $workspaceDir 'fraymus-voice\bin\local-voice-server.py'
+$partnerDir = if ($env:CHANDRA_PARTNER_DIR) { $env:CHANDRA_PARTNER_DIR } else { Join-Path $workspaceDir 'MyAIPartner' }
+$partnerDist = Join-Path $partnerDir 'dist'
+$partnerIndex = Join-Path $partnerDist 'index.html'
+$fallbackPartnerDist = Join-Path $projectDir 'client\dist'
+$fallbackPartnerIndex = Join-Path $fallbackPartnerDist 'index.html'
+$voiceEntry = if ($env:FRAYMUS_VOICE_ENTRY) { $env:FRAYMUS_VOICE_ENTRY } else { Join-Path $workspaceDir 'fraymus-voice\bin\local-voice-server.py' }
 function Invoke-Npm([string]$Directory, [string[]]$Arguments) {
   Push-Location -LiteralPath $Directory
   try { & $npmCommand @Arguments; if ($LASTEXITCODE -ne 0) { throw "npm failed in $Directory" } }
   finally { Pop-Location }
 }
 if (-not (Test-Path -LiteralPath (Join-Path $projectDir 'node_modules'))) { Invoke-Npm $projectDir @('ci','--include=dev') }
-if ($Build -or -not (Test-Path -LiteralPath (Join-Path $partnerDir 'dist\index.html'))) {
+if ($Build -or -not (Test-Path -LiteralPath $partnerIndex) -or -not (Test-Path -LiteralPath $fallbackPartnerIndex)) {
   # The root build compiles the canonical companion and the optional Vite
   # development handoff. Install both frontends before that single build.
   Invoke-Npm (Join-Path $projectDir 'client') @('ci','--include=dev')
-  Invoke-Npm $partnerDir @('ci','--include=dev')
+  if (Test-Path -LiteralPath $partnerDir) {
+    Invoke-Npm $partnerDir @('ci','--include=dev')
+    if ($Build -or -not (Test-Path -LiteralPath $partnerIndex)) { Invoke-Npm $partnerDir @('run','build') }
+  } elseif ($Build) {
+    Write-Warning "Companion repo not found at $partnerDir. Using local client/dist fallback for /partner/."
+  }
   Invoke-Npm $projectDir @('run','build')
 }
+$partnerDistToUse = if (Test-Path -LiteralPath $partnerIndex) { $partnerDist } else { $fallbackPartnerDist }
+$env:CHANDRA_PARTNER_DIST = $partnerDistToUse
 $owned = @()
 function Start-LocalWorker([string]$Executable, [string]$Entry, [string]$Name, [string]$Directory) {
   $process = Start-Process -FilePath $Executable -ArgumentList @('"' + $Entry + '"') -WorkingDirectory $Directory -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $dataDir "$Name.stdout.log") -RedirectStandardError (Join-Path $dataDir "$Name.stderr.log")
@@ -41,8 +52,12 @@ try {
       if (-not $voiceHealth.capabilities.local_memory -or $voiceHealth.capabilities.cloud_memory) { throw 'Port 9099 is not the expected local voice service.' }
     } else {
       if (Get-NetTCPConnection -State Listen -LocalPort 9099 -ErrorAction SilentlyContinue) { throw 'Port 9099 is already occupied.' }
-      $pythonCommand = (Get-Command python -ErrorAction Stop).Source
-      $owned += Start-LocalWorker $pythonCommand $voiceEntry 'voice' (Split-Path -Parent (Split-Path -Parent $voiceEntry))
+      if (-not (Test-Path -LiteralPath $voiceEntry)) {
+        Write-Warning "Voice entry not found at $voiceEntry. Starting Chandra without local voice worker."
+      } else {
+        $pythonCommand = (Get-Command python -ErrorAction Stop).Source
+        $owned += Start-LocalWorker $pythonCommand $voiceEntry 'voice' (Split-Path -Parent (Split-Path -Parent $voiceEntry))
+      }
     }
   }
   $owned += Start-LocalWorker $nodeCommand (Join-Path $projectDir 'server\start.js') 'chandra' $projectDir
