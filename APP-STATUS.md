@@ -50,6 +50,24 @@ node --test test/static.test.js
 
 ## Verified Results (2026-11-01)
 
+### Dual-Surface Verification
+
+Both app surfaces were verified independently and passed:
+
+- `http://127.0.0.1:8787` (server-hosted partner surface) -> **PASS**
+- `http://127.0.0.1:5173` (standalone Chandra Vite client) -> **PASS**
+
+Captured artifact sets:
+
+- `docs/evidence/dual-surface/2026-11-01/partner-8787-report.json`
+- `docs/evidence/dual-surface/2026-11-01/partner-8787-report.md`
+- `docs/evidence/dual-surface/2026-11-01/client-5173-report.json`
+- `docs/evidence/dual-surface/2026-11-01/client-5173-report.md`
+- `docs/screenshots/dual-surface/2026-11-01/partner-8787/root.png`
+- `docs/screenshots/dual-surface/2026-11-01/partner-8787/partner.png`
+- `docs/screenshots/dual-surface/2026-11-01/client-5173/root.png`
+- `docs/screenshots/dual-surface/2026-11-01/client-5173/partner.png`
+
 ### E2E Smoke
 
 - Command: `npm run smoke:e2e`
@@ -91,4 +109,3 @@ Referenced sibling voice update:
 For detailed startup/triage flow, use:
 
 - `docs/E2E-RUNBOOK.md`
-

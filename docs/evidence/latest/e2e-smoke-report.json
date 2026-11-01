@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-01T13:20:32.777Z",
-  "baseUrl": "http://127.0.0.1:8787",
+  "generatedAt": "2026-11-01T13:40:11.616Z",
+  "baseUrl": "http://127.0.0.1:5173",
   "passed": true,
   "checks": [
     {
@@ -39,19 +39,19 @@
       "required": true,
       "pass": true,
       "status": 200,
-      "id": "b2063c3a-0c"
+      "id": "85c3ce8f-f7"
     }
   ],
   "screenshotResults": [
     {
       "name": "root",
-      "url": "http://127.0.0.1:8787/",
+      "url": "http://127.0.0.1:5173/",
       "file": "docs/screenshots/e2e-latest/root.png",
       "pass": true
     },
     {
       "name": "partner",
-      "url": "http://127.0.0.1:8787/partner/",
+      "url": "http://127.0.0.1:5173/partner/",
       "file": "docs/screenshots/e2e-latest/partner.png",
       "pass": true
     }
@@ -134,10 +134,10 @@
       "ok": true,
       "system": "FRAYMUS Master System",
       "autonomous": true,
-      "generation": 1,
+      "generation": 5,
       "fitness": 0.5,
       "phaseSync": {
-        "R": 0.9995863161578623,
+        "R": 0.9997485210071301,
         "locked": true
       },
       "agents": 9,
@@ -211,10 +211,10 @@
       },
       "runtimeIntelligence": {
         "types": {
-          "cognition": 19
+          "cognition": 23
         },
-        "total": 19,
-        "latest": 1793539053291
+        "total": 23,
+        "latest": 1793540253298
       }
     },
     "voice": {
@@ -252,7 +252,7 @@
     },
     "fleetCount": 18,
     "collabCreate": {
-      "id": "b2063c3a-0c",
+      "id": "85c3ce8f-f7",
       "goal": "Automated E2E smoke check",
       "strategy": "chain",
       "agents": [
