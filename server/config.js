@@ -13,11 +13,22 @@ export function loopbackUrl(value, name = 'service URL') {
   }
   return url.origin;
 }
-export const OLLAMA_URL = loopbackUrl(process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434', 'OLLAMA_BASE_URL');
-export const VOICE_URL = loopbackUrl(process.env.FRAYMUS_VOICE_URL || 'http://127.0.0.1:9099', 'FRAYMUS_VOICE_URL');
+export const PRODUCTION = process.env.NODE_ENV === 'production';
+
+function serviceUrl(value, name) {
+  const url = new URL(value);
+  if (PRODUCTION) return url.origin;
+  return loopbackUrl(value, name);
+}
+export const OLLAMA_URL = serviceUrl(process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434', 'OLLAMA_BASE_URL');
+export const VOICE_URL = serviceUrl(process.env.FRAYMUS_VOICE_URL || 'http://127.0.0.1:9099', 'FRAYMUS_VOICE_URL');
 export const HOST = process.env.HOST || '127.0.0.1';
-if (!['localhost', '127.0.0.1', '::1'].includes(HOST)) throw new Error('This local deployment binds only to loopback');
+if (!PRODUCTION && !['localhost', '127.0.0.1', '::1'].includes(HOST)) throw new Error('This local deployment binds only to loopback');
 export const PORT = Number(process.env.PORT || 8787);
 if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) throw new Error('Invalid PORT');
-export const LOCAL_ORIGINS = new Set([PORT, 5173, 4178].flatMap(port =>
-  [`http://localhost:${port}`, `http://127.0.0.1:${port}`, `http://[::1]:${port}`]));
+const ALLOWED_ORIGINS_ENV = process.env.ALLOWED_ORIGINS;
+export const LOCAL_ORIGINS = new Set([
+  ...[PORT, 5173, 4178].flatMap(port =>
+    [`http://localhost:${port}`, `http://127.0.0.1:${port}`, `http://[::1]:${port}`]),
+  ...(ALLOWED_ORIGINS_ENV ? ALLOWED_ORIGINS_ENV.split(',').map(s => s.trim()) : []),
+]);

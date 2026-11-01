@@ -1,0 +1,22 @@
+version: "3.8"
+
+services:
+  fraymus:
+    build: .
+    container_name: fraymus
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    volumes:
+      - fraymus-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - HOST=0.0.0.0
+      - PORT=8787
+      - CHANDRA_DATA_DIR=/app/data
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  fraymus-data:

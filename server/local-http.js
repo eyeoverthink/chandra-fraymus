@@ -1,6 +1,7 @@
-import { LOCAL_ORIGINS, PORT } from './config.js';
+import { LOCAL_ORIGINS, PORT, PRODUCTION } from './config.js';
 
 export function allowedHost(host) {
+  if (PRODUCTION) return true;
   try {
     const url = new URL(`http://${host}`);
     return ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
@@ -9,6 +10,7 @@ export function allowedHost(host) {
   } catch { return false; }
 }
 export function allowedRequest(req) {
+  if (PRODUCTION) return true;
   return allowedHost(req.headers.host) && (!req.headers.origin || LOCAL_ORIGINS.has(req.headers.origin))
     && req.headers['sec-fetch-site'] !== 'cross-site';
 }
