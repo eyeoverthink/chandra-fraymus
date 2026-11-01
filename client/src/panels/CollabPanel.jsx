@@ -140,6 +140,8 @@ function SessionDetail({ session, onBack }) {
 
 export default function CollabPanel({ wsEvent }) {
   const [agents, setAgents] = useState([]);
+  const [agentsLoading, setAgentsLoading] = useState(true);
+  const [agentsError, setAgentsError] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [selectedSession, setSelectedSession] = useState(null);
   const [goal, setGoal] = useState('');
@@ -149,11 +151,24 @@ export default function CollabPanel({ wsEvent }) {
   const [error, setError] = useState(null);
   const [tab, setTab] = useState('create');
 
-  const fetchAgents = useCallback(() => {
-    fetch('/api/fleet').then(r => r.json()).then(d => {
-      const list = d.agents || d.fleet || [];
-      setAgents(list.map(a => a.id || a.agentId || a.name));
-    }).catch(() => {});
+  const fetchAgents = useCallback(async () => {
+    setAgentsLoading(true);
+    setAgentsError(null);
+    try {
+      const res = await fetch('/api/fleet/agents');
+      if (!res.ok) throw new Error('Failed to load fleet agents');
+      const d = await res.json();
+      const list = Array.isArray(d?.agents) ? d.agents : (Array.isArray(d?.fleet) ? d.fleet : []);
+      const ids = list
+        .map(a => a?.id || a?.agentId || a?.name)
+        .filter(Boolean);
+      setAgents(ids);
+    } catch (e) {
+      setAgents([]);
+      setAgentsError(e?.message || 'Unable to load agents');
+    } finally {
+      setAgentsLoading(false);
+    }
   }, []);
 
   const fetchSessions = useCallback(() => {
@@ -265,7 +280,9 @@ export default function CollabPanel({ wsEvent }) {
                 }}>{id}</button>
               );
             })}
-            {agents.length === 0 && <span style={{ color: '#555', fontSize: 12 }}>Loading agents...</span>}
+            {agentsLoading && <span style={{ color: '#555', fontSize: 12 }}>Loading agents...</span>}
+            {!agentsLoading && agentsError && <span style={{ color: '#ef4444', fontSize: 12 }}>{agentsError}</span>}
+            {!agentsLoading && !agentsError && agents.length === 0 && <span style={{ color: '#555', fontSize: 12 }}>No agents found.</span>}
           </div>
 
           {error && (

@@ -6,6 +6,13 @@ import {
 export function installFleetRoutes(app) {
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
 
+  // Backward-compatible alias used by older UI code.
+  app.get('/api/fleet', route((req, res) => {
+    const agents = listAgents(req.query.userId || 'local');
+    const sanitized = agents.map(({ systemPrompt, ...a }) => a);
+    res.json({ agents: sanitized, fleet: sanitized });
+  }));
+
   app.get('/api/fleet/agents', route((req, res) => {
     const agents = listAgents(req.query.userId || 'local');
     res.json({ agents: agents.map(({ systemPrompt, ...a }) => a) });
