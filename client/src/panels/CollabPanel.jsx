@@ -148,6 +148,8 @@ export default function CollabPanel({ wsEvent }) {
   const [strategy, setStrategy] = useState('chain');
   const [selectedAgents, setSelectedAgents] = useState([]);
   const [running, setRunning] = useState(false);
+  const [activeRunId, setActiveRunId] = useState(null);
+  const [runHint, setRunHint] = useState('');
   const [error, setError] = useState(null);
   const [tab, setTab] = useState('create');
 
@@ -183,6 +185,39 @@ export default function CollabPanel({ wsEvent }) {
     if (wsEvent?.type === 'collab') fetchSessions();
   }, [wsEvent, fetchSessions]);
 
+  useEffect(() => {
+    if (!activeRunId) return;
+    let canceled = false;
+
+    const syncStatus = async () => {
+      try {
+        const r = await fetch(`/api/collab/${activeRunId}`);
+        if (!r.ok) return;
+        const session = await r.json();
+        if (canceled) return;
+
+        setSelectedSession(prev => (prev?.id === session.id ? session : prev));
+        setSessions(prev => {
+          const rest = prev.filter(s => s.id !== session.id);
+          return [session, ...rest].slice(0, 50);
+        });
+
+        if (session.status === 'done' || session.status === 'error') {
+          setRunning(false);
+          setActiveRunId(null);
+          setRunHint(session.status === 'done' ? 'Run complete.' : 'Run ended with an error.');
+        }
+      } catch (_) {}
+    };
+
+    syncStatus();
+    const intervalId = setInterval(syncStatus, 2000);
+    return () => {
+      canceled = true;
+      clearInterval(intervalId);
+    };
+  }, [activeRunId]);
+
   const toggleAgent = (id) => {
     setSelectedAgents(prev =>
       prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]
@@ -193,25 +228,50 @@ export default function CollabPanel({ wsEvent }) {
     if (!goal.trim() || selectedAgents.length < 2) return;
     setRunning(true);
     setError(null);
+    setRunHint('');
     try {
-      const res = await fetch('/api/collab', {
+      const createRes = await fetch('/api/collab/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ goal: goal.trim(), strategy, agents: selectedAgents }),
       });
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        throw new Error(e.error || 'Failed');
+      if (!createRes.ok) {
+        const e = await createRes.json().catch(() => ({}));
+        throw new Error(e.error || 'Failed to create collaboration');
       }
-      const session = await res.json();
+      const session = await createRes.json();
       setGoal('');
       setSelectedAgents([]);
       setTab('history');
-      setSelectedSession(session);
-      fetchSessions();
+      setSelectedSession(null);
+      setSessions(prev => [session, ...prev.filter(s => s.id !== session.id)].slice(0, 50));
+      setActiveRunId(session.id);
+      setRunHint(`Run started for ${session.id}. This can take a bit.`);
+      fetch(`/api/collab/${session.id}/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      }).then(async (runRes) => {
+        if (!runRes.ok) {
+          const e = await runRes.json().catch(() => ({}));
+          throw new Error(e.error || 'Failed to start collaboration run');
+        }
+        const full = await runRes.json();
+        setSelectedSession(prev => (prev?.id === full.id ? full : prev));
+        setSessions(prev => [full, ...prev.filter(s => s.id !== full.id)].slice(0, 50));
+        if (full.status === 'done' || full.status === 'error') {
+          setRunning(false);
+          setActiveRunId(null);
+          setRunHint(full.status === 'done' ? 'Run complete.' : 'Run ended with an error.');
+        }
+      }).catch((e) => {
+        setError(e.message || 'Failed to run collaboration');
+        setRunning(false);
+        setActiveRunId(null);
+        setRunHint('Run failed to start.');
+      });
     } catch (e) {
       setError(e.message);
-    } finally {
       setRunning(false);
     }
   };
@@ -230,6 +290,19 @@ export default function CollabPanel({ wsEvent }) {
 
   return (
     <div style={{ padding: 16 }}>
+      {runHint && (
+        <div style={{
+          marginBottom: 12,
+          padding: '8px 12px',
+          borderRadius: 6,
+          background: '#7c3aed22',
+          border: '1px solid #7c3aed66',
+          color: '#c4b5fd',
+          fontSize: 12,
+        }}>
+          {runHint}
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
         {['create', 'history'].map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
