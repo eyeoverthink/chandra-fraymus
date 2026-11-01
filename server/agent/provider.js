@@ -1,5 +1,6 @@
 import { AgentError, fail } from './schema.js';
 import {normalizeThinking,thinkingControls,requireThinking,attachPrivateThinking} from './thinking.js';
+import { PRODUCTION } from '../config.js';
 
 export const cloudModelName = model => typeof model === 'string' && /(?:^|[:/@._-])cloud(?:$|[:/@._-])/i.test(model);
 export function remoteModelMetadata(data, depth = 0) {
@@ -18,6 +19,7 @@ export function localOllamaUrl(input = 'http://127.0.0.1:11434') {
   let url;
   try { url = new URL(input); } catch { fail('invalid_provider', 'Invalid Ollama URL'); }
   const host = url.hostname.toLowerCase();
+  if (PRODUCTION) return url.origin;
   if (!['http:', 'https:'].includes(url.protocol) || !['localhost', '127.0.0.1', '[::1]', '::1'].includes(host)
       || url.username || url.password || url.search || url.hash || !['', '/'].includes(url.pathname)) {
     fail('invalid_provider', 'Ollama must use an explicit loopback HTTP endpoint; cloud providers are disabled');
