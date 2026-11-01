@@ -1,0 +1,6 @@
+  # modelfiles/fraynix_core.yaml
+  Transition_C_Receipt_Processing:
+    Trigger: R_raw received
+    Action: Pass through Sanitizer Module Σ
+    Mandate: Next thought MUST begin analyzing sanitized data
+    S3→S4 Gate: Requires R_san else HALT RUNTIME_DEPENDENCY_ERROR

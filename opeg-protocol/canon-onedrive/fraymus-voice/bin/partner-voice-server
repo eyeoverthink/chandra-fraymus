@@ -1,0 +1,262 @@
+#!/opt/homebrew/opt/python@3.12/bin/python3.12
+"""partner-voice-server — HTTP voice adapter for MyAIPartner (the PARTNER_VOICE slot).
+
+Contract (documented in MyAIPartner/index.html):
+  GET  /health          -> {"ok": true, "engine": "...", "voices": [...]}
+  POST /speak {text, voice} -> audio/wav bytes
+  POST /listen            -> full-duplex input is handled by moshi (CLI) for now; 501
+
+Engine: F5-TTS (MLX, offline) speaking with the stored voice —
+set your voice once with ~/bin/myvoice --ref recording.m4a --reftext "..." --set,
+then: ~/bin/partner-voice-server &   (MyAIPartner auto-detects it on load)
+"""
+import io
+import json
+import os
+import sys
+
+# sitecustomize (mac_ver fix) must be visible BEFORE any mlx import: re-exec with it on path
+if os.environ.get("VOICE_SERVER_BOOTED") != "1":
+    env = dict(os.environ,
+               VOICE_SERVER_BOOTED="1",
+               PYTHONPATH="/Users/eyeoverthink/hermes-memory-workspace/voice-deps-f5:"
+                          + os.environ.get("PYTHONPATH", ""))
+    os.execve("/opt/homebrew/opt/python@3.12/bin/python3.12",
+              [sys.executable, __file__] + sys.argv[1:], env)
+
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+sys.path.insert(0, "/Users/eyeoverthink/hermes-memory-workspace/voice-deps-f5")
+STORE = os.path.expanduser("~/voice-models/my-voice")
+
+import numpy as np  # noqa: E402
+import soundfile as sf  # noqa: E402
+
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, fmt, *a):
+        sys.stderr.write("voice-server: " + fmt % a + "\n")
+
+    def _send_json(self, obj):
+        b = json.dumps(obj).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(b)))
+        self.end_headers()
+        self.wfile.write(b)
+
+    def do_GET(self):
+        if self.path.startswith("/health"):
+            import importlib.util
+            reference_ready = all(os.path.isfile(os.path.join(STORE, name)) for name in ("ref.wav", "ref.txt"))
+            try:
+                dependencies_ready = all(importlib.util.find_spec(name) is not None
+                                         for name in ("f5_tts_mlx", "mlx"))
+            except (ImportError, ValueError):
+                dependencies_ready = False
+            ready = reference_ready and dependencies_ready
+            self._send_json({"ok": ready, "engine": "f5-tts-mlx", "voices": ["myvoice"] if ready else [],
+                             "voice_ready": ready,
+                             "capabilities": {"tts": ready, "stt": False, "voice_cloning": ready,
+                                              "local_memory": False, "cloud_memory": globals().get("mem") is not None}})
+        else:
+            self.send_error(404)
+
+    def do_POST(self):
+        if self.path.startswith("/speak"):
+            n = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(n).decode() or "{}")
+            text = (body.get("text") or "").strip()
+            if not text:
+                self.send_error(400, "no text")
+                return
+            ref_wav = os.path.join(STORE, "ref.wav")
+            if not os.path.exists(ref_wav):
+                self._send_json({"error": "no stored voice; run ~/bin/myvoice --set first"})
+                return
+            from f5_tts_mlx.generate import generate, split_sentences
+            import f5_tts_mlx.generate as _g
+            # his measured pace = ~0.55 s/word (228 words / 116 s read); the library's
+            # estimator undershoots 3x — replace it deterministically:
+            def _nola_duration(ref_audio, ref_text, gen_text, speed=1.0):
+                return min(45.0, max(4.0, 0.55 * max(len(gen_text.split()), 1) + 2.5))
+            _g.estimated_duration = _nola_duration
+            import tempfile
+            # --- voice routing: phonon = fast tier (any preset voice), else F5 his-voice ---
+            _voice = (body.get("voice") or "nola").strip()
+            if _voice not in ("nola", "myvoice", "him", "owner"):
+                import urllib.request as _ur
+                _r = _ur.Request("http://127.0.0.1:11434/v1/audio/speech",
+                                 data=json.dumps({"model": "phonon", "voice": _voice, "input": text}).encode(),
+                                 headers={"Content-Type": "application/json"})
+                _ph = _ur.urlopen(_r, timeout=60)
+                _wav = _ph.read()
+                with open("/tmp/pvs_speak.wav", "wb") as f:
+                    f.write(_wav)
+                out = _wav
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/wav")
+                self.send_header("Content-Length", str(len(out)))
+                self.end_headers()
+                self.wfile.write(out)
+                return
+            import mlx.core as mx
+            import numpy as _np
+            reftext = open(os.path.join(STORE, "ref.txt")).read().strip()
+            SAMPLE_RATE = 24000
+            parts = []
+            chunks = split_sentences(text) or [text]
+            for _i, _s in enumerate(chunks):
+                _p = tempfile.mktemp(suffix=".wav")
+                generate(
+                    generation_text=_s,
+                    ref_audio_path=ref_wav,
+                    ref_audio_text=reftext,
+                    output_path=_p,
+                )
+                _d, _sr = sf.read(_p, dtype="float32")
+                parts.append(_np.array(_d))
+                os.unlink(_p)
+            _all = (_np.concatenate(parts, axis=0) if len(parts) > 1 else (parts[0] if parts else _np.zeros((1,), dtype=_np.float32)))
+            out_path = "/tmp/pvs_speak.wav"
+            sf.write(out_path, _all, SAMPLE_RATE, format="WAV", subtype="PCM_16")
+            with open(out_path, "rb") as f:
+                out = f.read()
+            self.send_response(200)
+            self.send_header("Content-Type", "audio/wav")
+            self.send_header("Content-Length", str(len(out)))
+            self.end_headers()
+            self.wfile.write(out)
+        else:
+            self.send_error(501, "full-duplex input runs via moshi (~/bin/moshi-chat)")
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("VOICE_PORT", "9099"))
+    # Existing cloud-memory integration is optional. Default voice startup never reads
+    # Hermes credentials or contacts Honcho. Prefer local-voice-server.py for SQLite memory.
+    mem, _peer, _sess = None, None, None
+    _HCFG = None
+    _HBASE = "https://api.honcho.dev"
+    try:
+        if os.environ.get("VOICE_ENABLE_CLOUD_MEMORY") != "1":
+            raise RuntimeError("cloud memory disabled (requires explicit VOICE_ENABLE_CLOUD_MEMORY=1)")
+        import json as _json
+        _cfg = _json.load(open(os.path.expanduser("~/.hermes/honcho.json")))
+        _cfg["_path"] = os.path.expanduser("~/.hermes/honcho.json")
+        _HCFG = _cfg
+        _h = _cfg.get("hosts", {}).get("hermes") or next(iter(_cfg.get("hosts", {}).values()), {})
+        _key = (_h.get("apiKey") or _h.get("api_key") or _h.get("token") or "")
+        _base = "https://api.honcho.dev"  # cloud deployment (honcho.json records it as cloud)
+        if _key:
+            from honcho import Honcho
+            mem = Honcho(api_key=_key, base_url=_base, workspace_id="mac-hermes")
+            _peer = mem.peer("IMack")
+            _sess = mem.session("nola-v1", peers=["IMack"])
+            print("Nola memory: Honcho connected (workspace mac-hermes, session nola-v1)", file=sys.stderr)
+    except Exception as _e:
+        print("Nola memory offline (partner still voices):", _e, file=sys.stderr)
+
+    def _honcho_refresh():
+        """The hermes plugin's access tokens expire ~56min; refresh via the stored grant."""
+        import urllib.request as _ur
+        o = (_HCFG or {}).get("hosts", {}).get("hermes", {}).get("oauth") or {}
+        ep, rt, cid = o.get("tokenEndpoint"), o.get("refreshToken"), o.get("clientId")
+        if not (ep and rt and cid):
+            return None
+        body = f"grant_type=refresh_token&refresh_token={rt}&client_id={cid}"
+        req = _ur.Request(ep, data=body.encode(), headers={"Content-Type": "application/x-www-form-urlencoded"})
+        j = json.loads(_ur.urlopen(req, timeout=20).read().decode())
+        tok = j.get("access_token") or j.get("accessToken")
+        return tok or None
+
+    def _renew():
+        global mem, _peer, _sess
+        from honcho import Honcho
+        tok = _honcho_refresh()
+        if not tok:
+            return False
+        mem = Honcho(api_key=tok, base_url=_HBASE, workspace_id="mac-hermes")
+        _peer = mem.peer("IMack")
+        _sess = mem.session("nola-v1", peers=["IMack"])
+        print("Nola memory: access token refreshed", file=sys.stderr)
+        return True
+
+    class MemAPI:
+        @staticmethod
+        def search(q, limit=5):
+            if mem is None or not q: return []
+            try:
+                hits = mem.search(q, limit=limit) or []
+            except Exception:
+                if not _renew(): return []
+                hits = mem.search(q, limit=limit) or []
+            return [{"content": str(getattr(h, "content", ""))[:400]} for h in hits if getattr(h, "content", None)]
+        @staticmethod
+        def observe(text):
+            if mem is None or not text: return False
+            try:
+                _sess.add_messages([{"peer_id": "IMack", "content": str(text)[:500]}])
+            except Exception:
+                if not _renew():
+                    return False
+                _sess.add_messages([{"peer_id": "IMack", "content": str(text)[:500]}])
+            return True
+
+    class FinalHandler(Handler):
+        _emo = None
+        @classmethod
+        def emo(cls):
+            if FinalHandler._emo is None:
+                try:
+                    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+                    from nola_emotion import get_engine
+                    FinalHandler._emo = get_engine(
+                        os.path.join(os.path.dirname(os.path.abspath(__file__)), "nola-emotion-data"))
+                except Exception as e:
+                    print("emotion core unavailable:", e, file=sys.stderr)
+            return FinalHandler._emo
+        def do_GET(self):
+            if self.path.startswith("/emotion"):
+                e = FinalHandler.emo()
+                self._send_json(e.state() if e else {"offline": True})
+            elif self.path.startswith("/memory"):
+                from urllib.parse import urlparse, parse_qs
+                q = parse_qs(urlparse(self.path).query).get("q", [""])[0]
+                hits = MemAPI.search(q)
+                e = FinalHandler.emo()
+                state = e.state_sentence() if e else None
+                self._send_json({"hits": hits, "emotion_state": state})
+            else:
+                Handler.do_GET(self)
+        def do_POST(self):
+            if self.path.startswith("/emotion/event"):
+                n = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(n).decode() or "{}")
+                e = FinalHandler.emo()
+                if not e:
+                    self._send_json({"offline": True})
+                else:
+                    self._send_json(e.process_event(
+                        body.get("event_type", "novel_input"), body.get("description", ""),
+                        body.get("hints"), body.get("perturbations"),
+                        body.get("user_valence"), body.get("bond_delta")))
+            elif self.path.startswith("/memory"):
+                n = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(n).decode() or "{}")
+                txt = str(body.get("text", ""))[:500]
+                ok = MemAPI.observe(txt)
+                e = FinalHandler.emo()
+                if e and ok:
+                    from urllib.parse import urlparse, parse_qs
+                    hint = {"goal_relevance": 0.5, "likelihood": 0.5, "control": 0.5,
+                            "caused_by_self": 0.3, "fairness": 0.6, "novelty": 0.5}
+                    if any(w in txt.lower() for w in ("hey", "hi", "hello", "good", "love", "thanks")):
+                        hint["likelihood"] = 0.7; hint["novelty"] = 0.4
+                        e.process_event("connection", txt, hint, user_valence=0.3, bond_delta=0.05)
+                    else:
+                        e.process_event("novel_input", txt, hint)
+                self._send_json({"ok": ok})
+            else:
+                Handler.do_POST(self)
+    ThreadingHTTPServer(("127.0.0.1", port), FinalHandler).serve_forever()

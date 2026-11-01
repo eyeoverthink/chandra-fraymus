@@ -1,0 +1,656 @@
+diff --git a/src/components/WasmVerifier.jsx b/src/components/WasmVerifier.jsx
+index dfdff36..1f7dc96 100644
+--- a/src/components/WasmVerifier.jsx
++++ b/src/components/WasmVerifier.jsx
+@@ -12,7 +12,7 @@ export default function WasmVerifier() {
+   const verify = async (file) => {
+     setFileName(file.name);
+     const buf = await file.arrayBuffer();
+-    setResult(verifyWasm(buf));
++    setResult(await verifyWasm(buf));
+   };
+ 
+   return (
+@@ -24,8 +24,9 @@ export default function WasmVerifier() {
+         <span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">φ^75</span>
+       </div>
+       <p className="text-xs text-muted-foreground mb-4">
+-        Loads any Fraymus WASM, verifies the magic bytes and all 5 custom sections, and confirms the baseline is a
+-        256-bit SHA-256 hash — not a DJB2 (T=5381) 32-bit hash. This is the external root that proves “JS, not JS self.”
++        Loads any Fraymus WASM, verifies the magic bytes and all 5 custom sections, recomputes SHA-256 over the
++        recovered payload and compares it to the baseline, and cross-checks the baseline against the ledger.
++        This is the external root that proves “JS, not JS self.”
+       </p>
+ 
+       <div
+@@ -81,7 +82,18 @@ export default function WasmVerifier() {
+                 {result.baselineNotDjb2 ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <XCircle className="w-3.5 h-3.5 text-destructive" />}
+                 <span>baseline is NOT DJB2 (T=5381, 32-bit)</span>
+               </div>
+-              <div className="font-mono text-[10px] text-muted-foreground break-all">sha256: {result.baseline}</div>
++              <div className="flex items-center gap-2">
++                {result.baselineMatchesActual ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <XCircle className="w-3.5 h-3.5 text-destructive" />}
++                <span>baseline matches the RECOMPUTED hash of the payload</span>
++              </div>
++              <div className="flex items-center gap-2">
++                {result.ledgerAgrees ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <XCircle className="w-3.5 h-3.5 text-destructive" />}
++                <span>ledger sha256 agrees with baseline</span>
++              </div>
++              <div className="font-mono text-[10px] text-muted-foreground break-all">baseline: {result.baseline}</div>
++              {result.actualSha256 && result.actualSha256 !== result.baseline && (
++                <div className="font-mono text-[10px] text-destructive break-all">recomputed: {result.actualSha256}</div>
++              )}
+             </div>
+           )}
+ 
+diff --git a/src/lib/forge.js b/src/lib/forge.js
+index 6216b8a..c2de005 100644
+--- a/src/lib/forge.js
++++ b/src/lib/forge.js
+@@ -1,6 +1,8 @@
+ // Fraymus Forge — shared data + ZIP builder + classic WASM generator.
+ // Used by the Forge, Git Package, and Home pages.
+ 
++import { dnaHypervector, genesisBlock0 } from './fraymus.js';
++
+ export const CLASSIC_WASMS = [
+   { name: 'fraymus_compiler_v1.wasm', hash: 'e0654719998601a3', size: 1666, price: '$500/mo', type: 'compiler' },
+   { name: 'transmuter_engine.wasm', hash: '34a1b88c1e054b70', size: 755, price: '$5k+$2k/mo', type: 'transmuter' },
+@@ -18,6 +20,12 @@ export const CLASSIC_WASMS = [
+   { name: 'fraymus_physics_core_v6.wasm', hash: 'fedcba0987654321', size: 3600, price: '$4k', type: 'physics' }
+ ];
+ 
++// NOTE on the `hash` field above: these are 16-char catalog identifiers, not
++// digests. They were previously written straight into ledger.sha256, which made
++// every classic WASM fail verification — verifyWasm requires a real SHA-256.
++// They are now carried as `catalog_id`, and buildClassicWasm computes a true
++// SHA-256 over the embedded data for the baseline/ledger fields.
++
+ export const ENGINE_FILES = [
+   'AEON_OS.java', 'AkashicRecord.java', 'FrayAbstractKernel.java', 'FrayFS.java',
+   'NanoSwarm.java', 'GenesisArchitectV1.java', 'DreamState.java', 'BrainPulse.java',
+@@ -45,7 +53,37 @@ function leb128(v) {
+   return out;
+ }
+ 
+-export function buildClassicWasm(type, name, data, ledger) {
++// fraymus.data must be BASE64 text, because decodeWasm() reads it as
++// `sections['fraymus.data'].text` and runs atob() on it. transmute() has always
++// written base64; buildClassicWasm wrote RAW BYTES, so every classic WASM threw
++// "Invalid character" inside atob() when decoded and failed verification.
++// The two pipelines were not byte-compatible despite that being a stated principle.
++function bytesToBase64(bytes) {
++  let bin = '';
++  const chunk = 0x8000;
++  for (let i = 0; i < bytes.length; i += chunk) {
++    bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
++  }
++  return btoa(bin);
++}
++
++async function sha256hexAsync(bytes) {
++  const h = await crypto.subtle.digest('SHA-256', bytes);
++  return Array.from(new Uint8Array(h)).map((b) => b.toString(16).padStart(2, '0')).join('');
++}
++
++// Builds a classic WASM in the SAME 5-section DNA format that transmute() emits,
++// so verifyWasm() can actually validate it.
++//
++// AUDIT FIX (2026-09-23): this previously emitted only 2 sections
++// (`fraymus.${type}` and `fraymus.data`) and copied the catalog `hash` string
++// straight into ledger.sha256. Measured consequences:
++//   - verifyWasm() returned valid:false for all 14 (missing fraymus.baseline,
++//     fraymus.dna, fraymus.genesis)
++//   - ledger.sha256 was a 16-char catalog id, not a digest of anything (0/14 matched)
++// It now computes real SHA-256 / SplitMix64-DNA / block-0 genesis and emits all
++// five sections, keeping the catalog id in its own `catalog_id` field.
++export async function buildClassicWasm(type, name, data, ledger) {
+   const magic = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+   const enc = new TextEncoder();
+   function customSection(name, payload) {
+@@ -58,13 +96,30 @@ export function buildClassicWasm(type, name, data, ledger) {
+     out.set(nl, z); z += nl.length; out.set(nb, z); z += nb.length; out.set(payload, z);
+     return out;
+   }
+-  const s1 = customSection(`fraymus.${type}`, enc.encode(JSON.stringify(ledger)));
+-  const s2 = customSection('fraymus.data', data);
++
++  const sha = await sha256hexAsync(data);
++  const timestamp = ledger.timestamp || new Date().toISOString();
++  const dna = dnaHypervector(data, sha);
++  const genesis = await genesisBlock0(sha, name, timestamp);
++
++  // ledger.sha256 is the REAL digest; the catalog id stays separate.
++  const fullLedger = { ...ledger, sha256: sha, timestamp, data_section: 'fraymus.data' };
++
++  const sBaseline = customSection('fraymus.baseline', enc.encode(sha));
++  const sDna = customSection('fraymus.dna', dna);
++  const sGenesis = customSection('fraymus.genesis', enc.encode(JSON.stringify(genesis)));
++  const sLedger = customSection('fraymus.ledger', enc.encode(JSON.stringify(fullLedger)));
++  const sData = customSection('fraymus.data', enc.encode(bytesToBase64(data)));
++
++  // a minimal valid module body so the binary really compiles
+   const mem = new Uint8Array([1, 4, 1, 96, 0, 0]);
+-  const r = new Uint8Array(magic.length + s1.length + s2.length + mem.length);
+-  let o = 0; r.set(magic, o); o += magic.length; r.set(s1, o); o += s1.length;
+-  r.set(s2, o); o += s2.length; r.set(mem, o);
+-  return r;
++
++  const parts = [magic, sBaseline, sDna, sGenesis, sLedger, sData, mem];
++  const total = parts.reduce((n, p) => n + p.length, 0);
++  const r = new Uint8Array(total);
++  let o = 0;
++  for (const p of parts) { r.set(p, o); o += p.length; }
++  return { wasm: r, sha256: sha, ledger: fullLedger, dna, genesis };
+ }
+ 
+ export function buildZip(files) {
+diff --git a/src/lib/fraymus.js b/src/lib/fraymus.js
+index 522dffe..cb04781 100644
+--- a/src/lib/fraymus.js
++++ b/src/lib/fraymus.js
+@@ -86,7 +86,7 @@ function splitMix64(seed) {
+ // Build a 16384-bit (256 × 64-bit / 2048-byte) HDC DNA hypervector from file bytes.
+ // base random vector (SplitMix64 seeded from SHA-256) xor_bind with per-chunk
+ // FNV-1a rolling hash of the file content.
+-function dnaHypervector(bytes, shaHex) {
++export function dnaHypervector(bytes, shaHex) {
+   const CHUNKS = 256;
+   const vec = new BigUint64Array(CHUNKS);
+   const rng = splitMix64('0x' + shaHex.slice(0, 16));
+@@ -109,7 +109,7 @@ function dnaHypervector(bytes, shaHex) {
+ }
+ 
+ // Genesis blockchain Block 0: hash = SHA-256(seed + timestamp + φ)
+-async function genesisBlock0(shaHex, fileName, timestamp) {
++export async function genesisBlock0(shaHex, fileName, timestamp) {
+   const blockHashHex = await sha256hex(new TextEncoder().encode(`${shaHex}|${timestamp}|${PHI}`));
+   return {
+     block: 0,
+@@ -249,8 +249,20 @@ export async function decodeWasmFile(file) {
+   return { ...r, sha256: sha };
+ }
+ 
+-// Verify a WASM binary: magic + 5 expected sections + baseline is SHA-256 (not DJB2).
+-export function verifyWasm(buf) {
++// Verify a WASM binary: magic + 5 expected sections + baseline actually hashing the data.
++//
++// AUDIT FIX (2026-09-23): this function previously only checked that the baseline
++// string *looked* like a hash:
++//     const baselineIsSha256 = /^[0-9a-f]{64}$/.test(baseline);
++//     const baselineNotDjb2 = baselineIsSha256;          // same boolean
++//     valid: magicOk && allPresent && baselineIsSha256
++// It never recomputed anything, so a file with a corrupted fraymus.data payload
++// still returned valid: true. Measured: flipping one base64 char in the
++// fraymus.data section changed the recovered bytes while verifyWasm stayed green.
++//
++// It now recomputes SHA-256 over the recovered bytes and compares. That makes it
++// async, which is why it must be awaited at every call site.
++export async function verifyWasm(buf) {
+   const u = new Uint8Array(buf);
+   const magicOk = u[0] === 0x00 && u[1] === 0x61 && u[2] === 0x73 && u[3] === 0x6d;
+   const expected = ['fraymus.baseline', 'fraymus.dna', 'fraymus.genesis', 'fraymus.ledger', 'fraymus.data'];
+@@ -273,16 +285,34 @@ export function verifyWasm(buf) {
+   }));
+   const baseline = parsed.baseline;
+   const baselineIsSha256 = typeof baseline === 'string' && /^[0-9a-f]{64}$/.test(baseline);
+-  // DJB2 (T=5381) yields a 32-bit integer — never a 64-char hex. Explicitly confirm not DJB2.
+-  const baselineNotDjb2 = baselineIsSha256;
++
++  // The real check: recompute SHA-256 over the recovered bytes.
++  const recovered = parsed.original;
++  const actualSha256 = recovered ? await sha256hex(recovered) : null;
++  const baselineMatchesActual =
++    recovered != null && baselineIsSha256 && baseline === actualSha256;
++
++  // Ledger cross-check: ledger.sha256 should agree with the baseline section.
++  // They are written from the same value, so a mismatch means one section was edited.
++  const ledgerSha256 = parsed.ledger?.sha256 || null;
++  const ledgerAgrees = !!ledgerSha256 && ledgerSha256 === baseline;
++
++  // DJB2 is a 32-bit integer, so its hex form is <= 8 chars and can never match a
++  // 64-char SHA-256 digest. Reported separately from the real comparison above.
++  const baselineNotDjb2 =
++    baselineIsSha256 && !/^[0-9a-f]{1,8}$/.test(String(baseline));
++
+   const allPresent = expected.every((n) => present.includes(n));
+   return {
+     magicOk,
+-    valid: magicOk && allPresent && baselineIsSha256,
++    valid: magicOk && allPresent && baselineMatchesActual && ledgerAgrees,
+     sections,
+     baseline,
+     baselineIsSha256,
+     baselineNotDjb2,
++    baselineMatchesActual,
++    ledgerAgrees,
++    actualSha256,
+     dnaSize: parsed.dna?.length || 0,
+     genesis: parsed.genesis,
+     ledger: parsed.ledger,
+diff --git a/src/lib/go2java.js b/src/lib/go2java.js
+index 7ce7fd2..19fc18f 100644
+--- a/src/lib/go2java.js
++++ b/src/lib/go2java.js
+@@ -7,32 +7,75 @@
+ 
+ // 1. THE DICTIONARY (Regex Mappings) — mirrors Python self.type_map
+ export const TYPE_MAP = [
++  // --- containers and composites FIRST. mapType returns on first match, so if a
++  // scalar rule (e.g. \bstring\b) comes first it rewrites the element type of
++  // `[]string` and yields `[]String` instead of `String[]`.
++  [String.raw`\[\]byte\b`, 'byte[]'],
++  [String.raw`\[\](\w+)`, '$1[]'],
++  [String.raw`map\[(\w+)\]([\w\[\]]+)`, 'Map<$1,$2>'],
++  [String.raw`\bchan\s+(\w+)`, 'BlockingQueue<$1>'],
++  [String.raw`interface\{\}`, 'Object'],
++  // --- scalars
+   [String.raw`\bstring\b`, 'String'],
+-  [String.raw`\bint\b`, 'int'],
+   [String.raw`\bint64\b`, 'long'],
++  [String.raw`\bint32\b`, 'int'],
+   [String.raw`\bfloat64\b`, 'double'],
++  [String.raw`\bfloat32\b`, 'float'],
+   [String.raw`\bbool\b`, 'boolean'],
+-  [String.raw`\binterface\{\}`, 'Object'],
+-  [String.raw`\b\[\]byte\b`, 'byte[]'],
++  [String.raw`\bint\b`, 'int'],
+   [String.raw`\bnil\b`, 'null'],
+   [String.raw`\bfmt\.Println\(`, 'System.out.println('],
+   [String.raw`\bfmt\.Printf\(`, 'System.out.printf('],
+-  [String.raw`\btrue\b`, 'true'],
+-  [String.raw`\bfalse\b`, 'false'],
+ ];
+ 
++// Boxed type names for generics — Map<String,int> is not valid Java; the value
++// type parameter must be Integer.
++const BOXED = { int: 'Integer', long: 'Long', double: 'Double', float: 'Float',
++                boolean: 'Boolean', byte: 'Byte', char: 'Character', short: 'Short' };
++const boxType = (t) => BOXED[t] || t;
++
++// AUDIT FIX: mapType used `new RegExp(pat).test(goType)` and then returned the
++// RAW replacement template, so a pattern with a capture group leaked '$1' into
++// the output — `func f(x []int)` produced `String f($1[] x)`. It now performs a
++// real replace so backreferences resolve.
++const SCALAR_MAP = {
++  string: 'String', int: 'int', int8: 'byte', int16: 'short', int32: 'int',
++  int64: 'long', uint: 'int', uint32: 'long', uint64: 'long',
++  float32: 'float', float64: 'double', bool: 'boolean', byte: 'byte',
++  rune: 'char', error: 'Exception',
++};
++
+ function mapType(goType) {
+   if (!goType) return 'void';
++  const t = goType.trim();
++
++  // containers: recurse into the element type, then map the scalar
++  let m = t.match(/^\[\](.+)$/);
++  if (m) return mapType(m[1]) + '[]';
++  m = t.match(/^map\[(\w+)\]([\w\[\]]+)$/);
++  if (m) return `Map<${boxType(mapType(m[1]))},${boxType(mapType(m[2]))}>`;
++  m = t.match(/^chan\s+(\w+)$/);
++  if (m) return `BlockingQueue<${boxType(mapType(m[1]))}>`;
++  if (t === 'interface{}') return 'Object';
++
++  // scalar
++  if (SCALAR_MAP[t]) return SCALAR_MAP[t];
++
++  // fall back to the ordered rule table for anything custom
+   for (const [pat, java] of TYPE_MAP) {
+-    if (new RegExp(pat).test(goType)) return java;
++    const re = new RegExp(pat);
++    if (re.test(t)) return t.replace(new RegExp(pat, 'g'), java);
+   }
+-  return goType; // Fallback for custom structs
++  return t;
+ }
+ 
+ function applyTypeMap(line) {
+   for (const [pat, java] of TYPE_MAP) {
+     line = line.replace(new RegExp(pat, 'g'), java);
+   }
++  // Box generic value/positional types: Map<String,int> -> Map<String,Integer>
++  line = line.replace(/<([^<>]*)>/g, (m, inner) =>
++    '<' + inner.split(',').map((t) => boxType(t.trim())).join(',') + '>');
+   return line;
+ }
+ 
+@@ -63,20 +106,90 @@ function translateLogic(line) {
+ }
+ 
+ // 2. THE PARSING ENGINE — transmute a single Go source string into a Java file
++//
++// AUDIT FIX §6.2 (2026-09-23): the line parser had no handling for interfaces,
++// goroutines, channels, select, defer, range, const/iota, or map/slice types.
++// Measured before: 4/15 Go constructs produced clean Java. The multi-line
++// constructs are handled by pre-pass regexes below; single-line ones by
++// translateLogic. See probe_transpiler.mjs for the measurement.
+ export function transpileGoToJava(goCode, opts = {}) {
+   const packageName = opts.packageName || 'com.fraymus.converted';
+   const className = opts.className || 'Converted';
+ 
++  // ---- PRE-PASS: multi-line constructs that a line-by-line loop cannot see ----
++
++  // const ( A = iota \n B \n )  ->  enum-ish constants
++  goCode = goCode.replace(/const\s*\(([\s\S]*?)\)/g, (m, body) => {
++    const names = body.split('\n').map((s) => s.trim()).filter(Boolean)
++      .map((s) => s.split('=')[0].trim()).filter((n) => /^\w+$/.test(n));
++    return names.map((n, i) => `const ${n} = ${i}`).join('\n');
++  });
++  // single-line iota: `const A = iota`
++  goCode = goCode.replace(/\biota\b/g, '0');
++
++  // interface definitions -> Java interface declarations
++  goCode = goCode.replace(
++    /type\s+(\w+)\s+interface\s*\{([\s\S]*?)\}/g,
++    (m, name, body) => {
++      const methods = body.split('\n').map((s) => s.trim()).filter(Boolean)
++        .map((sig) => {
++          const mm = sig.match(/^(\w+)\s*\((.*?)\)\s*([\w\[\]{}]*)$/);
++          if (!mm) return '';
++          const rt = mm[3] ? mapType(mm[3]) : 'void';
++          return `  ${rt} ${mm[1]}(${convertArgs(mm[2])});`;
++        }).filter(Boolean).join('\n');
++      return `@interface_marker ${name} {\n${methods}\n}`;
++    });
++
++  // goroutine launch: `go worker(ch)` -> executor submit
++  goCode = goCode.replace(/\bgo\s+([\w.]+)\(([^)]*)\)/g,
++    'EXEC.submit(() -> $1($2))');
++  goCode = goCode.replace(/\bgo\s+func\s*\(([^)]*)\)\s*\{/g,
++    'EXEC.submit(() -> { /* args: $1 */');
++
++  // channel receive: `<-ch` -> queue take
++  goCode = goCode.replace(/<-\s*(\w+)/g, '$1.take()');
++
++  // make(chan T) -> new LinkedBlockingQueue<>()
++  goCode = goCode.replace(/make\(\s*chan\s+\w+\s*\)/g, 'new LinkedBlockingQueue<>()');
++  goCode = goCode.replace(/make\(\s*map\[(\w+)\](\w+)\s*\)/g, 'new HashMap<$1,$2>()');
++  // map/struct literal braces: `map[string]int{}` -> `new HashMap<>()`
++  goCode = goCode.replace(/map\[(\w+)\]([\w\[\]]+)\s*\{\s*\}/g, 'new HashMap<$1,$2>()');
++  goCode = goCode.replace(/(\w+)\s*\{\s*\}/g, '$1()');
++
++  // defer f(...) -> try/finally is structural; emit a comment + the call so the
++  // reader can place it. A faithful transform needs scope analysis, so we are
++  // explicit about the limitation rather than silently dropping the call.
++  goCode = goCode.replace(/defer\s+([\w.]+)\(([^)]*)\)/g,
++    'FINALIZERS.add(() -> $1($2)) // defer -> run in finally');
++
++  // range loops — emit a marker the line parser expands, so indentation and
++  // brace balance stay correct. (Inline replacement broke the block structure.)
++  goCode = goCode.replace(/for\s+(\w+)\s*,\s*(\w+)\s*:=\s*range\s+([\w.]+)\s*\{/g,
++    '@range_kv $1 $2 $3 {');
++  goCode = goCode.replace(/for\s+(\w+)\s*:=\s*range\s+([\w.]+)\s*\{/g,
++    '@range_k $1 $2 {');
++  goCode = goCode.replace(/for\s+range\s+([\w.]+)\s*\{/g, '@range_none $1 {');
++
++  // select { case <-ch: ... } -> a loop over the first ready channel.
++  // Faithful select semantics need a scheduler; emitted as an explicit marker.
++  goCode = goCode.replace(/\bselect\s*\{/g, 'SELECT_BLOCK { // select: first matching case wins');
++
+   const lines = goCode.split('\n');
+   const javaLines = [];
+   javaLines.push(`package ${packageName};`);
+   javaLines.push('');
+   javaLines.push('import java.util.*;');
+   javaLines.push('import java.io.*;');
++  javaLines.push('import java.util.concurrent.*;');
+   javaLines.push('');
+   javaLines.push(`public class ${className} {`);
++  javaLines.push('    private static final ExecutorService EXEC = Executors.newCachedThreadPool();');
++  javaLines.push('    private static final List<Runnable> FINALIZERS = new ArrayList<>();');
+ 
+   let inStruct = false;
++  let inInterface = null;
++  let inSelectBlock = 0;
+ 
+   for (const raw of lines) {
+     const line = raw.trim();
+@@ -84,6 +197,27 @@ export function transpileGoToJava(goCode, opts = {}) {
+     // Skip comments and imports (simplified)
+     if (line.startsWith('//') || line.startsWith('import') || line.startsWith('package')) continue;
+ 
++    // interface body -> methods on a Java interface
++    const ifaceOpen = line.match(/^@interface_marker\s+(\w+)\s*\{/);
++    if (ifaceOpen) {
++      javaLines.push('');
++      javaLines.push(`    public interface ${ifaceOpen[1]} {`);
++      inInterface = ifaceOpen[1];
++      continue;
++    }
++    if (inInterface) {
++      if (line === '}') { javaLines.push('    }'); inInterface = null; continue; }
++      if (line) javaLines.push('    ' + line);
++      continue;
++    }
++
++    // const NAME = N (from the iota pre-pass) -> static final
++    const constMatch = line.match(/^const\s+(\w+)\s*=\s*(-?\d+)$/);
++    if (constMatch) {
++      javaLines.push(`    public static final int ${constMatch[1]} = ${constMatch[2]};`);
++      continue;
++    }
++
+     // DETECT: Structs -> Inner Classes  ("type User struct {")
+     const structMatch = line.match(/type\s+(\w+)\s+struct\s+\{/);
+     if (structMatch) {
+@@ -109,14 +243,47 @@ export function transpileGoToJava(goCode, opts = {}) {
+       continue;
+     }
+ 
++    // DETECT: range markers -> for-each, with correct block structure
++    const rkv = line.match(/^@range_kv\s+(\w+)\s+(\w+)\s+([\w.]+)\s*\{$/);
++    if (rkv) {
++      javaLines.push(`        for (var ENTRY : ${rkv[3]}.entrySet()) { var ${rkv[1]} = ENTRY.getKey(); var ${rkv[2]} = ENTRY.getValue();`);
++      continue;
++    }
++    const rk = line.match(/^@range_k\s+(\w+)\s+([\w.]+)\s*\{$/);
++    if (rk) {
++      javaLines.push(`        for (var ${rk[1]} : ${rk[2]}) {`);
++      continue;
++    }
++    const rn = line.match(/^@range_none\s+([\w.]+)\s*\{$/);
++    if (rn) {
++      javaLines.push(`        for (var IGNORED : ${rn[1]}) {`);
++      continue;
++    }
++
++    // DETECT: select block bodies — keep braces balanced, mark case labels
++    if (line.startsWith('SELECT_BLOCK')) {
++      javaLines.push('        ' + line);
++      inSelectBlock++;
++      continue;
++    }
++
+     // DETECT: Main Function
+     if (line.includes('func main()')) {
+       javaLines.push('\n    public static void main(String[] args) {');
+       continue;
+     }
+ 
++    // DETECT: methods with a receiver: func (p Point) Dist() int {
++    const recvMatch = line.match(/func\s+\((\w+)\s+(\w+)\)\s+(\w+)\((.*?)\)\s*([\w\[\]]*)\s*\{/);
++    if (recvMatch) {
++      const [, recvName, recvType, methName, argsRaw, retRaw] = recvMatch;
++      const rt = retRaw ? mapType(retRaw) : 'void';
++      javaLines.push(`\n    public ${rt} ${methName}(${convertArgs(argsRaw)}) { // receiver ${recvName} ${recvType}`);
++      continue;
++    }
++
+     // DETECT: Standard Functions  ("func Add(a int, b int) int {")
+-    const funcMatch = line.match(/func\s+(\w+)\((.*?)\)\s*(\w+)?\s*\{/);
++    const funcMatch = line.match(/func\s+(\w+)\((.*?)\)\s*([\w\[\](){}]*)?\s*\{/);
+     if (funcMatch) {
+       const funcName = funcMatch[1];
+       const argsRaw = funcMatch[2];
+@@ -133,7 +300,7 @@ export function transpileGoToJava(goCode, opts = {}) {
+     }
+ 
+     // GENERAL LOGIC TRANSLATION
+-    const translated = translateLogic(line);
++    const translated = applyTypeMap(translateLogic(line));
+     if (translated) javaLines.push(`        ${translated}`);
+   }
+ 
+diff --git a/src/lib/janus.js b/src/lib/janus.js
+index ba59743..c78ab65 100644
+--- a/src/lib/janus.js
++++ b/src/lib/janus.js
+@@ -5,11 +5,21 @@
+ // ─────────────────────────────────────────────────────────────────────────
+ 
+ // 1. THE C++ TO JAVA DICTIONARY
++//
++// AUDIT FIX §6.2 (2026-09-23): added template erasure, multiple-inheritance
++// splitting, destructor→finalizer, and namespace→package. Measured before:
++// 5/10 C++ constructs converted cleanly; template, multiple inheritance,
++// destructor and namespace were passed through verbatim.
+ export const CPP_TO_JAVA = [
+   [String.raw`\bstd::string\b`, 'String'],
+   [String.raw`\bstring\b`, 'String'],
+   [String.raw`\bstd::vector<(.+?)>`, 'ArrayList<$1>'],
+   [String.raw`\bvector<(.+?)>`, 'ArrayList<$1>'],
++  [String.raw`\bstd::map<(.+?),\s*(.+?)>`, 'HashMap<$1,$2>'],
++  [String.raw`\bstd::unique_ptr<(.+?)>`, '$1'],
++  [String.raw`\bstd::shared_ptr<(.+?)>`, '$1'],
++  [String.raw`\bstd::make_unique<(.+?)>\(`, 'new $1('],
++  [String.raw`\bstd::make_shared<(.+?)>\(`, 'new $1('],
+   [String.raw`\bstd::cout\s*<<\s*(.*?)\s*<<\s*std::endl`, 'System.out.println($1)'],
+   [String.raw`\bstd::cout\s*<<\s*(.*)`, 'System.out.print($1)'],
+   [String.raw`\bconst\b`, 'final'],
+@@ -18,12 +28,23 @@ export const CPP_TO_JAVA = [
+   [String.raw`\b#include\s+<iostream>`, 'import java.io.*;'],
+   [String.raw`\b#include\s+<vector>`, 'import java.util.ArrayList;'],
+   [String.raw`\b#include\s+<string>`, ''],
++  [String.raw`\b#include\s+<memory>`, ''],
+   [String.raw`\busing namespace std;`, ''],
+   ['->', '.'],
+   ['::', '.'],
+   [String.raw`\bint main\(\)`, 'public static void main(String[] args)'],
+ ];
+ 
++// JAVA TO C++ additions for §6.2
++export const JAVA_TO_CPP_EXTRA = [
++  // class B extends A  ->  class B : public A
++  [String.raw`\bclass\s+(\w+)\s+extends\s+(\w+)`, 'class $1 : public $2'],
++  [String.raw`\bclass\s+(\w+)\s+implements\s+(\w+)`, 'class $1 : public $2'],
++  // interface I { void f(); }  ->  struct I { virtual void f() = 0; };
++  [String.raw`\binterface\s+(\w+)`, 'struct $1'],
++  [String.raw`(^|\s)void\s+(\w+)\(([^)]*)\);`, '$1virtual void $2($3) = 0;'],
++];
++
+ // 2. THE JAVA TO C++ DICTIONARY
+ export const JAVA_TO_CPP = [
+   [String.raw`\bString\b`, 'std::string'],
+@@ -42,10 +63,37 @@ export const JAVA_TO_CPP = [
+ // ── MODE A: C++ (Raw Metal) -> JAVA (JVM) ─────────────────────────────────
+ export function transpileCppToJava(code, opts = {}) {
+   const className = opts.className || 'Converted';
++
++  // Pre-pass: namespace ns { ... }  ->  flattened with a single comment naming it.
++  // Java has no namespaces; the package declaration is the nearest mapping.
++  // Runs ONCE, and the emitted comment contains no "namespace" keyword for a
++  // later sweep to chew on.
++  code = code.replace(/\bnamespace\s+(\w+)\s*\{([\s\S]*?)\}/g,
++    (m, name, body) => `/* ns ${name} flattened: Java has no namespaces */\n${body}`);
++  code = code.replace(/\bnamespace\s+\w+\s*;?/g, '');
++
++  // Pre-pass: template<typename T>  ->  erased. Java generics are type-erased at
++  // runtime, so a <T> method becomes an Object-typed method with a cast site.
++  code = code.replace(/template\s*<\s*typename\s+(\w+)\s*>/g,
++    '// generic <$1> erased (Java generics are erased at runtime)');
++  code = code.replace(/template\s*<\s*class\s+(\w+)\s*>/g,
++    '// generic <$1> erased (Java generics are erased at runtime)');
++
++  // Pre-pass: multiple inheritance -> first base extends, rest via comment.
++  code = code.replace(
++    /\bclass\s+(\w+)\s*:\s*public\s+(\w+)\s*,\s*public\s+(\w+)/g,
++    (m, derived, base1, base2) =>
++      `class ${derived} extends ${base1} /* also implemented: ${base2} — Java has single inheritance; extract an interface */`);
++
++  // Pre-pass: destructors -> Java finalization hint (no deterministic destructors).
++  code = code.replace(/~(\w+)\s*\(\s*\)\s*\{/g,
++    'void close() { // C++ destructor ~$1 -> explicit close(); Java has no deterministic destruction');
++
+   const lines = code.split('\n');
+   const javaLines = [];
+   javaLines.push(`public class ${className} {`);
+ 
++  let depth = 0;
+   for (let line of lines) {
+     // Strip Pointers (The dangerous part)
+     if (line.includes('*') && !line.includes('import') && !line.includes('//')) {
+@@ -55,11 +103,27 @@ export function transpileCppToJava(code, opts = {}) {
+     for (const [pat, rep] of CPP_TO_JAVA) {
+       line = line.replace(new RegExp(pat, 'g'), rep);
+     }
+-    // Remove public:/private:/protected: sections (Java uses modifiers per line)
++    // Remove public:/private:/protected: access sections
+     if (line.includes('public:') || line.includes('private:') || line.includes('protected:')) continue;
+-    javaLines.push('    ' + line); // Indent everything into the class
++
++    // namespace marker -> a comment (Java packages are the nearest mapping)
++    const ns = line.match(/^@ns\s+(\w+)\s*\{$/);
++    if (ns) { javaLines.push(`    // namespace ${ns[1]} flattened (Java has no namespaces)`); continue; }
++
++    // Do NOT nest a class inside the wrapper: a C++ class declaration becomes a
++    // top-level Java class, otherwise you get `class C` inside `public class
++    // Converted`, which is not what a caller expects.
++    const classDecl = line.match(/^\s*(final\s+)?class\s+(\w+)(\s+extends\s+\w+)?/);
++    if (classDecl) {
++      if (depth > 0) { javaLines.push('}'); depth--; }
++      javaLines.push(line.trim());
++      depth++;
++      continue;
++    }
++
++    javaLines.push(depth > 0 ? '    ' + line.trim() : line);
+   }
+-  javaLines.push('}');
++  while (depth-- > 0) javaLines.push('}');
+   return javaLines.join('\n');
+ }
+ 
+@@ -90,6 +154,10 @@ export function transpileJavaToCpp(code, _opts = {}) {
+     for (const [pat, rep] of JAVA_TO_CPP) {
+       line = line.replace(new RegExp(pat, 'g'), rep);
+     }
++    // §6.2 additions: inheritance, interfaces
++    for (const [pat, rep] of JAVA_TO_CPP_EXTRA) {
++      line = line.replace(new RegExp(pat, 'g'), rep);
++    }
+ 
+     // New/Delete Logic (Garbage Collection Simulation)
+     // Java: MyObj x = new MyObj();  ->  C++: auto x = make_shared<MyObj>();
+diff --git a/src/pages/Forge.jsx b/src/pages/Forge.jsx
+index 4b985bf..b150232 100644
+--- a/src/pages/Forge.jsx
++++ b/src/pages/Forge.jsx
+@@ -86,17 +86,23 @@ export default function Forge() {
+     addLog(`DOWNLOAD DECODED -> ${decoded.name}`);
+   };
+ 
+-  const regenerateOne = (w) => {
++  const regenerateOne = async (w) => {
+     const data = new TextEncoder().encode(`FRAYMUS ${w.name} ${w.hash} TRUST +340%`);
+-    const ledger = { original_name: w.name, file_type: 'wasm', size: w.size, sha256: w.hash, copyright_hash: w.hash, receipt_coverage: '100%', trust_gain: '+340%', license: w.price, classic: true };
+-    const wasm = buildClassicWasm(w.type, w.name, data, ledger);
++    // `w.hash` is a catalog id, not a digest — carry it as catalog_id and let
++    // buildClassicWasm compute the real SHA-256 for baseline/ledger.
++    const ledger = {
++      original_name: w.name, file_type: 'wasm', size: w.size,
++      catalog_id: w.hash, copyright_hash: w.hash,
++      receipt_coverage: '100%', trust_gain: '+340%', license: w.price, classic: true,
++    };
++    const { wasm } = await buildClassicWasm(w.type, w.name, data, ledger);
+     downloadBlob(wasm, w.name);
+     addLog(`REGENERATE ${w.name} ${wasm.length}B`);
+   };
+ 
+   const regenerateAll = async () => {
+     addLog('REGENERATE ALL 14 CLASSIC WASMS START');
+-    for (const w of CLASSIC_WASMS) { regenerateOne(w); await new Promise((r) => setTimeout(r, 120)); }
++    for (const w of CLASSIC_WASMS) { await regenerateOne(w); await new Promise((r) => setTimeout(r, 120)); }
+     addLog('REGENERATE ALL DONE 14 WASMs');
+   };
+ 

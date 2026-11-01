@@ -1,0 +1,18 @@
+{
+  "N": 30,
+  "M_baseline": 1.0,
+  "M_min": 0.94593204265598,
+  "M_min_eta": 0.58,
+  "M_max": 1.0,
+  "M_max_eta": 0.0,
+  "total_drop": 0.054067957344020035,
+  "drop_pct": 5.406795734402003,
+  "local_extrapol_eta": [],
+  "non_monotonic": false,
+  "sign_changes_at": [],
+  "decay_fit": [
+    1.0101091980904635,
+    0.09818542138666288
+  ],
+  "decay_r2": 0.940003671524541
+}

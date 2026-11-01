@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:320px; min-height:200px; font-family:-apple-system,BlinkMacSystemFont,sans-serif; background:#0d0d1a; color:#e0e0e8; padding:16px; }
+  .header { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+  .header h1 { font-size:14px; font-weight:600; color:#c084fc; }
+  .status { display:flex; align-items:center; gap:8px; padding:12px; border-radius:8px; margin-bottom:12px; }
+  .status.connected { background:rgba(34,197,94,0.12); border:1px solid rgba(34,197,94,0.3); }
+  .status.disconnected { background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); }
+  .dot { width:8px; height:8px; border-radius:50%; }
+  .dot.on { background:#22c55e; box-shadow:0 0 6px #22c55e; }
+  .dot.off { background:#ef4444; }
+  .status-text { font-size:12px; }
+  .ext-id { font-size:11px; color:#888; margin-bottom:12px; }
+  .btn { display:block; width:100%; padding:10px; border:none; border-radius:6px; font-size:13px; font-weight:500; cursor:pointer; margin-bottom:8px; }
+  .btn-connect { background:#7c3aed; color:#fff; }
+  .btn-connect:hover { background:#6d28d9; }
+  .btn-disconnect { background:#374151; color:#9ca3af; }
+  .btn-disconnect:hover { background:#4b5563; color:#fff; }
+  .info { font-size:11px; color:#6b7280; line-height:1.5; margin-top:8px; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>Chandra-FRAYMUS</h1>
+  </div>
+  <div id="statusBox" class="status disconnected">
+    <div id="dot" class="dot off"></div>
+    <span id="statusText" class="status-text">Checking...</span>
+  </div>
+  <div id="extId" class="ext-id"></div>
+  <button id="connectBtn" class="btn btn-connect">Connect</button>
+  <button id="disconnectBtn" class="btn btn-disconnect" style="display:none">Disconnect</button>
+  <div class="info">
+    Bridges your Chrome tabs to the Chandra agent fleet at <b>127.0.0.1:8787</b> so agents can see authenticated pages.
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

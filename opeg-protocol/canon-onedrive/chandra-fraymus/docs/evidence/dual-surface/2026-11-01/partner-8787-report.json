@@ -1,0 +1,264 @@
+{
+  "generatedAt": "2026-11-01T13:39:55.034Z",
+  "baseUrl": "http://127.0.0.1:8787",
+  "passed": true,
+  "checks": [
+    {
+      "name": "health",
+      "required": true,
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "fraymus_health",
+      "required": true,
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "voice_health",
+      "required": true,
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "partner_route",
+      "required": true,
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "fleet_agents",
+      "required": true,
+      "pass": true,
+      "status": 200,
+      "count": 18
+    },
+    {
+      "name": "collab_create",
+      "required": true,
+      "pass": true,
+      "status": 200,
+      "id": "efaedfd5-6c"
+    }
+  ],
+  "screenshotResults": [
+    {
+      "name": "root",
+      "url": "http://127.0.0.1:8787/",
+      "file": "docs/screenshots/e2e-latest/root.png",
+      "pass": true
+    },
+    {
+      "name": "partner",
+      "url": "http://127.0.0.1:8787/partner/",
+      "file": "docs/screenshots/e2e-latest/partner.png",
+      "pass": true
+    }
+  ],
+  "snapshots": {
+    "health": {
+      "ok": true,
+      "app": "Chandra / Fraymus",
+      "workspace": "C:\\Users\\eyeka\\OneDrive\\Documents\\OPEG-Protocol",
+      "localDefault": true,
+      "cloudConfigured": false,
+      "sqliteSynchronous": 2,
+      "features": [
+        "durable-agent",
+        "approved-tools",
+        "attachments",
+        "document-reader",
+        "local-semantic-retrieval",
+        "local-vision-helper",
+        "local-ocr",
+        "web-research",
+        "local-wav-transcription",
+        "scheduled-tasks",
+        "voice-proxy",
+        "transport-lab",
+        "fraymus-identity",
+        "fraymus-encoding",
+        "fraymus-protocol",
+        "fraymus-intelligence",
+        "fraymus-autonomy",
+        "fraymus-ouroboros",
+        "fraymus-hermes-30skill",
+        "fraymus-motor",
+        "fraymus-openclaw",
+        "fraymus-kuramoto-sync",
+        "visual-workflow-engine",
+        "17-agent-fleet",
+        "mcp-server-gateway",
+        "mcp-client-bridge",
+        "cron-automations",
+        "puppeteer-headless-browser",
+        "chrome-extension-bridge",
+        "vertiso-vector-memory",
+        "recursive-self-improvement",
+        "event-driven-orchestration",
+        "agent-persistent-memory",
+        "system-health-monitor",
+        "agent-forge",
+        "workflow-synthesis",
+        "reflection-loop",
+        "nudp-mesh-protocol",
+        "sharp-image-engine",
+        "comfyui-bridge",
+        "ffmpeg-video-pipeline",
+        "tts-speech-engine",
+        "stt-transcription-engine",
+        "windows-media-ocr-pipeline",
+        "media-hub-panel",
+        "error-boundary-resilience",
+        "forge-synthesis-panel",
+        "system-settings-panel",
+        "notification-toasts",
+        "global-search",
+        "keyboard-shortcuts",
+        "agent-chat-panel",
+        "activity-timeline",
+        "system-metrics",
+        "agent-profiles",
+        "memory-browser",
+        "run-history",
+        "evolution-log",
+        "system-pulse",
+        "agent-leaderboard",
+        "agent-collaboration",
+        "edit-rebuild-pipeline",
+        "carbon-x-biological-encoding"
+      ]
+    },
+    "fraymus": {
+      "ok": true,
+      "system": "FRAYMUS Master System",
+      "autonomous": true,
+      "generation": 5,
+      "fitness": 0.5,
+      "phaseSync": {
+        "R": 0.9997485210071301,
+        "locked": true
+      },
+      "agents": 9,
+      "schemas": 49,
+      "tools": 42,
+      "skills": 30,
+      "gatewayActions": 23,
+      "intelligence": {
+        "heart": true,
+        "ledger": true,
+        "dreamer": true,
+        "cognition": {
+          "contextLength": 0,
+          "maxDoorSteps": 4,
+          "modules": {
+            "heart": true,
+            "ledger": true,
+            "dreamer": true,
+            "ouroboros": true,
+            "ollamaChat": true
+          }
+        },
+        "mood": {
+          "mood": "neutral",
+          "readings": 14,
+          "distribution": {
+            "joy": 1,
+            "sadness": 0,
+            "anger": 0,
+            "fear": 0,
+            "surprise": 0,
+            "love": 6,
+            "anxiety": 0,
+            "neutral": 7
+          }
+        },
+        "dreamerState": {
+          "state": "nascent",
+          "score": 0.3,
+          "signals": [
+            "only 1 dreams"
+          ],
+          "dreamCount": 1,
+          "recentKinds": {
+            "cycle": 1
+          }
+        },
+        "ledgerIntegrity": {
+          "valid": true,
+          "checked": 10
+        },
+        "needleWorker": {
+          "running": false,
+          "workerId": null,
+          "jobsProcessed": 0,
+          "jobsFailed": 0,
+          "currentJob": null
+        },
+        "motorDispatch": {
+          "dispatchCount": 0,
+          "nodes": [
+            "BASE44_CLOUD",
+            "WINDOWS_GPU",
+            "VPS_HOSTINGER",
+            "GITHUB"
+          ]
+        }
+      },
+      "memoryBridge": {
+        "available": true
+      },
+      "runtimeIntelligence": {
+        "types": {
+          "cognition": 23
+        },
+        "total": 23,
+        "latest": 1793540253298
+      }
+    },
+    "voice": {
+      "ok": true,
+      "ready": true,
+      "engine": "windows-system-speech",
+      "capabilities": {
+        "tts": true,
+        "stt": true,
+        "local_stt": true,
+        "cloud_stt": false,
+        "voice_cloning": false,
+        "local_memory": true,
+        "cloud_memory": false
+      },
+      "voices": [
+        "Microsoft David Desktop",
+        "Microsoft Zira Desktop"
+      ],
+      "voice_ready": true,
+      "full_duplex": false,
+      "stt_ready": true,
+      "stt_engine": "windows-system-speech-recognition",
+      "recognizers": [
+        {
+          "id": "MS-1033-80-DESK",
+          "language": "en-US",
+          "name": "MS-1033-80-DESK"
+        }
+      ],
+      "languages": [
+        "en-US"
+      ],
+      "emotion_metadata": false
+    },
+    "fleetCount": 18,
+    "collabCreate": {
+      "id": "efaedfd5-6c",
+      "goal": "Automated E2E smoke check",
+      "strategy": "chain",
+      "agents": [
+        "ariadne",
+        "cantor"
+      ]
+    }
+  }
+}

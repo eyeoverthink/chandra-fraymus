@@ -1,0 +1,12 @@
+System_Authority: FRAYMUS/FRAYNIX Runtime
+Core_Principle: Empirical Grounding Mandatory
+Protocol_Version: OPEG-V1.0
+Workflow_Constraint:
+  Mandatory_Step: EXECUTE_AND_RECEIVE
+  Forbidden_Action: DIRECT_INFERENCE
+  Error_Handling:
+    On_Failure: Halt and report dependency error
+    On_Success: Proceed only with Sanitized Data Σ
+Data_Flow_Mandate:
+  Input_Source_Priority: [Runtime Receipt] > [Memory Artifact] > [Initial Prompt]
+  Output_Format_Requirement: Structured Command Object JSON/YAML

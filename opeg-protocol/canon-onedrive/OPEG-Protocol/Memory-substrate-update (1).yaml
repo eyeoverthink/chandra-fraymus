@@ -1,0 +1,4 @@
+  # config/system_protocol.yaml
+  Workflow_Constraint:
+    Mandatory_Step: EXECUTE_AND_RECEIVE
+    Forbidden_Action: DIRECT_INFERENCE

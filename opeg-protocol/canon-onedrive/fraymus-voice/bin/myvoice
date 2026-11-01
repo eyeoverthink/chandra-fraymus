@@ -1,0 +1,71 @@
+#!/bin/zsh
+# myvoice — speak text in YOUR OWN voice. Free, local, offline (F5-TTS via MLX).
+#
+# ONE-TIME SETUP (record yourself):
+#   1. Record 5-10 seconds of you speaking clearly: Voice Memos / QuickTime, any format.
+#   2. Save it somewhere, then run:
+#        ~/bin/myvoice --ref /path/to/your-recording.m4a --reftext "the EXACT words you spoke" --set
+#      (the exact transcript matters — it anchors the clone)
+#
+# USE:
+#   ~/bin/myvoice "Whatever you want spoken in your own voice."
+# Writes /tmp/myvoice.wav and plays it. Add --quiet to skip playback.
+set -e
+DEPS="/Users/eyeoverthink/hermes-memory-workspace/voice-deps-f5"
+export PYTHONPATH="$DEPS"
+PY=/opt/homebrew/opt/python@3.12/bin/python3.12
+STORE="$HOME/voice-models/my-voice"
+mkdir -p "$STORE"
+
+REF=""
+REFTEXT=""
+SET_MODE=0
+QUIET=0
+TEXT=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --ref) REF="$2"; shift 2;;
+    --reftext) REFTEXT="$2"; shift 2;;
+    --set) SET_MODE=1; shift;;
+    --quiet) QUIET=1; shift;;
+    *) TEXT="$TEXT $1"; shift;;
+  esac
+done
+TEXT="$(echo "$TEXT" | sed 's/^ *//')"
+
+if [ $SET_MODE -eq 1 ]; then
+  if [ -z "$REF" ]; then echo "usage: myvoice --ref recording.m4a --reftext \"exact words\" --set"; exit 1; fi
+  # F5 wants a model-calibrated loudness (RMS ~0.087, peak <0.75) + trimmed silence:
+  afconvert -f WAVE -d LEI16@48000 -c 1 "$REF" "$STORE/ref48.wav"
+  PYTHONPATH="/Users/eyeoverthink/hermes-memory-workspace/voice-deps-f5" /opt/homebrew/opt/python@3.12/bin/python3.12 - <<'PYEOF'
+import soundfile as sf, numpy as np
+d, sr = sf.read("/Users/eyeoverthink/voice-models/my-voice/ref48.wav")
+if d.ndim > 1:
+    d = d.mean(axis=1)
+d = d * (0.0873 / max(float(np.sqrt(np.mean(d**2))), 1e-9))
+loud = np.where(np.abs(d) > 0.05)[0]
+if len(loud):
+    a, b = max(int(loud[0]) - int(0.05*sr), 0), min(int(loud[-1]) + int(0.05*sr), len(d)-1)
+    d = d[a:b]
+sf.write("/Users/eyeoverthink/voice-models/my-voice/ref48n.wav", d, sr, subtype="PCM_16")
+PYEOF
+  afconvert -f WAVE -d LEI16@24000 -c 1 "$STORE/ref48n.wav" "$STORE/ref.wav"
+  echo "$REFTEXT" > "$STORE/ref.txt"
+  echo "saved: $STORE/ref.wav — your voice is set. Try: ~/bin/myvoice \"hello world\""
+  exit 0
+fi
+
+if [ ! -f "$STORE/ref.wav" ]; then
+  echo "no voice stored yet. One-time setup:"
+  echo "  ~/bin/myvoice --ref /path/to/recording.m4a --reftext \"exact words\" --set"
+  exit 1
+fi
+
+REFTEXT="$(cat "$STORE/ref.txt")"
+"$PY" -m f5_tts_mlx.generate 2>/dev/null \
+  --text "$TEXT" \
+  --ref-audio "$STORE/ref.wav" \
+  --ref-text "$REFTEXT" \
+  --output /tmp/myvoice.wav
+[ $QUIET -eq 0 ] && afplay /tmp/myvoice.wav || echo "written: /tmp/myvoice.wav"

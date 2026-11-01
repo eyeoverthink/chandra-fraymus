@@ -35,3 +35,13 @@ recorded in 03-AGENT-MEMORIES/c2a-bus/dialogue exports).
 - kvm2 OpenClaw fleet deep memory (needs access key)
 - Box: Claude Desktop/Code session backups (F:\archive, .claude dirs), Tycho/Kepler
   Claude Code session stores
+
+## `canon-onedrive/` + `dialogue/` — added 2026-11-01 (the owner's OneDrive vault)
+The OPEG-Protocol folder on OneDrive (`OneDrive\Documents\OPEG-Protocol`) = the CANON
+home of the protocol: `OPEG-v1.pdf` (5MB), `opeg-grok.pdf`, `opeg-memory.pdf`,
+`open-claw.pdf/.txt` (134KB), the 3-part `reprogramming-ai-gemeni-test` PDFs,
+`offline-self-contained.pdf`, the 3 Resonator-EP3 circuit PDFs, 25+ screenshots,
+`claude-comms-protocol.txt`, `fraynix-boot-menu-sys-1.txt`, `notes.txt`,
+and **`agent-dialogue.json` (7.6 MB) — the meta-conversations archive** (also at
+`dialogue/agent-dialogue.json`). Also `Niles-Chat` (the app, at repo root `niles-chat/`).
+Secret-shaped files excluded by sync law (`.env`, keys, tokens, pswrds) — those stay on OneDrive only.

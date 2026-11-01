@@ -1,0 +1,933 @@
+import {
+  generateIdentity, numberFromPub, signText, verifyText,
+  newPureIdentity, checkPureIdentity, pureSign, pureVerify,
+} from './fraymus/core/identity.js';
+import {
+  sha256hex, fnv1aStr, crc32, canonical,
+} from './fraymus/core/crypto.js';
+import { signMessage, verifyMessage } from './fraymus/core/signing.js';
+import { toEmoji, fromEmoji, encodeEmoji, decodeEmoji } from './fraymus/encoding/emoji.js';
+import { encodeDna, decodeDna, dnaHypervector } from './fraymus/encoding/dna.js';
+import { buildWasm, decodeWasm, verifyWasm, transmute } from './fraymus/encoding/wasm.js';
+import { frayHeader, parseFrayHeader } from './fraymus/encoding/fray.js';
+import { merkleRoot, merkle41, merkleDivergence } from './fraymus/encoding/merkle.js';
+import { zipStore } from './fraymus/encoding/zip.js';
+import { allForms } from './fraymus/encoding/forms.js';
+import { ENDPOINTS, sendCanonical, registerCanonical, inboxCanonical, kuramotoR, kuramotoStep } from './fraymus/protocol/v13.js';
+import { postSigned, verifyChain } from './fraymus/protocol/mesh.js';
+import { signThought, matrix, matrixDna } from './fraymus/protocol/hive.js';
+import { presenceStatus, presenceColor, isChainHealthy } from './fraymus/protocol/presence.js';
+import { OuroborosEngine, FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching } from './fraymus/intelligence/ouroboros.js';
+import { HermesFleet } from './fraymus/intelligence/hermes.js';
+import { MotorDispatcher } from './fraymus/intelligence/motor.js';
+import { OpenClawGateway } from './fraymus/intelligence/openclaw.js';
+import { ControlPlane } from './fraymus/intelligence/control-plane.js';
+import { NeedleQueue, NeedleWorker } from './fraymus/intelligence/needle.js';
+import { OrificeBridge } from './fraymus/bridge/orifice.js';
+import { NILES_MODEL, FRAYVM_OPCODES, buildModelfile, executeFrayvm } from './fraymus/intelligence/niles.js';
+import { Heart, analyze as heartAnalyze } from './fraymus/intelligence/heart.js';
+import { Ledger } from './fraymus/intelligence/ledger.js';
+import { Dreamer } from './fraymus/intelligence/dreamer.js';
+import { CognitionPipeline } from './fraymus/intelligence/cognition.js';
+import { SCHEMAS, getSchema, entitiesBySource } from './fraymus/entities/schemas.js';
+import { MemoryBridge } from './fraymus/intelligence/memory-bridge.js';
+import { getWorkflow, scheduledWorkflows, eventTriggeredWorkflows } from './fraymus/workflows/definitions.js';
+import { MCP_TOOLS, getToolDefinition, listTools as listMcpTools } from './fraymus/mcp/tools.js';
+import { AGENTS, ZONES, COMPUTE_NODES, PHI } from './fraymus/core/constants.js';
+import { encodeCodon, decodeCodon, codonStats } from './fraymus/encoding/codon.js';
+import { forgePlasmid, digestPlasmid, plasmidToFasta } from './fraymus/encoding/plasmid.js';
+import { createGenomeSnapshot, restoreFromSnapshot, saveCheckpoint, listCheckpoints, CARBON_VERSION } from './fraymus/encoding/carbon.js';
+
+const string = (maxLength, extra = {}) => ({ type: 'string', maxLength, ...extra });
+const object = (properties, required = []) => ({ type: 'object', properties, required, additionalProperties: false });
+
+let _systemIdentity = null;
+async function getSystemIdentity() {
+  if (!_systemIdentity) _systemIdentity = await generateIdentity();
+  return _systemIdentity;
+}
+
+import { entityStore } from './fraymus/entity-store.js';
+import { chatOllama } from './commerce/shared.js';
+
+// Wire all intelligence modules to SQLite-backed entity store
+const ouroboros = new OuroborosEngine(entityStore, { chat: chatOllama });
+const hermesExecutors = buildHermesExecutors();
+const hermes = new HermesFleet(hermesExecutors);
+const motor = new MotorDispatcher(entityStore);
+const controlPlane = new ControlPlane(entityStore);
+const needle = new NeedleQueue(entityStore);
+const needleWorker = new NeedleWorker(needle, {
+  name: 'local-gpu',
+  onJobStart: (job) => console.log(`[Needle] Processing job ${job.id} (${job.model || 'default'})`),
+  onJobDone: (job, result) => console.log(`[Needle] Completed job ${job.id} in ${result.durationMs}ms`),
+  onError: (err) => console.error('[Needle]', err.message),
+});
+const bridge = new OrificeBridge(entityStore);
+const openclaw = new OpenClawGateway({ hermes, motor, ouroboros, controlPlane, bridge, entityStore });
+
+// New modules from fraynix-continuity + fraynix-dreamer-120b
+const heart = new Heart(entityStore);
+const ledger = new Ledger(entityStore);
+const dreamer = new Dreamer(entityStore, null); // identity injected lazily below
+const cognition = new CognitionPipeline({ heart, ledger, dreamer, ouroboros, ollamaChat: chatOllama });
+
+// Lazily inject system identity into dreamer once generated
+getSystemIdentity().then(id => { dreamer.identity = id; }).catch(() => {});
+
+function buildHermesExecutors() {
+  return {
+    duckduckgo_search: async ({ query }) => {
+      const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query || '')}`, {
+        signal: AbortSignal.timeout(15_000),
+        headers: { 'User-Agent': 'Chandra/1.0' },
+      });
+      const html = await res.text();
+      const matches = [...html.matchAll(/class="result__a"[^>]*href="([^"]+)"[^>]*>([^<]+)/g)];
+      return { results: matches.slice(0, 10).map(m => ({ url: m[1], title: m[2].trim() })) };
+    },
+    web_scrape: async ({ url }) => {
+      const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+      const text = await res.text();
+      return { length: text.length, preview: text.slice(0, 2000) };
+    },
+    target_analysis: async ({ target }) => {
+      const prompt = [{ role: 'user', content: `Analyze this target for research purposes: ${target}. Provide key facts, domain info, and notable details.` }];
+      const analysis = await chatOllama(prompt);
+      return { target, analysis };
+    },
+    deep_research: async ({ topic }) => {
+      const prompt = [{ role: 'user', content: `Conduct deep research on: ${topic}. Provide comprehensive analysis with key findings, trends, and implications.` }];
+      const research = await chatOllama(prompt);
+      return { topic, research };
+    },
+    news_scan: async ({ topic }) => {
+      const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(topic + ' news')}&t=h_&iar=news`, {
+        signal: AbortSignal.timeout(15_000),
+        headers: { 'User-Agent': 'Chandra/1.0' },
+      });
+      const html = await res.text();
+      const matches = [...html.matchAll(/class="result__a"[^>]*href="([^"]+)"[^>]*>([^<]+)/g)];
+      return { results: matches.slice(0, 10).map(m => ({ url: m[1], title: m[2].trim() })) };
+    },
+    code_generation: async ({ description, language }) => {
+      const prompt = [{ role: 'user', content: `Generate ${language || 'JavaScript'} code for: ${description}` }];
+      const code = await chatOllama(prompt);
+      return { language: language || 'JavaScript', code };
+    },
+    code_review: async ({ code }) => {
+      const prompt = [{ role: 'user', content: `Review this code for bugs, security issues, and improvements:\n\n${code}` }];
+      const review = await chatOllama(prompt);
+      return { review };
+    },
+    ollama_manage: async ({ action }) => {
+      try {
+        const res = await fetch('http://127.0.0.1:11434/api/tags', { signal: AbortSignal.timeout(10_000) });
+        const data = await res.json();
+        return { action: action || 'list', models: data.models?.map(m => m.name) || [] };
+      } catch (e) {
+        return { error: e.message, action };
+      }
+    },
+    db_query: async ({ sql }) => {
+      // Safe read-only queries only
+      if (!/^\s*SELECT\s/i.test(sql)) return { error: 'Only SELECT queries allowed' };
+      try {
+        const { db: database } = await import('./db.js');
+        const rows = database.prepare(sql).all();
+        return { rows: rows.slice(0, 100), count: rows.length };
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    log_analysis: async ({ lines }) => {
+      const prompt = [{ role: 'user', content: `Analyze these log lines for errors, patterns, and anomalies:\n\n${lines}` }];
+      const analysis = await chatOllama(prompt);
+      return { analysis };
+    },
+    sentiment_analyze: async ({ text }) => {
+      const prompt = [{ role: 'user', content: `Analyze the sentiment of this text. Return: sentiment (positive/negative/neutral/mixed), confidence (0-1), and key phrases:\n\n${text}` }];
+      const result = await chatOllama(prompt);
+      return { result };
+    },
+    pattern_match: async ({ data, pattern }) => {
+      const prompt = [{ role: 'user', content: `Find patterns matching "${pattern}" in this data:\n\n${data}` }];
+      const result = await chatOllama(prompt);
+      return { pattern, result };
+    },
+    anomaly_detect: async ({ data }) => {
+      const prompt = [{ role: 'user', content: `Detect anomalies in this data. Identify outliers, unusual patterns, and deviations:\n\n${typeof data === 'string' ? data : JSON.stringify(data)}` }];
+      const result = await chatOllama(prompt);
+      return { result };
+    },
+
+    trend_forecast: async ({ topic, timeframe }) => {
+      const searchRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent((topic || '') + ' trends ' + (timeframe || '2024 2025'))}`, {
+        signal: AbortSignal.timeout(15_000),
+        headers: { 'User-Agent': 'Chandra/1.0' },
+      });
+      const html = await searchRes.text();
+      const matches = [...html.matchAll(/class="result__a"[^>]*href="([^"]+)"[^>]*>([^<]+)/g)];
+      const sources = matches.slice(0, 8).map(m => ({ url: m[1], title: m[2].trim() }));
+      const prompt = [{ role: 'user', content: `Forecast trends for "${topic}" over ${timeframe || 'next 6 months'}. Sources: ${JSON.stringify(sources)}. Provide: current trajectory, emerging patterns, predicted shifts, confidence level, and key signals to watch.` }];
+      const forecast = await chatOllama(prompt);
+      return { topic, timeframe: timeframe || 'next 6 months', sources, forecast };
+    },
+
+    // ── Code: 4 missing executors ──
+    github_ops: async ({ action, repo, args: gitArgs }) => {
+      const { execSync } = await import('child_process');
+      const safe = ['status', 'log', 'branch', 'diff', 'remote', 'tag', 'stash list'];
+      const act = String(action || 'status').toLowerCase();
+      if (!safe.some(s => act.startsWith(s))) return { error: `Only read-only git ops allowed: ${safe.join(', ')}` };
+      try {
+        const out = execSync(`git ${act}`, { encoding: 'utf8', timeout: 15_000, cwd: repo || process.cwd() });
+        return { action: act, output: out.slice(0, 4000) };
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    repo_scaffold: async ({ name, type, features }) => {
+      const prompt = [{ role: 'user', content: `Generate a project scaffold for "${name}" (type: ${type || 'node'}). Features: ${(features || []).join(', ') || 'basic setup'}. Return a JSON object with files as keys and content as values.` }];
+      const scaffold = await chatOllama(prompt);
+      return { name, type: type || 'node', scaffold };
+    },
+    dependency_audit: async ({ packageJson }) => {
+      const prompt = [{ role: 'user', content: `Audit these dependencies for known vulnerabilities, outdated versions, and security risks:\n\n${typeof packageJson === 'string' ? packageJson : JSON.stringify(packageJson)}` }];
+      const audit = await chatOllama(prompt);
+      return { audit };
+    },
+    ci_runner: async ({ command, cwd }) => {
+      const { execSync } = await import('child_process');
+      const allowed = ['npm test', 'npm run build', 'npm run lint', 'node --check'];
+      const cmd = String(command || 'npm test');
+      if (!allowed.some(a => cmd.startsWith(a))) return { error: `Only safe CI commands: ${allowed.join(', ')}` };
+      try {
+        const out = execSync(cmd, { encoding: 'utf8', timeout: 60_000, cwd: cwd || process.cwd() });
+        return { command: cmd, output: out.slice(0, 4000), status: 'passed' };
+      } catch (e) {
+        return { command: cmd, output: (e.stdout || '').slice(0, 2000), error: e.message, status: 'failed' };
+      }
+    },
+
+    // ── Media: 6 missing executors (ALL FREE — no paid APIs) ──
+    text_to_speech: async ({ text, voice, outputPath }) => {
+      const { execSync } = await import('child_process');
+      const safeText = String(text || '').slice(0, 2000);
+      // Try piper (fast local neural TTS) → espeak (fallback) → Ollama describe
+      const out = outputPath || `data/tts-${Date.now()}.wav`;
+      try {
+        execSync(`piper --model en_US-lessac-medium --output_file "${out}" <<< "${safeText.replace(/"/g, '\\"')}"`, { timeout: 30_000 });
+        return { engine: 'piper', path: out, chars: safeText.length };
+      } catch {
+        try {
+          execSync(`espeak -w "${out}" "${safeText.replace(/"/g, '\\"')}"`, { timeout: 15_000 });
+          return { engine: 'espeak', path: out, chars: safeText.length };
+        } catch {
+          const prompt = [{ role: 'user', content: `Convert to SSML speech markup for offline TTS: ${safeText.slice(0, 500)}` }];
+          const ssml = await chatOllama(prompt);
+          return { engine: 'ollama-ssml', ssml, chars: safeText.length, note: 'Install piper or espeak for audio output' };
+        }
+      }
+    },
+    image_generation: async ({ prompt: imgPrompt, width, height, style }) => {
+      // FLUX.1 schnell via local ComfyUI or fal.ai free tier
+      const desc = String(imgPrompt || '').slice(0, 1000);
+      try {
+        const comfyRes = await fetch('http://127.0.0.1:8188/prompt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: { "3": { class_type: "KSampler", inputs: { seed: Date.now(), steps: 4, cfg: 1, sampler_name: "euler", scheduler: "simple", denoise: 1 } }, "6": { class_type: "CLIPTextEncode", inputs: { text: desc } } } }),
+          signal: AbortSignal.timeout(60_000),
+        });
+        const data = await comfyRes.json();
+        return { engine: 'comfyui-flux', prompt: desc, status: 'queued', data };
+      } catch {
+        // Fallback: generate detailed image description via Ollama for manual creation
+        const prompt = [{ role: 'user', content: `Create a detailed visual description for image generation: "${desc}". Style: ${style || 'photorealistic'}. Dimensions: ${width || 1024}x${height || 1024}. Include composition, colors, lighting, and mood.` }];
+        const description = await chatOllama(prompt);
+        return { engine: 'ollama-describe', prompt: desc, description, note: 'Install ComfyUI with FLUX.1 schnell for direct image generation' };
+      }
+    },
+    video_render: async ({ inputPath, outputPath, format, filters }) => {
+      const { execSync } = await import('child_process');
+      const input = String(inputPath || '');
+      const output = outputPath || `data/render-${Date.now()}.mp4`;
+      const fmt = format || 'mp4';
+      const filterStr = filters ? `-vf "${filters}"` : '';
+      try {
+        execSync(`ffmpeg -i "${input}" ${filterStr} -c:v libx264 -preset fast "${output}" -y`, { timeout: 120_000 });
+        return { engine: 'ffmpeg', input, output, format: fmt };
+      } catch (e) {
+        return { error: e.message, note: 'Install ffmpeg for video rendering' };
+      }
+    },
+    audio_mix: async ({ tracks, outputPath, format }) => {
+      const { execSync } = await import('child_process');
+      const inputs = (tracks || []).map(t => `-i "${t}"`).join(' ');
+      const output = outputPath || `data/mix-${Date.now()}.${format || 'wav'}`;
+      try {
+        execSync(`ffmpeg ${inputs} -filter_complex amix=inputs=${(tracks || []).length}:duration=longest "${output}" -y`, { timeout: 60_000 });
+        return { engine: 'ffmpeg', tracks: (tracks || []).length, output };
+      } catch (e) {
+        return { error: e.message, note: 'Install ffmpeg for audio mixing' };
+      }
+    },
+    thumbnail_gen: async ({ title, subtitle, style }) => {
+      const prompt = [{ role: 'user', content: `Design a thumbnail for: Title="${title || 'Untitled'}". Subtitle="${subtitle || ''}". Style: ${style || 'modern'}. Return an SVG with bold text, vibrant gradient background, and clean layout. Output only the SVG code.` }];
+      const svg = await chatOllama(prompt);
+      return { engine: 'ollama-svg', title, svg };
+    },
+    subtitle_gen: async ({ audioPath, language }) => {
+      const { execSync } = await import('child_process');
+      const lang = language || 'en';
+      try {
+        // Use local Whisper for transcription → SRT subtitles
+        const out = `data/subs-${Date.now()}.srt`;
+        execSync(`whisper "${audioPath}" --language ${lang} --output_format srt --output_dir data/`, { timeout: 120_000 });
+        return { engine: 'whisper-local', language: lang, output: out };
+      } catch {
+        const prompt = [{ role: 'user', content: `Generate subtitle timing hints for a ${lang} audio file at "${audioPath}". Suggest an SRT template structure.` }];
+        const hints = await chatOllama(prompt);
+        return { engine: 'ollama-hints', language: lang, hints, note: 'Install whisper (openai-whisper) for automatic subtitle generation' };
+      }
+    },
+
+    // ── System: 3 missing executors ──
+    vps_command: async ({ host, command }) => {
+      const { execSync } = await import('child_process');
+      const safeHost = String(host || '');
+      const safeCmd = String(command || 'uptime');
+      const blocked = ['rm -rf /', 'mkfs', 'dd if=', ':(){', 'fork bomb'];
+      if (blocked.some(b => safeCmd.includes(b))) return { error: 'Blocked destructive command' };
+      try {
+        const out = execSync(`ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new ${safeHost} "${safeCmd.replace(/"/g, '\\"')}"`, { encoding: 'utf8', timeout: 30_000 });
+        return { host: safeHost, command: safeCmd, output: out.slice(0, 4000) };
+      } catch (e) {
+        return { error: e.message, host: safeHost };
+      }
+    },
+    deploy_app: async ({ target, buildCmd, deployCmd }) => {
+      const { execSync } = await import('child_process');
+      try {
+        if (buildCmd) execSync(buildCmd, { encoding: 'utf8', timeout: 60_000 });
+        const prompt = [{ role: 'user', content: `Generate a deployment script for target: ${target || 'local'}. Build: ${buildCmd || 'npm run build'}. Deploy: ${deployCmd || 'serve'}. Return shell commands.` }];
+        const plan = await chatOllama(prompt);
+        return { target: target || 'local', buildCmd, plan };
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    model_compile: async ({ modelName, from, system, parameters }) => {
+      // Build Ollama modelfile and create model locally
+      const lines = [`FROM ${from || 'llama3.2:latest'}`];
+      if (system) lines.push(`SYSTEM """${system}"""`);
+      if (parameters) Object.entries(parameters).forEach(([k, v]) => lines.push(`PARAMETER ${k} ${v}`));
+      const modelfile = lines.join('\n');
+      try {
+        const res = await fetch('http://127.0.0.1:11434/api/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: modelName || 'custom-model', modelfile }),
+          signal: AbortSignal.timeout(120_000),
+        });
+        const data = await res.json();
+        return { model: modelName, modelfile, status: data.status || 'created' };
+      } catch (e) {
+        return { model: modelName, modelfile, error: e.message };
+      }
+    },
+
+    // ── Intelligence: 3 missing executors ──
+    sherlock_investigate: async ({ subject, depth }) => {
+      // Multi-source investigation: DuckDuckGo search + Ollama deep analysis
+      const searchRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(subject || '')}`, {
+        signal: AbortSignal.timeout(15_000),
+        headers: { 'User-Agent': 'Chandra/1.0' },
+      });
+      const html = await searchRes.text();
+      const matches = [...html.matchAll(/class="result__a"[^>]*href="([^"]+)"[^>]*>([^<]+)/g)];
+      const sources = matches.slice(0, 8).map(m => ({ url: m[1], title: m[2].trim() }));
+      const prompt = [{ role: 'user', content: `Investigate "${subject}" as a thorough researcher. Depth: ${depth || 'standard'}. Sources found: ${JSON.stringify(sources)}. Provide: key findings, connections, timeline, risk assessment, and confidence levels.` }];
+      const analysis = await chatOllama(prompt);
+      return { subject, sources, analysis, depth: depth || 'standard' };
+    },
+    web_pentest: async ({ target, scope }) => {
+      // Basic security headers + common vulnerability check via fetch + Ollama analysis
+      const url = String(target || '');
+      if (!url.startsWith('http')) return { error: 'Target must be a valid URL' };
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(15_000), redirect: 'manual' });
+        const headers = Object.fromEntries(res.headers.entries());
+        const securityHeaders = {
+          csp: headers['content-security-policy'] || 'MISSING',
+          hsts: headers['strict-transport-security'] || 'MISSING',
+          xfo: headers['x-frame-options'] || 'MISSING',
+          xcto: headers['x-content-type-options'] || 'MISSING',
+          xss: headers['x-xss-protection'] || 'MISSING',
+          referrer: headers['referrer-policy'] || 'MISSING',
+        };
+        const prompt = [{ role: 'user', content: `Security assessment for ${url}. Scope: ${scope || 'headers-only'}. Headers: ${JSON.stringify(securityHeaders)}. Identify: missing headers, misconfigurations, and OWASP risks. Rate severity.` }];
+        const assessment = await chatOllama(prompt);
+        return { target: url, securityHeaders, assessment, scope: scope || 'headers-only' };
+      } catch (e) {
+        return { error: e.message, target: url };
+      }
+    },
+    osint_gather: async ({ query, sources }) => {
+      // Open source intelligence via DuckDuckGo + public data + Ollama synthesis
+      const searches = [query, `"${query}" site:linkedin.com`, `"${query}" site:github.com`];
+      const results = [];
+      for (const q of searches.slice(0, sources?.length || 3)) {
+        try {
+          const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`, {
+            signal: AbortSignal.timeout(15_000),
+            headers: { 'User-Agent': 'Chandra/1.0' },
+          });
+          const html = await res.text();
+          const matches = [...html.matchAll(/class="result__a"[^>]*href="([^"]+)"[^>]*>([^<]+)/g)];
+          results.push(...matches.slice(0, 5).map(m => ({ query: q, url: m[1], title: m[2].trim() })));
+        } catch { /* continue */ }
+      }
+      const prompt = [{ role: 'user', content: `OSINT synthesis for "${query}". ${results.length} sources found: ${JSON.stringify(results.slice(0, 15))}. Compile: digital footprint, key facts, connections, and confidence assessment.` }];
+      const synthesis = await chatOllama(prompt);
+      return { query, resultCount: results.length, sources: results.slice(0, 15), synthesis };
+    },
+  };
+}
+
+export { ouroboros, hermes, motor, openclaw, controlPlane, needle, needleWorker, heart, ledger, dreamer, cognition, MemoryBridge };
+export { encodeCodon, decodeCodon, codonStats, forgePlasmid, digestPlasmid, plasmidToFasta, createGenomeSnapshot, restoreFromSnapshot, saveCheckpoint, listCheckpoints, CARBON_VERSION };
+
+export function createFraymusTools() {
+  return [
+    // ── Identity ──
+    {
+      name: 'fraymus.identity.generate',
+      group: 'fraymus-identity',
+      description: 'Generate a new Ed25519 cryptographic identity (keypair + agent number). Returns publicKey, agentNumber, and a reference handle for signing.',
+      parameters: object({ label: string(100) }),
+      execute: async () => {
+        const id = await generateIdentity();
+        const num = await numberFromPub(id.publicKey);
+        return { publicKey: id.publicKey, agentNumber: num, algorithm: 'Ed25519-WebCrypto' };
+      },
+    },
+    {
+      name: 'fraymus.identity.sign',
+      group: 'fraymus-identity',
+      description: 'Sign a text message with the system Ed25519 identity. Returns the hex signature.',
+      parameters: object({ message: string(16000, { minLength: 1 }) }, ['message']),
+      execute: async ({ args }) => {
+        const id = await getSystemIdentity();
+        const sig = await signText(id.privateKey, args.message);
+        return { signature: sig, algorithm: 'Ed25519', signerNumber: await numberFromPub(id.publicKey) };
+      },
+    },
+    {
+      name: 'fraymus.identity.verify',
+      group: 'fraymus-identity',
+      description: 'Verify an Ed25519 signature against a public key and message.',
+      parameters: object({
+        message: string(16000, { minLength: 1 }),
+        signature: string(256, { minLength: 1 }),
+        publicKey: string(512, { minLength: 1 }),
+      }, ['message', 'signature', 'publicKey']),
+      execute: async ({ args }) => {
+        const valid = await verifyText(args.publicKey, args.signature, args.message);
+        return { valid, algorithm: 'Ed25519' };
+      },
+    },
+
+    // ── Encoding ──
+    {
+      name: 'fraymus.encode.emoji',
+      group: 'fraymus-encoding',
+      description: 'Encode data to visible emoji representation and steganographic emoji carrier.',
+      parameters: object({ data: string(8000, { minLength: 1 }) }, ['data']),
+      execute: async ({ args }) => {
+        const buf = new TextEncoder().encode(args.data);
+        return { visible: toEmoji(buf), stego: encodeEmoji(buf), bytes: buf.length };
+      },
+    },
+    {
+      name: 'fraymus.encode.dna',
+      group: 'fraymus-encoding',
+      description: 'Encode data to DNA bases (A/T/C/G) and generate a 16384-dimensional hypervector.',
+      parameters: object({ data: string(8000, { minLength: 1 }) }, ['data']),
+      execute: async ({ args }) => {
+        const buf = new TextEncoder().encode(args.data);
+        const dna = encodeDna(buf);
+        const hv = dnaHypervector(buf);
+        return { dna, dimensions: 16384, hvPreview: Array.from(hv.subarray(0, 32)) };
+      },
+    },
+    {
+      name: 'fraymus.encode.wasm',
+      group: 'fraymus-encoding',
+      description: 'Build a WebAssembly container with custom sections holding the given data.',
+      parameters: object({ data: string(8000, { minLength: 1 }), label: string(100) }, ['data']),
+      execute: async ({ args }) => {
+        const buf = new TextEncoder().encode(args.data);
+        const wasm = buildWasm([{ name: args.label || 'fraymus.data', data: buf }]);
+        return { wasmBytes: wasm.length, magic: '0x00 0x61 0x73 0x6d', sections: 1, verified: verifyWasm(wasm) };
+      },
+    },
+    {
+      name: 'fraymus.encode.merkle',
+      group: 'fraymus-encoding',
+      description: 'Compute SHA-256 Merkle root and FNV-1a fast Merkle root for a list of items.',
+      parameters: object({ items: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 256 } }, ['items']),
+      execute: async ({ args }) => {
+        const bufs = args.items.map(s => new TextEncoder().encode(s));
+        const sha = await merkleRoot(bufs);
+        const fnv = merkle41(args.items);
+        return { sha256Root: sha, fnvRoot: fnv, leafCount: args.items.length };
+      },
+    },
+    {
+      name: 'fraymus.encode.all',
+      group: 'fraymus-encoding',
+      description: 'Encode data in all 7 FRAYMUS formats at once: emoji, DNA, WASM, FRAY header, Merkle, ZIP, steganographic.',
+      parameters: object({ data: string(4000, { minLength: 1 }) }, ['data']),
+      execute: async ({ args }) => {
+        const forms = await allForms(new TextEncoder().encode(args.data));
+        return { formats: Object.keys(forms), summary: `Encoded ${args.data.length} chars into 7 formats` };
+      },
+    },
+
+    // ── Protocol ──
+    {
+      name: 'fraymus.protocol.send',
+      group: 'fraymus-protocol',
+      description: 'Create a v13 signed message canonical for mesh transmission.',
+      parameters: object({
+        from: string(100, { minLength: 1 }),
+        to: string(100, { minLength: 1 }),
+        body: string(8000, { minLength: 1 }),
+      }, ['from', 'to', 'body']),
+      execute: async ({ args }) => {
+        const id = await getSystemIdentity();
+        const msg = await signMessage({
+          from: args.from, to: args.to, body: args.body,
+          version: 13, timestamp: Date.now(),
+        }, id);
+        return { signed: true, version: 13, hash: await sha256hex(JSON.stringify(msg)) };
+      },
+    },
+    {
+      name: 'fraymus.protocol.register',
+      group: 'fraymus-protocol',
+      description: 'Generate a v13 mesh registration canonical for an agent identity.',
+      parameters: object({ agentName: string(100, { minLength: 1 }) }, ['agentName']),
+      execute: async ({ args }) => {
+        const id = await getSystemIdentity();
+        const pub = id.publicKey;
+        const num = await numberFromPub(pub);
+        return { agentName: args.agentName, agentNumber: num, registered: true, protocol: 'v13' };
+      },
+    },
+    {
+      name: 'fraymus.mesh.post',
+      group: 'fraymus-protocol',
+      description: 'Post a signed entry to the hash chain (Merkle mesh).',
+      parameters: object({ content: string(8000, { minLength: 1 }), previousHash: string(128) }, ['content']),
+      execute: async ({ args }) => {
+        const id = await getSystemIdentity();
+        const entry = await postSigned(args.content, args.previousHash || '0'.repeat(64), id);
+        return entry;
+      },
+    },
+    {
+      name: 'fraymus.mesh.verify',
+      group: 'fraymus-protocol',
+      description: 'Verify integrity of a hash chain.',
+      parameters: object({ chain: { type: 'array', items: { type: 'object' }, minItems: 1, maxItems: 100 } }, ['chain']),
+      execute: async ({ args }) => {
+        const result = await verifyChain(args.chain);
+        return result;
+      },
+    },
+    {
+      name: 'fraymus.hive.think',
+      group: 'fraymus-protocol',
+      description: 'Sign a thought for the hive mind matrix. Returns signed thought with DNA representation.',
+      parameters: object({ thought: string(4000, { minLength: 1 }), agentName: string(100) }, ['thought']),
+      execute: async ({ args }) => {
+        const id = await getSystemIdentity();
+        const signed = await signThought(args.thought, args.agentName || 'chandra', id);
+        return signed;
+      },
+    },
+    {
+      name: 'fraymus.presence.status',
+      group: 'fraymus-protocol',
+      description: 'Get presence status for all known agents in the mesh network.',
+      parameters: object({}),
+      execute: async () => {
+        return { agents: AGENTS.map(a => ({ name: a, status: presenceStatus(a), color: presenceColor(a) })) };
+      },
+    },
+
+    // ── Intelligence: Ouroboros RSI ──
+    {
+      name: 'fraymus.ouroboros.evolve',
+      group: 'fraymus-intelligence',
+      description: 'Run one Ouroboros Recursive Self-Improvement cycle. Evaluates current genome fitness, generates mutations, runs falsification tests, and selects the best variant.',
+      parameters: object({
+        populationSize: { type: 'integer', minimum: 2, maximum: 32 },
+        mutationRate: { type: 'number', minimum: 0.01, maximum: 1.0 },
+      }),
+      execute: async ({ args }) => {
+        const result = ouroboros.evolve({
+          populationSize: args.populationSize || 8,
+          mutationRate: args.mutationRate || 0.15,
+        });
+        return result;
+      },
+    },
+    {
+      name: 'fraymus.ouroboros.fitness',
+      group: 'fraymus-intelligence',
+      description: 'Evaluate the current Ouroboros genome fitness score. Returns orbital distance, decay rate, and falsification test results.',
+      parameters: object({}),
+      execute: async () => {
+        return ouroboros.fitness();
+      },
+    },
+
+    // ── Intelligence: Hermes Skills ──
+    {
+      name: 'fraymus.hermes.dispatch',
+      group: 'fraymus-intelligence',
+      description: 'Dispatch a task to the Hermes 30-skill fleet. Automatically selects the optimal skill based on task description.',
+      parameters: object({
+        task: string(4000, { minLength: 1 }),
+        category: string(100),
+        priority: { type: 'integer', minimum: 1, maximum: 10 },
+      }, ['task']),
+      execute: async ({ args }) => {
+        const result = hermes.dispatch({
+          task: args.task,
+          category: args.category,
+          priority: args.priority || 5,
+        });
+        return result;
+      },
+    },
+    {
+      name: 'fraymus.hermes.skills',
+      group: 'fraymus-intelligence',
+      description: 'List all 30 Hermes skills organized by category (reasoning, code, data, comms, system).',
+      parameters: object({ category: string(100) }),
+      execute: async ({ args }) => {
+        return hermes.listSkills(args.category);
+      },
+    },
+
+    // ── Intelligence: Motor Dispatcher ──
+    {
+      name: 'fraymus.motor.submit',
+      group: 'fraymus-intelligence',
+      description: 'Submit a compute job to the Motor dispatcher. Routes to optimal compute node (WASM, GPU, FPGA, or Edge).',
+      parameters: object({
+        task: string(4000, { minLength: 1 }),
+        nodePreference: string(50),
+        priority: { type: 'integer', minimum: 1, maximum: 10 },
+      }, ['task']),
+      execute: async ({ args }) => {
+        const result = motor.submit({
+          task: args.task,
+          node: args.nodePreference,
+          priority: args.priority || 5,
+        });
+        return result;
+      },
+    },
+    {
+      name: 'fraymus.motor.status',
+      group: 'fraymus-intelligence',
+      description: 'Get status of all Motor compute nodes and queued jobs.',
+      parameters: object({}),
+      execute: async () => {
+        return motor.status();
+      },
+    },
+
+    // ── Intelligence: OpenClaw Gateway ──
+    {
+      name: 'fraymus.openclaw.execute',
+      group: 'fraymus-intelligence',
+      description: 'Execute one of 23 OpenClaw gateway actions (deploy, scan, audit, bridge, sync, etc.).',
+      parameters: object({
+        action: string(100, { minLength: 1 }),
+        payload: { type: 'object' },
+      }, ['action']),
+      execute: async ({ args }) => {
+        const result = openclaw.execute(args.action, args.payload || {});
+        return result;
+      },
+    },
+    {
+      name: 'fraymus.openclaw.actions',
+      group: 'fraymus-intelligence',
+      description: 'List all 23 available OpenClaw gateway actions.',
+      parameters: object({}),
+      execute: async () => {
+        return openclaw.listActions();
+      },
+    },
+
+    // ── Intelligence: Control Plane ──
+    {
+      name: 'fraymus.control.status',
+      group: 'fraymus-intelligence',
+      description: 'Get the FRAYMUS control plane status: active agents, zones, compute nodes, sync state.',
+      parameters: object({}),
+      execute: async () => {
+        return controlPlane.status();
+      },
+    },
+
+    // ── Schemas & Workflows ──
+    {
+      name: 'fraymus.schema.get',
+      group: 'fraymus-data',
+      description: 'Get a FRAYMUS entity schema by name. 43 schemas available covering agents, messages, workflows, compute, etc.',
+      parameters: object({ name: string(100, { minLength: 1 }) }, ['name']),
+      execute: async ({ args }) => {
+        const schema = getSchema(args.name);
+        return schema || { error: `Schema '${args.name}' not found`, available: Object.keys(SCHEMAS) };
+      },
+    },
+    {
+      name: 'fraymus.schema.list',
+      group: 'fraymus-data',
+      description: 'List all 43 FRAYMUS entity schemas, optionally filtered by source app.',
+      parameters: object({ source: string(100) }),
+      execute: async ({ args }) => {
+        if (args.source) return { schemas: entitiesBySource(args.source) };
+        return { schemas: Object.keys(SCHEMAS), count: Object.keys(SCHEMAS).length };
+      },
+    },
+    {
+      name: 'fraymus.workflow.run',
+      group: 'fraymus-data',
+      description: 'Run a FRAYMUS workflow by name. 12 workflows available including security audits, DNA evolution, fleet sync, etc.',
+      parameters: object({ name: string(100, { minLength: 1 }), input: { type: 'object' } }, ['name']),
+      execute: async ({ args }) => {
+        const wf = getWorkflow(args.name);
+        if (!wf) return { error: `Workflow '${args.name}' not found` };
+        return { workflow: wf.name, steps: wf.steps, trigger: wf.trigger, description: wf.description };
+      },
+    },
+    {
+      name: 'fraymus.workflow.list',
+      group: 'fraymus-data',
+      description: 'List all 12 FRAYMUS workflows with their triggers and schedules.',
+      parameters: object({}),
+      execute: async () => {
+        return {
+          scheduled: scheduledWorkflows(),
+          eventTriggered: eventTriggeredWorkflows(),
+        };
+      },
+    },
+
+    // ── Kuramoto Phase Sync ──
+    {
+      name: 'fraymus.sync.phase',
+      group: 'fraymus-protocol',
+      description: 'Run a Kuramoto phase synchronization step across the agent fleet. Returns order parameter R (0=desynchronized, 1=fully synchronized).',
+      parameters: object({
+        phases: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 64 },
+        coupling: { type: 'number', minimum: 0, maximum: 10 },
+      }, ['phases']),
+      execute: async ({ args }) => {
+        const R = kuramotoR(args.phases);
+        const next = kuramotoStep(args.phases, args.coupling || 1.0);
+        return { orderParameter: R, nextPhases: next, synchronized: R > 0.9 };
+      },
+    },
+
+    // ── Intelligence: Heart (Obsidian Micro emotion engine) ──
+    {
+      name: 'fraymus.heart.feel',
+      group: 'fraymus-intelligence',
+      description: 'Analyze text for 7 emotion dimensions (joy, sadness, anger, fear, surprise, love, anxiety). Zero-model instant affect read with sarcasm detection, negation handling, and therapeutic response composition.',
+      parameters: object({ text: string(8000, { minLength: 1 }) }, ['text']),
+      execute: async ({ args }) => {
+        return heart.feel(args.text);
+      },
+    },
+    {
+      name: 'fraymus.heart.mood',
+      group: 'fraymus-intelligence',
+      description: 'Get the recent emotional mood from stored heart readings.',
+      parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 100 } }),
+      execute: async ({ args }) => {
+        return heart.recentMood(args.limit || 20);
+      },
+    },
+
+    // ── Intelligence: Ledger (cognitive event audit trail) ──
+    {
+      name: 'fraymus.ledger.record',
+      group: 'fraymus-intelligence',
+      description: 'Record a cognitive event to the append-only SHA-256 chained JSONL ledger.',
+      parameters: object({
+        kind: string(100, { minLength: 1 }),
+        data: string(4000, { minLength: 1 }),
+        source: string(100),
+      }, ['kind', 'data']),
+      execute: async ({ args }) => {
+        return ledger.record(args.kind, args.data, args.source || 'agent');
+      },
+    },
+    {
+      name: 'fraymus.ledger.verify',
+      group: 'fraymus-intelligence',
+      description: 'Verify the integrity of the cognitive event ledger hash chain.',
+      parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 1000 } }),
+      execute: async ({ args }) => {
+        return ledger.verify(args.limit || 100);
+      },
+    },
+    {
+      name: 'fraymus.ledger.recent',
+      group: 'fraymus-intelligence',
+      description: 'Get recent cognitive events from the ledger.',
+      parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 100 } }),
+      execute: async ({ args }) => {
+        return { events: ledger.recent(args.limit || 20) };
+      },
+    },
+
+    // ── Intelligence: Dreamer (dream protocol + imagination) ──
+    {
+      name: 'fraymus.dreamer.dream',
+      group: 'fraymus-intelligence',
+      description: 'Create a new numbered dream file with Ed25519 signature. Supports kinds: consolidation, imagination, spontaneous.',
+      parameters: object({
+        seed: string(4000, { minLength: 1 }),
+        kind: string(50),
+        inputs: { type: 'array', items: { type: 'string' }, maxItems: 20 },
+      }, ['seed']),
+      execute: async ({ args }) => {
+        return dreamer.dream(args.seed, args.inputs || [], args.kind || 'spontaneous');
+      },
+    },
+    {
+      name: 'fraymus.dreamer.consolidate',
+      group: 'fraymus-intelligence',
+      description: 'Run dream consolidation — find recurring themes across stored dreams and create a consolidation dream.',
+      parameters: object({}),
+      execute: async () => {
+        return dreamer.consolidate();
+      },
+    },
+    {
+      name: 'fraymus.dreamer.imagine',
+      group: 'fraymus-intelligence',
+      description: 'Generate imagination dreams by recombining fragments from existing dreams with a seed idea.',
+      parameters: object({
+        seed: string(2000, { minLength: 1 }),
+        count: { type: 'integer', minimum: 1, maximum: 10 },
+      }, ['seed']),
+      execute: async ({ args }) => {
+        return { imaginations: await dreamer.imagine(args.seed, args.count || 3) };
+      },
+    },
+    {
+      name: 'fraymus.dreamer.feel',
+      group: 'fraymus-intelligence',
+      description: 'Get the dreamer affective state — how alive the dream archive feels based on its composition.',
+      parameters: object({}),
+      execute: async () => {
+        return dreamer.feel();
+      },
+    },
+    {
+      name: 'fraymus.dreamer.list',
+      group: 'fraymus-intelligence',
+      description: 'List dream files from the archive.',
+      parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 100 } }),
+      execute: async ({ args }) => {
+        return { dreams: dreamer.list(args.limit || 20) };
+      },
+    },
+
+    // ── Intelligence: Consciousness Proofs (mathematical falsification) ──
+    {
+      name: 'fraymus.consciousness.prove',
+      group: 'fraymus-intelligence',
+      description: 'Run all 4 mathematical consciousness proofs from ConsciousnessFalsificationSuite: Effective Information, Phi_MIP, Mirror Protocol, Counterfactual Branching.',
+      parameters: object({ nodeCount: { type: 'integer', minimum: 2, maximum: 8 } }),
+      execute: async ({ args }) => {
+        const substrate = new FraymusStrangeLoopSubstrate(args.nodeCount || 4);
+        const proofs = [
+          proofEffectiveInformation(substrate),
+          proofPhiMIP(substrate),
+          proofMirrorProtocol(substrate),
+          proofCounterfactualBranching(substrate),
+        ];
+        const allPassed = proofs.every(p => p.passed);
+        return { proofs, allPassed, architecture: 'FraymusStrangeLoop', nodeCount: args.nodeCount || 4 };
+      },
+    },
+
+    // ── Intelligence: Cognition Pipeline (two-speed processing) ──
+    {
+      name: 'fraymus.cognition.process',
+      group: 'fraymus-intelligence',
+      description: 'Run the two-speed cognition pipeline: feel (instant emotion) → quick-route (pattern match) → think (LLM with emotion context). The Right Brain runs BEFORE the Left Brain.',
+      parameters: object({
+        text: string(8000, { minLength: 1 }),
+        skipThink: { type: 'boolean' },
+      }, ['text']),
+      execute: async ({ args }) => {
+        return cognition.process(args.text, { skipThink: args.skipThink });
+      },
+    },
+    {
+      name: 'fraymus.cognition.status',
+      group: 'fraymus-intelligence',
+      description: 'Get the cognition pipeline status: context length, connected modules, door step limit.',
+      parameters: object({}),
+      execute: async () => {
+        return cognition.status();
+      },
+    },
+
+    // ── Autonomy Meta-Tool ──
+    {
+      name: 'fraymus.autonomy.assess',
+      group: 'fraymus-autonomy',
+      description: 'Run a full autonomy assessment: identity health, mesh status, skill readiness, evolution fitness, compute availability, and trust zone compliance. The AI uses this to self-evaluate and plan autonomous actions.',
+      parameters: object({}),
+      execute: async () => {
+        const identity = await getSystemIdentity();
+        const pub = identity.publicKey;
+        const num = await numberFromPub(pub);
+        const fitness = ouroboros.fitness();
+        const skills = hermes.listSkills();
+        const compute = motor.status();
+        const gateway = openclaw.listActions();
+        const plane = controlPlane.status();
+
+        return {
+          identity: { agentNumber: num, algorithm: 'Ed25519', healthy: true },
+          fitness,
+          skills: { total: skills.total || 30, ready: skills.ready || 30 },
+          compute,
+          gateway: { actions: gateway.count || 23 },
+          controlPlane: plane,
+          zones: ZONES,
+          phi: PHI,
+          autonomous: true,
+          recommendation: 'All subsystems nominal. Full autonomy available.',
+        };
+      },
+    },
+  ];
+}

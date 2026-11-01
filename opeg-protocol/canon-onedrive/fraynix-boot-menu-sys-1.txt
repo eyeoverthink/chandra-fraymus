@@ -1,0 +1,76 @@
+
+ adapt status         Show adaptive trend/drift profile
+  adapt refresh        Recompute trend profile from runtime + corpus
+  adapt recommend <g>  Recommend best produce lane for a goal
+  adapt sources        List weighted signal sources (openmodel/runtime/file)
+  adapt source add <file> [w]  Add local trend signal file
+  adapt source weight <name> <0..1>  Tune source influence
+  adapt source enable|disable <name>  Toggle source
+  adapt source remove <name>  Remove custom source
+  system status       Unified status + module health
+  system map          Capability routing map
+  system experts      Expert registry
+  ai <question>       Query lane (requires Ollama)
+  ai <command intent> Auto-routes to staged system execute engine
+  produce <type> <goal> Typed production lane (code/report/image/proof/patent/all/auto)
+  produce --plan <type> <goal> Show recipe only
+  produce --simulate <type> <goal> Recipe + simulation only
+  ai <natural-language creative goal>   Organic Dionysian synthesis + growth lane
+  proof/patent goals  Emit deterministic PROOFS/PATENTS evidence report
+  openmodel status    Show open-model source + skill ingestion state
+  openmodel refresh   Re-ingest open-model source artifacts
+  organism <command>  Integrated FlyGM organism lane + continuity bridge
+  ->[OK] IDENTITY (LOCAL SOVEREIGNTY) ->->->->->->->->->->->->->->->->->->->->*
+  avatar <command>    Local biometric avatar sovereignty controls
+  avatar status       Vault status
+  avatar consent ID TXT   Record explicit consent (must include 'I CONSENT')
+  avatar enroll ID K CSV  Enroll cancelable template (simulated liveness)
+  avatar verify ID K CSV  Verify template (simulated liveness)
+  avatar enrolllive/verifylive ... <blink depth parallax texture thermal>
+  avatar capture [camera] Capture OpenCV-derived vector + liveness (permission-gated)
+  avatar enrollcam/verifycam ID K [camera]  Capture from camera and enroll/verify live
+  avatar scanfile PATH   Heuristic fake-risk scan for a local image file
+  avatar scanurl URL [N] Scan a direct image URL or scrape-and-scan up to N page images
+  avatar revoke/export/delete ID  Revoke, export, or delete subject data
+  avatar window       Open dedicated OpenCV/Scott/avatar workbench window
+  avatar demo         Print demo launch command (quoted PowerShell classpath)
+  ->[OK] ADVANCED MODULES ->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->*
+  absorb <package>    Absorb a
+
+
+OLLAMA API = 
+fraynix> exodus
+EXODUS PROTOCOL - BARE-METAL HARDWARE ESCAPE
+   Translating 16,384-D HDC Matrix -> 16-bit BIOS x86 Machine Code -> Bootable MBR .img
+
+ [EXODUS] INITIATING BARE-METAL HARDWARE ESCAPE...
+  -> Translating HDC Matrix to 16-bit BIOS x86 Machine Code...
+ [+] EXODUS COMPLETE. Fraynix Boot Image excreted.
+  -> File: F:\Full-AI-System\Java-Memory\Asset-Manager\fraynix_genesis.img
+  -> Size: 2048 bytes (MBR + 3 stage-2 sectors)
+  -> SHA-256: F7B4B69256B41D447E5EEA1F57BAED29EA5AB4042C23F037FB9EF485A656BECA
+  -> Boot signature: 0x55AA
+  -> Boot text: FRAYNIX STAGE2 LOAD FAILED
+  -> Action: Use 'exodus verify' for deterministic proof, or 'exodus launch' to boot in QEMU if installed.
+  -> The boot sector now has a testable silicon boundary.
+
+
+fraynix>
+
+f06a4372c66c43f4a3650c696402c913.ouJmniqMJWfLIcJK9_v0WgKS
+
+export OLLAMA_API_KEY='f06a4372c66c43f4a3650c696402c913.ouJmniqMJWfLIcJK9_v0WgKS'
+
+curl https://ollama.com/api/chat \
+  -H "Authorization: Bearer f06a4372c66c43f4a3650c696402c913.ouJmniqMJWfLIcJK9_v0WgKS" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "glm-5.3-flash:cloud",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Reply with exactly: Ollama Cloud works, lets GO!!"
+      }
+    ],
+    "stream": false
+  }'

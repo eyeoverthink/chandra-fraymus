@@ -1,0 +1,51 @@
+diff --git a/src/lib/forge.js b/src/lib/forge.js
+index 635f23a..fe572b3 100644
+--- a/src/lib/forge.js
++++ b/src/lib/forge.js
+@@ -1,6 +1,10 @@
+ // Fraymus Forge — shared data + ZIP builder + classic WASM generator.
+ // Used by the Forge, Git Package, and Home pages.
+ 
++// dnaHypervector / genesisBlock0 live in fraymus.js and are needed so a classic
++// WASM carries the same 5 sections verifyWasm() requires.
++import { dnaHypervector, genesisBlock0 } from './fraymus.js';
++
+ export const CLASSIC_WASMS = [
+   { name: 'fraymus_compiler_v1.wasm', hash: 'e0654719998601a3', size: 1666, price: '$500/mo', type: 'compiler' },
+   { name: 'transmuter_engine.wasm', hash: '34a1b88c1e054b70', size: 755, price: '$5k+$2k/mo', type: 'transmuter' },
+@@ -80,17 +84,32 @@ export async function buildClassicWasm(type, name, data, ledger) {
+   }
+   const baselineHex = await sha256hexAsync(data);
+   const ledgerClean = { ...ledger };
++  // CLASSIC_WASMS entries carry a 16-hex catalog id under `hash`.
+   if (ledgerClean.sha256 && !/^[0-9a-f]{64}$/.test(ledgerClean.sha256)) {
+     ledgerClean.catalog_id = ledgerClean.sha256;
+-    delete ledgerClean.sha256;
+   }
+-  const sData = customSection('fraymus.data', enc.encode(bytesToBase64(data)));
++  if (!ledgerClean.catalog_id && ledgerClean.hash && !/^[0-9a-f]{64}$/.test(ledgerClean.hash)) {
++    ledgerClean.catalog_id = ledgerClean.hash;
++  }
++  // The ledger must carry the real baseline digest so verifyWasm()'s
++  // ledgerMatchesBaseline / ledgerMatchesActual cross-checks can pass.
++  // (A 16-hex catalog id is NOT a digest and must never be written here.)
++  ledgerClean.sha256 = baselineHex;
++
++  // Section set MUST match what verifyWasm() requires:
++  //   ['fraymus.baseline','fraymus.dna','fraymus.genesis','fraymus.ledger','fraymus.data']
++  // catalog/meta are additive extras the verifier ignores.
++  const dnaBytes = dnaHypervector(data, baselineHex);
++  const genesis = await genesisBlock0(baselineHex, name, Date.now());
+   const sBaseline = customSection('fraymus.baseline', enc.encode(baselineHex));
++  const sDna = customSection('fraymus.dna', dnaBytes);
++  const sGenesis = customSection('fraymus.genesis', enc.encode(JSON.stringify(genesis)));
+   const sLedger = customSection('fraymus.ledger', enc.encode(JSON.stringify(ledgerClean)));
++  const sData = customSection('fraymus.data', enc.encode(bytesToBase64(data)));
+   const sCatalog = customSection('fraymus.catalog', enc.encode(ledgerClean.catalog_id || ledger?.catalog_id || ''));
+   const sMeta = customSection('fraymus.meta', enc.encode(JSON.stringify({ type, name, generated: new Date().toISOString() })));
+   const mem = new Uint8Array([1, 4, 1, 96, 0, 0]);
+-  const parts = [sData, sBaseline, sLedger, sCatalog, sMeta];
++  const parts = [sBaseline, sDna, sGenesis, sLedger, sData, sCatalog, sMeta];
+   const total = magic.length + parts.reduce((s, p) => s + p.length, 0) + mem.length;
+   const r = new Uint8Array(total);
+   let o = 0; r.set(magic, o); o += magic.length;

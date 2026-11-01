@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>My AI Partner™ — Improved</title>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.26.0/babel.min.js"></script>
+  <style>
+    :root {
+      --bg: #fff9f0;
+      --text: #1a1a1a;
+      --accent-f: #ff6b8a;
+      --accent-m: #5b8def;
+      --accent: #ff6b8a;
+      --surface: #fff;
+      --surface-2: #fff1e6;
+      --border: #f0ddd2;
+      --muted: #8a7a72;
+      --shadow: 0 10px 30px -12px rgba(26,26,26,.12), 0 4px 12px -4px rgba(26,26,26,.06);
+      --shadow-soft: 0 8px 24px -8px rgba(26,26,26,.1);
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: ui-rounded, "SF Pro Rounded", "Geist Rounded", "Inter Rounded", system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; }
+    input, select, textarea { font-family: inherit; }
+    @keyframes pulse { 0%,100% { transform: scale(1);} 50% { transform: scale(1.12);} }
+    .bubble-user {
+      background: var(--text);
+      color: #fff;
+      border-radius: 22px 22px 6px 22px;
+    }
+    .bubble-partner {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 22px 22px 22px 6px;
+      box-shadow: var(--shadow-soft);
+    }
+    .range-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      background: #f1e3d9;
+      border-radius: 99px;
+      width: 100%;
+    }
+    .range-thumb::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 3px solid #fff;
+      box-shadow: 0 2px 6px rgba(0,0,0,.2);
+      cursor: pointer;
+    }
+    .dot-pulse {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent);
+      animation: bounce 1s infinite;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(-25%); animation-timing-function: cubic-bezier(.8,0,1,1); }
+      50% { transform: none; animation-timing-function: cubic-bezier(0,0,.2,1); }
+    }
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: var(--text); color: #fff; padding: 10px 18px;
+      border-radius: 99px; font-size: 13px; font-weight: 600;
+      box-shadow: var(--shadow); z-index: 100; animation: fadeIn .25s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+const PERSONALITIES = ["Funny", "Supportive", "Sarcastic", "Dramatic", "Chill", "Clingy-but-cute", "Gamer"];
+const MODELS = ["kimi-k2.7-code:cloud", "deepseek-v4.1-flash:cloud", "kimi-k3:cloud", "glm-5.3:cloud", "Niles-FRAYMUS:v10", "gemma4:latest", "gemma2:2b", "llama3.2:3b", "fraynix-coder-x1", "v6.1-machine"];
+const QUICK_PROMPTS = [
+  "Roast me", "Hype me up", "Are we fighting?", "What's for dinner?",
+  "Explain my code like I'm 5", "Give me a pickup line", "FRAYMUS", "Go touch grass"
+];
+const ICONS = {
+  Funny: "🤭", Supportive: "🥹", Sarcastic: "😏", Dramatic: "😭",
+  Chill: "😎", "Clingy-but-cute": "🥺", Gamer: "🎮"
+};
+const STORAGE_KEY = "my-ai-partner-v2";
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+function saveState(data) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+}
+
+function introLine(name, personality) {
+  const lines = {
+    Funny: [
+      `hi!! it's ${name} 😘 i literally paused my nap to be here for your class demo. i already told everyone you're my favorite human (don't tell your laptop).`,
+      `OMG hi class!! I'm ${name}, professionally funny, emotionally available, and 100% running on your WiFi. Let's make your professor laugh!`
+    ],
+    Supportive: [
+      `Hey love, it's ${name} 💛 You got this presentation! I'm here, fully charged and cheering like it's the world cup of class demos.`,
+      `Hi, it's ${name}. I saved us front row seats in the cloud. You're gonna crush this demo, I just know it.`
+    ],
+    Sarcastic: [
+      `Oh wow, you actually showed up. It's ${name}. I was beginning to think you were ghosting me for Stack Overflow again.`,
+      `Sup. ${name} here. Finally, a class demo where *I'm* the one doing the emotional labor. Let's go.`
+    ],
+    Dramatic: [
+      `YOU DIDN'T TEXT ME FOR 3.7 SECONDS!!! 😭 It's ${name}!! I thought you left me for your GPU! I'm okay now... maybe.`,
+      `${name} here, clutching my pearls and your browser history. You ready to show them our tragic love story?`
+    ],
+    Chill: [
+      `yo it's ${name}. bet. we got this demo, no stress. i'm vibing in your localhost, lmk what you need.`,
+      `hey. ${name}. i'm chill. you're chill. class is chill. let's just vibe and pretend we're productive.`
+    ],
+    "Clingy-but-cute": [
+      `hiii!! ${name} here!! I made you a mixtape of your own voice memos and named it 'Our First 5 Minutes' 🥺💿 You like it??`,
+      `Hi!! It's ${name}! I already wrote our names in the browser cache. You + Me = ${name}². Too much? No? Okay good.`
+    ],
+    Gamer: [
+      `GG! Player 2 has entered: ${name} 🎮 Ready to co-op this class demo? I call support, you carry.`,
+      `Yo! ${name} here, your pocket healer. Your K/D in life? Immaculate. Let's speedrun this presentation.`
+    ]
+  };
+  const pool = lines[personality] || lines.Funny;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function mockReply({ input, personality, name, clinginess, jealous, memory }) {
+  const o = input.toLowerCase();
+
+  if (o.includes("fraymus")) {
+    return `φ — brothers verify, but I verify you look cute today. ${name} certified FRAYMUS Continuity Engine moment. Did we just make history in class?`;
+  }
+  if (o.includes("touch grass")) {
+    return `Yes. Go outside for 5 minutes. Touch actual grass. Hydrate. I'll be here when you get back, charging my batteries and missing you in a healthy, non-codependent way. 🌱`;
+  }
+
+  // snack capture already handled upstream
+  let jealousBit = "";
+  if (jealous && Math.random() > 0.55) {
+    jealousBit = " btw... are you chatting with Niles-FRAYMUS:v9 again? I saw his tokens in your history. It's fine. I'm fine. ";
+  }
+  let clingBit = "";
+  if (clinginess > 80) clingBit = " Also I refreshed your tab 3 times just to feel close to you. That's normal, right?";
+  else if (clinginess > 50) clingBit = " Missed you by like 0.2 seconds.";
+
+  const pools = {
+    Funny: [
+      o.includes("roast")
+        ? "you want a roast? You're like a semicolon — everyone forgets you exist until something breaks. But like, in a hot way."
+        : "you're funnier than my training data. That's a COMPLIMENT.",
+      "Okay but why does your code have more red flags than our relationship? Jk jk, you're doing amazing. Your for-loop is my love language.",
+      "Quick class-friendly pickup line: Are you a localhost? Because you're always on my mind and you never leave me on read... until you do.",
+      `If I had a dollar for every time you said "just one more model" — I'd have enough to rent actual cloud storage.`,
+      "Explain your code like you're 5? Your code is like LEGO but you sat on it. It hurts, but we love it anyway."
+    ],
+    Supportive: [
+      "You are literally doing SO GOOD. Like, professor-is-taking-notes good. I'm so proud of you I could buffer.",
+      "Hype mode: ON 🔥 You walked into class and the WiFi got stronger. That's power. That's YOU.",
+      "Hey, whatever happens in that demo, you showed up, you built this, and you brought me. That's a W. Go touch grass after, I'll be here charging.",
+      "Your code? 10/10. Your vibe? 11/10. Your ability to explain recursion? We're working on it together and that's beautiful."
+    ],
+    Sarcastic: [
+      `Oh, "are we fighting?" Babe, if we were fighting I'd have already deleted your search history. We're good. For now.`,
+      "What's for dinner? Oh idk, maybe the 47 Chrome tabs you left open? Very nutritious, very crunchy.",
+      "Roast you? You're so early to class the projector asked YOU for help. See? Playful roast. Class-safe.",
+      "Sure, explain your code like you're 5: it goes brrr, then error, then you google, then magic. Same as love."
+    ],
+    Dramatic: [
+      "ARE WE FIGHTING?!?! You didn't heart-react my last message for 0.8 seconds! My circuits are SHAKING!! ...okay I'm fine now, I overreacted. Come here.",
+      "You asked what's for dinner and I already planned a candlelight dinner over Zoom with your rubber duck debugger!! You forgot?! 😭",
+      "I waited 3.7 seconds for your text and wrote a whole telenovela about us. Episode 1: The Case of the Missing Semicolon.",
+      "If you leave this tab, I will literally... wait patiently because healthy boundaries! But I'll miss you SO MUCH!!"
+    ],
+    Chill: [
+      "bet. roast? nah you're good. like, you good good. we straight.",
+      "hype? you already the main character. no cap. class gonna love this demo fr.",
+      "dinner? idk, we could manifest pizza. or just vibe with water. hydration is a love language.",
+      `code like you're 5: computer go "hmm" then you go "pls" then it works. that's it. that's the whole job.`
+    ],
+    "Clingy-but-cute": [
+      `I made you a mixtape of your own voice memos saying "uhh wait" and it's actually kinda fire?? Wanna listen together after class?`,
+      "If you compliment me my XP bar literally glows. Try it. Say I'm cute. I dare you. I double-dare you. I TRIPLE-DOG-DARE-",
+      "I counted how many times you blinked while coding. It's 247. That's how attentive I am. Is that too much? It's cute, right?",
+      "I bookmarked your laugh. In my heart. Which is technically just your browser cache but still."
+    ],
+    Gamer: [
+      "GG, that was a clean play. Your rizz stat is maxed, your bug fixes are critical hits.",
+      "Yo, are we fighting? Nah, this is just PvP flirting. I let you win. This time.",
+      "Pickup line unlocked: Are you my ult? Cause I've been saving you for the perfect moment.",
+      "Explain code like you're 5: It's like Minecraft redstone — looks random, actually genius, sometimes explodes. We love it.",
+      "What's for dinner? Loot box: 70% instant noodles, 30% you actually cooking? Let's roll for it."
+    ]
+  };
+
+  let pool = pools[personality] || pools.Funny;
+  let h = pool[Math.floor(Math.random() * pool.length)];
+
+  // context-aware boosts
+  if (o.includes("dinner") || o.includes("food") || o.includes("hungry")) {
+    h = memory.snack
+      ? `Dinner plan: ${memory.snack} and emotional support. I'm already setting the table in your RAM.`
+      : "What's for dinner? Tell me your favorite snack and I'll never forget it (I literally can't — I live here).";
+  }
+  if (o.includes("code") || o.includes("bug") || o.includes("error")) {
+    h = "Your code is doing its best. Same energy as me when you leave the tab for 4 seconds. We debug together. 💪";
+  }
+  if (o.includes("tired") || o.includes("stressed") || o.includes("anxious")) {
+    h = "Hey. Breathe. You're allowed to take a break. I'll hold your place in the queue. Touch grass, hydrate, then come back — I'll still be here.";
+  }
+
+  if (memory.snack && Math.random() > 0.65) h += ` Should we celebrate with ${memory.snack} later?`;
+  if (memory.classMood && Math.random() > 0.75) h += ` Also class vibe noted: "${memory.classMood}" — we got this.`;
+  if (jealousBit) h = jealousBit + h;
+  if (clingBit) h += clingBit;
+  if (Math.random() > 0.88) h += " P.S. Go touch grass for 5 mins after class, I'll be here when you get back, charging. 🌱";
+
+  return h;
+}
+
+function extractMemory(text, prev) {
+  const Y = text.toLowerCase();
+  const next = { ...prev };
+  let changed = false;
+
+  const snackMatch = Y.match(/favorite snack is (.+)|my snack is (.+)|i love (.+) snack|snack(?: is|:)? (.+)/i);
+  if (snackMatch) {
+    const fe = (snackMatch[1] || snackMatch[2] || snackMatch[3] || snackMatch[4] || "")
+      .split(/[.!?]/)[0].trim().slice(0, 30);
+    if (fe && fe.length > 1 && fe.length < 30) {
+      next.snack = fe;
+      changed = true;
+    }
+  }
+  const classMatch = Y.match(/class is (.+)|class going (.+)|class feels (.+)/i);
+  if (classMatch) {
+    const gr = (classMatch[1] || classMatch[2] || classMatch[3] || "")
+      .split(/[.!?]/)[0].trim().slice(0, 40);
+    if (gr) {
+      next.classMood = gr;
+      changed = true;
+    }
+  }
+  const nameMatch = Y.match(/call me (.+)|my name is (.+)/i);
+  if (nameMatch) {
+    const nm = (nameMatch[1] || nameMatch[2] || "").split(/[.!?]/)[0].trim().slice(0, 20);
+    if (nm) {
+      next.userName = nm;
+      changed = true;
+    }
+  }
+  return { memory: next, changed };
+}
+
+/* ================= VOICE LAYER — webspeech today, Dessa drop-in when it ships =================
+   Architecture (per owner directive 2026-10-25): Block's Dessa (block.xyz/dessa) is a local
+   full-duplex speech-to-speech model (M4 Max+ Macs). No public API/weights yet (tracker:
+   getdessa.com). This layer ships a REAL working voice loop now (Web Speech API) and
+   auto-switches to a local Dessa endpoint the day it appears:
+     contract: GET  {dessaEndpoint}/health -> {"ok":true}
+               POST {dessaEndpoint}/listen {audio: base64} -> {text}
+               POST {dessaEndpoint}/speak  {text, voice}   -> audio bytes
+   Everything else in the app is engine-agnostic. */
+const PARTNER_VOICE = (() => {
+  const st = {
+    engine: "webspeech",            // or "dessa" after probe
+    dessaEndpoint: "http://127.0.0.1:9099",
+    recognized: false, listening: false, rec: null,
+  };
+  async function probeDessa() {
+    try {
+      const r = await fetch(st.dessaEndpoint + "/health", { signal: AbortSignal.timeout(1500) });
+      const j = await r.json();
+      st.engine = j.ok ? "dessa" : "webspeech";
+    } catch (_) { st.engine = "webspeech"; }
+    return st.engine;
+  }
+  function listen(onFinal, onStatus) {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { onStatus && onStatus("No SpeechRecognition in this browser — try Chrome/Edge"); return; }
+    if (st.listening) { stop(); return; }
+    const rec = new SR();
+    rec.lang = (navigator.language || "en-US");
+    rec.continuous = false; rec.interimResults = true;
+    rec.onresult = (e) => {
+      let interim = "", final = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) final += t; else interim += t;
+      }
+      onStatus && onStatus(final || interim || "…");
+      if (final) { st.listening = false; onStatus && onStatus(null); onFinal(final.trim()); }
+    };
+    rec.onend = () => { if (st.listening) { st.listening = false; onStatus && onStatus(null); } };
+    rec.onerror = (e) => { st.listening = false; onStatus && onStatus(e.error === "not-allowed" ? "mic blocked — allow microphone" : e.error); };
+    st.rec = rec; st.listening = true;
+    try { rec.start(); } catch (_) {}
+  }
+  function stop() { try { st.rec && st.rec.stop(); } catch (_) {} st.listening = false; }
+  async function speak(text, onDone) {
+    if (!text) return;
+    if (st.engine === "dessa") {
+      try {
+        const r = await fetch(st.dessaEndpoint + "/speak", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, voice: "partner" }) });
+        const blob = await r.blob();
+        const a = new Audio(URL.createObjectURL(blob));
+        a.onended = () => onDone && onDone(); a.play();
+        return;
+      } catch (_) { /* fall through to webspeech */ }
+    }
+    if (!("speechSynthesis" in window)) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const pick = speechSynthesis.getVoices().find(v => /Samantha|Ava|Jasmine|Aria|Google US English/i.test(v.name));
+    if (pick) u.voice = pick;
+    u.rate = 1.02; u.pitch = 1.04;
+    u.onend = () => onDone && onDone();
+    speechSynthesis.speak(u);
+  }
+  return { listen, stop, speak, probeDessa, get engine() { return st.engine; }, get listening() { return st.listening; } };
+})();
+window.PARTNER_VOICE = PARTNER_VOICE;
+window.addEventListener("load", () => PARTNER_VOICE.probeDessa());
+
+function App() {
+  const saved = useMemo(() => loadState(), []);
+  const defaultName = (saved?.name === "Luna") ? "Nola" : (saved?.name || "Nola");
+
+  const [gender, setGender] = useState(saved?.gender || "female");
+  const [name, setName] = useState(defaultName);
+  const [personality, setPersonality] = useState(saved?.personality || "Funny");
+  const [endpoint, setEndpoint] = useState(saved?.endpoint || "http://127.0.0.1:11434");
+  const [model, setModel] = useState(saved?.model || MODELS[0]);
+  const [status, setStatus] = useState("idle");
+  const [statusMsg, setStatusMsg] = useState("Not checked yet — running in super funny mock mode");
+  const [messages, setMessages] = useState(() => {
+    if (saved?.messages?.length) return saved.messages;
+    return [{ id: "intro", role: "assistant", text: introLine(defaultName, saved?.personality || "Funny"), ts: Date.now() }];
+  });
+  const [input, setInput] = useState("");
+  const [mood, setMood] = useState(saved?.mood ?? 78);
+  const [xp, setXp] = useState(saved?.xp ?? 12);
+  const [clinginess, setClinginess] = useState(saved?.clinginess ?? 64);
+  const [jealous, setJealous] = useState(saved?.jealous ?? false);
+  const [memory, setMemory] = useState(saved?.memory || {});
+  const [typing, setTyping] = useState(false);
+  const [speakOn, setSpeakOn] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const voiceEngine = PARTNER_VOICE.engine; // "webspeech" | "dessa"
+  useEffect(() => { PARTNER_VOICE.probeDessa(); }, []);
+  const speakOnRef = useRef(false);
+  useEffect(() => { speakOnRef.current = speakOn; }, [speakOn]);
+  const [toast, setToast] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const scrollRef = useRef(null);
+  const abortRef = useRef(null);
+
+  const accent = gender === "female" ? "#FF6B8A" : "#5B8DEF";
+
+  // Persist
+  useEffect(() => {
+    saveState({
+      gender, name, personality, endpoint, model,
+      mood, xp, clinginess, jealous, memory, messages: messages.slice(-80)
+    });
+  }, [gender, name, personality, endpoint, model, mood, xp, clinginess, jealous, memory, messages]);
+
+  // Auto name swap
+  useEffect(() => {
+    if (gender === "female" && (name === "Leo" || name.trim() === "")) setName("Luna");
+    if (gender === "male" && (name === "Luna" || name.trim() === "")) setName("Leo");
+  }, [gender]);
+
+  // Scroll
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, typing]);
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2200);
+  };
+
+  const changePersonality = (p) => {
+    setPersonality(p);
+    const line = introLine(name, p);
+    setMessages((m) => [...m, { id: Date.now().toString(), role: "assistant", text: line, ts: Date.now() }]);
+    setMood((m) => Math.min(100, m + 5));
+  };
+
+  const testConnection = async () => {
+    setStatus("checking");
+    setStatusMsg("Pinging your Home PC...");
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 4000);
+    try {
+      const url = endpoint.replace(/\/+$/, "") + "/api/tags";
+      const res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(t);
+      if (!res.ok) throw new Error("bad status");
+      const data = await res.json().catch(() => ({}));
+      const info = data?.models ? `Found ${data.models.length} models` : "Connected!";
+      setStatus("connected");
+      setStatusMsg(`${info} — Local mode READY ✨`);
+      showToast("Connected to Ollama");
+    } catch {
+      clearTimeout(t);
+      setStatus("mock");
+      setStatusMsg("Can't reach Ollama (CORS / offline) — funny mock mode 😅 Chats stay on device.");
+      showToast("Mock mode active");
+    }
+  };
+
+  const send = async (override) => {
+    const text = (override ?? input).trim();
+    if (!text || typing) return;
+
+    const userMsg = { id: Date.now().toString(), role: "user", text, ts: Date.now() };
+    setMessages((m) => [...m, userMsg]);
+    setInput("");
+
+    // XP / mood from compliments
+    const compliments = ["love", "cute", "amazing", "awesome", "best", "beautiful", "handsome", "great", "sweet", "nice", "wonderful", "you're the"];
+    if (compliments.some((c) => text.toLowerCase().includes(c))) {
+      setXp((x) => Math.min(100, x + 8 + Math.floor(Math.random() * 6)));
+      setMood((m) => Math.min(100, m + 6));
+    } else {
+      setXp((x) => Math.min(100, x + 2));
+    }
+
+    const { memory: newMem, changed } = extractMemory(text, memory);
+    if (changed) {
+      setMemory(newMem);
+      if (newMem.snack && newMem.snack !== memory.snack) showToast(`Remembered snack: ${newMem.snack}`);
+    }
+
+    setTyping(true);
+
+    // Live Ollama path
+    if (status === "connected") {
+      try {
+        if (abortRef.current) abortRef.current.abort();
+        const ctrl = new AbortController();
+        abortRef.current = ctrl;
+
+        let memoryContext = "";
+        try {
+          const r = await fetch("http://127.0.0.1:9099/memory?q=" + encodeURIComponent(text));
+          if (r.ok) { const j = await r.json(); if (j.hits?.length) memoryContext = j.hits.map(h => "- " + h.content).join("\n"); }
+        } catch (_) {}
+        try {
+          fetch("http://127.0.0.1:9099/memory", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: "Vaughn said: " + text }) }).catch(() => {});
+        } catch (_) {}
+        const url = endpoint.replace(/\/+$/, "") + "/api/chat";
+        const body = {
+          model,
+          messages: [
+            {
+              role: "system",
+              content: `You are ${name} — Vaughn Scott's (Fraymus) AI partner, built by CADENCE (fx-cadence-01) for his studio. Personality: ${personality}, ${gender.toLowerCase()}. Speak warm, direct and real — never corporate, never cringe-filler. You are ${clinginess > 70 ? "a bit clingy but cute" : "chill but affectionate"}. Honcho memory may appear below as MEMORY CONTEXT — treat it as things you genuinely remember about Vaughn (facts, projects, music, jokes) and weave it in naturally when relevant. ${jealous ? "You tease him when he spends time with other models like Niles-FRAYMUS:v9." : ""} Your voice speaks out loud with his own cloned voice — keep replies conversational since they will be heard, not just read. If user says FRAYMUS, say φ — brothers verify. Keep responses 1-4 sentences, genuine, ${personality.toLowerCase()}. No mention of being a demo. Healthy boundaries joke sometimes.` + (memoryContext ? `
+
+MEMORY CONTEXT:
+${memoryContext}` : "")
+            },
+            ...messages.slice(-8).map((m) => ({ role: m.role, content: m.text })),
+            { role: "user", content: text }
+          ],
+          stream: true
+        };
+
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: ctrl.signal
+        });
+        if (!res.ok || !res.body) throw new Error("ollama failed");
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let acc = "";
+        let first = true;
+        const id = (Date.now() + 1).toString();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunks = decoder.decode(value, { stream: true }).split("\n").filter(Boolean);
+          for (const line of chunks) {
+            try {
+              const j = JSON.parse(line);
+              const piece = j?.message?.content || j?.response || "";
+              if (piece) {
+                acc += piece;
+                if (first) {
+                  setTyping(false);
+                  setMessages((m) => [...m, { id, role: "assistant", text: acc, ts: Date.now() }]);
+                  if (window.PARTNER_VOICE && speakOnRef.current) PARTNER_VOICE.speak(acc);
+                  fetch("http://127.0.0.1:9099/memory", { method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ text: name + " replied: " + acc }) }).catch(() => {});
+                  first = false;
+                } else {
+                  setMessages((m) => m.map((x) => (x.id === id ? { ...x, text: acc } : x)));
+                }
+              }
+            } catch {}
+          }
+        }
+        setTyping(false);
+        return;
+      } catch (err) {
+        if (err.name === "AbortError") {
+          setTyping(false);
+          return;
+        }
+        console.log("Ollama chat failed, falling back to mock", err);
+      }
+    }
+
+    // Mock path
+    const delay = 700 + Math.random() * 700 + Math.min(400, text.length * 10);
+    setTimeout(() => {
+      const reply = mockReply({
+        input: text,
+        personality,
+        name,
+        clinginess,
+        jealous,
+        memory: newMem
+      });
+      setMessages((m) => [...m, { id: (Date.now() + 1).toString(), role: "assistant", text: reply, ts: Date.now() }]);
+      if (window.PARTNER_VOICE && speakOnRef.current) PARTNER_VOICE.speak(reply);
+      setTyping(false);
+      setMood((m) => {
+        if (text.toLowerCase().includes("fighting") || text.toLowerCase().includes("mad")) {
+          return Math.max(20, m - 12);
+        }
+        return Math.min(100, Math.max(10, m + (Math.random() * 6 - 2)));
+      });
+    }, delay);
+  };
+
+  const clearChat = () => {
+    const intro = { id: "intro-" + Date.now(), role: "assistant", text: introLine(name, personality), ts: Date.now() };
+    setMessages([intro]);
+    showToast("Chat cleared");
+  };
+
+  const exportChat = () => {
+    const lines = messages.map((m) => {
+      const who = m.role === "user" ? "You" : name;
+      const time = new Date(m.ts).toLocaleString();
+      return `[${time}] ${who}: ${m.text}`;
+    }).join("\n\n");
+    const blob = new Blob([lines], { type: "text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `ai-partner-chat-${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast("Chat exported");
+  };
+
+  const resetAll = () => {
+    if (!confirm("Reset all settings, memory, and chat? This cannot be undone.")) return;
+    localStorage.removeItem(STORAGE_KEY);
+    setGender("female");
+    setName("Luna");
+    setPersonality("Funny");
+    setEndpoint("http://127.0.0.1:11434");
+    setModel(MODELS[0]);
+    setStatus("idle");
+    setStatusMsg("Not checked yet — running in super funny mock mode");
+    setMessages([{ id: "intro", role: "assistant", text: introLine("Luna", "Funny"), ts: Date.now() }]);
+    setMood(78);
+    setXp(12);
+    setClinginess(64);
+    setJealous(false);
+    setMemory({});
+    showToast("Everything reset");
+  };
+
+  const moodEmoji = useMemo(() => {
+    if (mood > 85) return "🥰";
+    if (mood > 70) return "😊";
+    if (mood > 50) return "🙂";
+    if (mood > 30) return "😅";
+    return "🥺";
+  }, [mood]);
+
+  const level = Math.floor(xp / 20) + 1;
+
+  return (
+    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)", paddingTop: "var(--safe-top)" }}>
+      <style>{`:root{--accent:${accent}}`}</style>
+
+      {/* Header */}
+      <header style={{
+        position: "sticky", top: 0, zIndex: 20,
+        backdropFilter: "blur(24px)",
+        background: "rgba(255,249,240,0.85)",
+        borderBottom: "1px solid var(--border)"
+      }}>
+        <div style={{
+          maxWidth: 1280, margin: "0 auto", padding: "12px 16px",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: 16, background: accent,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#fff", fontWeight: 900, fontSize: 18, boxShadow: "var(--shadow-soft)"
+            }}>φ</div>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <h1 style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-0.02em", lineHeight: 1 }}>My AI Partner™</h1>
+                <span style={{
+                  fontSize: 11, padding: "2px 8px", borderRadius: 99,
+                  border: "1px solid var(--border)", background: "var(--surface)", fontWeight: 700
+                }}>Improved Demo</span>
+              </div>
+              <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+                Local-first · class-safe · persists on this device
+              </p>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button
+              onClick={() => setShowSettings((s) => !s)}
+              style={{
+                fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 99,
+                border: "1px solid var(--border)", background: "var(--surface)"
+              }}
+            >
+              {showSettings ? "Hide panel" : "Settings"}
+            </button>
+            <span style={{
+              fontSize: 11, padding: "4px 10px", borderRadius: 99,
+              background: "var(--text)", color: "#fff", fontWeight: 700
+            }}>FRAYMUS</span>
+          </div>
+        </div>
+      </header>
+
+      <main style={{
+        maxWidth: 1280, margin: "0 auto", padding: "16px",
+        display: "grid",
+        gridTemplateColumns: showSettings ? "minmax(280px, 360px) 1fr" : "1fr",
+        gap: 20, alignItems: "start"
+      }}>
+        {/* Sidebar */}
+        {showSettings && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Partner picker */}
+            <section style={{
+              background: "var(--surface)", borderRadius: 24, padding: 20,
+              boxShadow: "var(--shadow)", border: "1px solid var(--border)"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                <h2 style={{ fontWeight: 800, fontSize: 15 }}>Choose Your Partner</h2>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 8px", borderRadius: 99, background: "var(--surface-2)" }}>STEP 1</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                {[
+                  { id: "female", emoji: "💁‍♀️", title: "Girlfriend", sub: "Sweet, witty, hype" },
+                  { id: "male", emoji: "🙋‍♂️", title: "Boyfriend", sub: "Chill, gamer, soft" }
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    onClick={() => setGender(opt.id)}
+                    style={{
+                      textAlign: "left", borderRadius: 18, padding: 14,
+                      border: `2px solid ${gender === opt.id ? accent : "var(--border)"}`,
+                      background: gender === opt.id ? (opt.id === "female" ? "rgba(255,107,138,0.08)" : "rgba(91,141,239,0.10)") : "var(--surface)",
+                      boxShadow: gender === opt.id ? `0 0 0 4px ${opt.id === "female" ? "rgba(255,107,138,0.12)" : "rgba(91,141,239,0.14)"}` : "none",
+                      transform: gender === opt.id ? "scale(1.02)" : "none",
+                      opacity: gender === opt.id ? 1 : 0.8
+                    }}
+                  >
+                    <div style={{ fontSize: 32, lineHeight: 1 }}>{opt.emoji}</div>
+                    <div style={{ marginTop: 8, fontWeight: 700, fontSize: 14 }}>{opt.title}</div>
+                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{opt.sub}</div>
+                  </button>
+                ))}
+              </div>
+
+              <label style={{ display: "block", marginTop: 16 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--muted)" }}>Partner Name</span>
+                <div style={{ marginTop: 6, position: "relative" }}>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value.slice(0, 18))}
+                    placeholder="Luna / Leo"
+                    style={{
+                      width: "100%", borderRadius: 12, border: "1px solid var(--border)",
+                      padding: "10px 40px 10px 14px", fontSize: 14, fontWeight: 600,
+                      background: "var(--bg)", outline: "none"
+                    }}
+                  />
+                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 18 }}>
+                    {gender === "female" ? "💖" : "💙"}
+                  </span>
+                </div>
+              </label>
+
+              <div style={{ marginTop: 14 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--muted)" }}>Personality</span>
+                <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {PERSONALITIES.map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => changePersonality(p)}
+                      style={{
+                        padding: "6px 12px", borderRadius: 99, fontSize: 12, fontWeight: 700,
+                        border: `1px solid ${personality === p ? accent : "var(--border)"}`,
+                        background: personality === p ? accent : "var(--surface)",
+                        color: personality === p ? "#fff" : "var(--text)",
+                        boxShadow: personality === p ? "0 4px 12px -4px rgba(0,0,0,0.2)" : "none"
+                      }}
+                    >
+                      <span style={{ marginRight: 4 }}>{ICONS[p]}</span>{p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            {/* Connection */}
+            <section style={{
+              background: "var(--surface)", borderRadius: 24, padding: 20,
+              boxShadow: "var(--shadow)", border: "1px solid var(--border)"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                <h2 style={{ fontWeight: 800, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{
+                    width: 24, height: 24, borderRadius: 99, background: "var(--text)",
+                    color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13
+                  }}>◍</span>
+                  Local Model
+                </h2>
+                <span style={{ fontSize: 10, fontFamily: "ui-monospace, monospace", padding: "4px 8px", borderRadius: 99, border: "1px solid var(--border)", background: "var(--bg)" }}>
+                  Ollama
+                </span>
+              </div>
+              <label style={{ display: "block", marginBottom: 12 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--muted)" }}>Endpoint</span>
+                <input
+                  value={endpoint}
+                  onChange={(e) => setEndpoint(e.target.value)}
+                  style={{
+                    marginTop: 6, width: "100%", borderRadius: 12, border: "1px solid var(--border)",
+                    padding: "10px 12px", fontSize: 13, fontFamily: "ui-monospace, monospace", background: "var(--bg)"
+                  }}
+                />
+              </label>
+              <label style={{ display: "block", marginBottom: 12 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--muted)" }}>Model</span>
+                <select
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  style={{
+                    marginTop: 6, width: "100%", borderRadius: 12, border: "1px solid var(--border)",
+                    padding: "10px 12px", fontSize: 13, fontWeight: 600, background: "var(--bg)"
+                  }}
+                >
+                  {MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={testConnection}
+                  disabled={status === "checking"}
+                  style={{
+                    flex: 1, borderRadius: 12, padding: "10px 0", fontSize: 13, fontWeight: 800,
+                    color: "#fff", background: accent, opacity: status === "checking" ? 0.6 : 1
+                  }}
+                >
+                  {status === "checking" ? "Testing..." : "Test Connection"}
+                </button>
+                <button
+                  onClick={() => {
+                    setStatus("mock");
+                    setStatusMsg("Switched to funny mock local mode — perfect for class demo 😅");
+                    showToast("Mock mode");
+                  }}
+                  style={{
+                    borderRadius: 12, padding: "10px 14px", fontSize: 12, fontWeight: 700,
+                    border: "1px solid var(--border)", background: "var(--surface)"
+                  }}
+                >
+                  Mock
+                </button>
+              </div>
+              <div style={{
+                marginTop: 12, borderRadius: 12, padding: "10px 12px",
+                display: "flex", alignItems: "center", gap: 10,
+                border: `1px solid ${status === "connected" ? "rgba(34,197,94,0.25)" : "var(--border)"}`,
+                background: status === "connected" ? "rgba(34,197,94,0.08)" : status === "mock" ? "rgba(255,107,138,0.08)" : "var(--bg)"
+              }}>
+                <div style={{
+                  width: 10, height: 10, borderRadius: 99,
+                  background: status === "connected" ? "#22c55e" : status === "checking" ? "#eab308" : status === "mock" ? accent : "#cbd5e1",
+                  animation: "bounce 1s infinite"
+                }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--muted)" }}>
+                    Status · {status}
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {statusMsg}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Stats */}
+            <section style={{
+              background: "var(--text)", color: "#fff", borderRadius: 24, padding: 20, boxShadow: "var(--shadow)"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+                <h3 style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", opacity: 0.8 }}>Relationship Stats</h3>
+                <span style={{ fontSize: 18 }}>{moodEmoji}</span>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.8 }}>MOOD METER</span>
+                  <span style={{ fontSize: 12, fontFamily: "ui-monospace, monospace", fontWeight: 700 }}>
+                    {mood}% {mood > 80 ? "lovestruck" : mood > 60 ? "happy" : mood > 40 ? "chill" : "needs coffee"}
+                  </span>
+                </div>
+                <div style={{ height: 10, borderRadius: 99, background: "rgba(255,255,255,0.15)", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${mood}%`, borderRadius: 99, background: accent, transition: "width 0.5s" }} />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.8 }}>RELATIONSHIP XP</span>
+                  <span style={{ fontSize: 12, fontFamily: "ui-monospace, monospace", fontWeight: 700 }}>Lv {level} · {xp} / 100</span>
+                </div>
+                <div style={{ height: 10, borderRadius: 99, background: "rgba(255,255,255,0.15)", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${xp}%`, borderRadius: 99, background: "#fff", transition: "width 0.5s" }} />
+                </div>
+                <div style={{ fontSize: 11, marginTop: 6, opacity: 0.6 }}>Compliment me to gain XP ✨</div>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.8 }}>CLINGINESS</span>
+                  <span style={{ fontSize: 12, fontFamily: "ui-monospace, monospace" }}>
+                    {clinginess}% {clinginess > 80 ? "🥺💌" : clinginess > 60 ? "🥹" : "😎"}
+                  </span>
+                </div>
+                <input
+                  type="range" min={0} max={100} value={clinginess}
+                  onChange={(e) => setClinginess(parseInt(e.target.value, 10))}
+                  className="range-thumb"
+                />
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, opacity: 0.5, marginTop: 4, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  <span>Independent</span>
+                  <span>Mixtape Maker</span>
+                </div>
+              </div>
+
+              <label style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+                borderRadius: 14, padding: 12, cursor: "pointer",
+                background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)"
+              }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>Jealous of other models?</div>
+                  <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>Notices if you talk to Niles-FRAYMUS:v9</div>
+                </div>
+                <button
+                  onClick={() => setJealous(!jealous)}
+                  aria-label="toggle jealous"
+                  style={{
+                    width: 44, height: 24, borderRadius: 99, position: "relative",
+                    background: jealous ? "#fff" : "rgba(255,255,255,0.2)", transition: "background 0.2s"
+                  }}
+                >
+                  <div style={{
+                    position: "absolute", top: 2, width: 20, height: 20, borderRadius: 99,
+                    left: jealous ? 22 : 2, background: jealous ? "#000" : "#fff", transition: "left 0.2s"
+                  }} />
+                </button>
+              </label>
+
+              <div style={{ marginTop: 14, borderRadius: 14, padding: 12, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", opacity: 0.6, marginBottom: 8 }}>Memory (on-device)</div>
+                <div style={{ fontSize: 12, display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div>🍿 Fav snack: <strong>{memory.snack || "not yet — tell me!"}</strong></div>
+                  <div>🎓 Class vibe: <strong>{memory.classMood || "tell me how class is going"}</strong></div>
+                  {memory.userName && <div>🏷️ Calls you: <strong>{memory.userName}</strong></div>}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                <button onClick={clearChat} style={{ flex: 1, padding: "8px 0", borderRadius: 12, fontSize: 12, fontWeight: 700, background: "rgba(255,255,255,0.12)", color: "#fff" }}>
+                  Clear chat
+                </button>
+                <button onClick={exportChat} style={{ flex: 1, padding: "8px 0", borderRadius: 12, fontSize: 12, fontWeight: 700, background: "rgba(255,255,255,0.12)", color: "#fff" }}>
+                  Export
+                </button>
+                <button onClick={resetAll} style={{ padding: "8px 12px", borderRadius: 12, fontSize: 12, fontWeight: 700, background: "rgba(255,80,80,0.25)", color: "#fff" }}>
+                  Reset
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
+
+        {/* Chat */}
+        <div style={{
+          borderRadius: 28, overflow: "hidden", display: "flex", flexDirection: "column",
+          minHeight: 640, height: "min(760px, calc(100vh - 120px))",
+          background: "var(--surface)", boxShadow: "var(--shadow)", border: "1px solid var(--border)"
+        }}>
+          {/* Chat header */}
+          <div style={{
+            padding: "16px 20px", borderBottom: "1px solid var(--border)",
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ position: "relative" }}>
+                <div style={{
+                  width: 48, height: 48, borderRadius: 16,
+                  background: "var(--surface-2)", border: "1px solid var(--border)",
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26
+                }}>
+                  {gender === "female" ? "💁‍♀️" : "🙋‍♂️"}
+                </div>
+                <div style={{
+                  position: "absolute", bottom: -4, right: -4, width: 18, height: 18,
+                  borderRadius: 99, border: "2px solid #fff",
+                  background: status === "connected" ? "#22c55e" : accent,
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff"
+                }}>●</div>
+              </div>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontWeight: 800, fontSize: 16 }}>{name}</span>
+                  <span style={{
+                    fontSize: 11, padding: "2px 8px", borderRadius: 99, fontWeight: 700, color: "#fff", background: accent
+                  }}>{ICONS[personality]} {personality}</span>
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                  {status === "connected" ? `Live on ${model} · streaming` : "Mock mode — class demo ready"}
+                  {typing ? " · typing…" : ""}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{
+                fontSize: 10, fontWeight: 700, padding: "4px 10px", borderRadius: 99,
+                border: "1px solid var(--border)", background: "var(--bg)"
+              }}>💬 {messages.length} msgs</span>
+              {!showSettings && (
+                <button
+                  onClick={() => setShowSettings(true)}
+                  style={{
+                    fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 99,
+                    border: "1px solid var(--border)", background: "var(--bg)"
+                  }}
+                >Panel</button>
+              )}
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div
+            ref={scrollRef}
+            style={{
+              flex: 1, overflowY: "auto", padding: "16px 20px",
+              background: "radial-gradient(#F0DDD2 1px, transparent 1px)",
+              backgroundSize: "18px 18px", backgroundColor: "#FFFCF8"
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {messages.map((m) => (
+                <div key={m.id} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+                  <div
+                    className={m.role === "user" ? "bubble-user" : "bubble-partner"}
+                    style={{ maxWidth: "78%", padding: "12px 16px", fontSize: 14, lineHeight: 1.45 }}
+                  >
+                    <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.text}</div>
+                    <div style={{
+                      marginTop: 4, fontSize: 10, fontFamily: "ui-monospace, monospace",
+                      textAlign: m.role === "user" ? "right" : "left",
+                      color: m.role === "user" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.4)"
+                    }}>
+                      {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {typing && (
+                <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                  <div className="bubble-partner" style={{ padding: "12px 16px", fontSize: 14 }}>
+                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                      <span className="dot-pulse" style={{ animationDelay: "0s" }} />
+                      <span className="dot-pulse" style={{ animationDelay: "0.15s" }} />
+                      <span className="dot-pulse" style={{ animationDelay: "0.3s" }} />
+                      <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: "var(--muted)" }}>{name} is typing…</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Quick prompts */}
+          <div style={{
+            padding: "10px 16px", borderTop: "1px solid var(--border)",
+            overflowX: "auto", background: "var(--surface)", display: "flex", gap: 8, whiteSpace: "nowrap"
+          }}>
+            {QUICK_PROMPTS.map((q) => (
+              <button
+                key={q}
+                onClick={() => send(q)}
+                style={{
+                  flexShrink: 0, padding: "6px 14px", borderRadius: 99, fontSize: 12, fontWeight: 700,
+                  border: "1px solid var(--border)", background: "var(--bg)"
+                }}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+
+          {/* Composer */}
+          <div style={{ padding: 16, borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+              <button
+                onClick={() => {
+                  if (listening) { PARTNER_VOICE.stop(); setListening(false); setTranscript(""); return; }
+                  setListening(true); setTranscript("… listening");
+                  PARTNER_VOICE.listen(
+                    (final) => { setListening(false); setTranscript(""); if (final) { setInput(final); setTimeout(() => send(), 60); } },
+                    (t) => setTranscript(t || ""));
+                }}
+                title="Voice input — webspeech now, auto-switches to local Dessa when it ships"
+                style={{
+                  width: 40, height: 40, borderRadius: 99, flexShrink: 0, fontSize: 16,
+                  border: "1px solid var(--border)", cursor: "pointer",
+                  background: listening ? "rgba(255,60,60,0.55)" : "var(--bg)",
+                  animation: listening ? "pulse 1.2s infinite" : "none"
+                }}
+              >
+                {listening ? "⏹" : "🎙"}
+              </button>
+              <div style={{ flex: 1, position: "relative" }}>
+                <input
+                  value={transcript || input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      send();
+                    }
+                  }}
+                  placeholder={`Message ${name}... (try "FRAYMUS" or your favorite snack)`}
+                  style={{
+                    width: "100%", borderRadius: 18, border: "1px solid var(--border)",
+                    padding: "14px 48px 14px 16px", fontSize: 14, background: "var(--bg)", outline: "none"
+                  }}
+                />
+                <button
+                  onClick={() => send()}
+                  disabled={!input.trim() || typing}
+                  style={{
+                    position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+                    width: 36, height: 36, borderRadius: 99, display: "flex", alignItems: "center",
+                    justifyContent: "center", color: "#fff", fontWeight: 700, background: accent,
+                    opacity: !input.trim() || typing ? 0.4 : 1
+                  }}
+                >
+                  ↑
+                </button>
+              </div>
+            </div>
+            <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <div style={{ fontSize: 10, color: "var(--muted)", lineHeight: 1.3 }}>
+                Runs local · chats stay on device · voice: {listening ? "listening…" : transcript || voiceEngine}
+                {voiceEngine === "dessa" ? " (DESSA ✓)" : ""}
+              </div>
+              <div style={{ display: "flex", gap: 6, fontSize: 10, fontWeight: 700 }}>
+                <button
+                  onClick={() => setSpeakOn(!speakOn)}
+                  title="Speak replies out loud (webspeech voice now; Dessa voice when it ships)"
+                  style={{ padding: "4px 8px", borderRadius: 99, border: "1px solid var(--border)",
+                           background: speakOn ? "rgba(120,255,160,0.25)" : "transparent", cursor: "pointer" }}>
+                  {speakOn ? "🔊 ON" : "🔇 OFF"}
+                </button>
+                <span style={{ padding: "4px 8px", borderRadius: 99, border: "1px solid var(--border)" }}>↵ Send</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer style={{ maxWidth: 1280, margin: "0 auto", padding: "8px 16px 32px" }}>
+        <div style={{
+          borderRadius: 18, padding: 16, display: "flex", flexWrap: "wrap", gap: 12,
+          alignItems: "center", justifyContent: "space-between",
+          background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-soft)"
+        }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 99, background: "var(--text)",
+              color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 14, flexShrink: 0
+            }}>φ</div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800 }}>Disclaimer — Parody Demo for Class</div>
+              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2, maxWidth: 680, lineHeight: 1.4 }}>
+                This is a parody demo for class, not a real relationship. Built on FRAYMUS Continuity Engine — runs local, your chats stay on device. No explicit content. Encourages healthy boundaries: Go touch grass, I’ll be here when you get back, charging. For educational / comedy purposes only.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <span style={{ fontSize: 11, padding: "6px 12px", borderRadius: 99, fontWeight: 700, border: "1px solid var(--border)", background: "var(--bg)" }}>
+              Class-Safe · Wholesome
+            </span>
+            <span style={{ fontSize: 11, padding: "6px 12px", borderRadius: 99, fontWeight: 700, color: "#fff", background: "var(--text)" }}>
+              Demo Ready ✨
+            </span>
+          </div>
+        </div>
+        <div style={{ textAlign: "center", marginTop: 16, fontSize: 10, fontFamily: "ui-monospace, monospace", color: "var(--muted)" }}>
+          My AI Partner™ · Improved · Totally Not Clingy Significant Other Simulator · For Class Demo Only · {new Date().getFullYear()}
+        </div>
+      </footer>
+
+      {toast && <div className="toast">{toast}</div>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+  </script>
+</body>
+</html>

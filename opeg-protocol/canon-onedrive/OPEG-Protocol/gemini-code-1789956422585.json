@@ -1,0 +1,15 @@
+{
+  "command": "EXECUTE",
+  "target_tool": "simulation_api",
+  "params": {
+    "model": "quantum_tunneling",
+    "k": 1.0,
+    "constraints": {
+      "hamiltonian_type": "pt_symmetric_3x3",
+      "calculate_ep3_coalescence": true,
+      "puiseux_perturbation_epsilon": true
+    }
+  },
+  "id": "cmd_ep3_puiseux_01",
+  "goal_ref": "Derive EP3 algebraic condition and Puiseux series leading-order term for 3-level non-Hermitian Hamiltonian"
+}

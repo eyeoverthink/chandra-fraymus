@@ -1,0 +1,208 @@
+"""partner-voice-server-win — HTTP voice adapter for MyAIPartner (PARTNER_VOICE slot), Windows/CUDA.
+
+Same contract as the mac partner-voice-server:
+  GET  /health           -> {"ok": true, "engine": ..., "voices": [...], "voice_ready": bool}
+  GET  /emotion          -> emotion state JSON
+  GET  /memory?q=<text>  -> {"hits": [...], "emotion_state": ...}
+ POST /speak {text, voice} -> audio/wav bytes
+ POST /emotion/event ... -> emotion update JSON
+ POST /memory {text}    -> {"ok": bool}
+Voice routing identical: voice "nola"/"myvoice"/"him"/"owner" = F5 his-voice lane (CUDA),
+any other string = phonon preset via local ollama /v1/audio/speech (ollama >= 0.40).
+
+Run (from the seat):
+  C:/Users/eyeka/voice-venv/Scripts/python.exe %USERPROFILE%/hermes-memory-workspace/fraymus-voice/bin/partner-voice-server-win
+Honcho memory lane: intentionally NOT wired on this seat for now — single-use refresh
+tokens would race the iMac bridge's renewal. Degraded /memory returns empty hits.
+"""
+import io
+import json
+import os
+import sys
+import wave
+
+STORE = os.path.expanduser(r"~\voice-models\my-voice")
+PHONON_URL = "http://127.0.0.1:11434/v1/audio/speech"
+
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+import numpy as np  # noqa: E402
+import soundfile as sf  # noqa: E402
+
+# torchaudio>=2.9 on Windows routes .load() through torchcodec (not installable here);
+# fall back to soundfile-based loading
+def _fix_torchaudio_load():
+    import torchaudio as _ta, torch as _t
+    if getattr(_ta, "_pvs_load_shim", False):
+        return
+    _orig = _ta.load
+    def _load(uri, *a, **kw):
+        try:
+            return _orig(uri, *a, **kw)
+        except Exception:
+            data, sr = sf.read(uri, always_2d=True, dtype="float32")
+            return _t.from_numpy(data.T), sr
+    _ta.load = _load
+    _ta._pvs_load_shim = True
+
+_fix_torchaudio_load()
+
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, fmt, *a):
+        sys.stderr.write("voice-server: " + fmt % a + "\n")
+
+    def _cors(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self._cors()
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _send_json(self, obj):
+        b = json.dumps(obj).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self._cors()
+        self.send_header("Content-Length", str(len(b)))
+        self.end_headers()
+        self.wfile.write(b)
+
+    def _send_wav(self, data):
+        self.send_response(200)
+        self.send_header("Content-Type", "audio/wav")
+        self._cors()
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_GET(self):
+        if self.path.startswith("/health"):
+            ready = os.path.exists(os.path.join(STORE, "ref.wav"))
+            self._send_json({"ok": True, "engine": "f5-tts-cuda", "voices": ["myvoice"], "voice_ready": ready})
+        else:
+            self.send_error(404)
+
+    def _read_body(self):
+        n = int(self.headers.get("Content-Length", 0))
+        return json.loads(self.rfile.read(n).decode() or "{}")
+
+    # --- F5 CUDA lane -------------------------------------------------------
+    _f5 = None  # lazy classvar; CUDA lib loads the model once (~seconds on GPU)
+
+    @classmethod
+    def f5(cls):
+        if cls._f5 is None:
+            from f5_tts.api import F5TTS
+            cls._f5 = F5TTS()
+        return cls._f5
+
+    def _speak_f5(self, text):
+        ref_wav = os.path.join(STORE, "ref.wav")
+        ref_txt = open(os.path.join(STORE, "ref.txt")).read().strip()
+        if not os.path.exists(ref_wav):
+            return None
+        f5tts = self.f5()
+        # upstream chunks text internally (max_chars derived from the ref's own
+        # chars/sec); duration heuristic runs in proper mel-frame units, so pass
+        # the text whole and DON'T pass fix_duration
+        wav, sr, _spec = f5tts.infer(
+            ref_file=ref_wav,
+            ref_text=ref_txt,
+            gen_text=text,
+            remove_silence=False,
+        )
+        if hasattr(wav, "cpu"):
+            wav = wav.cpu().numpy()
+        wav = np.asarray(wav, dtype=np.float32)
+        buf = io.BytesIO()
+        sf.write(buf, wav, sr, format="WAV", subtype="PCM_16")
+        return buf.getvalue()
+
+    # --- phonon lane --------------------------------------------------------
+    def _speak_phonon(self, voice, text):
+        import urllib.request
+        req = urllib.request.Request(
+            PHONON_URL,
+            data=json.dumps({"model": "phonon", "voice": voice, "input": text}).encode(),
+            headers={"Content-Type": "application/json"})
+        return urllib.request.urlopen(req, timeout=60).read()
+
+    def do_POST(self):
+        if self.path.startswith("/speak"):
+            body = self._read_body()
+            text = (body.get("text") or "").strip()
+            if not text:
+                self.send_error(400, "no text")
+                return
+            voice = (body.get("voice") or "nola").strip()
+            try:
+                if voice in ("nola", "myvoice", "him", "owner"):
+                    data = self._speak_f5(text)
+                    if data is None:
+                        self._send_json({"error": "no stored voice; run --set first"})
+                        return
+                else:
+                    data = self._speak_phonon(voice, text)
+            except Exception as e:
+                sys.stderr.write("voice-server: /speak error: %r\n" % e)
+                self._send_json({"error": str(e)})
+                return
+            with open(os.path.join(STORE, "last_speak.wav"), "wb") as f:
+                f.write(data)
+            self._send_wav(data)
+        else:
+            self.send_error(501, "full-duplex input runs via moshi (CUDA seat plan)")
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("VOICE_PORT", "9099"))
+    _here = os.path.dirname(os.path.abspath(__file__))
+    _emo = None
+    try:
+        sys.path.insert(0, _here)
+        from nola_emotion import get_engine
+        _emo = get_engine(os.path.join(_here, "nola-emotion-data"))
+        print("emotion core online", file=sys.stderr)
+    except Exception as e:
+        print("emotion core unavailable (server still voices):", e, file=sys.stderr)
+
+    class EmotionHandler(Handler):
+        def do_GET(self):
+            if self.path.startswith("/emotion"):
+                self._send_json(_emo.state() if _emo else {"offline": True})
+            elif self.path.startswith("/memory"):
+                from urllib.parse import urlparse, parse_qs
+                self._send_json({"hits": [], "emotion_state": _emo.state_sentence() if _emo else None})
+            else:
+                Handler.do_GET(self)
+
+        def do_POST(self):
+            if self.path.startswith("/emotion/event"):
+                body = self._read_body()
+                self._send_json(_emo.process_event(
+                    body.get("event_type", "novel_input"), body.get("description", ""),
+                    body.get("hints"), body.get("perturbations"),
+                    body.get("user_valence"), body.get("bond_delta")) if _emo else {"offline": True})
+            elif self.path.startswith("/memory"):
+                body = self._read_body()
+                txt = str(body.get("text", ""))[:500]
+                if _emo:
+                    from urllib.parse import urlparse  # noqa: F401
+                    hint = {"goal_relevance": 0.5, "likelihood": 0.5, "control": 0.5,
+                            "caused_by_self": 0.3, "fairness": 0.6, "novelty": 0.5}
+                    if any(w in txt.lower() for w in ("hey", "hi", "hello", "good", "love", "thanks")):
+                        hint["likelihood"] = 0.7; hint["novelty"] = 0.4
+                        _emo.process_event("connection", txt, hint, user_valence=0.3, bond_delta=0.05)
+                    else:
+                        _emo.process_event("novel_input", txt, hint)
+                self._send_json({"ok": False})  # Honcho observe intentionally off-seat
+            else:
+                Handler.do_POST(self)
+
+    print("voice-server (cuda): listening on 127.0.0.1:%d" % port, flush=True)
+    ThreadingHTTPServer(("127.0.0.1", port), EmotionHandler).serve_forever()

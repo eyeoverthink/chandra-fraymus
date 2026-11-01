@@ -1,0 +1,163 @@
+import React, { useState, useEffect } from 'react';
+
+export default function DashboardPanel({ health, wsEvent }) {
+  const [agents, setAgents] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [workflows, setWorkflows] = useState([]);
+  const [mcpServers, setMcpServers] = useState([]);
+  const [intel, setIntel] = useState(null);
+  const [autonomy, setAutonomy] = useState(null);
+  const [memBridge, setMemBridge] = useState(null);
+  const [runtimeIntel, setRuntimeIntel] = useState(null);
+
+  const load = () => {
+    fetch('/api/fleet/agents').then(r => r.json()).then(d => setAgents(d.agents || [])).catch(() => {});
+    fetch('/api/events?limit=15').then(r => r.json()).then(d => setEvents(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch('/api/workflows').then(r => r.json()).then(d => setWorkflows(d.workflows || [])).catch(() => {});
+    fetch('/api/mcp/servers').then(r => r.json()).then(d => setMcpServers(d.servers || d || [])).catch(() => {});
+    fetch('/api/fraymus/health').then(r => r.json()).then(d => {
+      setIntel(d.intelligence || null);
+      setAutonomy({ running: d.autonomous, generation: d.generation, fitness: d.fitness, phaseSync: d.phaseSync });
+      setMemBridge(d.memoryBridge || null);
+      setRuntimeIntel(d.runtimeIntelligence || null);
+    }).catch(() => {});
+  };
+  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (wsEvent?.type && ['agents', 'event', 'workflow', 'v3', 'heart', 'ledger', 'dreamer', 'cognition', 'consciousness', 'autonomy'].includes(wsEvent.type)) load();
+  }, [wsEvent]);
+
+  const features = health?.features || [];
+  const fraymusFeatures = features.filter(f => f.startsWith('fraymus-'));
+  const chandraFeatures = features.filter(f => !f.startsWith('fraymus-'));
+
+  const card = (title, value, color) => (
+    <div style={{
+      background: '#111118', borderRadius: 12, padding: 20,
+      border: '1px solid #222', textAlign: 'center',
+    }}>
+      <div style={{ fontSize: 28, fontWeight: 700, color }}>{value}</div>
+      <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>{title}</div>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: 24 }}>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 24, fontWeight: 700, color: '#a78bfa' }}>Chandra-FRAYMUS Unified Dashboard</h2>
+        <p style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+          Autonomous AI workspace with visual workflows, 17-agent fleet, MCP gateway, and full FRAYMUS intelligence stack.
+        </p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 24 }}>
+        {card('Fleet Agents', agents.length, '#a78bfa')}
+        {card('Workflows', workflows.length, '#6366f1')}
+        {card('MCP Servers', mcpServers.length, '#10b981')}
+        {card('Features', features.length, '#ec4899')}
+        {card('FRAYMUS Tools', fraymusFeatures.length * 3, '#f59e0b')}
+      </div>
+
+      {intel && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
+          <div style={{ background: '#111118', borderRadius: 12, padding: 16, border: '1px solid #222' }}>
+            <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>Heart Mood</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#f59e0b', textTransform: 'capitalize' }}>{intel.mood?.mood || 'neutral'}</div>
+            <div style={{ fontSize: 11, color: '#555' }}>{intel.mood?.readings || 0} readings</div>
+          </div>
+          <div style={{ background: '#111118', borderRadius: 12, padding: 16, border: '1px solid #222' }}>
+            <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>Dreamer</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#8b5cf6', textTransform: 'capitalize' }}>{intel.dreamerState?.state || 'idle'}</div>
+            <div style={{ fontSize: 11, color: '#555' }}>{intel.dreamerState?.dreamCount || 0} dreams</div>
+          </div>
+          <div style={{ background: '#111118', borderRadius: 12, padding: 16, border: '1px solid #222' }}>
+            <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>Ledger Chain</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: intel.ledgerIntegrity?.valid ? '#22c55e' : '#ef4444' }}>
+              {intel.ledgerIntegrity?.valid ? 'Valid' : 'Broken'}
+            </div>
+            <div style={{ fontSize: 11, color: '#555' }}>{intel.ledgerIntegrity?.checked || 0} verified</div>
+          </div>
+          <div style={{ background: '#111118', borderRadius: 12, padding: 16, border: '1px solid #222' }}>
+            <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>Cognition</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#22c55e' }}>{intel.cognition?.contextLength || 0} ctx</div>
+            <div style={{ fontSize: 11, color: '#555' }}>
+              {intel.cognition?.modules ? Object.entries(intel.cognition.modules).filter(([,v]) => v).length : 0} modules active
+            </div>
+          </div>
+          <div style={{ background: '#111118', borderRadius: 12, padding: 16, border: '1px solid #222' }}>
+            <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>Memory Bridge</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: memBridge?.available ? '#14b8a6' : '#666' }}>
+              {memBridge?.available ? 'Active' : 'Standby'}
+            </div>
+            <div style={{ fontSize: 11, color: '#555' }}>{memBridge?.stored || 0} memories stored</div>
+          </div>
+          <div style={{ background: '#111118', borderRadius: 12, padding: 16, border: '1px solid #222' }}>
+            <div style={{ fontSize: 11, color: '#666', marginBottom: 4 }}>Autonomy Engine</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: autonomy?.running ? '#a78bfa' : '#666' }}>
+              {autonomy?.running ? 'Active' : 'Standby'}
+            </div>
+            <div style={{ fontSize: 11, color: '#555' }}>
+              gen {autonomy?.generation || 0} · R={typeof autonomy?.phaseSync === 'number' ? autonomy.phaseSync.toFixed(2) : '—'}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {runtimeIntel && runtimeIntel.total > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 600, color: '#14b8a6', marginBottom: 10 }}>Runtime Intelligence</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
+            {Object.entries(runtimeIntel.types).map(([type, count]) => (
+              <div key={type} style={{ background: '#111118', borderRadius: 10, padding: 12, border: '1px solid #222', textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#14b8a6' }}>{count}</div>
+                <div style={{ fontSize: 10, color: '#666', marginTop: 2, textTransform: 'capitalize' }}>{type.replace(/_/g, ' ')}</div>
+              </div>
+            ))}
+            <div style={{ background: '#111118', borderRadius: 10, padding: 12, border: '1px solid #14b8a630', textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#f59e0b' }}>{runtimeIntel.total}</div>
+              <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>Total Insights</div>
+            </div>
+            {runtimeIntel.latest && (
+              <div style={{ background: '#111118', borderRadius: 10, padding: 12, border: '1px solid #222', textAlign: 'center' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#a78bfa' }}>{new Date(runtimeIntel.latest).toLocaleTimeString()}</div>
+                <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>Last Insight</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div style={{ background: '#111118', borderRadius: 12, padding: 20, border: '1px solid #222' }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e0e0e8', marginBottom: 12 }}>System Capabilities</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            {features.map(f => (
+              <div key={f} style={{
+                fontSize: 11, padding: '4px 8px', borderRadius: 4,
+                background: f.startsWith('fraymus-') ? '#6366f120' : '#10b98120',
+                color: f.startsWith('fraymus-') ? '#a78bfa' : '#10b981',
+              }}>{f}</div>
+            ))}
+            <div style={{ fontSize: 11, padding: '4px 8px', borderRadius: 4, background: '#ec489920', color: '#ec4899' }}>visual-workflow-engine</div>
+            <div style={{ fontSize: 11, padding: '4px 8px', borderRadius: 4, background: '#ec489920', color: '#ec4899' }}>17-agent-fleet</div>
+            <div style={{ fontSize: 11, padding: '4px 8px', borderRadius: 4, background: '#ec489920', color: '#ec4899' }}>mcp-server-gateway</div>
+            <div style={{ fontSize: 11, padding: '4px 8px', borderRadius: 4, background: '#ec489920', color: '#ec4899' }}>mcp-client-bridge</div>
+            <div style={{ fontSize: 11, padding: '4px 8px', borderRadius: 4, background: '#ec489920', color: '#ec4899' }}>cron-automations</div>
+          </div>
+        </div>
+
+        <div style={{ background: '#111118', borderRadius: 12, padding: 20, border: '1px solid #222' }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e0e0e8', marginBottom: 12 }}>Recent Activity</h3>
+          {events.length === 0 && <div style={{ color: '#555', fontSize: 12 }}>No recent events.</div>}
+          {events.slice(0, 10).map((e, i) => (
+            <div key={i} style={{ fontSize: 11, color: '#888', marginBottom: 6, display: 'flex', gap: 8 }}>
+              <span style={{ color: '#555', minWidth: 65 }}>{new Date(e.created_at).toLocaleTimeString()}</span>
+              <span style={{ color: '#a78bfa' }}>{e.kind}</span>
+              <span>{e.detail?.slice(0, 80)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

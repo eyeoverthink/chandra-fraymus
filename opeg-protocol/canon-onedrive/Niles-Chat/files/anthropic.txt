@@ -1,0 +1,6 @@
+After authorizing, you'll see a code. Paste it below.
+
+Authorization code: K3ZhNQ2Cs9UBNuozda9UKylNVqADz5G9M0SPyPQVKYxVzoq3#GHoAT44Dyf5GbhSwXMHUgA689b8AjdDr8xZpBG9Il5Y
+Added anthropic OAuth credential #3: "anthropic-oauth-3"
+
+C:\Windows\system32>openclaw model

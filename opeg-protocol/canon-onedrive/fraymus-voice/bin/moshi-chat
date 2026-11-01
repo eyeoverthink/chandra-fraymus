@@ -1,0 +1,12 @@
+#!/bin/zsh
+# moshi-chat — full-duplex voice conversation (Moshi by Kyutai, free & local).
+# It talks AND listens in real time on this Mac (Apple-Silicon MLX, int4 weights).
+# First run: macOS prompts for microphone access — tap Allow. Headphones recommended.
+# Ctrl-C to end. Extra args pass through to moshi_mlx.local (--help for flags).
+export PYTHONPATH="/Users/eyeoverthink/hermes-memory-workspace/voice-deps"
+# sitecustomize.py inside voice-deps patches platform.mac_ver() (macOS-26 brew bug)
+exec /opt/homebrew/opt/python@3.12/bin/python3.12 -m moshi_mlx.local \
+  --tokenizer "/Users/eyeoverthink/voice-models/moshiko-mlx-q4/tokenizer_spm_32k_3.model" \
+  --mimi-weight "/Users/eyeoverthink/voice-models/moshiko-mlx-q4/tokenizer-e351c8d8-checkpoint125.safetensors" \
+  --moshi-weight "/Users/eyeoverthink/voice-models/moshiko-mlx-q4/model.q4.safetensors" \
+  -q 4 "$@"
