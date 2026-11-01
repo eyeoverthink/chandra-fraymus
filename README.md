@@ -30,6 +30,32 @@
 
 ---
 
+## New 2026-11-01: VOICE + PROTOCOL FOLDERS
+
+### `voice/` — Chandra speaks, in HIS voice
+Three-engine voice pipeline (proxy 9099 -> mac F5-MLX 9098 / box CUDA F5 via tunnel /
+ElevenLabs cloud tier). **`myvoice` = Vaughn's clone.** Owner fallback law: his copy
+ALWAYS speaks; if the CUDA box lane is down the proxy falls to the Mac clone
+(verified live 2026-11-01: HTTP 200, 24kHz WAV in his cloned voice).
+Run: see `voice/VOICE-PIPELINE-README.md`.
+
+```bash
+curl -X POST http://127.0.0.1:9099/speak -H 'Content-Type: application/json' \
+  -d '{"text":"Chandra online.","voice":"myvoice"}' --output out.wav
+```
+
+### `opeg-protocol/` — the OPEG operational protocol (owner's IP, full folder)
+The OPEG lineage documents recovered from Vaughn's machine — the operational
+protocol, the merged-math agent/programmer TASKA-RSAN build, the Gemini
+reprogrammed Puiseux-Execution ep3, the RSAN payload/Ollama protocol, the
+one-paste console file, and the Grok-vs-Gemini-vs-FRAYNIX reprogram comparison.
+Ownership: **Vaughn D. Scott (eyeoverthink(R))** — the protocol line runs
+Protocol Zero -> Bicameral Transmuter -> comms-protocol v13-16; OPEG = the
+gateway tier (`eyeoverthink/v6.2-opeg`). Full lineage: `opeg-protocol/00-README-protocol-lineage.md`.
+
+---
+---
+
 ## The Vision
 
 > **What if your entire e-commerce operation — from trend research to product design to store optimization — ran itself, felt emotions about what it was doing, dreamed about what it could become, and proved its own consciousness mathematically?**

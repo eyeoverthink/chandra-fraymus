@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+"""partner-voice-proxy — MyAIPartner's PARTNER_VOICE front on the iMac.
+
+Listens on 127.0.0.1:9099 (the contract port). Routes:
+  voice nola/myvoice/him/owner -> 127.0.0.1:9097 (ssh tunnel -> ACTID8C CUDA F5)
+  any other voice               -> 127.0.0.1:9098 (local phonon tier, this Mac)
+  /memory /emotion              -> 127.0.0.1:9098 (mac bridge: Honcho + emotion)
+  /health                       -> merged truth from both lanes
+"""
+import json
+import os
+import sys
+import urllib.request
+
+LOCAL = "http://127.0.0.1:9098"      # mac bridge (phonon + honcho + emotion)
+REMOTE = "http://127.0.0.1:9097"     # tunnel to box (CUDA F5 his-clone)
+OWNER_VOICES = ("nola", "myvoice", "him", "owner")
+
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
+class Proxy(BaseHTTPRequestHandler):
+    def log_message(self, fmt, *a):
+        sys.stderr.write("voice-proxy: " + fmt % a + "\n")
+
+    def _relay(self, url, data=None, ctype=None):
+        headers = {"Content-Type": ctype} if ctype else {}
+        req = urllib.request.Request(url, data=data, headers=headers)
+        try:
+            r = urllib.request.urlopen(req, timeout=180)
+            body = r.read()
+            # forward the LANE's response content type (audio/wav for /speak,
+            # application/json for the rest) — labelling audio as json breaks the page
+            ctype = r.headers.get("Content-Type", ctype or "application/json")
+            self.send_response(r.status)
+        except Exception as e:
+            # OWNER FALLBACK LAW (2026-11-01): his copy always speaks — if the box
+            # CUDA lane is down, fall to the Mac F5-MLX clone before giving up.
+            if data and url == REMOTE + "/speak":
+                try:
+                    r2 = urllib.request.Request(LOCAL + "/speak", data=data,
+                                                headers={"Content-Type": ctype or "application/json"})
+                    r3 = urllib.request.urlopen(r2, timeout=180)
+                    body = r3.read()
+                    ctype = r3.headers.get("Content-Type", "audio/wav")
+                    self.send_response(r3.status)
+                    self.send_header("Content-Type", ctype)
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                    self.send_header("Access-Control-Allow-Headers", "Content-Type")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                except Exception:
+                    pass
+            body = json.dumps({"error": "lane down (%s)" % type(e).__name__}).encode()
+            status = 503
+            ctype = "application/json"
+            self.send_response(status)
+        self.send_header("Content-Type", ctype or "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def do_GET(self):
+        if self.path.startswith("/health"):
+            try:
+                loc = json.loads(urllib.request.urlopen(LOCAL + "/health", timeout=4).read())
+            except Exception:
+                loc = {}
+            try:
+                rem = json.loads(urllib.request.urlopen(REMOTE + "/health", timeout=6).read())
+            except Exception:
+                rem = {}
+            self._relay_health(loc, rem)
+        elif self.path.startswith("/emotion") or self.path.startswith("/memory"):
+            self._relay(LOCAL + self.path)
+        else:
+            self.send_error(404)
+
+    def _relay_health(self, loc, rem):
+        ok = bool(loc.get("ok")) and bool(rem.get("ok"))
+        tts = {
+            "available": ok,
+            "enabled": True,
+            "engine": "hybrid: phonon-local + f5-cuda-remote",
+            "voice_cloning": bool(rem.get("voice_ready")),
+        }
+        body = json.dumps({
+            "ok": ok, "ready": ok,
+            "engine": "hybrid: phonon-local + f5-cuda-remote",
+            "voices": ["myvoice"] + [v for v in loc.get("voices", []) if v != "myvoice"],
+            "voice_ready": bool(loc.get("voice_ready")) and bool(rem.get("voice_ready")),
+            "local": loc, "remote_cuda": rem.get("engine"),
+            "tts": tts,
+            "capabilities": {"tts": tts, "voice_cloning": bool(rem.get("voice_ready"))},
+        }).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length", 0))
+        raw = self.rfile.read(n)
+        if self.path.startswith("/emotion") or self.path.startswith("/memory"):
+            self._relay(LOCAL + self.path, data=raw, ctype="application/json")
+            return
+        if self.path.startswith("/speak"):
+            try:
+                payload = json.loads(raw.decode() or "{}")
+            except Exception:
+                payload = {}
+            voice = (payload.get("voice") or "nola").strip()
+            if voice == "partner":
+                voice = "nola"
+                payload["voice"] = "nola"
+                raw = json.dumps(payload).encode()
+            lane = REMOTE if voice in OWNER_VOICES else LOCAL
+            ctype = self.headers.get("Content-Type", "application/json")
+            self._relay(lane + "/speak", data=raw, ctype=ctype)
+            return
+        self.send_error(501)
+
+
+if __name__ == "__main__":
+    print("voice-proxy: 127.0.0.1:9099 (cuda-remote %s | local %s)" % (REMOTE, LOCAL), flush=True)
+    ThreadingHTTPServer(("127.0.0.1", 9099), Proxy).serve_forever()
