@@ -16,6 +16,10 @@ const PIPELINE_ALIASES = {
   'artifact': 'streaming',
   'mint': 'streaming',
   'living-artifact': 'streaming',
+  'creation': 'creation',
+  'create': 'creation',
+  'brief': 'creation',
+  'content-creation': 'creation',
 };
 
 const PIPELINE_ENDPOINTS = {
@@ -25,6 +29,7 @@ const PIPELINE_ENDPOINTS = {
   fixer: '/api/fixer/pipeline',
   carbon: '/api/carbon/checkpoint',
   streaming: '/api/streaming/simulate-donation',
+  creation: '/api/creation/pipeline',
 };
 
 export function installCommandRouter(app, { broadcast }) {
@@ -73,6 +78,7 @@ export function installCommandRouter(app, { broadcast }) {
           const body = pipeline === 'commerce' ? { topic: arg }
             : pipeline === 'apparel' ? { niche: arg }
             : pipeline === 'shopper' ? { store_url: arg }
+            : pipeline === 'creation' ? { topic: arg }
             : {};
           const pRes = await fetch(`http://127.0.0.1:${process.env.PORT || 8787}${endpoint}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),

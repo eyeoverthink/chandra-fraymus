@@ -17,6 +17,7 @@ const WIDGETS = [
   { id: 'health', label: 'Health Monitor', icon: '♥', color: '#ef4444', panel: 'health' },
   { id: 'media', label: 'Media Hub', icon: '▶', color: '#14b8a6', panel: 'media' },
   { id: 'forge', label: 'Forge + Synth', icon: '⚡', color: '#f59e0b', panel: 'forge' },
+  { id: 'creation', label: 'Creation', icon: '✦', color: '#a78bfa', panel: 'creation' },
   { id: 'settings', label: 'Settings', icon: '⚙', color: '#64748b', panel: 'settings' },
 ];
 
@@ -31,6 +32,7 @@ const EVENT_STYLES = {
   bus: { icon: '↔', color: '#22d3ee', drawer: 'bus' },
   health: { icon: '♥', color: '#ef4444', drawer: 'health' },
   error: { icon: '✗', color: '#ef4444', drawer: 'dashboard' },
+  creation: { icon: '✦', color: '#a78bfa', drawer: 'creation' },
 };
 
 function formatEvent(ev) {

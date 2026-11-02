@@ -98,6 +98,7 @@ export default function App() {
     if (action === 'pulse') { setDrawer({ panel: 'pulse', title: 'System Pulse' }); return; }
     if (action === 'leaderboard') { setDrawer({ panel: 'leaderboard', title: 'Agent Leaderboard' }); return; }
     if (action === 'collab') { setDrawer({ panel: 'collab', title: 'Agent Collaboration' }); return; }
+    if (action === 'creation') { setDrawer({ panel: 'creation', title: 'Creation Pipeline' }); return; }
     if (action.startsWith('view:')) {
       setView(action.slice(5));
       setDrawer(null);

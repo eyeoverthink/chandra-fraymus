@@ -97,6 +97,17 @@ function getHistory({ type, status, limit = 100, offset = 0 }) {
       }));
   }
 
+  if (!type || type === 'creation') {
+    safe(`SELECT id, topic, format, status, shot_count, channels, created_at
+          FROM creation_pipeline_runs ORDER BY created_at DESC LIMIT 200`)
+      .forEach(r => rows.push({
+        id: r.id, type: 'creation', status: r.status || 'unknown',
+        label: r.topic || 'creation', detail: r.format || 'short_video',
+        meta: { shot_count: r.shot_count, channels: r.channels, format: r.format },
+        timestamp: ts(r.created_at)
+      }));
+  }
+
   rows.sort((a, b) => b.timestamp - a.timestamp);
 
   if (status) {
@@ -126,6 +137,7 @@ router.get('/api/run-history/stats', (_req, res) => {
   counts.apparel = safe('SELECT COUNT(*) as c FROM apparel_pipeline_runs')[0]?.c || 0;
   counts['mystery-shopper'] = safe('SELECT COUNT(*) as c FROM mystery_shopper_runs')[0]?.c || 0;
   counts['store-fixer'] = safe('SELECT COUNT(*) as c FROM store_fixer_runs')[0]?.c || 0;
+  counts.creation = safe('SELECT COUNT(*) as c FROM creation_pipeline_runs')[0]?.c || 0;
   const total = Object.values(counts).reduce((s, v) => s + v, 0);
   res.json({ total, counts });
 });

@@ -152,9 +152,21 @@ function getEvents(limit = 20) {
     timestamp: safeTs(r.created_at),
   }));
 
+  const creationRuns = query(
+    `SELECT id, topic, format, status, shot_count, channels, created_at
+     FROM creation_pipeline_runs ORDER BY created_at DESC LIMIT :limit`, perTable
+  ).map(r => ({
+    id: `crea-${r.id}`, type: 'creation-pipeline', category: 'creation',
+    title: `Creation: ${r.topic || 'pipeline'}`,
+    detail: `${r.format || 'short_video'} — ${r.shot_count || 0} shots — ${r.status}`,
+    status: r.status || 'unknown',
+    timestamp: safeTs(r.created_at),
+  }));
+
   const all = [
     ...agentRuns, ...workflowRuns, ...automationRuns,
     ...commerceRuns, ...apparelRuns, ...mysteryRuns, ...fixerRuns,
+    ...creationRuns,
     ...busMessages, ...healthAlerts, ...reflections,
     ...forged, ...synthesized,
   ];
@@ -169,7 +181,7 @@ router.get('/api/timeline', (req, res) => {
     const category = req.query.category || null;
     let events = getEvents(limit);
     if (category) events = events.filter(e => e.category === category);
-    const categories = ['agent', 'workflow', 'commerce', 'bus', 'health', 'evolution'];
+    const categories = ['agent', 'workflow', 'commerce', 'creation', 'bus', 'health', 'evolution'];
     res.json({ events, categories, total: events.length });
   } catch (err) {
     console.error('[timeline]', err.message);
