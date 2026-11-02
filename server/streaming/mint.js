@@ -16,7 +16,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 
 let _identity = null;
 
-async function getServerIdentity(dataDir) {
+export async function getServerIdentity(dataDir) {
   if (_identity) return _identity;
   const idPath = join(dataDir, 'streaming-identity.json');
   if (existsSync(idPath)) {

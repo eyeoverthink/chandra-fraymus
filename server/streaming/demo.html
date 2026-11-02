@@ -57,6 +57,13 @@
   <label>Message</label>
   <textarea id="message" placeholder="Say something..."></textarea>
 
+  <label>Stream Telemetry (Spore Mutation)</label>
+  <div style="display:flex;gap:12px;margin-bottom:16px;font-size:11px;color:rgba(200,160,255,0.5);">
+    <div style="flex:1"><div>Audio Peak</div><input id="audio_peak" type="range" min="0" max="255" value="128" style="width:100%;padding:4px 0;"></div>
+    <div style="flex:1"><div>Chat Speed</div><input id="chat_velocity" type="range" min="0" max="255" value="30" style="width:100%;padding:4px 0;"></div>
+    <div style="flex:1"><div>Stream Tick</div><input id="stream_tick" type="range" min="0" max="9999" value="100" style="width:100%;padding:4px 0;"></div>
+  </div>
+
   <button id="btn" onclick="donate()">Mint Artifact</button>
 </div>
 
@@ -100,7 +107,12 @@ async function donate() {
     const res = await fetch('/api/streaming/simulate-donation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ donor_name: name, amount, message }),
+      body: JSON.stringify({
+        donor_name: name, amount, message,
+        audio_peak: document.getElementById('audio_peak').value,
+        chat_velocity: document.getElementById('chat_velocity').value,
+        stream_tick: document.getElementById('stream_tick').value,
+      }),
     });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
@@ -132,11 +144,21 @@ function showResult(data) {
     ['Mint Time', `${data.durationMs}ms`],
     ['Signed By', a.signed?.from?.slice(0, 16) + '...'],
   ];
+  if (data.spore) {
+    rows.push(['Spore Gen', `#${data.spore.generation}`]);
+    rows.push(['DNA-16', (data.spore.dna16 || '').slice(0, 32)]);
+    rows.push(['Mutation Key', data.spore.mutation?.mutationKey || '-']);
+    rows.push(['Genome Hash', (data.spore.genomeHash || '').slice(0, 16) + '...']);
+  }
   const container = document.getElementById('result-rows');
   container.innerHTML = rows.map(([l, v]) => `<div class="result-row"><span class="label">${l}</span><span class="value">${escHtml(v)}</span></div>`).join('');
 
   const emojiEl = document.getElementById('result-emoji');
   emojiEl.textContent = a.stegoEmoji || '';
+
+  if (data.spore && data.spore.visuals) {
+    emojiEl.style.textShadow = `0 0 12px ${data.spore.visuals.color}`;
+  }
 
   document.getElementById('result').style.display = 'block';
 }

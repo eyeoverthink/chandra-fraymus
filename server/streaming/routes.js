@@ -2,13 +2,14 @@
 // REST endpoints for minting, verification, webhooks, API keys, and overlay serving.
 
 import { db as defaultDb } from '../db.js';
-import { mintArtifact, verifyArtifact, getIdentityPublicKey } from './mint.js';
+import { mintArtifact, verifyArtifact, getIdentityPublicKey, getServerIdentity } from './mint.js';
 import {
   initStreamingKeys, validateKey, hasScope,
   createKey, revokeKey, listKeys,
   storeArtifactRecord, listArtifacts,
 } from './keys.js';
 import { createWebhookHandler } from './webhook.js';
+import { SporeRegistry } from './spore.js';
 import { DATA_DIR } from '../config.js';
 
 export function installStreamingRoutes(app, { broadcast, memoryBridge, db: dbParam, obsBridge } = {}) {
@@ -16,11 +17,13 @@ export function installStreamingRoutes(app, { broadcast, memoryBridge, db: dbPar
   const dataDir = DATA_DIR;
   initStreamingKeys(d);
 
+  const sporeRegistry = new SporeRegistry();
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
 
   const webhook = createWebhookHandler({
     db: d, dataDir, broadcast, memoryBridge,
     obsClients: obsBridge?.clients,
+    sporeRegistry,
   });
 
   function deliverToOverlay(result) {
@@ -41,16 +44,19 @@ export function installStreamingRoutes(app, { broadcast, memoryBridge, db: dbPar
   }
 
   app.post('/api/streaming/simulate-donation', route(async (req, res) => {
-    const { donor_name, amount, message, streamer_id } = req.body;
+    const { donor_name, amount, message, streamer_id, audio_peak, chat_velocity, stream_tick } = req.body;
     if (!donor_name || !amount) return res.status(400).json({ error: 'donor_name and amount required' });
     const result = await webhook.handleDonation({
       name: donor_name,
       amount,
       message: message || '',
       streamer_id: streamer_id || 'demo-streamer',
+      audio_peak, chat_velocity, stream_tick,
     });
     deliverToOverlay(result);
-    res.json({ artifact: result.artifact, durationMs: result.durationMs });
+    const response = { artifact: result.artifact, durationMs: result.durationMs };
+    if (result.sporeMutation) response.spore = result.sporeMutation;
+    res.json(response);
   }));
 
   app.post('/api/streaming/webhook', route(async (req, res) => {
@@ -101,10 +107,45 @@ export function installStreamingRoutes(app, { broadcast, memoryBridge, db: dbPar
     res.json(obsBridge ? obsBridge.getStats() : { connectedOverlays: 0 });
   }));
 
+  // --- Chrono-Spore endpoints ---
+
+  app.get('/api/streaming/spores', route(async (req, res) => {
+    res.json(sporeRegistry.list());
+  }));
+
+  app.get('/api/streaming/spore/:streamerId', route(async (req, res) => {
+    const organism = sporeRegistry.get(req.params.streamerId);
+    if (!organism) return res.status(404).json({ error: 'No organism for this streamer' });
+    res.json(organism.getState());
+  }));
+
+  app.get('/api/streaming/spore/:streamerId/contributors', route(async (req, res) => {
+    const organism = sporeRegistry.get(req.params.streamerId);
+    if (!organism) return res.status(404).json({ error: 'No organism for this streamer' });
+    res.json(organism.getContributors());
+  }));
+
+  app.post('/api/streaming/spore/:streamerId/fossil', route(async (req, res) => {
+    const organism = sporeRegistry.get(req.params.streamerId);
+    if (!organism) return res.status(404).json({ error: 'No organism for this streamer' });
+    if (organism.fossilized) return res.json({ already: true, fossil: organism.fossilData });
+    const identity = await getServerIdentity(dataDir);
+    const fossil = await organism.fossilize(identity);
+    if (broadcast) broadcast('streaming', { type: 'spore_fossilized', streamerId: req.params.streamerId, fossil });
+    res.json({ fossilized: true, fossil });
+  }));
+
+  app.post('/api/streaming/spore/:streamerId/reset', route(async (req, res) => {
+    const fresh = sporeRegistry.reset(req.params.streamerId);
+    res.json({ reset: true, state: fresh.getState() });
+  }));
+
+  // --- Overlay / demo pages ---
+
   if (obsBridge) {
     app.get('/streaming/overlay', obsBridge.serveOverlay);
     app.get('/streaming/demo', obsBridge.serveDemo);
   }
 
-  console.log('streaming: routes installed (9 endpoints + overlay/demo pages)');
+  console.log('streaming: routes installed (14 endpoints + overlay/demo pages)');
 }

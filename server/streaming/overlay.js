@@ -43,6 +43,13 @@ export function createObsBridge() {
     return clients.size;
   }
 
+  function broadcastSporeState(sporeState) {
+    const msg = JSON.stringify({ type: 'spore', payload: sporeState });
+    for (const ws of clients) {
+      if (ws.readyState === 1) ws.send(msg);
+    }
+  }
+
   function broadcastConfig(config) {
     const msg = JSON.stringify({ type: 'config', payload: config });
     for (const ws of clients) {
@@ -72,6 +79,7 @@ export function createObsBridge() {
     clients,
     addClient,
     broadcastArtifact,
+    broadcastSporeState,
     broadcastConfig,
     serveOverlay,
     serveDemo,

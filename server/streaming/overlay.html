@@ -50,10 +50,39 @@
   .artifact-card.show { animation: pulse 2s ease-in-out 3; }
   #watermark { position: fixed; bottom: 10px; left: 10px; font-size: 9px; color: rgba(255,255,255,0.03); pointer-events: none; }
   #status { position: fixed; top: 8px; left: 8px; font-size: 10px; padding: 4px 8px; border-radius: 4px; background: rgba(0,0,0,0.5); color: rgba(255,255,255,0.4); }
+
+  /* Living Organism Display */
+  #organism {
+    position: fixed; bottom: 30px; left: 30px;
+    width: 200px; text-align: center;
+    opacity: 0; transition: opacity 0.8s ease;
+    pointer-events: none;
+  }
+  #organism.alive { opacity: 1; }
+  #organism canvas {
+    width: 160px; height: 160px; border-radius: 50%;
+    border: 2px solid rgba(180,120,255,0.3);
+    box-shadow: 0 0 30px rgba(140,60,255,0.3);
+  }
+  #organism .dna-label {
+    margin-top: 8px; font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 9px; color: rgba(200,160,255,0.5); letter-spacing: 1px;
+  }
+  #organism .gen-label {
+    font-size: 10px; color: rgba(200,160,255,0.7); margin-top: 4px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+  @keyframes mutate-flash { 0% { box-shadow: 0 0 30px rgba(140,60,255,0.3); } 30% { box-shadow: 0 0 60px rgba(255,200,60,0.8), 0 0 100px rgba(255,100,60,0.4); } 100% { box-shadow: 0 0 30px rgba(140,60,255,0.3); } }
+  #organism.mutating canvas { animation: mutate-flash 0.8s ease-out; }
 </style>
 </head>
 <body oncontextmenu="return false" ondragstart="return false">
 <div id="overlay"></div>
+<div id="organism">
+  <canvas id="org-canvas" width="160" height="160"></canvas>
+  <div class="dna-label" id="org-dna"></div>
+  <div class="gen-label" id="org-gen"></div>
+</div>
 <div id="status">Connecting...</div>
 <div id="watermark">FRAYMUS SOVEREIGN</div>
 <script>
@@ -71,6 +100,7 @@ function connect() {
     try {
       const msg = JSON.parse(e.data);
       if (msg.type === 'artifact') showArtifact(msg.payload);
+      if (msg.type === 'spore') updateOrganism(msg.payload);
       if (msg.type === 'history' && Array.isArray(msg.payload)) msg.payload.forEach(a => showArtifact(a));
     } catch (_) {}
   };
@@ -129,6 +159,93 @@ function renderPng(canvas, b64) {
 }
 
 function escHtml(s) { return String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]); }
+
+// --- Living Organism Renderer ---
+let currentVisuals = null;
+let animFrame = null;
+
+function updateOrganism(sporeData) {
+  if (!sporeData) return;
+  const el = document.getElementById('organism');
+  const dnaEl = document.getElementById('org-dna');
+  const genEl = document.getElementById('org-gen');
+
+  currentVisuals = sporeData.visuals || sporeData;
+  el.classList.add('alive');
+  el.classList.add('mutating');
+  setTimeout(() => el.classList.remove('mutating'), 800);
+
+  if (sporeData.dna16) dnaEl.textContent = sporeData.dna16.slice(0, 32);
+  if (sporeData.generation !== undefined) genEl.textContent = `Gen ${sporeData.generation}`;
+
+  if (!animFrame) drawOrganism();
+}
+
+function drawOrganism() {
+  const canvas = document.getElementById('org-canvas');
+  if (!canvas || !currentVisuals) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H / 2;
+  const t = Date.now() / 1000;
+  const v = currentVisuals;
+  const pulse = v.pulseRate || 1;
+  const sym = v.symmetry || 6;
+  const comp = v.complexity || 2;
+  const glow = v.glow || 0.5;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // outer glow
+  const grad = ctx.createRadialGradient(cx, cy, 20, cx, cy, 75);
+  grad.addColorStop(0, v.color || 'rgb(140,60,255)');
+  grad.addColorStop(1, 'transparent');
+  ctx.globalAlpha = 0.15 + 0.1 * Math.sin(t * pulse);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 1;
+
+  // draw radial shape
+  const baseR = 40 + 8 * Math.sin(t * pulse);
+  ctx.beginPath();
+  const steps = sym * comp * 4;
+  for (let i = 0; i <= steps; i++) {
+    const angle = (i / steps) * Math.PI * 2;
+    const wobble = Math.sin(angle * sym + t * pulse * 0.5) * (6 + comp * 2);
+    const r = baseR + wobble + Math.sin(t * pulse * 2 + angle * 3) * 3 * glow;
+    const x = cx + Math.cos(angle) * r;
+    const y = cy + Math.sin(angle) * r;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+
+  const fillGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseR + 20);
+  fillGrad.addColorStop(0, v.color || 'rgb(140,60,255)');
+  const hue2 = ((v.hue || 0) + 60) % 360;
+  fillGrad.addColorStop(1, `hsla(${hue2},70%,50%,0.6)`);
+  ctx.fillStyle = fillGrad;
+  ctx.fill();
+
+  ctx.strokeStyle = `rgba(255,255,255,${0.2 + glow * 0.3})`;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // inner core
+  const coreR = 8 + 4 * Math.sin(t * pulse * 3);
+  ctx.beginPath();
+  ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(255,255,255,${0.5 + 0.3 * Math.sin(t * pulse * 2)})`;
+  ctx.fill();
+
+  animFrame = requestAnimationFrame(drawOrganism);
+}
+
+// Handle spore data from artifact events
+const origShowArtifact = showArtifact;
+showArtifact = function(a) {
+  origShowArtifact(a);
+  if (a.spore) updateOrganism(a.spore);
+};
 
 connect();
 </script>
