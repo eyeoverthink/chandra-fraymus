@@ -44,6 +44,8 @@ import { createCommerceTools } from './commerce/tools.js';
 import { installCommerceRoutes } from './commerce/routes.js';
 import { createStreamingTools } from './streaming/tools.js';
 import { installStreamingRoutes } from './streaming/routes.js';
+import { createCreationTools } from './creation/tools.js';
+import { installCreationRoutes } from './creation/routes.js';
 import { getObsBridge } from './streaming/overlay.js';
 import { installCommandRouter } from './command-router.js';
 import { installDeployRoutes } from './deploy-api/routes.js';
@@ -122,11 +124,13 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   let streamingTools = [];
   const obsBridge = getObsBridge();
   try { streamingTools = createStreamingTools({ memoryBridge, db, dataDir, broadcast, obsBridge }); } catch (e) { console.error('runtime: streaming tools failed:', e.message); }
+  let creationTools = [];
+  try { creationTools = createCreationTools({ memoryBridge, broadcast }); } catch (e) { console.error('runtime: creation tools failed:', e.message); }
   agent = createAgentService({ db, workspace, ollamaUrl, fetchImpl,
     cloud, codeExecutor, desktopBroker:desktop, extraTools: [...createExtensionTools(artifacts, web),...desktop.tools(),
       ...createTaskTools({scheduler:tasks,db,now:taskClock,onReceipt:(id,receipt)=>agent?.recordTaskReceipt(id,receipt)}),
       ...createSemanticTools({artifacts,store:semanticStore,embedder:embeddings}),...createVisionTools({artifacts,provider:localVision}),...createOcrTools({artifacts,provider:localOcr}),...createFraymusTools(),
-      ...fleetTools, ...mcpImported, ...browserTools, ...vertisoTools, ...youtubeTools, ...commerceTools, ...streamingTools],
+      ...fleetTools, ...mcpImported, ...browserTools, ...vertisoTools, ...youtubeTools, ...commerceTools, ...streamingTools, ...creationTools],
     resolveAttachments: (ids, options) => artifacts.resolve(ids, options),
     onEvent: event => {
       if(agent&&['usage','auxiliary_usage'].includes(event.type)) {
@@ -190,6 +194,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installVertisoRoutes(app, { vertiso, rsi });
   installYouTubeRoutes(app);
   installCommerceRoutes(app, { memoryBridge });
+  installCreationRoutes(app, { memoryBridge, broadcast });
   installStreamingRoutes(app, { broadcast, memoryBridge, db, obsBridge });
   installDeployRoutes(app, { broadcast, memoryBridge });
   installCommandRouter(app, { broadcast });

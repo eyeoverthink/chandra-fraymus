@@ -184,6 +184,18 @@ export function migrateWorkspaces() {
     );
     CREATE INDEX IF NOT EXISTS idx_sfr_created ON store_fixer_runs(created_at DESC);
 
+    CREATE TABLE IF NOT EXISTS creation_pipeline_runs (
+      id TEXT PRIMARY KEY,
+      topic TEXT NOT NULL,
+      format TEXT NOT NULL DEFAULT 'short_video',
+      status TEXT NOT NULL DEFAULT 'running',
+      stages TEXT,
+      shot_count INTEGER DEFAULT 0,
+      channels TEXT DEFAULT '[]',
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_crepr_created ON creation_pipeline_runs(created_at DESC);
+
     CREATE TABLE IF NOT EXISTS api_usage (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       key_id TEXT NOT NULL,

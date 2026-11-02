@@ -244,6 +244,72 @@ export const WORKFLOWS = {
     ],
   },
 
+  // ═══ Creation Pipeline — Content Production ═══
+  CreationContentPipeline: {
+    trigger: { source: 'manual', event: 'run' },
+    function: 'creationPipeline',
+    action: 'full_pipeline',
+    description: 'Brief → Script → Voice → Visuals → Distribution → Commerce Bridge: 6-stage intelligence-driven content production',
+    canvas_nodes: [
+      { id: 'cr1', type: 'creative_brief', position: { x: 50, y: 200 }, data: { type: 'creative_brief', prompt: 'Generate intelligence-driven creative brief' } },
+      { id: 'cr2', type: 'script_writer', position: { x: 270, y: 200 }, data: { type: 'script_writer', prompt: 'Write production script with shot list' } },
+      { id: 'cr3', type: 'voice_synth', position: { x: 490, y: 200 }, data: { type: 'voice_synth', prompt: 'Synthesize narration via voice clone or TTS' } },
+      { id: 'cr4', type: 'visual_assembly', position: { x: 710, y: 200 }, data: { type: 'visual_assembly', prompt: 'Assemble visual compositions and generate hero image' } },
+      { id: 'cr5', type: 'distribution_prep', position: { x: 930, y: 200 }, data: { type: 'distribution_prep', prompt: 'Prepare platform-specific distribution packages' } },
+      { id: 'cr6', type: 'commerce_bridge', position: { x: 1150, y: 200 }, data: { type: 'commerce_bridge', prompt: 'Bridge to commerce pipeline if applicable' } },
+    ],
+    canvas_edges: [
+      { id: 'cre1', source: 'cr1', target: 'cr2' },
+      { id: 'cre2', source: 'cr2', target: 'cr3' },
+      { id: 'cre3', source: 'cr3', target: 'cr4' },
+      { id: 'cre4', source: 'cr4', target: 'cr5' },
+      { id: 'cre5', source: 'cr5', target: 'cr6' },
+    ],
+  },
+
+  // ═══ Creation → Commerce Bridge Pipeline ═══
+  CreationToCommercePipeline: {
+    trigger: { source: 'manual', event: 'run' },
+    function: 'creationCommerceBridge',
+    action: 'bridge_pipeline',
+    description: 'Creative brief + visuals → Commerce content creation → Shopify: bridges creation output into product listings',
+    canvas_nodes: [
+      { id: 'cc1', type: 'creative_brief', position: { x: 100, y: 200 }, data: { type: 'creative_brief', prompt: 'Generate product-focused creative brief' } },
+      { id: 'cc2', type: 'visual_assembly', position: { x: 350, y: 100 }, data: { type: 'visual_assembly', prompt: 'Generate product visuals' } },
+      { id: 'cc3', type: 'copywriter', position: { x: 350, y: 300 }, data: { type: 'copywriter', prompt: 'Create product listings from brief' } },
+      { id: 'cc4', type: 'reviewer', position: { x: 600, y: 200 }, data: { type: 'reviewer', prompt: 'QA review content' } },
+      { id: 'cc5', type: 'shopify_publish', position: { x: 850, y: 200 }, data: { type: 'shopify_publish', prompt: 'Publish to Shopify' } },
+    ],
+    canvas_edges: [
+      { id: 'cce1', source: 'cc1', target: 'cc2' },
+      { id: 'cce2', source: 'cc1', target: 'cc3' },
+      { id: 'cce3', source: 'cc2', target: 'cc4' },
+      { id: 'cce4', source: 'cc3', target: 'cc4' },
+      { id: 'cce5', source: 'cc4', target: 'cc5' },
+    ],
+  },
+
+  // ═══ Intelligence → Creation Pipeline ═══
+  IntelligenceCreationPipeline: {
+    trigger: { source: 'manual', event: 'run' },
+    function: 'intelligenceCreationPipeline',
+    action: 'dream_to_content',
+    description: 'Heart Feel → Dream → Creative Brief → Script → Voice: intelligence-driven content from emotional/dream signals',
+    canvas_nodes: [
+      { id: 'ic1', type: 'heart_feel', position: { x: 100, y: 200 }, data: { type: 'heart_feel', prompt: 'Analyze emotional landscape' } },
+      { id: 'ic2', type: 'dream', position: { x: 350, y: 200 }, data: { type: 'dream', prompt: 'Consolidate dream signals' } },
+      { id: 'ic3', type: 'creative_brief', position: { x: 600, y: 200 }, data: { type: 'creative_brief', prompt: 'Generate brief from intelligence signals' } },
+      { id: 'ic4', type: 'script_writer', position: { x: 850, y: 200 }, data: { type: 'script_writer', prompt: 'Write production script' } },
+      { id: 'ic5', type: 'voice_synth', position: { x: 1100, y: 200 }, data: { type: 'voice_synth', prompt: 'Synthesize narration' } },
+    ],
+    canvas_edges: [
+      { id: 'ice1', source: 'ic1', target: 'ic2' },
+      { id: 'ice2', source: 'ic2', target: 'ic3' },
+      { id: 'ice3', source: 'ic3', target: 'ic4' },
+      { id: 'ice4', source: 'ic4', target: 'ic5' },
+    ],
+  },
+
   // ═══ External Integration ═══
   GoogleCalendarRealtimeSync: {
     trigger: { source: 'google_calendar', event: 'webhook' },

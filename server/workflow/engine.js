@@ -27,6 +27,10 @@ import { runShopperAgent, runUxAuditor, runPriceAnalyst, runReportAndFix } from 
 import { runPageGenerator, runCollectionOrganizer, runDescriptionEnhancer, runPriceAdjuster, runShopifyApplier } from '../commerce/store-fixer.js';
 import { mintArtifact, verifyArtifact } from '../streaming/mint.js';
 import { getObsBridge } from '../streaming/overlay.js';
+import {
+  runCreativeBrief, runScriptWriter, runVoiceSynth,
+  runVisualAssembly, runDistributionPrep, runCommerceBridge,
+} from '../creation/pipeline.js';
 
 const OUT_DIR = join(DATA_DIR, 'outputs');
 
@@ -126,6 +130,12 @@ function nodeKind(type) {
   if (type === 'stream_capture') return 'stream_capture';
   if (type === 'stream_mint') return 'stream_mint';
   if (type === 'stream_deliver') return 'stream_deliver';
+  if (type === 'creative_brief') return 'creative_brief';
+  if (type === 'script_writer') return 'script_writer';
+  if (type === 'voice_synth') return 'voice_synth';
+  if (type === 'visual_assembly') return 'visual_assembly';
+  if (type === 'distribution_prep') return 'distribution_prep';
+  if (type === 'commerce_bridge') return 'commerce_bridge';
   return 'unknown';
 }
 
@@ -770,6 +780,55 @@ export async function runPipeline(nodes, edges, opts = {}) {
         r.data = { delivered, artifactId: prev.artifact?.id };
         r.text = `Delivered to ${delivered} overlay(s)`;
         texts[id] = r.text;
+
+      // ── Creation Pipeline nodes ────────────────────────────
+      } else if (k === 'creative_brief') {
+        const topic = upstreamText || node.data?.topic || opts.prompt || 'content creation';
+        const result = await runCreativeBrief(
+          { topic, format: node.data?.format || 'short_video', style: node.data?.style || 'auto' },
+          { intel },
+        );
+        r.data = result;
+        texts[id] = JSON.stringify(result.brief);
+        r.text = `Brief: ${result.brief?.title || topic}`;
+
+      } else if (k === 'script_writer') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop() || {};
+        const input = { brief: prev.brief || {}, topic: prev.topic || opts.prompt || '', format: prev.format || 'short_video' };
+        const result = await runScriptWriter(input);
+        r.data = result;
+        texts[id] = JSON.stringify(result.script);
+        r.text = `Script: ${result.script?.shot_list?.length || 0} shots`;
+
+      } else if (k === 'voice_synth') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop() || {};
+        const input = { script: prev.script || {}, topic: prev.topic || opts.prompt || '' };
+        const result = await runVoiceSynth(input);
+        r.data = result;
+        texts[id] = result.narration || '';
+        r.text = `Voice: ${result.audio?.engine || 'none'} (${result.audio?.status})`;
+
+      } else if (k === 'visual_assembly') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop() || {};
+        const result = await runVisualAssembly(prev);
+        r.data = result;
+        texts[id] = JSON.stringify(result.compositions || []);
+        r.text = `Visuals: ${result.shotCount || 0} compositions`;
+        if (result.heroImage) { r.imageUrl = result.heroImage; }
+
+      } else if (k === 'distribution_prep') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop() || {};
+        const result = await runDistributionPrep(prev);
+        r.data = result;
+        texts[id] = JSON.stringify(result.packages || []);
+        r.text = `Distribution: ${result.channelCount || 0} channels`;
+
+      } else if (k === 'commerce_bridge') {
+        const prev = incoming.map(s => results[s]?.data).filter(Boolean).pop() || {};
+        const result = await runCommerceBridge(prev);
+        r.data = result;
+        texts[id] = result.status;
+        r.text = `Commerce: ${result.status}`;
 
       } else {
         throw new Error(`Unknown node type: ${node.type}`);
