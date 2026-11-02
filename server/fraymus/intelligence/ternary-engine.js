@@ -1,525 +1,306 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Trust-Gated Ternary Computation Engine
-// Architect: Vaughn D. Scott | EYEOVERTHINK® #6098807 | ephless llc
+// Trust-Gated Ternary Physarum Engine
+// Vaughn D. Scott | EYEOVERTHINK® #6098807 | ephless llc
 //
-// Balanced ternary logic {-1, 0, +1} with:
-//   - Physarum-inspired agent substrate (sense → decide → deposit)
-//   - Temporal pattern recognition across the ternary grid
-//   - Trust-gated selective recomputation (skip trusted patterns)
-//   - Pattern dictionary that grows through observation
+// Balanced ternary {-1, 0, +1} applied to Physarum agent decisions.
+// 27-key ordinal signature, deterministic PRNG, A/B correctness proof.
 //
-// T_{t,l,i,j} ∈ {-1, 0, +1}  — ternary tensor indexed by time, layer, position
+// The trust engine caches decisions by the ordinal relationship of the
+// three sensor readings (L, C, R). There are exactly 27 possible orderings.
+// Each key maps to exactly one decision — no collisions, no heuristics.
 // ═══════════════════════════════════════════════════════════════════════════
 
-// ── Ternary Quantizer ─────────────────────────────────────────────────────
-// Maps continuous values to {-1, 0, +1} with explicit semantic thresholds.
-// The gap between inhibitBelow and activateAbove is the "neutral" zone —
-// the region of uncertainty where the system defers judgment.
+// ── Physics constants ────────────────────────────────────────────────────
+const COLS = 120, ROWS = 80, N = COLS * ROWS, CELL = 4;
+const SENSE_ANGLE = Math.PI * 0.2;
+const TURN_ANGLE  = Math.PI * 0.2;
+const SENSE_LEN   = 8 * CELL;
+const SPEED       = CELL * 0.5;
+const DEPOSIT     = 1.6;
+const FADE        = 0.94;
+const MAX_SCENT   = 30;
 
-function quantize(value, inhibitBelow = -0.3, activateAbove = 0.3) {
-  if (value <= inhibitBelow) return -1;
-  if (value >= activateAbove) return +1;
-  return 0;
+// ── Seeded PRNG (splitmix-style) ─────────────────────────────────────────
+// Deterministic: same seed → same run. Both baseline and ternary use the
+// same seed so correctness can be proved by comparing final state.
+function rng(seed) {
+  let s = (seed >>> 0) || 1;
+  return () => {
+    s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
-// ── FNV-1a hash for pattern fingerprinting ────────────────────────────────
-function fnv1aTrits(trits) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < trits.length; i++) {
-    h ^= (trits[i] + 1); // map {-1,0,+1} to {0,1,2}
-    h = Math.imul(h, 0x01000193);
-  }
-  return (h >>> 0);
+const wrap = (x, n) => ((x % n) + n) % n;
+const cmp  = (a, b) => a > b ? 1 : a < b ? -1 : 0;
+
+// ── Baseline decision (no trust, no caching) ─────────────────────────────
+// L > R and L > C  →  +1 (turn left)
+// R > L and R > C  →  −1 (turn right)
+// otherwise        →   0 (straight)
+function baselineDecision(L, C, R) {
+  return L > R && L > C ? 1 : R > L && R > C ? -1 : 0;
 }
 
-// ── Pattern: a fingerprinted snapshot of a grid region ────────────────────
-class TernaryPattern {
-  constructor(trits, outcome, context = {}) {
-    this.fingerprint = fnv1aTrits(trits);
-    this.trits = Int8Array.from(trits);
-    this.outcome = outcome;       // the result when this pattern was computed
-    this.trustScore = 0.5;        // starts uncertain
-    this.hitCount = 0;            // times recognized
-    this.matchCount = 0;          // times outcome matched prediction
-    this.missCount = 0;           // times outcome diverged
-    this.firstSeen = Date.now();
-    this.lastSeen = Date.now();
-    this.context = context;       // optional metadata (layer, position, etc.)
-  }
-
-  recordHit(outcomeMatched) {
-    this.hitCount++;
-    this.lastSeen = Date.now();
-    if (outcomeMatched) {
-      this.matchCount++;
-    } else {
-      this.missCount++;
-    }
-    // Trust evolves: exponential moving average biased toward recent evidence
-    const alpha = 0.15;
-    this.trustScore = this.trustScore * (1 - alpha) + (outcomeMatched ? 1 : 0) * alpha;
-  }
-
-  get reliable() {
-    return this.hitCount >= 3 && this.trustScore >= 0.7;
-  }
-
-  get stale() {
-    return (Date.now() - this.lastSeen) > 60_000; // 1 minute without a hit
-  }
-}
-
-// ── Pattern Dictionary ────────────────────────────────────────────────────
-// The "shared decoding convention" — sender (grid) and receiver (engine)
-// agree on what patterns mean. Grows through observation, prunes stale entries.
-
-class PatternDictionary {
-  constructor(maxEntries = 1024) {
-    this.patterns = new Map(); // fingerprint → TernaryPattern
-    this.maxEntries = maxEntries;
-    this.lookups = 0;
-    this.hits = 0;
-    this.reuses = 0;
-    this.recomputes = 0;
-  }
-
-  lookup(trits) {
-    this.lookups++;
-    const fp = fnv1aTrits(trits);
-    const pat = this.patterns.get(fp);
-    if (pat && this._tritsMatch(pat.trits, trits)) {
-      this.hits++;
-      return pat;
-    }
-    return null;
-  }
-
-  store(trits, outcome, context) {
-    const fp = fnv1aTrits(trits);
-    if (this.patterns.has(fp)) {
-      return this.patterns.get(fp); // already known
-    }
-    if (this.patterns.size >= this.maxEntries) {
-      this._pruneStale();
-    }
-    const pat = new TernaryPattern(trits, outcome, context);
-    this.patterns.set(fp, pat);
-    return pat;
-  }
-
-  recordReuse() { this.reuses++; }
-  recordRecompute() { this.recomputes++; }
-
-  get efficiency() {
-    const total = this.reuses + this.recomputes;
-    return total > 0 ? this.reuses / total : 0;
-  }
-
-  get stats() {
-    let trustedCount = 0;
-    for (const p of this.patterns.values()) {
-      if (p.reliable) trustedCount++;
-    }
-    return {
-      totalPatterns: this.patterns.size,
-      trustedPatterns: trustedCount,
-      lookups: this.lookups,
-      hits: this.hits,
-      hitRate: this.lookups > 0 ? this.hits / this.lookups : 0,
-      reuses: this.reuses,
-      recomputes: this.recomputes,
-      efficiency: this.efficiency,
-    };
-  }
-
-  _tritsMatch(a, b) {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-      if (a[i] !== b[i]) return false;
-    }
-    return true;
-  }
-
-  _pruneStale() {
-    const entries = [...this.patterns.entries()];
-    entries.sort((a, b) => a[1].trustScore - b[1].trustScore);
-    const toPrune = Math.max(1, Math.floor(entries.length * 0.1));
-    for (let i = 0; i < toPrune; i++) {
-      this.patterns.delete(entries[i][0]);
-    }
-  }
-}
-
-// ── Physarum Agent (ternary-aware) ────────────────────────────────────────
-// Each agent senses the ternary grid in 3 directions, makes a ternary
-// turn decision {-1 left, 0 straight, +1 right}, and deposits scent.
-// The agent itself is a trust-aware entity: it tracks whether its decisions
-// led to higher scent values (positive feedback = validated pattern).
-
-class TernaryAgent {
-  constructor(gridW, gridH, cellSize = 1) {
-    this.x = Math.random() * gridW;
-    this.y = Math.random() * gridH;
-    this.heading = Math.random() * 2 * Math.PI;
-    this.speed = 1;
-    this.senseAngle = 0.2 * Math.PI;  // ~36 degrees
-    this.senseDistance = 8;
-    this.turnAngle = 0.2 * Math.PI;
-    this.gridW = gridW;
-    this.gridH = gridH;
-    this.lastDecision = 0;  // ternary: {-1, 0, +1}
-    this.decisionsReused = 0;
-    this.decisionsComputed = 0;
-  }
-
-  sense(grid, angleOffset) {
-    const sx = this.x + this.senseDistance * Math.cos(this.heading + angleOffset);
-    const sy = this.y + this.senseDistance * Math.sin(this.heading + angleOffset);
-    const gx = ((Math.floor(sx) % this.gridW) + this.gridW) % this.gridW;
-    const gy = ((Math.floor(sy) % this.gridH) + this.gridH) % this.gridH;
-    return grid[gy][gx];
-  }
-
-  // Returns the ternary decision: -1 (turn left), 0 (straight), +1 (turn right)
-  decide(grid) {
-    const left   = this.sense(grid, this.senseAngle);
-    const center = this.sense(grid, 0);
-    const right  = this.sense(grid, -this.senseAngle);
-
-    if (left > right && left > center)  return -1;  // inhibit rightward = turn left
-    if (right > left && right > center) return +1;  // activate rightward = turn right
-    return 0;  // neutral = go straight
-  }
-
-  update(grid, decision) {
-    this.lastDecision = decision;
-    if (decision === -1) {
-      this.heading += this.turnAngle;
-    } else if (decision === +1) {
-      this.heading -= this.turnAngle;
-    }
-    // random jitter on neutral (prevents deadlocks)
-    if (decision === 0 && Math.random() < 0.05) {
-      this.heading += (Math.random() - 0.5) * this.turnAngle * 0.5;
-    }
-
-    this.x = ((this.x + this.speed * Math.cos(this.heading)) % this.gridW + this.gridW) % this.gridW;
-    this.y = ((this.y + this.speed * Math.sin(this.heading)) % this.gridH + this.gridH) % this.gridH;
-  }
-
-  deposit(grid, amount = 1.0) {
-    const gx = ((Math.floor(this.x) % this.gridW) + this.gridW) % this.gridW;
-    const gy = ((Math.floor(this.y) % this.gridH) + this.gridH) % this.gridH;
-    grid[gy][gx] += amount;
-  }
-}
-
-// ── Trust-Gated Ternary Computation Engine ────────────────────────────────
-// The main engine. Runs a Physarum-like simulation on a ternary grid with
-// trust-gated pattern reuse.
+// ── Trust engine ─────────────────────────────────────────────────────────
+// Ordinal signature: cmp(L,R), cmp(L,C), cmp(R,C) → key 0..26.
+// This is mathematically complete — every possible (L, C, R) ordering maps
+// to exactly one of 27 keys, and each key produces exactly one decision.
 //
-// Each tick:
-//   1. Quantize the continuous scent grid → ternary grid
-//   2. For each agent, extract its local ternary neighborhood
-//   3. Look up the neighborhood in the pattern dictionary
-//   4. If trusted pattern found → REUSE cached decision (skip computation)
-//   5. If not → COMPUTE decision normally, store the pattern
-//   6. Update agents, deposit scent, diffuse, fade
-//   7. Track metrics: operations saved, trust evolution
+// threshold: how many consistent hits before a pattern is trusted.
+// auditEvery: deterministic audit interval (every Nth trusted reuse).
+function newTrustEngine(threshold, auditEvery) {
+  return {
+    entries: new Map(),
+    threshold,
+    auditEvery,
+    queries: 0,
+    reused: 0,
+    trained: 0,
+    audits: 0,
+    disagreements: 0,
 
-export class TernaryEngine {
-  constructor(config = {}) {
-    this.width = config.width || 64;
-    this.height = config.height || 64;
-    this.agentCount = config.agents || Math.floor(this.width * this.height * 0.3);
-    this.scentAmount = config.scentAmount || 5.0;
-    this.scentFade = config.scentFade || 0.94;
-    this.trustThreshold = config.trustThreshold || 0.7;
-    this.neighborhoodRadius = config.neighborhoodRadius || 2; // 5x5 patch
-    this.inhibitThreshold = config.inhibitThreshold || -0.3;
-    this.activateThreshold = config.activateThreshold || 0.3;
+    decide(L, C, R) {
+      const a = cmp(L, R), b = cmp(L, C), c = cmp(R, C);
+      const key = (a + 1) * 9 + (b + 1) * 3 + (c + 1);
+      let e = this.entries.get(key);
+      this.queries++;
 
-    // Diffusion kernel (same as Physarum: center-weighted 3x3)
-    this.kernel = [[1, 1, 1], [1, 4, 1], [1, 1, 1]];
-    this.kernelSum = 12;
-
-    // State
-    this.scent = [];          // continuous scent grid (float)
-    this.ternary = [];        // quantized ternary grid (int8: -1, 0, +1)
-    this.agents = [];
-    this.dictionary = new PatternDictionary(config.maxPatterns || 2048);
-    this.tick = 0;
-    this.generation = 0;
-
-    // Metrics
-    this.metrics = {
-      totalDecisions: 0,
-      reusedDecisions: 0,
-      computedDecisions: 0,
-      trustGateHistory: [],   // per-tick efficiency snapshots
-    };
-
-    this._init();
-  }
-
-  _init() {
-    // Initialize scent grid with small random values
-    for (let r = 0; r < this.height; r++) {
-      this.scent[r] = new Float64Array(this.width);
-      this.ternary[r] = new Int8Array(this.width);
-      for (let c = 0; c < this.width; c++) {
-        this.scent[r][c] = (Math.random() - 0.5) * 2; // [-1, 1]
-      }
-    }
-
-    // Spawn agents
-    for (let i = 0; i < this.agentCount; i++) {
-      this.agents.push(new TernaryAgent(this.width, this.height));
-    }
-
-    // Initial quantization
-    this._quantizeGrid();
-  }
-
-  // ── Core tick ───────────────────────────────────────────────────────────
-  step() {
-    this.tick++;
-
-    // 1. Quantize scent → ternary
-    this._quantizeGrid();
-
-    // 2. For each agent: trust-gated decision
-    let tickReused = 0;
-    let tickComputed = 0;
-
-    for (const agent of this.agents) {
-      const neighborhood = this._extractNeighborhood(
-        Math.floor(agent.x), Math.floor(agent.y)
-      );
-
-      const pattern = this.dictionary.lookup(neighborhood);
-      let decision;
-
-      if (pattern && pattern.reliable) {
-        // TRUST GATE: reuse cached decision
-        decision = pattern.outcome;
-        tickReused++;
-        this.dictionary.recordReuse();
-        agent.decisionsReused++;
-
-        // Verify occasionally (10% spot-check to maintain trust accuracy)
-        if (Math.random() < 0.1) {
-          const actual = agent.decide(this.scent);
-          pattern.recordHit(actual === decision);
-        }
-      } else {
-        // COMPUTE normally
-        decision = agent.decide(this.scent);
-        tickComputed++;
-        this.dictionary.recordRecompute();
-        agent.decisionsComputed++;
-
-        // Store or update pattern
-        if (pattern) {
-          const actual = decision;
-          pattern.recordHit(actual === pattern.outcome);
-        } else {
-          this.dictionary.store(neighborhood, decision, {
-            tick: this.tick,
-            agentX: Math.floor(agent.x),
-            agentY: Math.floor(agent.y),
-          });
-        }
-      }
-
-      // 3. Update agent state
-      agent.update(this.scent, decision);
-      agent.deposit(this.scent, this.scentAmount);
-
-      this.metrics.totalDecisions++;
-    }
-
-    this.metrics.reusedDecisions += tickReused;
-    this.metrics.computedDecisions += tickComputed;
-
-    // 4. Diffuse and fade scent
-    this._diffuse();
-    this._fade();
-
-    // 5. Record efficiency snapshot every 10 ticks
-    if (this.tick % 10 === 0) {
-      const total = tickReused + tickComputed;
-      this.metrics.trustGateHistory.push({
-        tick: this.tick,
-        reused: tickReused,
-        computed: tickComputed,
-        efficiency: total > 0 ? tickReused / total : 0,
-        trustedPatterns: this.dictionary.stats.trustedPatterns,
-        totalPatterns: this.dictionary.stats.totalPatterns,
-      });
-    }
-
-    return this.getSnapshot();
-  }
-
-  // Run N ticks, return final snapshot
-  run(ticks = 100) {
-    for (let i = 0; i < ticks; i++) {
-      this.step();
-    }
-    return this.getSnapshot();
-  }
-
-  // ── Grid operations ─────────────────────────────────────────────────────
-
-  _quantizeGrid() {
-    // Normalize scent to [-1, 1] range, then quantize
-    let maxAbs = 0;
-    for (let r = 0; r < this.height; r++) {
-      for (let c = 0; c < this.width; c++) {
-        maxAbs = Math.max(maxAbs, Math.abs(this.scent[r][c]));
-      }
-    }
-    const scale = maxAbs > 0 ? 1 / maxAbs : 1;
-
-    for (let r = 0; r < this.height; r++) {
-      for (let c = 0; c < this.width; c++) {
-        this.ternary[r][c] = quantize(
-          this.scent[r][c] * scale,
-          this.inhibitThreshold,
-          this.activateThreshold
-        );
-      }
-    }
-  }
-
-  _extractNeighborhood(cx, cy) {
-    const r = this.neighborhoodRadius;
-    const size = (2 * r + 1) * (2 * r + 1);
-    const patch = new Int8Array(size);
-    let idx = 0;
-    for (let dy = -r; dy <= r; dy++) {
-      for (let dx = -r; dx <= r; dx++) {
-        const gy = ((cy + dy) % this.height + this.height) % this.height;
-        const gx = ((cx + dx) % this.width + this.width) % this.width;
-        patch[idx++] = this.ternary[gy][gx];
-      }
-    }
-    return patch;
-  }
-
-  _diffuse() {
-    const temp = [];
-    for (let r = 0; r < this.height; r++) {
-      temp[r] = new Float64Array(this.width);
-    }
-    for (let r = 0; r < this.height; r++) {
-      for (let c = 0; c < this.width; c++) {
-        let sum = 0;
-        for (let dr = -1; dr <= 1; dr++) {
-          for (let dc = -1; dc <= 1; dc++) {
-            const nr = ((r + dr) % this.height + this.height) % this.height;
-            const nc = ((c + dc) % this.width + this.width) % this.width;
-            sum += this.scent[nr][nc] * this.kernel[dr + 1][dc + 1];
+      if (e && e.count >= this.threshold) {
+        this.reused++;
+        // Deterministic audit: every Nth trusted reuse
+        if (this.reused % this.auditEvery === 0) {
+          this.audits++;
+          const check = baselineDecision(L, C, R);
+          if (check !== e.choice) {
+            this.disagreements++;
+            this.entries.delete(key);
+            return check;
           }
         }
-        temp[r][c] = sum / this.kernelSum;
+        return e.choice;
       }
-    }
-    for (let r = 0; r < this.height; r++) {
-      for (let c = 0; c < this.width; c++) {
-        this.scent[r][c] = temp[r][c];
+
+      const choice = baselineDecision(L, C, R);
+      if (!e) {
+        e = { choice, count: 0 };
+        this.entries.set(key, e);
       }
-    }
-  }
-
-  _fade() {
-    for (let r = 0; r < this.height; r++) {
-      for (let c = 0; c < this.width; c++) {
-        this.scent[r][c] *= this.scentFade;
+      if (e.choice !== choice) {
+        this.disagreements++;
+        e.choice = choice;
+        e.count = 0;
       }
-    }
-  }
-
-  // ── Snapshot / stats ────────────────────────────────────────────────────
-
-  getSnapshot() {
-    const total = this.metrics.reusedDecisions + this.metrics.computedDecisions;
-    return {
-      tick: this.tick,
-      gridSize: [this.width, this.height],
-      agentCount: this.agents.length,
-      efficiency: total > 0 ? this.metrics.reusedDecisions / total : 0,
-      dictionary: this.dictionary.stats,
-      metrics: {
-        totalDecisions: this.metrics.totalDecisions,
-        reused: this.metrics.reusedDecisions,
-        computed: this.metrics.computedDecisions,
-        savingsPercent: total > 0
-          ? ((this.metrics.reusedDecisions / total) * 100).toFixed(1) + '%'
-          : '0%',
-      },
-      recentHistory: this.metrics.trustGateHistory.slice(-10),
-    };
-  }
-
-  // Export the ternary grid as a flat array for visualization
-  getTernaryFlat() {
-    const flat = new Int8Array(this.width * this.height);
-    for (let r = 0; r < this.height; r++) {
-      for (let c = 0; c < this.width; c++) {
-        flat[r * this.width + c] = this.ternary[r][c];
-      }
-    }
-    return flat;
-  }
-
-  // Export agent positions for visualization
-  getAgentPositions() {
-    return this.agents.map(a => ({
-      x: a.x,
-      y: a.y,
-      heading: a.heading,
-      lastDecision: a.lastDecision,
-      reused: a.decisionsReused,
-      computed: a.decisionsComputed,
-    }));
-  }
-
-  // Mutate: change one parameter and see how the trust gate adapts
-  mutate(param, value) {
-    if (param === 'trustThreshold') this.trustThreshold = value;
-    if (param === 'scentFade') this.scentFade = value;
-    if (param === 'scentAmount') this.scentAmount = value;
-    if (param === 'inhibitThreshold') this.inhibitThreshold = value;
-    if (param === 'activateThreshold') this.activateThreshold = value;
-    this.generation++;
-    return { generation: this.generation, param, value };
-  }
-
-  // Reset the pattern dictionary (force full recompute, trust rebuilds)
-  resetTrust() {
-    this.dictionary = new PatternDictionary(this.dictionary.maxEntries);
-    this.generation++;
-    return { generation: this.generation, message: 'Trust reset — all patterns must be re-earned' };
-  }
+      e.count++;
+      this.trained++;
+      return choice;
+    },
+  };
 }
 
-// ── Factory for fleet tool integration ────────────────────────────────────
+// ── World factory ────────────────────────────────────────────────────────
+function newWorld(count, seed, mode, threshold = 3, auditEvery = 25) {
+  const random = rng(seed);
+  const x     = new Float64Array(count);
+  const y     = new Float64Array(count);
+  const angle = new Float64Array(count);
 
-export function createTernaryEngine(config) {
-  return new TernaryEngine(config);
-}
+  for (let i = 0; i < count; i++) {
+    x[i]     = random() * COLS * CELL;
+    y[i]     = random() * ROWS * CELL;
+    angle[i] = random() * Math.PI * 2;
+  }
 
-// ── Quick self-test (run with: node --experimental-vm-modules ternary-engine.js) ──
-export function selfTest() {
-  const engine = new TernaryEngine({ width: 32, height: 32, agents: 200 });
-  const result = engine.run(200);
   return {
-    passed: result.efficiency > 0,
-    ...result,
-    message: result.efficiency > 0.1
-      ? `Trust gate working: ${result.metrics.savingsPercent} of decisions reused`
-      : 'Trust gate warming up — patterns not yet reliable (normal for small grids)',
+    x, y, angle,
+    field:   new Float64Array(N),
+    scratch: new Float64Array(N),
+    count,
+    engine: mode === 'ternary' ? newTrustEngine(threshold, auditEvery) : null,
+    turns: [0, 0, 0],  // [-1, 0, +1] counters
+    steps: 0,
+  };
+}
+
+// ── Sensor sample ────────────────────────────────────────────────────────
+function sample(w, px, py, a) {
+  const sx = wrap(Math.floor((px + SENSE_LEN * Math.cos(a)) / CELL), COLS);
+  const sy = wrap(Math.floor((py + SENSE_LEN * Math.sin(a)) / CELL), ROWS);
+  return w.field[sy * COLS + sx];
+}
+
+// ── Tick: agents decide → move → deposit → diffuse → fade ───────────────
+function tick(w) {
+  const { x, y, angle, field, scratch, engine, count } = w;
+
+  for (let i = 0; i < count; i++) {
+    const h = angle[i];
+    const L = sample(w, x[i], y[i], h + SENSE_ANGLE);
+    const R = sample(w, x[i], y[i], h - SENSE_ANGLE);
+    const C = sample(w, x[i], y[i], h);
+
+    const turn = engine ? engine.decide(L, C, R) : baselineDecision(L, C, R);
+    w.turns[turn + 1]++;
+
+    const nh = h + turn * TURN_ANGLE;
+    angle[i] = nh;
+
+    const nx = wrap(x[i] + SPEED * Math.cos(nh), COLS * CELL);
+    const ny = wrap(y[i] + SPEED * Math.sin(nh), ROWS * CELL);
+    x[i] = nx;
+    y[i] = ny;
+
+    field[Math.floor(ny / CELL) * COLS + Math.floor(nx / CELL)] += DEPOSIT;
+  }
+
+  // 3×3 weighted diffusion kernel (center=4, neighbors=1, sum=12)
+  for (let yy = 0; yy < ROWS; yy++) {
+    for (let xx = 0; xx < COLS; xx++) {
+      let sum = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const k = (dx === 0 && dy === 0) ? 4 : 1;
+          sum += k * field[wrap(yy + dy, ROWS) * COLS + wrap(xx + dx, COLS)];
+        }
+      }
+      scratch[yy * COLS + xx] = Math.min(MAX_SCENT, FADE * sum / 12);
+    }
+  }
+
+  w.field = scratch;
+  w.scratch = field;
+  w.steps++;
+}
+
+// ── Correctness proof ────────────────────────────────────────────────────
+// Compares two worlds state by state. If changed === 0, the trust engine
+// produces the exact same simulation as the baseline.
+function compareWorlds(a, b) {
+  let maxErr = 0, changed = 0;
+  function check(x, y) {
+    for (let i = 0; i < x.length; i++) {
+      const e = Math.abs(x[i] - y[i]);
+      if (e > maxErr) maxErr = e;
+      if (e !== 0) changed++;
+    }
+  }
+  check(a.x, b.x);
+  check(a.y, b.y);
+  check(a.angle, b.angle);
+  check(a.field, b.field);
+  return { maxErr, changed, equal: changed === 0 };
+}
+
+// ── Benchmark runner ─────────────────────────────────────────────────────
+function runWorld(agents, steps, seed, mode, threshold, audit) {
+  const w = newWorld(agents, seed, mode, threshold, audit);
+  const start = performance.now();
+  for (let t = 0; t < steps; t++) tick(w);
+  return { w, ms: performance.now() - start };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ESM exports for FRAYMUS intelligence stack integration
+// ═══════════════════════════════════════════════════════════════════════════
+
+export { rng, baselineDecision, newTrustEngine, newWorld, tick, sample };
+export { compareWorlds, runWorld };
+export { COLS, ROWS, N, CELL, SENSE_ANGLE, TURN_ANGLE, SENSE_LEN };
+export { SPEED, DEPOSIT, FADE, MAX_SCENT };
+
+// Factory: create a ternary world ready for stepping
+export function createTernaryEngine(config = {}) {
+  const {
+    agents    = 600,
+    seed      = 1979,
+    threshold = 3,
+    auditEvery = 25,
+    mode      = 'ternary',
+  } = config;
+  return newWorld(agents, seed, mode, threshold, auditEvery);
+}
+
+// Step a world forward and return its state
+export function stepEngine(world, n = 1) {
+  for (let i = 0; i < n; i++) tick(world);
+  return {
+    steps: world.steps,
+    turns: [...world.turns],
+    engine: world.engine ? {
+      patterns:      world.engine.entries.size,
+      queries:       world.engine.queries,
+      reused:        world.engine.reused,
+      trained:       world.engine.trained,
+      audits:        world.engine.audits,
+      disagreements: world.engine.disagreements,
+      reuseRate:     world.engine.queries > 0
+        ? (world.engine.reused / world.engine.queries * 100).toFixed(1) + '%'
+        : '0%',
+    } : null,
+  };
+}
+
+// ── Self-test: correctness proof + benchmark ─────────────────────────────
+// Runs baseline and ternary with the same seed, proves exact equivalence,
+// measures wall-clock speedup.
+export function selfTest(config = {}) {
+  const {
+    agents    = 600,
+    steps     = 100,
+    seed      = 1979,
+    threshold = 3,
+    auditEvery = 25,
+  } = config;
+
+  // JIT warmup (same code paths, small input)
+  runWorld(40, 3, seed, 'baseline', threshold, auditEvery);
+  runWorld(40, 3, seed, 'ternary',  threshold, auditEvery);
+
+  // Real benchmark
+  const base = runWorld(agents, steps, seed, 'baseline', threshold, auditEvery);
+  const tern = runWorld(agents, steps, seed, 'ternary',  threshold, auditEvery);
+
+  const eq  = compareWorlds(base.w, tern.w);
+  const eng = tern.w.engine;
+
+  return {
+    passed: eq.equal,
+    agents,
+    steps,
+    seed,
+    threshold,
+    auditEvery,
+    correctness: {
+      exactEqual:    eq.equal,
+      changedValues: eq.changed,
+      maxAbsError:   eq.maxErr,
+    },
+    benchmark: {
+      baselineMs: +base.ms.toFixed(3),
+      ternaryMs:  +tern.ms.toFixed(3),
+      speedRatio: +(base.ms / tern.ms).toFixed(3),
+    },
+    trustEngine: {
+      decisions:     eng.queries,
+      trustedReuse:  eng.reused,
+      trained:       eng.trained,
+      audits:        eng.audits,
+      disagreements: eng.disagreements,
+      patterns:      eng.entries.size,
+      reuseRate:     (100 * eng.reused / eng.queries).toFixed(1) + '%',
+    },
+    turns: {
+      baseline: base.w.turns,
+      ternary:  tern.w.turns,
+    },
+  };
+}
+
+// Headless test access (same exports the testbench HTML provides)
+if (typeof globalThis !== 'undefined') {
+  globalThis.FRAYMUS_TEST = {
+    newWorld, tick, runWorld, compareWorlds, baselineDecision, newTrustEngine,
   };
 }
