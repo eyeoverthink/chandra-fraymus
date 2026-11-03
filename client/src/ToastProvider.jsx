@@ -35,6 +35,9 @@ const WS_MAP = {
   streaming:     { variant: 'info',    fmt: p => `Streaming: ${p?.type?.replace(/_/g, ' ') || 'event'}` },
   rsi:           { variant: 'system',  fmt: p => `RSI: ${p?.type || 'evolution'}` },
   creation:      { variant: 'agent',   fmt: p => `Creation: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.topic ? ` — ${p.topic.slice(0, 40)}` : ''}` },
+  distribution:  { variant: 'info',    fmt: p => `Distribution: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.platform ? ` — ${p.platform}` : ''}` },
+  analytics:     { variant: 'success', fmt: p => `Analytics: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.count ? ` (${p.count} insights)` : ''}` },
+  music:         { variant: 'info',    fmt: p => `Music: ${p?.type?.replace(/_/g, ' ') || 'generated'}` },
   mail:          { variant: 'info',    fmt: () => 'New mail received' },
 };
 

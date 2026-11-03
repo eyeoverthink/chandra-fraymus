@@ -101,6 +101,8 @@ export default function App() {
     if (action === 'collab') { setDrawer({ panel: 'collab', title: 'Agent Collaboration' }); return; }
     if (action === 'creation') { setDrawer({ panel: 'creation', title: 'Creation Pipeline' }); return; }
     if (action === 'nerve-center') { setDrawer({ panel: 'nerve-center', title: 'Intelligence Nerve Center' }); return; }
+    if (action === 'distribution') { setDrawer({ panel: 'distribution', title: 'Social Distribution' }); return; }
+    if (action === 'analytics') { setDrawer({ panel: 'analytics', title: 'Analytics Feedback' }); return; }
     if (action.startsWith('view:')) {
       setView(action.slice(5));
       setDrawer(null);

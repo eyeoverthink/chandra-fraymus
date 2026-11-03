@@ -18,6 +18,8 @@ const WIDGETS = [
   { id: 'media', label: 'Media Hub', icon: '▶', color: '#14b8a6', panel: 'media' },
   { id: 'forge', label: 'Forge + Synth', icon: '⚡', color: '#f59e0b', panel: 'forge' },
   { id: 'creation', label: 'Creation', icon: '✦', color: '#a78bfa', panel: 'creation' },
+  { id: 'distribution', label: 'Distribution', icon: '⊕', color: '#3b82f6', panel: 'distribution' },
+  { id: 'analytics', label: 'Analytics', icon: '◎', color: '#10b981', panel: 'analytics' },
   { id: 'nerve-center', label: 'Nerve Center', icon: '◈', color: '#ef4444', panel: 'nerve-center' },
   { id: 'settings', label: 'Settings', icon: '⚙', color: '#64748b', panel: 'settings' },
 ];
@@ -46,6 +48,9 @@ const EVENT_STYLES = {
   autonomy: { icon: '◎', color: '#22c55e', drawer: 'nerve-center' },
   rsi: { icon: '◎', color: '#a78bfa', drawer: 'vertiso' },
   streaming: { icon: '▶', color: '#14b8a6', drawer: 'media' },
+  distribution: { icon: '⊕', color: '#3b82f6', drawer: 'distribution' },
+  analytics: { icon: '◎', color: '#10b981', drawer: 'analytics' },
+  music: { icon: '♫', color: '#8b5cf6', drawer: 'media' },
   mail: { icon: '✉', color: '#60a5fa', drawer: 'dashboard' },
 };
 

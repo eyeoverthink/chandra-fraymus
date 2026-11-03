@@ -136,6 +136,9 @@ function nodeKind(type) {
   if (type === 'visual_assembly') return 'visual_assembly';
   if (type === 'distribution_prep') return 'distribution_prep';
   if (type === 'commerce_bridge') return 'commerce_bridge';
+  if (type === 'social_publish') return 'social_publish';
+  if (type === 'analytics_collect') return 'analytics_collect';
+  if (type === 'music_generate') return 'music_generate';
   return 'unknown';
 }
 
@@ -829,6 +832,61 @@ export async function runPipeline(nodes, edges, opts = {}) {
         r.data = result;
         texts[id] = result.status;
         r.text = `Commerce: ${result.status}`;
+
+      // ── Distribution + Analytics + Music nodes ────────────
+      } else if (k === 'social_publish') {
+        const content = upstreamText || node.data?.content || opts.prompt || '';
+        const platforms = node.data?.platforms || ['youtube', 'tiktok', 'instagram', 'x'];
+        try {
+          const res = await fetch('http://127.0.0.1:8787/api/distribution/publish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content, platforms }),
+            signal: AbortSignal.timeout(30_000),
+          });
+          const data = await res.json();
+          r.data = data;
+          r.text = `Published to ${platforms.length} platforms`;
+          texts[id] = JSON.stringify(data);
+        } catch (e) {
+          throw new Error(`social_publish failed: ${e.message}`);
+        }
+        opts.memoryBridge?.storeCognitionResult({ phase: 'social_publish', feeling: { primary: 'excitement', intensity: 0.7 }, response: `Workflow publish: ${platforms.join(', ')}`, durationMs: 0 }).catch(() => {});
+
+      } else if (k === 'analytics_collect') {
+        const topic = node.data?.topic || upstreamText || '';
+        try {
+          const endpoint = topic
+            ? `http://127.0.0.1:8787/api/analytics/topic/${encodeURIComponent(topic)}`
+            : 'http://127.0.0.1:8787/api/analytics/overview';
+          const res = await fetch(endpoint, { signal: AbortSignal.timeout(15_000) });
+          const data = await res.json();
+          r.data = data;
+          r.text = topic ? `Analytics for "${topic}": ${data.analytics?.length || 0} entries` : `Overview: ${data.total || 0} entries`;
+          texts[id] = JSON.stringify(data);
+        } catch (e) {
+          throw new Error(`analytics_collect failed: ${e.message}`);
+        }
+
+      } else if (k === 'music_generate') {
+        const topic = upstreamText || node.data?.topic || opts.prompt || '';
+        const emotion = node.data?.emotion || null;
+        const format = node.data?.format || 'background';
+        try {
+          const res = await fetch('http://127.0.0.1:8787/api/media/music/pipeline', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ topic, emotion, format }),
+            signal: AbortSignal.timeout(60_000),
+          });
+          const data = await res.json();
+          r.data = data;
+          r.text = `Music: ${data.prompt?.slice(0, 60) || 'generated'}`;
+          texts[id] = data.prompt || '';
+        } catch (e) {
+          throw new Error(`music_generate failed: ${e.message}`);
+        }
+        opts.memoryBridge?.storeCognitionResult({ phase: 'music_generate', feeling: { primary: 'joy', intensity: 0.6 }, response: `Workflow music: ${topic}`, durationMs: 0 }).catch(() => {});
 
       } else {
         throw new Error(`Unknown node type: ${node.type}`);

@@ -54,6 +54,12 @@ const NODE_CATEGORIES = [
     { type: 'description_enhancer', label: 'Description Enhancer', color: '#facc15', icon: '✨' },
     { type: 'price_adjuster', label: 'Price Adjuster', color: '#f97316', icon: '💲' },
   ]},
+  { id: 'distribution', label: 'Distribution', color: '#3b82f6', types: [
+    { type: 'social_publish', label: 'Social Publish', color: '#3b82f6', icon: '⊕' },
+    { type: 'distribution_prep', label: 'Distribution Prep', color: '#6366f1', icon: '📦' },
+    { type: 'analytics_collect', label: 'Analytics Collect', color: '#10b981', icon: '◎' },
+    { type: 'music_generate', label: 'Music Generate', color: '#8b5cf6', icon: '♫' },
+  ]},
 ];
 
 const NODE_TYPES = NODE_CATEGORIES.flatMap(c => c.types);

@@ -393,6 +393,67 @@ function buildHermesExecutors() {
       const synthesis = await chatOllama(prompt);
       return { query, resultCount: results.length, sources: results.slice(0, 15), synthesis };
     },
+
+    // ── Distribution + Analytics + Music ──
+    social_post: async ({ content, platforms }) => {
+      try {
+        const res = await fetch('http://127.0.0.1:8787/api/distribution/publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: content || '', platforms: platforms || ['youtube', 'tiktok', 'instagram', 'x'] }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    content_distribute: async ({ content, platform }) => {
+      try {
+        const res = await fetch('http://127.0.0.1:8787/api/distribution/optimize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: content || '', platform: platform || 'youtube' }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    music_compose: async ({ topic, emotion, format }) => {
+      try {
+        const res = await fetch('http://127.0.0.1:8787/api/media/music/pipeline', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic: topic || '', emotion: emotion || null, format: format || 'background' }),
+          signal: AbortSignal.timeout(60_000),
+        });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    analytics_report: async ({ topic, platform }) => {
+      try {
+        const endpoint = topic
+          ? `http://127.0.0.1:8787/api/analytics/topic/${encodeURIComponent(topic)}`
+          : 'http://127.0.0.1:8787/api/analytics/overview';
+        const res = await fetch(endpoint, { signal: AbortSignal.timeout(15_000) });
+        const data = await res.json();
+        if (!topic) {
+          const insightsRes = await fetch('http://127.0.0.1:8787/api/analytics/insights', {
+            method: 'POST',
+            signal: AbortSignal.timeout(30_000),
+          });
+          const insights = await insightsRes.json();
+          data.insights = insights.insights || [];
+        }
+        return data;
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
   };
 }
 
