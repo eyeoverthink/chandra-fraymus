@@ -2,6 +2,7 @@
 import { execSync } from 'node:child_process';
 import { COMPUTE_NODES } from '../core/constants.js';
 import { chatOllama } from '../../commerce/shared.js';
+import { selectModel, logRouting } from '../../intelligence/model-router.js';
 
 export const JOB_STATES = ['queued', 'claimed', 'running', 'completed', 'failed', 'cancelled'];
 
@@ -16,11 +17,22 @@ const NODE_EXECUTORS = {
   async WINDOWS_GPU(job) {
     const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
     if (job.type === 'inference' || job.prompt) {
-      const model = job.model || process.env.FRAYMUS_DEFAULT_MODEL || 'fraynix-dreamer-ultimate:8b';
+      let model = job.model || process.env.FRAYMUS_DEFAULT_MODEL;
+      let routingInfo = null;
+      if (!model) {
+        try {
+          routingInfo = await selectModel(job);
+          model = routingInfo.model;
+        } catch { model = 'fraynix-dreamer-ultimate:8b'; }
+      }
       const messages = [{ role: 'user', content: job.prompt || job.command }];
       if (job.system) messages.unshift({ role: 'system', content: job.system });
+      const started = Date.now();
       const response = await chatOllama(messages, { model, temperature: job.temperature });
-      return { response, model, node: 'WINDOWS_GPU', ollamaUrl };
+      if (routingInfo) {
+        try { logRouting({ taskType: job.type || 'inference', complexity: routingInfo.complexity, model, tier: routingInfo.tier, success: true, durationMs: Date.now() - started, reason: routingInfo.reason }); } catch {}
+      }
+      return { response, model, node: 'WINDOWS_GPU', ollamaUrl, routing: routingInfo };
     }
     if (job.type === 'ollama_api') {
       const res = await fetch(`${ollamaUrl}${job.endpoint || '/api/tags'}`, {
@@ -61,10 +73,21 @@ const NODE_EXECUTORS = {
 
   async BASE44_CLOUD(job) {
     if (job.prompt) {
-      const model = job.model || process.env.FRAYMUS_DEFAULT_MODEL || 'fraynix-dreamer-ultimate:8b';
+      let model = job.model || process.env.FRAYMUS_DEFAULT_MODEL;
+      let routingInfo = null;
+      if (!model) {
+        try {
+          routingInfo = await selectModel(job);
+          model = routingInfo.model;
+        } catch { model = 'fraynix-dreamer-ultimate:8b'; }
+      }
       const messages = [{ role: 'user', content: job.prompt }];
+      const started = Date.now();
       const response = await chatOllama(messages, { model });
-      return { response, model, node: 'BASE44_CLOUD' };
+      if (routingInfo) {
+        try { logRouting({ taskType: job.type || 'inference', complexity: routingInfo.complexity, model, tier: routingInfo.tier, success: true, durationMs: Date.now() - started, reason: routingInfo.reason }); } catch {}
+      }
+      return { response, model, node: 'BASE44_CLOUD', routing: routingInfo };
     }
     return { node: 'BASE44_CLOUD', note: 'Entity CRUD — use entityStore directly' };
   },

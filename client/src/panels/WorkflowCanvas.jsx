@@ -34,6 +34,8 @@ const NODE_CATEGORIES = [
     { type: 'chain_run', label: 'Logic Chain', color: '#7c3aed', icon: '⛓' },
     { type: 'chain_to_code', label: 'Chain→Code', color: '#6d28d9', icon: '⚡' },
     { type: 'goal_generate', label: 'Goal Engine', color: '#0d9488', icon: '🎯' },
+    { type: 'debate_run', label: 'Debate Protocol', color: '#dc2626', icon: '⚔' },
+    { type: 'model_select', label: 'Model Router', color: '#2563eb', icon: '🔀' },
   ]},
   { id: 'fraymus', label: 'FRAYMUS', color: '#6366f1', types: [
     { type: 'tool:fraymus.encode.dna', label: 'DNA Encode', color: '#6366f1', icon: '🧬' },

@@ -37,6 +37,7 @@ import AudiencePanel from '../panels/AudiencePanel.jsx';
 import RepurposePanel from '../panels/RepurposePanel.jsx';
 import ChainPanel from '../panels/ChainPanel.jsx';
 import ObservatoryPanel from '../panels/ObservatoryPanel.jsx';
+import DebatePanel from '../panels/DebatePanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -76,6 +77,7 @@ const PANELS = {
   repurpose: { component: RepurposePanel, label: 'Content Repurposing' },
   chain: { component: ChainPanel, label: 'Logic Chain' },
   observatory: { component: ObservatoryPanel, label: 'Intelligence Observatory' },
+  debate: { component: DebatePanel, label: 'Debate Protocol' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {

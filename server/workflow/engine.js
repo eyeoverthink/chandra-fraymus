@@ -29,6 +29,8 @@ import { mintArtifact, verifyArtifact } from '../streaming/mint.js';
 import { executeChain, loadRun, listRuns as listChainRuns } from '../chain/engine.js';
 import { executeChainToCode } from '../chain/executor.js';
 import { generateGoals } from '../intelligence/goal-engine.js';
+import { runDebate } from '../intelligence/debate.js';
+import { selectModel } from '../intelligence/model-router.js';
 import { ledgerStats as chainLedgerStats } from '../chain/ledger.js';
 import { getObsBridge } from '../streaming/overlay.js';
 import {
@@ -134,6 +136,8 @@ function nodeKind(type) {
   if (type === 'chain_run') return 'chain_run';
   if (type === 'chain_to_code') return 'chain_to_code';
   if (type === 'goal_generate') return 'goal_generate';
+  if (type === 'debate_run') return 'debate_run';
+  if (type === 'model_select') return 'model_select';
   if (type === 'stream_capture') return 'stream_capture';
   if (type === 'stream_mint') return 'stream_mint';
   if (type === 'stream_deliver') return 'stream_deliver';
@@ -749,6 +753,25 @@ export async function runPipeline(nodes, edges, opts = {}) {
         r.text = goalResult.generated
           ? `GoalEngine: ${goalResult.count} new objective${goalResult.count === 1 ? '' : 's'} proposed`
           : `GoalEngine: no new objectives (${goalResult.reason || 'landscape empty'})`;
+        texts[id] = r.text;
+
+      } else if (k === 'debate_run') {
+        const topic = node.data?.topic || upstreamText || 'System Architecture';
+        const proposition = node.data?.proposition || upstreamText || topic;
+        const debateResult = await runDebate({ topic, proposition, config: { model: node.data?.model }, source: 'workflow' });
+        r.data = {
+          id: debateResult.id, verdict: debateResult.verdict,
+          confidence: debateResult.confidence, durationMs: debateResult.durationMs,
+          agents: debateResult.agents,
+        };
+        r.text = `Debate "${proposition.slice(0, 60)}": verdict=${debateResult.verdict} (${Math.round(debateResult.confidence * 100)}% confidence)`;
+        texts[id] = r.text;
+
+      } else if (k === 'model_select') {
+        const task = { prompt: upstreamText || node.data?.prompt || '', type: node.data?.taskType || 'inference', depth: node.data?.depth || 0 };
+        const routing = await selectModel(task);
+        r.data = { model: routing.model, tier: routing.tier, complexity: routing.complexity, reason: routing.reason, candidates: routing.candidates };
+        r.text = `ModelRouter: ${routing.model} (${routing.tier}, complexity=${routing.complexity}, reason=${routing.reason})`;
         texts[id] = r.text;
 
       // ── Carbon X biological encoding nodes ──────────────────

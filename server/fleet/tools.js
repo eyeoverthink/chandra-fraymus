@@ -9,6 +9,8 @@ import { synthesizeWorkflow } from '../workflow/synthesizer.js';
 import { runVerifierLoop, listLoops as listVerifierLoops } from '../intelligence/verifier-loop.js';
 import { startDaemon, stopDaemon, getDaemonStatus, runCycle, listCycles } from '../daemon/engine.js';
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
+import { runDebate, listDebates } from '../intelligence/debate.js';
+import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
 import { encodeCodon, decodeCodon, codonStats } from '../fraymus/encoding/codon.js';
 import { forgePlasmid, digestPlasmid, plasmidToFasta } from '../fraymus/encoding/plasmid.js';
 import { createGenomeSnapshot, saveCheckpoint, listCheckpoints } from '../fraymus/encoding/carbon.js';
@@ -1108,6 +1110,51 @@ export function createFleetTools({ workflowStore }) {
         updateProposalStatus(args.id, args.status, args.chainRunId);
         return { updated: args.id, status: args.status };
       },
+    },
+    {
+      name: 'debate_run',
+      group: 'evolution',
+      risk: 'medium',
+      description: 'Run an adversarial debate between two agents on a proposition. A proponent argues FOR, an opponent argues AGAINST, and a judge renders a verdict across three structured rounds (opening, rebuttal, synthesis).',
+      parameters: object({
+        topic: string(500, { description: 'The broad topic area (e.g. "distributed systems", "AI alignment")' }),
+        proposition: string(1000, { description: 'The specific proposition to debate (e.g. "Microservices are always better than monoliths")' }),
+        model: string(100, { description: 'Ollama model for all debaters (default: llama3.1:8b)' }),
+      }, ['topic', 'proposition']),
+      execute: async ({ args }) => runDebate({ topic: args.topic, proposition: args.proposition, config: { model: args.model }, source: 'agent' }),
+    },
+    {
+      name: 'debate_list',
+      group: 'evolution',
+      risk: 'safe',
+      description: 'List past debates with their topics, verdicts, and confidence scores.',
+      parameters: object({
+        status: string(20, { description: 'Filter by status (running, completed)' }),
+        limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Max debates (default 20)' },
+      }),
+      execute: async ({ args }) => ({ debates: listDebates({ status: args.status, limit: args.limit }) }),
+    },
+    {
+      name: 'model_select',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Query the Adaptive Model Router to find the best model for a given task. Returns model name, tier, complexity estimate, and reasoning.',
+      parameters: object({
+        prompt: string(2000, { description: 'The task prompt to evaluate' }),
+        type: string(50, { description: 'Task type: inference, debate, chain, synthesis, forge, review, verification' }),
+        depth: { type: 'integer', minimum: 0, maximum: 20, description: 'Recursion or chain depth' },
+      }),
+      execute: async ({ args }) => selectModel({ prompt: args.prompt, type: args.type, depth: args.depth }),
+    },
+    {
+      name: 'model_stats',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Get model routing statistics: which models were selected, success rates, and performance by complexity tier.',
+      parameters: object({
+        days: { type: 'integer', minimum: 1, maximum: 30, description: 'Lookback period in days (default 7)' },
+      }),
+      execute: async ({ args }) => routingStats({ days: args.days || 7 }),
     },
     {
       name: 'bridge_list',
