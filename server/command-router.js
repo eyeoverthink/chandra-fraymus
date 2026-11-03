@@ -52,6 +52,10 @@ const PIPELINE_ALIASES = {
   'reformat': 'repurpose',
   'adapt': 'repurpose',
   'content-repurpose': 'repurpose',
+  'chain': 'chain',
+  'logic-chain': 'chain',
+  'logic': 'chain',
+  'analyze': 'chain',
 };
 
 const PIPELINE_ENDPOINTS = {
@@ -71,6 +75,7 @@ const PIPELINE_ENDPOINTS = {
   'trend-radar': '/api/trends/scan',
   audience: '/api/audience/discover',
   repurpose: '/api/repurpose/suggest',
+  chain: '/api/chain/run',
 };
 
 export function installCommandRouter(app, { broadcast }) {
@@ -129,6 +134,7 @@ export function installCommandRouter(app, { broadcast }) {
             : pipeline === 'trend-radar' ? { niche: arg }
             : pipeline === 'audience' ? {}
             : pipeline === 'repurpose' ? { content: arg }
+            : pipeline === 'chain' ? { objective: arg }
             : {};
           const pRes = await fetch(`http://127.0.0.1:${process.env.PORT || 8787}${endpoint}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -138,7 +144,7 @@ export function installCommandRouter(app, { broadcast }) {
           return res.json({ type: 'pipeline_run', pipeline, runId: result.runId || result.id, result });
         }
 
-        return res.json({ type: 'error', error: `Unknown command: "${pipelineName}". Try: content-pipeline, apparel, shopper, fixer, workflow` });
+        return res.json({ type: 'error', error: `Unknown command: "${pipelineName}". Try: content-pipeline, apparel, shopper, fixer, chain, workflow` });
       }
 
       const result = startRun('local', 'fraymus_prime', trimmed);

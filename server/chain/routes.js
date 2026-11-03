@@ -20,12 +20,13 @@ export function installChainRoutes(app, { broadcast, memoryBridge } = {}) {
         return res.status(400).json({ error: 'Objective must be a non-empty string (min 3 chars)' });
       }
 
-      const run = executeChain(objective.trim(), config || {}, { broadcast: broadcastFn, memoryBridge: memoryBridgeRef });
-      run.then(() => {}).catch(err => console.error('chain: background run failed:', err.message));
+      const runPromise = executeChain(objective.trim(), config || {}, { broadcast: broadcastFn, memoryBridge: memoryBridgeRef });
+      runPromise.then(() => {}).catch(err => console.error('chain: background run failed:', err.message));
 
-      await new Promise(resolve => setTimeout(resolve, 200));
-      const saved = loadRun((await run).id) || { id: 'pending', status: 'starting' };
-      res.status(202).json({ id: saved.id, status: saved.status });
+      await new Promise(resolve => setTimeout(resolve, 300));
+      const recent = listRuns(1);
+      const started = recent.find(r => r.objective === objective.trim() && r.status === 'running');
+      res.status(202).json({ id: started?.id || 'pending', status: started?.status || 'starting' });
     } catch (e) { next(e); }
   });
 
