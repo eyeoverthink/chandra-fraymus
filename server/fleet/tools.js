@@ -15,6 +15,7 @@ import { assessSituation, shiftPerspective, recordOutcome, briefNextInstance, ge
 import { initiateSwarm, getSwarmSession, listSwarms, getSwarmStats } from '../intelligence/swarm.js';
 import { analyzeTask, executeStrategy, listStrategies, getStrategyStats } from '../intelligence/strategy.js';
 import { recordEvent as recordTrustEvent, getAgentTrust, getLeaderboard, recommendAgents, getTrustStats } from '../intelligence/trust.js';
+import { captureThought, getSubconsciousContext, distillPatterns, introspect as subconsciousIntrospect, getSubconsciousStats } from '../intelligence/subconscious.js';
 import { executeChain, listRuns as listChainRuns } from '../chain/engine.js';
 import observatoryRouter from '../observatory.js';
 import { encodeCodon, decodeCodon, codonStats } from '../fraymus/encoding/codon.js';
@@ -1318,6 +1319,50 @@ export function createFleetTools({ workflowStore }) {
         count: { type: 'integer', minimum: 1, maximum: 10, description: 'How many agents (default 3)' },
       }),
       execute: async ({ args }) => ({ recommendations: recommendAgents({ domain: args.domain || 'general', count: args.count || 3 }) }),
+    },
+    {
+      name: 'subconscious_capture',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Capture a reasoning trace — the thinking process behind a task. Records alternatives considered, pivots, dead ends, insights, and confidence shifts.',
+      parameters: object({
+        agentId: string(100, { description: 'Agent that produced this thinking' }),
+        task: string(2000, { description: 'Task being reasoned about' }),
+        domain: string(100, { description: 'Task domain (default: general)' }),
+        reasoningTrace: string(10000, { description: 'The full reasoning/thinking trace' }),
+        insights: { type: 'array', items: { type: 'string' }, description: 'Key takeaways from the reasoning' },
+        deadEnds: { type: 'array', items: { type: 'string' }, description: 'Approaches tried and abandoned' },
+        pivots: { type: 'array', items: { type: 'string' }, description: 'Moments where reasoning changed direction' },
+        depth: { type: 'integer', minimum: 1, maximum: 20, description: 'Reasoning depth level' },
+      }, ['agentId', 'task', 'reasoningTrace']),
+      execute: async ({ args }) => captureThought({
+        agentId: args.agentId, task: args.task, domain: args.domain,
+        reasoningTrace: args.reasoningTrace, insights: args.insights || [],
+        deadEnds: args.deadEnds || [], pivots: args.pivots || [], depth: args.depth || 1,
+      }),
+    },
+    {
+      name: 'subconscious_context',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Retrieve subconscious context for a task — past reasoning traces, dead ends to avoid, patterns, and insights relevant to the current work.',
+      parameters: object({
+        agentId: string(100, { description: 'Agent to get context for' }),
+        task: string(2000, { description: 'Current task to find relevant past reasoning for' }),
+        domain: string(100, { description: 'Task domain' }),
+      }, ['agentId', 'task']),
+      execute: async ({ args }) => getSubconsciousContext({ agentId: args.agentId, task: args.task, domain: args.domain }),
+    },
+    {
+      name: 'subconscious_introspect',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Introspect on an agent\'s subconscious — view its patterns, biases, blind spots, and strengths distilled from past reasoning.',
+      parameters: object({
+        agentId: string(100, { description: 'Agent to introspect on' }),
+        domain: string(100, { description: 'Filter to a domain' }),
+      }, ['agentId']),
+      execute: async ({ args }) => subconsciousIntrospect(args.agentId, { domain: args.domain }),
     },
     {
       name: 'chain_run',

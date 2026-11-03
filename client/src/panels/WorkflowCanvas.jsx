@@ -40,6 +40,7 @@ const NODE_CATEGORIES = [
     { type: 'swarm_solve', label: 'Swarm', color: '#f59e0b', icon: '🐝' },
     { type: 'strategy_route', label: 'Strategy', color: '#0d9488', icon: '🧭' },
     { type: 'trust_evaluate', label: 'Trust', color: '#dc2626', icon: '🛡' },
+    { type: 'subconscious_recall', label: 'Subconscious', color: '#7c3aed', icon: '🧠' },
   ]},
   { id: 'fraymus', label: 'FRAYMUS', color: '#6366f1', types: [
     { type: 'tool:fraymus.encode.dna', label: 'DNA Encode', color: '#6366f1', icon: '🧬' },

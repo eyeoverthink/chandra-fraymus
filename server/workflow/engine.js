@@ -142,6 +142,7 @@ function nodeKind(type) {
   if (type === 'swarm_solve') return 'swarm_solve';
   if (type === 'strategy_route') return 'strategy_route';
   if (type === 'trust_evaluate') return 'trust_evaluate';
+  if (type === 'subconscious_recall') return 'subconscious_recall';
   if (type === 'stream_capture') return 'stream_capture';
   if (type === 'stream_mint') return 'stream_mint';
   if (type === 'stream_deliver') return 'stream_deliver';
@@ -813,6 +814,16 @@ export async function runPipeline(nodes, edges, opts = {}) {
           r.data = { domain, recommendations: recs };
           r.text = `Trust recommend for ${domain}: ${recs.map(a => `${a.agentId} (${Math.round(a.score * 100)}%)`).join(', ') || 'no data yet'}`;
         }
+        texts[id] = r.text;
+
+      } else if (k === 'subconscious_recall') {
+        const { getSubconsciousContext } = await import('../intelligence/subconscious.js');
+        const agentId = node.data?.agentId || 'system';
+        const task = upstreamText || node.data?.task || 'workflow task';
+        const domain = node.data?.domain || 'general';
+        const ctx = await getSubconsciousContext({ agentId, task, domain });
+        r.data = { agentId, domain, thoughtCount: ctx.thoughtIds?.length || 0, patternCount: ctx.patternIds?.length || 0 };
+        r.text = ctx.context || 'No subconscious context available yet.';
         texts[id] = r.text;
 
       // ── Carbon X biological encoding nodes ──────────────────

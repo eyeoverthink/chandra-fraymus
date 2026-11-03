@@ -44,6 +44,7 @@ import PerspectivePanel from '../panels/PerspectivePanel.jsx';
 import SwarmPanel from '../panels/SwarmPanel.jsx';
 import StrategyPanel from '../panels/StrategyPanel.jsx';
 import TrustPanel from '../panels/TrustPanel.jsx';
+import SubconsciousPanel from '../panels/SubconsciousPanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -90,6 +91,7 @@ const PANELS = {
   swarm: { component: SwarmPanel, label: 'Swarm Protocol' },
   strategy: { component: StrategyPanel, label: 'Strategy Engine' },
   trust: { component: TrustPanel, label: 'Trust Engine' },
+  subconscious: { component: SubconsciousPanel, label: 'Subconscious Engine' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {
