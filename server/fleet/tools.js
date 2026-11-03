@@ -11,6 +11,8 @@ import { startDaemon, stopDaemon, getDaemonStatus, runCycle, listCycles } from '
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
+import { executeChain, listRuns as listChainRuns } from '../chain/engine.js';
+import observatoryRouter from '../observatory.js';
 import { encodeCodon, decodeCodon, codonStats } from '../fraymus/encoding/codon.js';
 import { forgePlasmid, digestPlasmid, plasmidToFasta } from '../fraymus/encoding/plasmid.js';
 import { createGenomeSnapshot, saveCheckpoint, listCheckpoints } from '../fraymus/encoding/carbon.js';
@@ -1155,6 +1157,50 @@ export function createFleetTools({ workflowStore }) {
         days: { type: 'integer', minimum: 1, maximum: 30, description: 'Lookback period in days (default 7)' },
       }),
       execute: async ({ args }) => routingStats({ days: args.days || 7 }),
+    },
+    {
+      name: 'chain_run',
+      group: 'intelligence',
+      risk: 'medium',
+      description: 'Start a Logic Chain run — multi-stage adversarial reasoning on an objective with JEV review.',
+      parameters: object({
+        objective: string(2000, { description: 'The objective to analyze through structured reasoning stages' }),
+        maxStages: { type: 'integer', minimum: 3, maximum: 20, description: 'Max reasoning stages (default 10)' },
+      }, ['objective']),
+      execute: async ({ args }) => {
+        const runPromise = executeChain(args.objective, { maxStages: args.maxStages });
+        runPromise.catch(() => {});
+        await new Promise(r => setTimeout(r, 300));
+        const recent = listChainRuns(1);
+        const started = recent.find(r => r.objective === args.objective && r.status === 'running');
+        return { id: started?.id || 'pending', status: started?.status || 'starting', objective: args.objective };
+      },
+    },
+    {
+      name: 'chain_list',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'List recent Logic Chain runs with status and outcomes.',
+      parameters: object({
+        limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Max results (default 10)' },
+      }),
+      execute: async ({ args }) => listChainRuns(args.limit || 10),
+    },
+    {
+      name: 'observatory_report',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Get the Intelligence Observatory report — aggregated intelligence metrics across heart, dreams, consciousness, chains, goals, reflection, and evolution.',
+      parameters: object({
+        days: { type: 'integer', minimum: 1, maximum: 30, description: 'Lookback period in days (default 7)' },
+      }),
+      execute: async ({ args }) => {
+        return new Promise((resolve, reject) => {
+          const req = { query: { days: String(args.days || 7) } };
+          const res = { json: data => resolve(data), status: () => ({ json: e => reject(new Error(e.error || 'Observatory error')) }) };
+          observatoryRouter(req, res);
+        });
+      },
     },
     {
       name: 'bridge_list',

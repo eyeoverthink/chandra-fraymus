@@ -81,6 +81,26 @@ export default function observatoryRouter(req, res) {
     ).all(since)
   );
 
+  const debates = safe(() =>
+    db.prepare(
+      `SELECT id, topic, verdict, confidence, duration_ms, created_at as ts FROM debates WHERE created_at > ? ORDER BY created_at DESC LIMIT 20`
+    ).all(since)
+  );
+
+  const debateSuccessRate = debates.length > 0
+    ? Math.round(debates.filter(d => d.confidence > 0.6).length / debates.length * 100)
+    : null;
+
+  const modelRouting = safe(() =>
+    db.prepare(
+      `SELECT task_type, complexity, model_selected, model_tier, success, created_at as ts FROM model_routing_log WHERE created_at > ? ORDER BY created_at DESC LIMIT 50`
+    ).all(since)
+  );
+
+  const routingSuccessRate = modelRouting.length > 0
+    ? Math.round(modelRouting.filter(r => r.success).length / modelRouting.length * 100)
+    : null;
+
   const forgedAgents = safe(() =>
     db.prepare(`SELECT COUNT(*) as c FROM forged_agents`).get()?.c || 0, 0
   );
@@ -112,6 +132,8 @@ export default function observatoryRouter(req, res) {
     verifier: { loops: verifierLoops, successRate: verifierSuccessRate },
     goals: { proposals: goalProposals },
     reflections: { recent: reflections },
+    debates: { recent: debates, successRate: debateSuccessRate },
+    modelRouting: { recent: modelRouting, successRate: routingSuccessRate },
     evolution: { forgedAgents, synthesizedWorkflows },
   });
 }

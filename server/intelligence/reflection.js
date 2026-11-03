@@ -75,7 +75,49 @@ function collectState() {
     } catch (_) { return { synthesizedCount: 0 }; }
   })();
 
-  return { memoryStats, workflowStats, healthStats, busStats, forgeStats, synthesisStats, collectedAt: now() };
+  const debateStats = (() => {
+    try {
+      const total = db.prepare(`SELECT COUNT(*) as c FROM debates`).get().c;
+      const recent = db.prepare(`SELECT verdict, confidence FROM debates ORDER BY created_at DESC LIMIT 10`).all();
+      const avgConfidence = recent.length > 0 ? Math.round(recent.reduce((s, r) => s + (r.confidence || 0), 0) / recent.length * 100) : 0;
+      return { total, recentCount: recent.length, avgConfidence };
+    } catch (_) { return { total: 0, recentCount: 0, avgConfidence: 0 }; }
+  })();
+
+  const goalStats = (() => {
+    try {
+      const total = db.prepare(`SELECT COUNT(*) as c FROM goal_proposals`).get().c;
+      const pending = db.prepare(`SELECT COUNT(*) as c FROM goal_proposals WHERE status = 'proposed'`).get().c;
+      const active = db.prepare(`SELECT COUNT(*) as c FROM goal_proposals WHERE status = 'active'`).get().c;
+      const completed = db.prepare(`SELECT COUNT(*) as c FROM goal_proposals WHERE status = 'completed'`).get().c;
+      return { total, pending, active, completed };
+    } catch (_) { return { total: 0, pending: 0, active: 0, completed: 0 }; }
+  })();
+
+  const chainStats = (() => {
+    try {
+      const total = db.prepare(`SELECT COUNT(*) as c FROM chain_runs`).get().c;
+      const recent = db.prepare(`SELECT status FROM chain_runs ORDER BY created_at DESC LIMIT 20`).all();
+      const successRate = recent.length > 0
+        ? Math.round(recent.filter(r => r.status === 'completed').length / recent.length * 100)
+        : 0;
+      return { total, recentCount: recent.length, successRate };
+    } catch (_) { return { total: 0, recentCount: 0, successRate: 0 }; }
+  })();
+
+  const routingStats = (() => {
+    try {
+      const total = db.prepare(`SELECT COUNT(*) as c FROM model_routing_log`).get().c;
+      const recent = db.prepare(`SELECT model_selected, success FROM model_routing_log ORDER BY created_at DESC LIMIT 20`).all();
+      const successRate = recent.length > 0
+        ? Math.round(recent.filter(r => r.success).length / recent.length * 100)
+        : 0;
+      const topModel = recent.length > 0 ? recent[0].model_selected : null;
+      return { total, recentCount: recent.length, successRate, topModel };
+    } catch (_) { return { total: 0, recentCount: 0, successRate: 0, topModel: null }; }
+  })();
+
+  return { memoryStats, workflowStats, healthStats, busStats, forgeStats, synthesisStats, debateStats, goalStats, chainStats, routingStats, collectedAt: now() };
 }
 
 const REFLECTION_PROMPT = `You are the Reflection Engine for a sovereign AI system called Chandra-FRAYMUS. You analyze system state and decide what actions to take to improve the system.

@@ -77,7 +77,31 @@ async function consolidateDreams() {
     } catch (_) { return []; }
   })();
 
-  const activityCount = recentBus.length + recentRuns.length + recentAlerts.length + recentVerifications.length + recentChains.length;
+  const recentDebates = (() => {
+    try {
+      return db.prepare(
+        `SELECT id, topic, proposition, verdict, confidence, duration_ms FROM debates WHERE created_at > ? ORDER BY created_at DESC LIMIT 10`
+      ).all(oneHourAgo);
+    } catch (_) { return []; }
+  })();
+
+  const recentGoals = (() => {
+    try {
+      return db.prepare(
+        `SELECT id, objective, priority, status, source FROM goal_proposals WHERE created_at > ? ORDER BY created_at DESC LIMIT 10`
+      ).all(oneHourAgo);
+    } catch (_) { return []; }
+  })();
+
+  const recentRouting = (() => {
+    try {
+      return db.prepare(
+        `SELECT task_type, complexity, model_selected, model_tier, success FROM model_routing_log WHERE created_at > ? ORDER BY created_at DESC LIMIT 15`
+      ).all(oneHourAgo);
+    } catch (_) { return []; }
+  })();
+
+  const activityCount = recentBus.length + recentRuns.length + recentAlerts.length + recentVerifications.length + recentChains.length + recentDebates.length + recentGoals.length + recentRouting.length;
   if (activityCount === 0) return { consolidated: false, reason: 'no_recent_activity' };
 
   const input = JSON.stringify({
@@ -86,6 +110,9 @@ async function consolidateDreams() {
     healthAlerts: recentAlerts.map(a => ({ rule: a.rule, severity: a.severity, message: a.message })),
     verifications: recentVerifications.map(v => ({ goal: v.goal?.slice(0, 100), status: v.status, iterations: v.iterations_used })),
     chainRuns: recentChains.map(c => ({ id: c.id, objective: c.objective?.slice(0, 200), status: c.status, stopReason: c.stop_reason })),
+    debates: recentDebates.map(d => ({ id: d.id, topic: d.topic?.slice(0, 150), verdict: d.verdict, confidence: d.confidence, durationMs: d.duration_ms })),
+    goals: recentGoals.map(g => ({ id: g.id, objective: g.objective?.slice(0, 150), priority: g.priority, status: g.status, source: g.source })),
+    modelRouting: recentRouting.map(r => ({ taskType: r.task_type, complexity: r.complexity, model: r.model_selected, tier: r.model_tier, success: r.success })),
   }, null, 2);
 
   const response = await chatOllama([

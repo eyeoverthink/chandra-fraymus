@@ -56,6 +56,18 @@ const PIPELINE_ALIASES = {
   'logic-chain': 'chain',
   'logic': 'chain',
   'analyze': 'chain',
+  'debate': 'debate',
+  'argue': 'debate',
+  'adversarial': 'debate',
+  'goal': 'goal',
+  'goals': 'goal',
+  'propose': 'goal',
+  'observatory': 'observatory',
+  'observe': 'observatory',
+  'intel-report': 'observatory',
+  'model-router': 'model-router',
+  'route': 'model-router',
+  'select-model': 'model-router',
 };
 
 const PIPELINE_ENDPOINTS = {
@@ -76,6 +88,10 @@ const PIPELINE_ENDPOINTS = {
   audience: '/api/audience/discover',
   repurpose: '/api/repurpose/suggest',
   chain: '/api/chain/run',
+  debate: '/api/debates/run',
+  goal: '/api/goals/generate',
+  observatory: '/api/observatory',
+  'model-router': '/api/model-router/select',
 };
 
 export function installCommandRouter(app, { broadcast }) {
@@ -135,10 +151,16 @@ export function installCommandRouter(app, { broadcast }) {
             : pipeline === 'audience' ? {}
             : pipeline === 'repurpose' ? { content: arg }
             : pipeline === 'chain' ? { objective: arg }
+            : pipeline === 'debate' ? { topic: arg, proposition: arg }
+            : pipeline === 'goal' ? { trigger: 'command' }
+            : pipeline === 'observatory' ? {}
+            : pipeline === 'model-router' ? { prompt: arg, type: 'command' }
             : {};
-          const pRes = await fetch(`http://127.0.0.1:${process.env.PORT || 8787}${endpoint}`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-          });
+          const method = pipeline === 'observatory' ? 'GET' : 'POST';
+          const fetchOpts = method === 'GET'
+            ? { method: 'GET' }
+            : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+          const pRes = await fetch(`http://127.0.0.1:${process.env.PORT || 8787}${endpoint}`, fetchOpts);
           const result = await pRes.json();
           broadcast('event', { source: 'pipeline', pipeline, action: 'started', arg });
           return res.json({ type: 'pipeline_run', pipeline, runId: result.runId || result.id, result });

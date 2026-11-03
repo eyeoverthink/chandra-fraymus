@@ -28,6 +28,10 @@ const WIDGETS = [
   { id: 'audience', label: 'Audience', icon: '◎', color: '#7c3aed', panel: 'audience' },
   { id: 'repurpose', label: 'Repurpose', icon: '⟳', color: '#ec4899', panel: 'repurpose' },
   { id: 'chain', label: 'Logic Chain', icon: '⛓', color: '#7c3aed', panel: 'chain' },
+  { id: 'observatory', label: 'Observatory', icon: '🔭', color: '#0d9488', panel: 'observatory' },
+  { id: 'debate', label: 'Debate', icon: '⚔', color: '#dc2626', panel: 'debate' },
+  { id: 'goals', label: 'Goals', icon: '🎯', color: '#16a34a', panel: 'dashboard' },
+  { id: 'model-router', label: 'Model Router', icon: '🔀', color: '#2563eb', panel: 'dashboard' },
   { id: 'settings', label: 'Settings', icon: '⚙', color: '#64748b', panel: 'settings' },
 ];
 
@@ -66,6 +70,12 @@ const EVENT_STYLES = {
   audience: { icon: '◎', color: '#7c3aed', drawer: 'audience' },
   repurpose: { icon: '⟳', color: '#ec4899', drawer: 'repurpose' },
   chain: { icon: '⛓', color: '#7c3aed', drawer: 'chain' },
+  debate: { icon: '⚔', color: '#dc2626', drawer: 'debate' },
+  goal: { icon: '🎯', color: '#16a34a', drawer: 'dashboard' },
+  observatory: { icon: '🔭', color: '#0d9488', drawer: 'observatory' },
+  model_router: { icon: '🔀', color: '#2563eb', drawer: 'dashboard' },
+  daemon: { icon: '◎', color: '#8b5cf6', drawer: 'evolution' },
+  reflection: { icon: '◇', color: '#f59e0b', drawer: 'evolution' },
 };
 
 function formatEvent(ev) {
@@ -95,6 +105,11 @@ function formatEvent(ev) {
   if (ev.type === 'autonomy') return `Autonomy ${p.type || 'event'}${p.generation ? ` gen ${p.generation}` : ''}${p.R ? ` R=${p.R.toFixed(3)}` : ''}`;
   if (ev.type === 'streaming') return `Streaming ${p.type || 'event'}`;
   if (ev.type === 'workflow') return `Workflow ${p.type || 'event'}${p.id ? ` #${String(p.id).slice(0, 8)}` : ''}`;
+  if (ev.type === 'debate') return `Debate ${p.type || 'event'}${p.verdict ? ` — verdict: ${p.verdict}` : ''}${p.confidence ? ` (${(p.confidence * 100).toFixed(0)}%)` : ''}`;
+  if (ev.type === 'goal') return `Goal ${p.type || 'proposed'}${p.objective ? `: ${p.objective.slice(0, 60)}` : ''}`;
+  if (ev.type === 'model_router') return `Model routed: ${p.model || 'unknown'} (${p.complexity || 'unknown'} task)`;
+  if (ev.type === 'daemon') return `Daemon ${p.action || 'cycle'}${p.durationMs ? ` (${(p.durationMs / 1000).toFixed(1)}s)` : ''}`;
+  if (ev.type === 'reflection') return `Reflection: ${p.actionsCount || 0} actions${p.insights ? ` — ${String(p.insights).slice(0, 60)}` : ''}`;
   if (ev.type === 'mail') return 'New mail received';
   if (ev.summary) return typeof ev.summary === 'string' ? ev.summary : 'System event';
   return typeof ev.type === 'string' ? ev.type : 'System event';
@@ -113,6 +128,9 @@ export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigat
     fetch('/api/fraymus/health').then(r => r.json()).then(d => setData(p => ({ ...p, fraymus: d }))).catch(() => {});
     fetch('/api/vertiso/stats').then(r => r.json()).then(d => setData(p => ({ ...p, memory: d }))).catch(() => {});
     fetch('/api/automations').then(r => r.json()).then(d => setData(p => ({ ...p, automations: d.automations || d || [] }))).catch(() => {});
+    fetch('/api/debates?limit=1').then(r => r.json()).then(d => setData(p => ({ ...p, debateCount: d.total ?? (d.debates || []).length }))).catch(() => {});
+    fetch('/api/goals/proposals?limit=1').then(r => r.json()).then(d => setData(p => ({ ...p, goalCount: d.total ?? (d.proposals || []).length }))).catch(() => {});
+    fetch('/api/model-router/stats').then(r => r.json()).then(d => setData(p => ({ ...p, routingCount: d.totalRouted || 0 }))).catch(() => {});
   };
 
   useEffect(() => {
@@ -155,6 +173,10 @@ export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigat
       case 'outlier': return 'YouTube Research';
       case 'media': return '5 engines';
       case 'nerve-center': return f?.intelligence?.mood?.mood || 'neutral';
+      case 'observatory': return 'Intel Report';
+      case 'debate': return data.debateCount != null ? `${data.debateCount} debates` : '—';
+      case 'goals': return data.goalCount != null ? `${data.goalCount} proposals` : '—';
+      case 'model-router': return data.routingCount != null ? `${data.routingCount} routed` : '—';
       default: return '—';
     }
   };
