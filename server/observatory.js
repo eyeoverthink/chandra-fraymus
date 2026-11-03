@@ -134,6 +134,13 @@ export default function observatoryRouter(req, res) {
     reflections: { recent: reflections },
     debates: { recent: debates, successRate: debateSuccessRate },
     modelRouting: { recent: modelRouting, successRate: routingSuccessRate },
+    perspective: safe(() => {
+      const totalSessions = db.prepare('SELECT COUNT(*) as c FROM perspective_sessions').get()?.c || 0;
+      const totalShifts = db.prepare('SELECT COUNT(*) as c FROM perspective_shifts').get()?.c || 0;
+      const playbookSize = db.prepare('SELECT COUNT(*) as c FROM perspective_playbook').get()?.c || 0;
+      const usage = db.prepare('SELECT to_perspective as p, COUNT(*) as c FROM perspective_shifts GROUP BY to_perspective ORDER BY c DESC').all();
+      return { totalSessions, totalShifts, playbookSize, usage };
+    }),
     evolution: { forgedAgents, synthesizedWorkflows },
   });
 }

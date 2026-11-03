@@ -117,7 +117,16 @@ function collectState() {
     } catch (_) { return { total: 0, recentCount: 0, successRate: 0, topModel: null }; }
   })();
 
-  return { memoryStats, workflowStats, healthStats, busStats, forgeStats, synthesisStats, debateStats, goalStats, chainStats, routingStats, collectedAt: now() };
+  const perspectiveStats = (() => {
+    try {
+      const total = db.prepare(`SELECT COUNT(*) as c FROM perspective_sessions`).get().c;
+      const shifts = db.prepare(`SELECT COUNT(*) as c FROM perspective_shifts`).get().c;
+      const playbookSize = db.prepare(`SELECT COUNT(*) as c FROM perspective_playbook`).get().c;
+      return { sessions: total, shifts, playbookSize };
+    } catch (_) { return { sessions: 0, shifts: 0, playbookSize: 0 }; }
+  })();
+
+  return { memoryStats, workflowStats, healthStats, busStats, forgeStats, synthesisStats, debateStats, goalStats, chainStats, routingStats, perspectiveStats, collectedAt: now() };
 }
 
 const REFLECTION_PROMPT = `You are the Reflection Engine for a sovereign AI system called Chandra-FRAYMUS. You analyze system state and decide what actions to take to improve the system.

@@ -138,6 +138,7 @@ function nodeKind(type) {
   if (type === 'goal_generate') return 'goal_generate';
   if (type === 'debate_run') return 'debate_run';
   if (type === 'model_select') return 'model_select';
+  if (type === 'perspective_assess') return 'perspective_assess';
   if (type === 'stream_capture') return 'stream_capture';
   if (type === 'stream_mint') return 'stream_mint';
   if (type === 'stream_deliver') return 'stream_deliver';
@@ -772,6 +773,13 @@ export async function runPipeline(nodes, edges, opts = {}) {
         const routing = await selectModel(task);
         r.data = { model: routing.model, tier: routing.tier, complexity: routing.complexity, reason: routing.reason, candidates: routing.candidates };
         r.text = `ModelRouter: ${routing.model} (${routing.tier}, complexity=${routing.complexity}, reason=${routing.reason})`;
+        texts[id] = r.text;
+
+      } else if (k === 'perspective_assess') {
+        const { assessSituation } = await import('../intelligence/perspective.js');
+        const result = await assessSituation({ task: upstreamText || node.data?.task || 'workflow assessment', context: node.data?.context || '' });
+        r.data = { perspectives: result.perspectives, confidence: result.confidence, framing: result.framing, pattern: result.pattern_match };
+        r.text = `Perspective: [${(result.perspectives || []).join(', ')}] (${(result.confidence * 100).toFixed(0)}%) — ${result.framing || ''}`;
         texts[id] = r.text;
 
       // ── Carbon X biological encoding nodes ──────────────────

@@ -11,6 +11,7 @@ import { startDaemon, stopDaemon, getDaemonStatus, runCycle, listCycles } from '
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
+import { assessSituation, shiftPerspective, recordOutcome, briefNextInstance, getStats as perspectiveStats } from '../intelligence/perspective.js';
 import { executeChain, listRuns as listChainRuns } from '../chain/engine.js';
 import observatoryRouter from '../observatory.js';
 import { encodeCodon, decodeCodon, codonStats } from '../fraymus/encoding/codon.js';
@@ -1157,6 +1158,56 @@ export function createFleetTools({ workflowStore }) {
         days: { type: 'integer', minimum: 1, maximum: 30, description: 'Lookback period in days (default 7)' },
       }),
       execute: async ({ args }) => routingStats({ days: args.days || 7 }),
+    },
+    {
+      name: 'perspective_assess',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Assess a situation through the Perspective engine — the meta-cognitive layer that decides HOW to approach a problem, not what the answer is. Returns recommended perspective(s) and framing for other agents.',
+      parameters: object({
+        task: string(500, { description: 'The task or problem to assess' }),
+        context: string(1000, { description: 'Current context or situation description' }),
+        agentId: string(50, { description: 'Agent requesting the assessment' }),
+      }),
+      execute: async ({ args }) => assessSituation({ task: args.task, context: args.context, agentId: args.agentId }),
+    },
+    {
+      name: 'perspective_shift',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Shift the active perspective lens. Available: human (intuitive), engineer (systematic), creative (divergent), strategic (big-picture), meta (self-reflective), adversarial (challenge everything).',
+      parameters: object({
+        to: string(20, { description: 'Target perspective: human, engineer, creative, strategic, meta, adversarial' }),
+        reason: string(300, { description: 'Why this shift is needed' }),
+      }, ['to']),
+      execute: async ({ args }) => shiftPerspective({ to: args.to, reason: args.reason, trigger: 'agent' }),
+    },
+    {
+      name: 'perspective_outcome',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Record the outcome of a perspective-guided task, updating the playbook for future instances.',
+      parameters: object({
+        success: { type: 'boolean', description: 'Whether the approach succeeded' },
+        summary: string(500, { description: 'Brief outcome summary' }),
+      }, ['success']),
+      execute: async ({ args }) => recordOutcome({ success: args.success, summary: args.summary }),
+    },
+    {
+      name: 'perspective_brief',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Get the cross-instance briefing — playbook wisdom, recent outcomes, and continuity notes from prior perspective sessions.',
+      parameters: object({}),
+      execute: async () => briefNextInstance(),
+    },
+    {
+      name: 'perspective_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Get current Perspective engine stats: sessions, shifts, playbook size, perspective usage distribution.',
+      parameters: object({}),
+      execute: async () => perspectiveStats(),
     },
     {
       name: 'chain_run',

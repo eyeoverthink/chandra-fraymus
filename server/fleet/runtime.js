@@ -5,6 +5,7 @@ import { OLLAMA_URL } from '../config.js';
 import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
 import { setMemoryBridgeRef } from './tools.js';
 import { buildPromptContext, autoStoreFromCompletion } from './agent-memory.js';
+import { getActiveFraming } from '../intelligence/perspective.js';
 
 const MAX_STEPS = 8;
 const MAX_HISTORY = 40;
@@ -144,7 +145,16 @@ async function systemPrompt(agent, userId) {
     agentMemBlock = buildPromptContext(agent.id);
   } catch (_) {}
 
-  return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}${intelligenceBlock}${bridgeBlock}${agentMemBlock}`;
+  // Perspective — meta-cognitive framing from the active perspective session
+  let perspectiveBlock = '';
+  try {
+    const framing = getActiveFraming();
+    if (framing) {
+      perspectiveBlock = `\n\nPerspective framing: ${framing}`;
+    }
+  } catch (_) {}
+
+  return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}${intelligenceBlock}${bridgeBlock}${agentMemBlock}${perspectiveBlock}`;
 }
 
 async function chat(messages, tools, model) {

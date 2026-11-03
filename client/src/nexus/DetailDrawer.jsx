@@ -40,6 +40,7 @@ import ObservatoryPanel from '../panels/ObservatoryPanel.jsx';
 import DebatePanel from '../panels/DebatePanel.jsx';
 import GoalsPanel from '../panels/GoalsPanel.jsx';
 import ModelRouterPanel from '../panels/ModelRouterPanel.jsx';
+import PerspectivePanel from '../panels/PerspectivePanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -82,6 +83,7 @@ const PANELS = {
   debate: { component: DebatePanel, label: 'Debate Protocol' },
   goals: { component: GoalsPanel, label: 'Autonomous Goals' },
   'model-router': { component: ModelRouterPanel, label: 'Adaptive Model Router' },
+  perspective: { component: PerspectivePanel, label: 'Perspective Engine' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {
