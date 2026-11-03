@@ -1,8 +1,6 @@
-import { getDb } from '../db.js';
+import { db } from '../db.js';
 
 const OLLAMA = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
-
-const db = getDb();
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS strategy_sessions (
