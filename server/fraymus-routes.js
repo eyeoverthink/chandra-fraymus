@@ -1,5 +1,5 @@
 import express from 'express';
-import { createFraymusTools, heart, ledger, dreamer, cognition, needle, needleWorker, motor } from './fraymus-tools.js';
+import { createFraymusTools, heart, ledger, dreamer, cognition, needle, needleWorker, motor, hermes, ouroboros } from './fraymus-tools.js';
 import { SCHEMAS, getSchema } from './fraymus/entities/schemas.js';
 import { getWorkflow, scheduledWorkflows, eventTriggeredWorkflows } from './fraymus/workflows/definitions.js';
 import { listTools as listMcpTools } from './fraymus/mcp/tools.js';
@@ -321,6 +321,56 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
 
   app.get('/api/fraymus/motor/status', route((_req, res) => {
     res.json(motor.status());
+  }));
+
+  // ── Intelligence Live State (aggregated dashboard endpoint) ──
+  app.get('/api/intelligence/live', route(async (_req, res) => {
+    const mood = heart.recentMood();
+    const dreamerState = dreamer.feel();
+    const dreams = dreamer.list(5);
+    const cogStatus = cognition.status();
+    const ledgerStats = { counts: ledger.countByKind(), integrity: ledger.verify(20) };
+    const needleStatus = needleWorker.status();
+    const needleJobs = await needle.listJobs(null);
+    const motorHealth = await motor.nodeHealth();
+    const motorStatus = motor.status();
+    const memStats = memoryBridge ? { available: true, ...memoryBridge.stats() } : { available: false };
+    const hermesManifest = hermes.manifest();
+
+    const pending = needleJobs.filter(j => j.status === 'pending').length;
+    const running = needleJobs.filter(j => j.status === 'running').length;
+    const completed = needleJobs.filter(j => j.status === 'completed').length;
+    const failed = needleJobs.filter(j => j.status === 'failed').length;
+
+    res.json({
+      ts: Date.now(),
+      heart: { mood: mood.mood, primary: mood.primary, intensity: mood.intensity, dimensions: mood.dimensions, sarcasm: mood.sarcasm, recentCount: mood.recentCount },
+      dreamer: { state: dreamerState, dreams: dreams.slice(0, 5), dreamCount: dreamerState.dreamCount },
+      cognition: { ...cogStatus, modules: Object.keys(cogStatus.modules || {}) },
+      ledger: ledgerStats,
+      needle: { worker: needleStatus, queue: { pending, running, completed, failed, total: needleJobs.length } },
+      motor: { nodes: motorHealth, status: motorStatus, dispatchCount: motor.dispatchCount },
+      memoryBridge: memStats,
+      hermes: { ...hermesManifest, history: hermes.history.slice(-20) },
+      ouroboros: { generation: ouroboros.generation, fitness: ouroboros.fitness },
+    });
+  }));
+
+  // ── Hermes Skill Fleet ──
+  app.get('/api/hermes/skills', route((_req, res) => {
+    res.json(hermes.manifest());
+  }));
+
+  app.post('/api/hermes/execute', route(async (req, res) => {
+    const { skill, params } = req.body;
+    if (!skill) return res.status(400).json({ error: 'skill required' });
+    const result = await hermes.execute(skill, params || {});
+    broadcast('intelligence', { type: 'hermes_execute', skill, status: result.status });
+    res.json(result);
+  }));
+
+  app.get('/api/hermes/history', route((_req, res) => {
+    res.json({ history: hermes.history.slice(-50), count: hermes.history.length });
   }));
 
   // ── Master Health ──

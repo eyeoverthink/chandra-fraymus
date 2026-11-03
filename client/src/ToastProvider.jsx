@@ -32,6 +32,10 @@ const WS_MAP = {
   memory:        { variant: 'info',    fmt: p => `Memory updated${p?.key ? `: ${p.key}` : ''}` },
   reflection:    { variant: 'system',  fmt: () => 'Reflection cycle complete' },
   ledger:        { variant: 'info',    fmt: p => `Ledger: ${p?.kind || 'entry'} #${p?.seq || '?'}` },
+  streaming:     { variant: 'info',    fmt: p => `Streaming: ${p?.type?.replace(/_/g, ' ') || 'event'}` },
+  rsi:           { variant: 'system',  fmt: p => `RSI: ${p?.type || 'evolution'}` },
+  creation:      { variant: 'agent',   fmt: p => `Creation: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.topic ? ` — ${p.topic.slice(0, 40)}` : ''}` },
+  mail:          { variant: 'info',    fmt: () => 'New mail received' },
 };
 
 export default function ToastProvider({ children, wsEvent }) {

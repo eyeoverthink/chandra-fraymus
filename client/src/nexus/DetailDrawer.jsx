@@ -26,6 +26,7 @@ import SystemPulse from '../panels/SystemPulse.jsx';
 import LeaderboardPanel from '../panels/LeaderboardPanel.jsx';
 import CollabPanel from '../panels/CollabPanel.jsx';
 import CreationPanel from '../panels/CreationPanel.jsx';
+import NerveCenterPanel from '../panels/NerveCenterPanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -54,6 +55,7 @@ const PANELS = {
   leaderboard: { component: LeaderboardPanel, label: 'Agent Leaderboard' },
   collab: { component: CollabPanel, label: 'Agent Collaboration' },
   creation: { component: CreationPanel, label: 'Creation Pipeline' },
+  'nerve-center': { component: NerveCenterPanel, label: 'Intelligence Nerve Center' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {

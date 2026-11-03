@@ -29,6 +29,7 @@ const NAV_BUTTONS = [
   { panel: 'pulse', title: 'System Pulse', icon: '♥', label: 'Pulse', color: '#34d399' },
   { panel: 'leaderboard', title: 'Agent Leaderboard', icon: '★', label: 'Board', color: '#f59e0b' },
   { panel: 'collab', title: 'Agent Collaboration', icon: '⊗', label: 'Collab', color: '#7c3aed' },
+  { panel: 'nerve-center', title: 'Nerve Center', icon: '◈', label: 'Nerve', color: '#ef4444' },
 ];
 
 function NavButton({ btn, openDrawer }) {
@@ -99,6 +100,7 @@ export default function App() {
     if (action === 'leaderboard') { setDrawer({ panel: 'leaderboard', title: 'Agent Leaderboard' }); return; }
     if (action === 'collab') { setDrawer({ panel: 'collab', title: 'Agent Collaboration' }); return; }
     if (action === 'creation') { setDrawer({ panel: 'creation', title: 'Creation Pipeline' }); return; }
+    if (action === 'nerve-center') { setDrawer({ panel: 'nerve-center', title: 'Intelligence Nerve Center' }); return; }
     if (action.startsWith('view:')) {
       setView(action.slice(5));
       setDrawer(null);

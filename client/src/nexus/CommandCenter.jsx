@@ -18,6 +18,7 @@ const WIDGETS = [
   { id: 'media', label: 'Media Hub', icon: '▶', color: '#14b8a6', panel: 'media' },
   { id: 'forge', label: 'Forge + Synth', icon: '⚡', color: '#f59e0b', panel: 'forge' },
   { id: 'creation', label: 'Creation', icon: '✦', color: '#a78bfa', panel: 'creation' },
+  { id: 'nerve-center', label: 'Nerve Center', icon: '◈', color: '#ef4444', panel: 'nerve-center' },
   { id: 'settings', label: 'Settings', icon: '⚙', color: '#64748b', panel: 'settings' },
 ];
 
@@ -33,6 +34,19 @@ const EVENT_STYLES = {
   health: { icon: '♥', color: '#ef4444', drawer: 'health' },
   error: { icon: '✗', color: '#ef4444', drawer: 'dashboard' },
   creation: { icon: '✦', color: '#a78bfa', drawer: 'creation' },
+  workflow: { icon: '⬡', color: '#8b5cf6', drawer: 'dashboard' },
+  heart: { icon: '♥', color: '#ef4444', drawer: 'nerve-center' },
+  dreamer: { icon: '◇', color: '#8b5cf6', drawer: 'nerve-center' },
+  cognition: { icon: '◆', color: '#10b981', drawer: 'nerve-center' },
+  consciousness: { icon: '◈', color: '#f59e0b', drawer: 'nerve-center' },
+  intelligence: { icon: '♦', color: '#f59e0b', drawer: 'nerve-center' },
+  needle: { icon: '⊕', color: '#06b6d4', drawer: 'nerve-center' },
+  motor: { icon: '⚙', color: '#ec4899', drawer: 'nerve-center' },
+  ledger: { icon: '⬡', color: '#3b82f6', drawer: 'nerve-center' },
+  autonomy: { icon: '◎', color: '#22c55e', drawer: 'nerve-center' },
+  rsi: { icon: '◎', color: '#a78bfa', drawer: 'vertiso' },
+  streaming: { icon: '▶', color: '#14b8a6', drawer: 'media' },
+  mail: { icon: '✉', color: '#60a5fa', drawer: 'dashboard' },
 };
 
 function formatEvent(ev) {
@@ -51,6 +65,18 @@ function formatEvent(ev) {
   }
   if (ev.type === 'memory') return `Memory ${p.key ? `"${p.key}"` : ''} updated`;
   if (ev.type === 'v3') return 'V3 security event';
+  if (ev.type === 'heart') return `Heart felt ${p.primary || 'emotion'}${p.intensity ? ` (${(p.intensity * 100).toFixed(0)}%)` : ''}`;
+  if (ev.type === 'dreamer') return `Dreamer ${p.action || 'active'}${p.number ? ` #${p.number}` : ''}`;
+  if (ev.type === 'cognition') return `Cognition ${p.phase || 'processing'}${p.primary ? ` — ${p.primary}` : ''}`;
+  if (ev.type === 'consciousness') return `Consciousness proof ${p.allPassed ? 'PASSED' : 'partial'} (${p.nodeCount || 4} nodes)`;
+  if (ev.type === 'intelligence') return `Intelligence ${p.type || 'event'}${p.skill ? ` — ${p.skill}` : ''}${p.primary ? ` — ${p.primary}` : ''}`;
+  if (ev.type === 'needle') return `Needle ${p.type || 'event'}${p.jobId ? ` #${String(p.jobId).slice(0, 8)}` : ''}`;
+  if (ev.type === 'motor') return `Motor ${p.type || 'event'}${p.node ? ` → ${p.node}` : ''}`;
+  if (ev.type === 'ledger') return `Ledger recorded ${p.kind || 'event'}${p.seq ? ` (seq ${p.seq})` : ''}`;
+  if (ev.type === 'autonomy') return `Autonomy ${p.type || 'event'}${p.generation ? ` gen ${p.generation}` : ''}${p.R ? ` R=${p.R.toFixed(3)}` : ''}`;
+  if (ev.type === 'streaming') return `Streaming ${p.type || 'event'}`;
+  if (ev.type === 'workflow') return `Workflow ${p.type || 'event'}${p.id ? ` #${String(p.id).slice(0, 8)}` : ''}`;
+  if (ev.type === 'mail') return 'New mail received';
   if (ev.summary) return typeof ev.summary === 'string' ? ev.summary : 'System event';
   return typeof ev.type === 'string' ? ev.type : 'System event';
 }
@@ -109,6 +135,7 @@ export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigat
       case 'browser': return 'Headless + Ext';
       case 'outlier': return 'YouTube Research';
       case 'media': return '5 engines';
+      case 'nerve-center': return f?.intelligence?.mood?.mood || 'neutral';
       default: return '—';
     }
   };
