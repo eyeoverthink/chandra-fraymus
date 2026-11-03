@@ -30,8 +30,8 @@ const WIDGETS = [
   { id: 'chain', label: 'Logic Chain', icon: '⛓', color: '#7c3aed', panel: 'chain' },
   { id: 'observatory', label: 'Observatory', icon: '🔭', color: '#0d9488', panel: 'observatory' },
   { id: 'debate', label: 'Debate', icon: '⚔', color: '#dc2626', panel: 'debate' },
-  { id: 'goals', label: 'Goals', icon: '🎯', color: '#16a34a', panel: 'dashboard' },
-  { id: 'model-router', label: 'Model Router', icon: '🔀', color: '#2563eb', panel: 'dashboard' },
+  { id: 'goals', label: 'Goals', icon: '🎯', color: '#16a34a', panel: 'goals' },
+  { id: 'model-router', label: 'Model Router', icon: '🔀', color: '#2563eb', panel: 'model-router' },
   { id: 'settings', label: 'Settings', icon: '⚙', color: '#64748b', panel: 'settings' },
 ];
 
@@ -71,9 +71,9 @@ const EVENT_STYLES = {
   repurpose: { icon: '⟳', color: '#ec4899', drawer: 'repurpose' },
   chain: { icon: '⛓', color: '#7c3aed', drawer: 'chain' },
   debate: { icon: '⚔', color: '#dc2626', drawer: 'debate' },
-  goal: { icon: '🎯', color: '#16a34a', drawer: 'dashboard' },
+  goal: { icon: '🎯', color: '#16a34a', drawer: 'goals' },
   observatory: { icon: '🔭', color: '#0d9488', drawer: 'observatory' },
-  model_router: { icon: '🔀', color: '#2563eb', drawer: 'dashboard' },
+  model_router: { icon: '🔀', color: '#2563eb', drawer: 'model-router' },
   daemon: { icon: '◎', color: '#8b5cf6', drawer: 'evolution' },
   reflection: { icon: '◇', color: '#f59e0b', drawer: 'evolution' },
 };

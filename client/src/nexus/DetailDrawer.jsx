@@ -38,6 +38,8 @@ import RepurposePanel from '../panels/RepurposePanel.jsx';
 import ChainPanel from '../panels/ChainPanel.jsx';
 import ObservatoryPanel from '../panels/ObservatoryPanel.jsx';
 import DebatePanel from '../panels/DebatePanel.jsx';
+import GoalsPanel from '../panels/GoalsPanel.jsx';
+import ModelRouterPanel from '../panels/ModelRouterPanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -78,6 +80,8 @@ const PANELS = {
   chain: { component: ChainPanel, label: 'Logic Chain' },
   observatory: { component: ObservatoryPanel, label: 'Intelligence Observatory' },
   debate: { component: DebatePanel, label: 'Debate Protocol' },
+  goals: { component: GoalsPanel, label: 'Autonomous Goals' },
+  'model-router': { component: ModelRouterPanel, label: 'Adaptive Model Router' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {
