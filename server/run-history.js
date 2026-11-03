@@ -108,6 +108,28 @@ function getHistory({ type, status, limit = 100, offset = 0 }) {
       }));
   }
 
+  if (!type || type === 'distribution') {
+    safe(`SELECT id, platform, status, content_topic, published_url, created_at
+          FROM distribution_runs ORDER BY created_at DESC LIMIT 200`)
+      .forEach(r => rows.push({
+        id: r.id, type: 'distribution', status: r.status || 'unknown',
+        label: r.platform || 'social', detail: r.content_topic || '',
+        meta: { platform: r.platform, published_url: r.published_url },
+        timestamp: ts(r.created_at)
+      }));
+  }
+
+  if (!type || type === 'analytics') {
+    safe(`SELECT id, platform, content_topic, views, likes, engagement_rate, collected_at
+          FROM content_analytics ORDER BY collected_at DESC LIMIT 200`)
+      .forEach(r => rows.push({
+        id: r.id, type: 'analytics', status: 'collected',
+        label: r.platform || 'analytics', detail: r.content_topic || '',
+        meta: { views: r.views, likes: r.likes, engagement: r.engagement_rate },
+        timestamp: ts(r.collected_at)
+      }));
+  }
+
   rows.sort((a, b) => b.timestamp - a.timestamp);
 
   if (status) {
@@ -138,6 +160,8 @@ router.get('/api/run-history/stats', (_req, res) => {
   counts['mystery-shopper'] = safe('SELECT COUNT(*) as c FROM mystery_shopper_runs')[0]?.c || 0;
   counts['store-fixer'] = safe('SELECT COUNT(*) as c FROM store_fixer_runs')[0]?.c || 0;
   counts.creation = safe('SELECT COUNT(*) as c FROM creation_pipeline_runs')[0]?.c || 0;
+  counts.distribution = safe('SELECT COUNT(*) as c FROM distribution_runs')[0]?.c || 0;
+  counts.analytics = safe('SELECT COUNT(*) as c FROM content_analytics')[0]?.c || 0;
   const total = Object.values(counts).reduce((s, v) => s + v, 0);
   res.json({ total, counts });
 });

@@ -20,6 +20,16 @@ const PIPELINE_ALIASES = {
   'create': 'creation',
   'brief': 'creation',
   'content-creation': 'creation',
+  'distribute': 'distribution',
+  'distribution': 'distribution',
+  'publish': 'distribution',
+  'social': 'distribution',
+  'analytics': 'analytics',
+  'insights': 'analytics',
+  'metrics': 'analytics',
+  'music': 'music',
+  'soundtrack': 'music',
+  'score': 'music',
 };
 
 const PIPELINE_ENDPOINTS = {
@@ -30,6 +40,9 @@ const PIPELINE_ENDPOINTS = {
   carbon: '/api/carbon/checkpoint',
   streaming: '/api/streaming/simulate-donation',
   creation: '/api/creation/pipeline',
+  distribution: '/api/distribution/publish',
+  analytics: '/api/analytics/insights',
+  music: '/api/media/music/pipeline',
 };
 
 export function installCommandRouter(app, { broadcast }) {
@@ -79,6 +92,9 @@ export function installCommandRouter(app, { broadcast }) {
             : pipeline === 'apparel' ? { niche: arg }
             : pipeline === 'shopper' ? { store_url: arg }
             : pipeline === 'creation' ? { topic: arg }
+            : pipeline === 'distribution' ? { content: arg, platforms: ['youtube', 'tiktok', 'instagram', 'x'] }
+            : pipeline === 'analytics' ? {}
+            : pipeline === 'music' ? { topic: arg }
             : {};
           const pRes = await fetch(`http://127.0.0.1:${process.env.PORT || 8787}${endpoint}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),

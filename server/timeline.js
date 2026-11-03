@@ -163,10 +163,32 @@ function getEvents(limit = 20) {
     timestamp: safeTs(r.created_at),
   }));
 
+  const distributionRuns = query(
+    `SELECT id, platform, status, content_topic, published_url, created_at
+     FROM distribution_runs ORDER BY created_at DESC LIMIT :limit`, perTable
+  ).map(r => ({
+    id: `dist-${r.id}`, type: 'distribution', category: 'distribution',
+    title: `Distribute: ${r.platform || 'social'}`,
+    detail: `${r.content_topic || 'content'} — ${r.status}`,
+    status: r.status || 'unknown',
+    timestamp: safeTs(r.created_at),
+  }));
+
+  const analyticsEntries = query(
+    `SELECT id, platform, content_topic, views, engagement_rate, collected_at
+     FROM content_analytics ORDER BY collected_at DESC LIMIT :limit`, perTable
+  ).map(r => ({
+    id: `anl-${r.id}`, type: 'analytics', category: 'analytics',
+    title: `Analytics: ${r.platform || 'metrics'}`,
+    detail: `${r.content_topic || 'content'} — ${r.views || 0} views, ${(r.engagement_rate || 0).toFixed(1)}% eng`,
+    status: 'collected',
+    timestamp: safeTs(r.collected_at),
+  }));
+
   const all = [
     ...agentRuns, ...workflowRuns, ...automationRuns,
     ...commerceRuns, ...apparelRuns, ...mysteryRuns, ...fixerRuns,
-    ...creationRuns,
+    ...creationRuns, ...distributionRuns, ...analyticsEntries,
     ...busMessages, ...healthAlerts, ...reflections,
     ...forged, ...synthesized,
   ];
@@ -181,7 +203,7 @@ router.get('/api/timeline', (req, res) => {
     const category = req.query.category || null;
     let events = getEvents(limit);
     if (category) events = events.filter(e => e.category === category);
-    const categories = ['agent', 'workflow', 'commerce', 'creation', 'bus', 'health', 'evolution'];
+    const categories = ['agent', 'workflow', 'commerce', 'creation', 'distribution', 'analytics', 'bus', 'health', 'evolution'];
     res.json({ events, categories, total: events.length });
   } catch (err) {
     console.error('[timeline]', err.message);
