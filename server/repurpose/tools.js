@@ -35,7 +35,7 @@ export function createRepurposeTools({ memoryBridge, broadcast } = {}) {
       name: 'repurpose.stats',
       description: 'Get content repurposing statistics',
       safety: 'safe',
-      parameters: {},
+      parameters: { type: 'object', properties: {} },
       handler: async () => getRepurposeStats(),
     },
     {

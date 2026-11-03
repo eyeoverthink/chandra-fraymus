@@ -22,7 +22,7 @@ export function createCalendarTools({ memoryBridge, broadcast } = {}) {
       name: 'calendar.stats',
       description: 'Get calendar statistics including patterns and upcoming items',
       safety: 'safe',
-      parameters: {},
+      parameters: { type: 'object', properties: {} },
       handler: async () => getCalendarStats(),
     },
     {
@@ -56,7 +56,7 @@ export function createCalendarTools({ memoryBridge, broadcast } = {}) {
       name: 'calendar.learn_patterns',
       description: 'Analyze historical analytics to learn optimal posting times per platform',
       safety: 'safe',
-      parameters: {},
+      parameters: { type: 'object', properties: {} },
       handler: async () => learnTimingPatterns(),
     },
     {

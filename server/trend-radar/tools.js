@@ -24,7 +24,7 @@ export function createTrendRadarTools({ memoryBridge, broadcast } = {}) {
       name: 'trends.stats',
       description: 'Get trend radar statistics and top emerging trends',
       safety: 'safe',
-      parameters: {},
+      parameters: { type: 'object', properties: {} },
       handler: async () => getTrendStats(),
     },
     {

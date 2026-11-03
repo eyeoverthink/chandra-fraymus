@@ -37,7 +37,7 @@ export function createAudienceTools({ memoryBridge, broadcast } = {}) {
       name: 'audience.stats',
       description: 'Get audience intelligence statistics',
       safety: 'safe',
-      parameters: {},
+      parameters: { type: 'object', properties: {} },
       handler: async () => getAudienceStats(),
     },
     {
@@ -83,7 +83,7 @@ export function createAudienceTools({ memoryBridge, broadcast } = {}) {
       name: 'audience.discover',
       description: 'LLM-powered audience segment discovery from behavioral data',
       safety: 'safe',
-      parameters: {},
+      parameters: { type: 'object', properties: {} },
       handler: async () => discoverSegments({ memoryBridge }),
     },
     {

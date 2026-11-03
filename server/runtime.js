@@ -159,11 +159,13 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   try { audienceTools = createAudienceTools({ memoryBridge, broadcast }); } catch (e) { console.error('runtime: audience tools failed:', e.message); }
   let repurposeTools = [];
   try { repurposeTools = createRepurposeTools({ memoryBridge, broadcast }); } catch (e) { console.error('runtime: repurpose tools failed:', e.message); }
+  const normTool = t => t.handler && !t.execute ? { ...t, execute: ({ args }, ctx) => t.handler(args || {}, ctx) } : t;
+  const normTools = arr => arr.map(normTool);
   agent = createAgentService({ db, workspace, ollamaUrl, fetchImpl,
-    cloud, codeExecutor, desktopBroker:desktop, extraTools: [...createExtensionTools(artifacts, web),...desktop.tools(),
+    cloud, codeExecutor, desktopBroker:desktop, extraTools: normTools([...createExtensionTools(artifacts, web),...desktop.tools(),
       ...createTaskTools({scheduler:tasks,db,now:taskClock,onReceipt:(id,receipt)=>agent?.recordTaskReceipt(id,receipt)}),
       ...createSemanticTools({artifacts,store:semanticStore,embedder:embeddings}),...createVisionTools({artifacts,provider:localVision}),...createOcrTools({artifacts,provider:localOcr}),...createFraymusTools(),
-      ...fleetTools, ...mcpImported, ...browserTools, ...vertisoTools, ...youtubeTools, ...commerceTools, ...streamingTools, ...creationTools, ...distributionTools, ...analyticsTools, ...learningLoopTools, ...calendarTools, ...abTestingTools, ...trendRadarTools, ...audienceTools, ...repurposeTools],
+      ...fleetTools, ...mcpImported, ...browserTools, ...vertisoTools, ...youtubeTools, ...commerceTools, ...streamingTools, ...creationTools, ...distributionTools, ...analyticsTools, ...learningLoopTools, ...calendarTools, ...abTestingTools, ...trendRadarTools, ...audienceTools, ...repurposeTools]),
     resolveAttachments: (ids, options) => artifacts.resolve(ids, options),
     onEvent: event => {
       if(agent&&['usage','auxiliary_usage'].includes(event.type)) {

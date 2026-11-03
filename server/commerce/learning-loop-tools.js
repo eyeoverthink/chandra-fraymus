@@ -9,7 +9,7 @@ export function createLearningLoopTools({ memoryBridge, broadcast } = {}) {
       name: 'commerce.revenue_summary',
       description: 'Get revenue attribution summary with breakdowns by topic and platform',
       safety: 'safe',
-      parameters: {},
+      parameters: { type: 'object', properties: {} },
       handler: async () => getRevenueSummary(),
     },
     {
@@ -41,7 +41,7 @@ export function createLearningLoopTools({ memoryBridge, broadcast } = {}) {
       name: 'commerce.generate_decisions',
       description: 'Run the learning loop to generate strategic recommendations from revenue + analytics data',
       safety: 'safe',
-      parameters: {},
+      parameters: { type: 'object', properties: {} },
       handler: async () => generateDecisions({ memoryBridge, broadcast }),
     },
     {
@@ -66,7 +66,7 @@ export function createLearningLoopTools({ memoryBridge, broadcast } = {}) {
       name: 'commerce.poll_shopify',
       description: 'Poll Shopify for recent orders and auto-attribute revenue',
       safety: 'safe',
-      parameters: {},
+      parameters: { type: 'object', properties: {} },
       handler: async () => pollShopifyOrders({ broadcast, memoryBridge }),
     },
   ];
