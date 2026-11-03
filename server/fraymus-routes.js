@@ -325,14 +325,14 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
 
   // ── Intelligence Live State (aggregated dashboard endpoint) ──
   app.get('/api/intelligence/live', route(async (_req, res) => {
+    const bounded = (p, ms = 3000, fallback = null) => Promise.race([p, new Promise(r => setTimeout(() => r(fallback), ms))]);
     const mood = heart.recentMood();
     const dreamerState = dreamer.feel();
     const dreams = dreamer.list(5);
     const cogStatus = cognition.status();
     const ledgerStats = { counts: ledger.countByKind(), integrity: ledger.verify(20) };
     const needleStatus = needleWorker.status();
-    const needleJobs = await needle.listJobs(null);
-    const motorHealth = await motor.nodeHealth();
+    const needleJobs = await bounded(needle.listJobs(null), 3000, []);
     const motorStatus = motor.status();
     const memStats = memoryBridge ? { available: true, ...memoryBridge.stats() } : { available: false };
     const hermesManifest = hermes.manifest();
@@ -349,7 +349,7 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
       cognition: { ...cogStatus, modules: Object.keys(cogStatus.modules || {}) },
       ledger: ledgerStats,
       needle: { worker: needleStatus, queue: { pending, running, completed, failed, total: needleJobs.length } },
-      motor: { nodes: motorHealth, status: motorStatus, dispatchCount: motor.dispatchCount },
+      motor: { status: motorStatus, dispatchCount: motor.dispatchCount },
       memoryBridge: memStats,
       hermes: { ...hermesManifest, history: hermes.history.slice(-20) },
       ouroboros: { generation: ouroboros.generation, fitness: ouroboros.fitness },

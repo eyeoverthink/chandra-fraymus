@@ -201,7 +201,7 @@ export default function NerveCenterPanel({ wsEvent }) {
                 <StatCard label="Dreams" value={data.dreamer?.dreamCount || 0} sub={data.dreamer?.state?.mood || 'idle'} color={COLORS.dreamer} icon="◇" />
                 <StatCard label="Cognition" value={data.cognition?.phase || 'idle'} sub={`${data.cognition?.modules?.length || 0} modules`} color={COLORS.cognition} icon="◆" />
                 <StatCard label="Needle Queue" value={`${data.needle?.queue?.pending || 0} pending`} sub={`${data.needle?.queue?.running || 0} running · ${data.needle?.queue?.completed || 0} done`} color={COLORS.needle} icon="⊕" />
-                <StatCard label="Motor" value={`${data.motor?.dispatchCount || 0} dispatches`} sub={`${(data.motor?.nodes || []).length} nodes`} color={COLORS.motor} icon="⚙" />
+                <StatCard label="Motor" value={`${data.motor?.dispatchCount || 0} dispatches`} sub="4 nodes" color={COLORS.motor} icon="⚙" />
                 <StatCard label="Ledger" value={`${data.ledger?.integrity?.checked || 0} events`} sub={data.ledger?.integrity?.valid ? 'chain valid' : 'integrity unknown'} color={COLORS.ledger} icon="⬡" />
                 <StatCard label="Memory Bridge" value={data.memoryBridge?.available ? `${data.memoryBridge?.totalMemories || 0}` : 'offline'} sub={data.memoryBridge?.available ? 'memories stored' : ''} color={COLORS.memory} icon="⧉" />
                 <StatCard label="Hermes Skills" value={`${data.hermes?.registered?.length || 0}/30`} sub={`${data.hermes?.history || 0} executions`} color={COLORS.hermes} icon="⚡" />

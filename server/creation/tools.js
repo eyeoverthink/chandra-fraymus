@@ -70,7 +70,7 @@ export function createCreationTools({ memoryBridge, broadcast } = {}) {
       risk: 'safe',
       description: 'Prepare platform-specific distribution packages (metadata, thumbnails, hashtags) for assembled content. Pass the output of creation.visuals.',
       parameters: object({
-        compositions: { type: 'array', description: 'Visual compositions from creation.visuals' },
+        compositions: { type: 'array', items: { type: 'object' }, description: 'Visual compositions from creation.visuals' },
         heroImage: string(1000),
         audio: { type: 'object' },
         script: { type: 'object' },
@@ -87,7 +87,7 @@ export function createCreationTools({ memoryBridge, broadcast } = {}) {
       parameters: object({
         brief: { type: 'object', description: 'Creative brief with commerce_tie_in field' },
         topic: string(500),
-        packages: { type: 'array', description: 'Distribution packages' },
+        packages: { type: 'array', items: { type: 'object' }, description: 'Distribution packages' },
       }, ['topic']),
       execute: async ({ args }) => runCommerceBridge(args),
     },
