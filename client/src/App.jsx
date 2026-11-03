@@ -33,6 +33,7 @@ const NAV_BUTTONS = [
   { panel: 'chain', title: 'Logic Chain', icon: '⛓', label: 'Chain', color: '#7c3aed' },
   { panel: 'observatory', title: 'Intelligence Observatory', icon: '🔭', label: 'Observe', color: '#0d9488' },
   { panel: 'debate', title: 'Debate Protocol', icon: '⚔', label: 'Debate', color: '#dc2626' },
+  { panel: 'swarm', title: 'Swarm Protocol', icon: '🐝', label: 'Swarm', color: '#f59e0b' },
 ];
 
 function NavButton({ btn, openDrawer }) {
@@ -114,6 +115,7 @@ export default function App() {
     if (action === 'repurpose') { setDrawer({ panel: 'repurpose', title: 'Content Repurposing' }); return; }
     if (action === 'chain') { setDrawer({ panel: 'chain', title: 'Logic Chain' }); return; }
     if (action === 'debate') { setDrawer({ panel: 'debate', title: 'Debate Protocol' }); return; }
+    if (action === 'swarm') { setDrawer({ panel: 'swarm', title: 'Swarm Protocol' }); return; }
     if (action.startsWith('view:')) {
       setView(action.slice(5));
       setDrawer(null);

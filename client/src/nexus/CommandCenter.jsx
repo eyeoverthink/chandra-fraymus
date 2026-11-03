@@ -33,6 +33,7 @@ const WIDGETS = [
   { id: 'goals', label: 'Goals', icon: '🎯', color: '#16a34a', panel: 'goals' },
   { id: 'model-router', label: 'Model Router', icon: '🔀', color: '#2563eb', panel: 'model-router' },
   { id: 'perspective', label: 'Perspective', icon: '🔮', color: '#8b5cf6', panel: 'perspective' },
+  { id: 'swarm', label: 'Swarm', icon: '🐝', color: '#f59e0b', panel: 'swarm' },
   { id: 'settings', label: 'Settings', icon: '⚙', color: '#64748b', panel: 'settings' },
 ];
 
@@ -76,6 +77,7 @@ const EVENT_STYLES = {
   observatory: { icon: '🔭', color: '#0d9488', drawer: 'observatory' },
   model_router: { icon: '🔀', color: '#2563eb', drawer: 'model-router' },
   perspective: { icon: '🔮', color: '#8b5cf6', drawer: 'perspective' },
+  swarm: { icon: '🐝', color: '#f59e0b', drawer: 'swarm' },
   daemon: { icon: '◎', color: '#8b5cf6', drawer: 'evolution' },
   reflection: { icon: '◇', color: '#f59e0b', drawer: 'evolution' },
 };

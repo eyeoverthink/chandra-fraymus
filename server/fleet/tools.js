@@ -12,6 +12,7 @@ import { generateGoals, listProposals, updateProposalStatus } from '../intellige
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
 import { assessSituation, shiftPerspective, recordOutcome, briefNextInstance, getStats as perspectiveStats } from '../intelligence/perspective.js';
+import { initiateSwarm, getSwarmSession, listSwarms, getSwarmStats } from '../intelligence/swarm.js';
 import { executeChain, listRuns as listChainRuns } from '../chain/engine.js';
 import observatoryRouter from '../observatory.js';
 import { encodeCodon, decodeCodon, codonStats } from '../fraymus/encoding/codon.js';
@@ -1208,6 +1209,35 @@ export function createFleetTools({ workflowStore }) {
       description: 'Get current Perspective engine stats: sessions, shifts, playbook size, perspective usage distribution.',
       parameters: object({}),
       execute: async () => perspectiveStats(),
+    },
+    {
+      name: 'swarm_initiate',
+      group: 'intelligence',
+      risk: 'medium',
+      description: 'Initiate a multi-agent swarm — N agents tackle the same task from different perspective lenses, then outputs are synthesized into a merged result.',
+      parameters: object({
+        task: string(2000, { description: 'The task for the swarm to solve collaboratively' }),
+        context: string(2000, { description: 'Additional context for the task' }),
+        agentCount: { type: 'integer', minimum: 2, maximum: 6, description: 'Number of agents (default 3)' },
+        perspectiveMode: { type: 'string', enum: ['diverse', 'focused', 'auto'], description: 'How to assign perspectives (default diverse)' },
+      }, ['task']),
+      execute: async ({ args }) => initiateSwarm(args),
+    },
+    {
+      name: 'swarm_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Get details of a swarm session including contributions and synthesis.',
+      parameters: object({ id: string(50, { description: 'Swarm session ID' }) }, ['id']),
+      execute: async ({ args }) => getSwarmSession(args.id) || { error: 'not found' },
+    },
+    {
+      name: 'swarm_list',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'List recent swarm sessions with status and quality scores.',
+      parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Max results (default 10)' } }),
+      execute: async ({ args }) => ({ swarms: listSwarms({ limit: args.limit || 10 }) }),
     },
     {
       name: 'chain_run',

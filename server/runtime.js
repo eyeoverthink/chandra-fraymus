@@ -82,6 +82,7 @@ import { installGoalRoutes } from './intelligence/goal-engine.js';
 import { installDebateRoutes } from './intelligence/debate.js';
 import { installModelRouterRoutes } from './intelligence/model-router.js';
 import { installPerspectiveRoutes } from './intelligence/perspective.js';
+import { installSwarmRoutes } from './intelligence/swarm.js';
 import { installNUDPRoutes } from './fraymus/protocol/nudp-routes.js';
 import { installBridgeRoutes } from './fraymus/protocol/bridge-routes.js';
 import { installImageRoutes } from './media/image-routes.js';
@@ -214,6 +215,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installDebateRoutes(app);
   installModelRouterRoutes(app);
   installPerspectiveRoutes(app);
+  installSwarmRoutes(app);
   installNUDPRoutes(app);
   installBridgeRoutes(app);
   installImageRoutes(app);

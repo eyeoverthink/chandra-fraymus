@@ -139,6 +139,7 @@ function nodeKind(type) {
   if (type === 'debate_run') return 'debate_run';
   if (type === 'model_select') return 'model_select';
   if (type === 'perspective_assess') return 'perspective_assess';
+  if (type === 'swarm_solve') return 'swarm_solve';
   if (type === 'stream_capture') return 'stream_capture';
   if (type === 'stream_mint') return 'stream_mint';
   if (type === 'stream_deliver') return 'stream_deliver';
@@ -780,6 +781,13 @@ export async function runPipeline(nodes, edges, opts = {}) {
         const result = await assessSituation({ task: upstreamText || node.data?.task || 'workflow assessment', context: node.data?.context || '' });
         r.data = { perspectives: result.perspectives, confidence: result.confidence, framing: result.framing, pattern: result.pattern_match };
         r.text = `Perspective: [${(result.perspectives || []).join(', ')}] (${(result.confidence * 100).toFixed(0)}%) — ${result.framing || ''}`;
+        texts[id] = r.text;
+
+      } else if (k === 'swarm_solve') {
+        const { initiateSwarm } = await import('../intelligence/swarm.js');
+        const result = await initiateSwarm({ task: upstreamText || node.data?.task || 'swarm task', context: node.data?.context || '', agentCount: node.data?.agentCount || 3, perspectiveMode: node.data?.perspectiveMode || 'diverse' });
+        r.data = { swarmId: result.swarmId, quality: result.quality, keyInsights: result.keyInsights, agentCount: result.agentCount };
+        r.text = `Swarm [${result.agentCount} agents] — ${result.keyInsights?.length || 0} insights, quality: ${result.quality ? Math.round(result.quality * 100) + '%' : 'N/A'}`;
         texts[id] = r.text;
 
       // ── Carbon X biological encoding nodes ──────────────────

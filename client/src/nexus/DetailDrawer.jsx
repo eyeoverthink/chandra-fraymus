@@ -41,6 +41,7 @@ import DebatePanel from '../panels/DebatePanel.jsx';
 import GoalsPanel from '../panels/GoalsPanel.jsx';
 import ModelRouterPanel from '../panels/ModelRouterPanel.jsx';
 import PerspectivePanel from '../panels/PerspectivePanel.jsx';
+import SwarmPanel from '../panels/SwarmPanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -84,6 +85,7 @@ const PANELS = {
   goals: { component: GoalsPanel, label: 'Autonomous Goals' },
   'model-router': { component: ModelRouterPanel, label: 'Adaptive Model Router' },
   perspective: { component: PerspectivePanel, label: 'Perspective Engine' },
+  swarm: { component: SwarmPanel, label: 'Swarm Protocol' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {
