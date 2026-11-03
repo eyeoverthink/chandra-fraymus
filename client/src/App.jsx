@@ -30,6 +30,7 @@ const NAV_BUTTONS = [
   { panel: 'leaderboard', title: 'Agent Leaderboard', icon: '★', label: 'Board', color: '#f59e0b' },
   { panel: 'collab', title: 'Agent Collaboration', icon: '⊗', label: 'Collab', color: '#7c3aed' },
   { panel: 'nerve-center', title: 'Nerve Center', icon: '◈', label: 'Nerve', color: '#ef4444' },
+  { panel: 'chain', title: 'Logic Chain', icon: '⛓', label: 'Chain', color: '#7c3aed' },
 ];
 
 function NavButton({ btn, openDrawer }) {
@@ -109,6 +110,7 @@ export default function App() {
     if (action === 'trend-radar') { setDrawer({ panel: 'trend-radar', title: 'Trend Radar' }); return; }
     if (action === 'audience') { setDrawer({ panel: 'audience', title: 'Audience Intelligence' }); return; }
     if (action === 'repurpose') { setDrawer({ panel: 'repurpose', title: 'Content Repurposing' }); return; }
+    if (action === 'chain') { setDrawer({ panel: 'chain', title: 'Logic Chain' }); return; }
     if (action.startsWith('view:')) {
       setView(action.slice(5));
       setDrawer(null);

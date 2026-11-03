@@ -27,6 +27,7 @@ const WIDGETS = [
   { id: 'trend-radar', label: 'Trend Radar', icon: '◉', color: '#f59e0b', panel: 'trend-radar' },
   { id: 'audience', label: 'Audience', icon: '◎', color: '#7c3aed', panel: 'audience' },
   { id: 'repurpose', label: 'Repurpose', icon: '⟳', color: '#ec4899', panel: 'repurpose' },
+  { id: 'chain', label: 'Logic Chain', icon: '⛓', color: '#7c3aed', panel: 'chain' },
   { id: 'settings', label: 'Settings', icon: '⚙', color: '#64748b', panel: 'settings' },
 ];
 
@@ -64,6 +65,7 @@ const EVENT_STYLES = {
   trend_radar: { icon: '◉', color: '#f59e0b', drawer: 'trend-radar' },
   audience: { icon: '◎', color: '#7c3aed', drawer: 'audience' },
   repurpose: { icon: '⟳', color: '#ec4899', drawer: 'repurpose' },
+  chain: { icon: '⛓', color: '#7c3aed', drawer: 'chain' },
 };
 
 function formatEvent(ev) {
