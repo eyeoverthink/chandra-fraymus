@@ -27,6 +27,7 @@ import { runShopperAgent, runUxAuditor, runPriceAnalyst, runReportAndFix } from 
 import { runPageGenerator, runCollectionOrganizer, runDescriptionEnhancer, runPriceAdjuster, runShopifyApplier } from '../commerce/store-fixer.js';
 import { mintArtifact, verifyArtifact } from '../streaming/mint.js';
 import { executeChain, loadRun, listRuns as listChainRuns } from '../chain/engine.js';
+import { executeChainToCode } from '../chain/executor.js';
 import { ledgerStats as chainLedgerStats } from '../chain/ledger.js';
 import { getObsBridge } from '../streaming/overlay.js';
 import {
@@ -130,6 +131,7 @@ function nodeKind(type) {
   if (type === 'carbon_plasmid') return 'carbon_plasmid';
   if (type === 'carbon_checkpoint') return 'carbon_checkpoint';
   if (type === 'chain_run') return 'chain_run';
+  if (type === 'chain_to_code') return 'chain_to_code';
   if (type === 'stream_capture') return 'stream_capture';
   if (type === 'stream_mint') return 'stream_mint';
   if (type === 'stream_deliver') return 'stream_deliver';
@@ -714,6 +716,26 @@ export async function runPipeline(nodes, edges, opts = {}) {
           durationMs: chainRun.usage?.durationMs,
         };
         r.text = `Chain ${chainRun.id}: ${stats.total} entries, ${stats.warnings} warnings, ${chainRun.review?.stats?.verified || 0} verified`;
+        texts[id] = r.text;
+
+      // ── Chain-to-Code: run chain then execute verified steps ─
+      } else if (k === 'chain_to_code') {
+        const chainRunId = upstreamText || node.data?.chainRunId || '';
+        if (!chainRunId) throw new Error('chain_to_code requires a chainRunId (or upstream chain_run output)');
+        const idMatch = chainRunId.match(/chain_[a-f0-9]+/);
+        const resolvedId = idMatch ? idMatch[0] : chainRunId.trim();
+        const execResult = await executeChainToCode(resolvedId, {
+          language: node.data?.language || 'javascript',
+          maxSteps: node.data?.maxSteps || 5,
+          maxIterations: node.data?.maxIterations || 3,
+        }, { broadcast: opts.broadcast || (() => {}) });
+        r.data = {
+          execId: execResult.execId, chainRunId: execResult.chainRunId,
+          status: execResult.status, passed: execResult.passed,
+          failed: execResult.failed, total: execResult.total,
+          durationMs: execResult.durationMs,
+        };
+        r.text = `ChainToCode ${execResult.execId}: ${execResult.passed}/${execResult.total} steps produced verified code (${execResult.status})`;
         texts[id] = r.text;
 
       // ── Carbon X biological encoding nodes ──────────────────

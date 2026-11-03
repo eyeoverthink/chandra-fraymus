@@ -3,6 +3,7 @@
  */
 
 import { executeChain, loadRun, loadRunStages, listRuns, deleteRun, renderDocument, saveRun } from './engine.js';
+import { executeChainToCode, getExecution, listExecutions } from './executor.js';
 import { getDefaultSlots } from './roles.js';
 import { ledgerStats } from './ledger.js';
 import { reviewLedger, REVIEW_PANEL, JEV_THRESHOLD } from './review.js';
@@ -100,5 +101,42 @@ export function installChainRoutes(app, { broadcast, memoryBridge } = {}) {
 
   app.get('/api/chain/slots', (_req, res) => {
     res.json({ slots: getDefaultSlots() });
+  });
+
+  // ─── Chain-to-Code Executor ─────────────────────────────────
+  app.post('/api/chain/runs/:id/execute', async (req, res, next) => {
+    try {
+      const run = loadRun(req.params.id);
+      if (!run) return res.status(404).json({ error: 'Run not found' });
+      if (run.status !== 'completed') return res.status(409).json({ error: `Chain run is ${run.status}, must be completed` });
+
+      const { language, maxSteps, maxIterations } = req.body || {};
+      const execPromise = executeChainToCode(run, { language, maxSteps, maxIterations }, { broadcast: broadcastFn });
+      execPromise.then(() => {}).catch(err => console.error('chain: executor failed:', err.message));
+
+      res.status(202).json({ status: 'executing', chainRunId: run.id });
+    } catch (e) { next(e); }
+  });
+
+  app.get('/api/chain/runs/:id/executions', (req, res, next) => {
+    try {
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+      res.json({ executions: listExecutions(req.params.id, limit) });
+    } catch (e) { next(e); }
+  });
+
+  app.get('/api/chain/executions', (_req, res, next) => {
+    try {
+      const limit = Math.min(100, Math.max(1, parseInt(_req.query.limit) || 20));
+      res.json({ executions: listExecutions(null, limit) });
+    } catch (e) { next(e); }
+  });
+
+  app.get('/api/chain/executions/:id', (req, res, next) => {
+    try {
+      const exec = getExecution(req.params.id);
+      if (!exec) return res.status(404).json({ error: 'Execution not found' });
+      res.json(exec);
+    } catch (e) { next(e); }
   });
 }

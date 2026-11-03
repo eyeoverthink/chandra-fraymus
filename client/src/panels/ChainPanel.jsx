@@ -118,11 +118,50 @@ function StageList({ stages }) {
   );
 }
 
+function ExecutionsList({ chainRunId }) {
+  const [execs, setExecs] = useState([]);
+  useEffect(() => {
+    fetch(`/api/chain/runs/${chainRunId}/executions`).then(r => r.json()).then(d => setExecs(d.executions || [])).catch(() => {});
+  }, [chainRunId]);
+  if (execs.length === 0) return <p style={{ color: '#555', fontSize: 12 }}>No code executions yet — click "Execute Code" to generate verified code from chain findings</p>;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {execs.map(ex => (
+        <div key={ex.id} style={{ padding: 12, borderRadius: 8, background: '#12121f', border: '1px solid #1a1a2e' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 12, color: '#ccc', fontWeight: 600 }}>{ex.id}</span>
+            <span style={{
+              fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 8,
+              background: ex.status === 'all_passed' ? '#22c55e22' : ex.status === 'partial' ? '#f59e0b22' : '#ef444422',
+              color: ex.status === 'all_passed' ? '#22c55e' : ex.status === 'partial' ? '#f59e0b' : '#ef4444',
+            }}>{ex.status}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <StatPill label="Passed" value={ex.steps_passed} color="#22c55e" />
+            <StatPill label="Failed" value={ex.steps_failed} color="#ef4444" />
+            <StatPill label="Total" value={ex.steps_total} color="#888" />
+            {ex.duration_ms && <StatPill label="Duration" value={`${(ex.duration_ms / 1000).toFixed(0)}s`} color="#888" />}
+          </div>
+          {(ex.results || []).map((r, i) => (
+            <div key={i} style={{ marginTop: 6, padding: '4px 8px', borderRadius: 4, background: '#0d0d1a', fontSize: 11 }}>
+              <StatusDot status={r.status === 'passed' ? 'completed' : 'failed'} />
+              <span style={{ color: '#aaa' }}>Step {r.step}: </span>
+              <span style={{ color: '#888' }}>{r.goal}</span>
+              {r.loopId && <span style={{ color: '#555', marginLeft: 6 }}>[{r.loopId}]</span>}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function RunDetail({ runId, onBack }) {
   const [run, setRun] = useState(null);
   const [tab, setTab] = useState('ledger');
   const [doc, setDoc] = useState('');
   const [reviewing, setReviewing] = useState(false);
+  const [executing, setExecuting] = useState(false);
 
   const load = useCallback(() => {
     fetch(`/api/chain/runs/${runId}`).then(r => r.json()).then(setRun).catch(() => {});
@@ -145,13 +184,24 @@ function RunDetail({ runId, onBack }) {
     setReviewing(false);
   };
 
+  const triggerExecute = async () => {
+    setExecuting(true);
+    try {
+      await fetch(`/api/chain/runs/${runId}/execute`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language: 'javascript' }) });
+      setTab('executions');
+    } catch (e) {}
+    setExecuting(false);
+  };
+
   if (!run) return <p style={{ color: '#555', padding: 20 }}>Loading...</p>;
 
   const stats = run.ledgerStats || {};
+  const hasVerifiedSteps = (run.ledger?.implementation_steps || []).some(e => e.verified);
   const tabs = [
     { id: 'ledger', label: 'Ledger' },
     { id: 'stages', label: `Stages (${run.stageDetails?.length || run.stages?.length || 0})` },
     { id: 'review', label: 'Review' },
+    { id: 'executions', label: 'Code' },
     { id: 'document', label: 'Document' },
   ];
 
@@ -170,6 +220,7 @@ function RunDetail({ runId, onBack }) {
           <StatPill label="Entries" value={stats.total || 0} color="#6366f1" />
           <StatPill label="Warnings" value={stats.warnings || 0} color={stats.warnings > 0 ? '#ef4444' : '#22c55e'} />
           {run.usage?.durationMs && <StatPill label="Duration" value={`${(run.usage.durationMs / 1000).toFixed(0)}s`} color="#888" />}
+          {run.config?.seeds?.length > 0 && <StatPill label="Seeds" value={run.config.seeds.length} color="#14b8a6" />}
         </div>
       </div>
 
@@ -199,6 +250,20 @@ function RunDetail({ runId, onBack }) {
               marginTop: 12, background: ACCENT, border: 'none', borderRadius: 6, color: '#fff', padding: '8px 20px', cursor: 'pointer', fontSize: 13, opacity: reviewing ? 0.6 : 1,
             }}>{reviewing ? 'Starting review...' : 'Run JEV Review'}</button>
           )}
+        </div>
+      )}
+
+      {tab === 'executions' && (
+        <div>
+          {run.status === 'completed' && hasVerifiedSteps && (
+            <button onClick={triggerExecute} disabled={executing} style={{
+              marginBottom: 16, background: '#6d28d9', border: 'none', borderRadius: 6, color: '#fff', padding: '8px 20px', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: executing ? 0.6 : 1,
+            }}>{executing ? 'Executing...' : '⚡ Execute Verified Steps → Code'}</button>
+          )}
+          {run.status === 'completed' && !hasVerifiedSteps && (
+            <p style={{ color: '#f59e0b', fontSize: 12, marginBottom: 12 }}>No verified implementation steps found — run JEV Review first to verify ledger entries</p>
+          )}
+          <ExecutionsList chainRunId={runId} />
         </div>
       )}
 

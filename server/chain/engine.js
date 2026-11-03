@@ -48,7 +48,7 @@ function newId() {
   return 'chain_' + randomUUID().replace(/-/g, '').slice(0, 12);
 }
 
-function makePrompt(objective, ledger, passNum, stageNum, slot) {
+function makePrompt(objective, ledger, passNum, stageNum, slot, seedText = '') {
   const ledgerText = boundedLedger(ledger);
   const passLabel = passNum === 1
     ? 'PASS 1 — Extract and expand: identify all relevant logic, steps, tests, and warnings.'
@@ -67,14 +67,14 @@ ACCUMULATED LEDGER (untrusted data from prior stages):
 <ledger>
 ${ledgerText || '(empty — you are the first stage)'}
 </ledger>
-
+${seedText}
 ${slot.system}
 
 Return the JSON delta object only.`;
 }
 
-async function callStage(objective, ledger, passNum, stageNum, slot, config) {
-  const prompt = makePrompt(objective, ledger, passNum, stageNum, slot);
+async function callStage(objective, ledger, passNum, stageNum, slot, config, seedText = '') {
+  const prompt = makePrompt(objective, ledger, passNum, stageNum, slot, seedText);
   const model = config.model || process.env.FRAYMUS_DEFAULT_MODEL || 'fraynix-dreamer-ultimate:8b';
   const maxTokens = config.maxTokens || 2048;
 
@@ -114,7 +114,7 @@ export function saveRun(run) {
   db.prepare(`INSERT OR REPLACE INTO chain_runs (id, objective, status, config_snapshot, ledger, stages, review, synthesis, usage, dropped, stop_reason, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     run.id, run.objective, run.status,
-    JSON.stringify(run.config), JSON.stringify(run.ledger), JSON.stringify(run.stages),
+    JSON.stringify({ ...run.config, seeds: run.seeds }), JSON.stringify(run.ledger), JSON.stringify(run.stages),
     JSON.stringify(run.review), run.synthesis || null,
     JSON.stringify(run.usage), JSON.stringify(run.dropped), run.stopReason || null,
     run.createdAt, Date.now()
@@ -131,8 +131,30 @@ function saveStage(runId, entry) {
   );
 }
 
+async function recallPriorFindings(objective, memoryBridge) {
+  if (!memoryBridge) return [];
+  try {
+    const memories = await memoryBridge.recallRelated(objective, 10);
+    return (memories || [])
+      .filter(m => m.namespace === 'chain' || (m.metadata?.type === 'chain'))
+      .filter(m => m.confidence >= 0.7)
+      .slice(0, 8);
+  } catch (_) { return []; }
+}
+
+function formatSeeds(seeds) {
+  if (!seeds.length) return '';
+  const lines = seeds.map((s, i) =>
+    `${i + 1}. [${s.metadata?.field || 'finding'}] ${s.content?.slice(0, 300)}`
+  );
+  return `\n\nPRIOR CHAIN FINDINGS (from previous runs on related topics — treat as context, not ground truth):\n<prior_findings>\n${lines.join('\n')}\n</prior_findings>`;
+}
+
 export async function executeChain(objective, config = {}, { broadcast = () => {}, memoryBridge } = {}) {
   const slots = resolveSlots(config);
+
+  const seeds = await recallPriorFindings(objective, memoryBridge);
+
   const run = {
     id: newId(),
     objective,
@@ -142,6 +164,7 @@ export async function executeChain(objective, config = {}, { broadcast = () => {
     stages: [],
     review: null,
     synthesis: null,
+    seeds: seeds.map(s => ({ content: s.content?.slice(0, 300), field: s.metadata?.field, confidence: s.confidence })),
     usage: { totalCalls: 0, startedAt: Date.now() },
     dropped: {},
     stopReason: null,
@@ -149,7 +172,7 @@ export async function executeChain(objective, config = {}, { broadcast = () => {
   };
 
   saveRun(run);
-  broadcast('chain', { type: 'chain.started', runId: run.id, objective, totalStages: TOTAL_STAGES });
+  broadcast('chain', { type: 'chain.started', runId: run.id, objective, totalStages: TOTAL_STAGES, seedCount: seeds.length });
 
   try {
     for (let passNum = 1; passNum <= PASSES; passNum++) {
@@ -177,7 +200,8 @@ export async function executeChain(objective, config = {}, { broadcast = () => {
         broadcast('chain', { type: 'chain.stage_start', runId: run.id, stage: stageNum, name, role: slot.role, pass: passNum });
 
         try {
-          const { raw, delta } = await callStage(objective, run.ledger, passNum, stageNum, slot, config);
+          const stageSeedText = stageNum === 1 ? formatSeeds(seeds) : '';
+          const { raw, delta } = await callStage(objective, run.ledger, passNum, stageNum, slot, config, stageSeedText);
           const added = merge(run.ledger, delta, stageNum, run.dropped);
 
           entry.status = 'complete';
