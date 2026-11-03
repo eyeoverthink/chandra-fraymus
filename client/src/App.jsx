@@ -103,6 +103,8 @@ export default function App() {
     if (action === 'nerve-center') { setDrawer({ panel: 'nerve-center', title: 'Intelligence Nerve Center' }); return; }
     if (action === 'distribution') { setDrawer({ panel: 'distribution', title: 'Social Distribution' }); return; }
     if (action === 'analytics') { setDrawer({ panel: 'analytics', title: 'Analytics Feedback' }); return; }
+    if (action === 'learning-loop') { setDrawer({ panel: 'learning-loop', title: 'Commerce Learning Loop' }); return; }
+    if (action === 'calendar') { setDrawer({ panel: 'calendar', title: 'Content Calendar' }); return; }
     if (action.startsWith('view:')) {
       setView(action.slice(5));
       setDrawer(null);

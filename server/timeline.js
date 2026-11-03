@@ -185,10 +185,33 @@ function getEvents(limit = 20) {
     timestamp: safeTs(r.collected_at),
   }));
 
+  const revenueEvents = query(
+    `SELECT id, order_id, order_total, source_content_topic, source_platform, attribution_confidence, attribution_method, attributed_at
+     FROM revenue_attributions ORDER BY attributed_at DESC LIMIT :limit`, perTable
+  ).map(r => ({
+    id: `rev-${r.id}`, type: 'revenue-attribution', category: 'revenue',
+    title: `Revenue: $${(r.order_total || 0).toFixed(2)}`,
+    detail: `${r.source_content_topic || 'unknown'} via ${r.source_platform || 'unknown'} (${r.attribution_method}, ${((r.attribution_confidence || 0) * 100).toFixed(0)}%)`,
+    status: 'attributed',
+    timestamp: safeTs(r.attributed_at),
+  }));
+
+  const calendarEvents = query(
+    `SELECT id, topic, format, platforms, scheduled_at, status, priority, source, reasoning, created_at
+     FROM smart_calendar ORDER BY scheduled_at DESC LIMIT :limit`, perTable
+  ).map(r => ({
+    id: `cal-${r.id}`, type: 'calendar-item', category: 'calendar',
+    title: `Calendar: ${r.topic || 'scheduled'}`,
+    detail: `${r.format || 'content'} — ${r.source || 'manual'} — ${r.status}`,
+    status: r.status || 'scheduled',
+    timestamp: safeTs(r.scheduled_at || r.created_at),
+  }));
+
   const all = [
     ...agentRuns, ...workflowRuns, ...automationRuns,
     ...commerceRuns, ...apparelRuns, ...mysteryRuns, ...fixerRuns,
     ...creationRuns, ...distributionRuns, ...analyticsEntries,
+    ...revenueEvents, ...calendarEvents,
     ...busMessages, ...healthAlerts, ...reflections,
     ...forged, ...synthesized,
   ];
@@ -203,7 +226,7 @@ router.get('/api/timeline', (req, res) => {
     const category = req.query.category || null;
     let events = getEvents(limit);
     if (category) events = events.filter(e => e.category === category);
-    const categories = ['agent', 'workflow', 'commerce', 'creation', 'distribution', 'analytics', 'bus', 'health', 'evolution'];
+    const categories = ['agent', 'workflow', 'commerce', 'creation', 'distribution', 'analytics', 'revenue', 'calendar', 'bus', 'health', 'evolution'];
     res.json({ events, categories, total: events.length });
   } catch (err) {
     console.error('[timeline]', err.message);

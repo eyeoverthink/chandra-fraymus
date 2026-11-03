@@ -38,6 +38,8 @@ const WS_MAP = {
   distribution:  { variant: 'info',    fmt: p => `Distribution: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.platform ? ` — ${p.platform}` : ''}` },
   analytics:     { variant: 'success', fmt: p => `Analytics: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.count ? ` (${p.count} insights)` : ''}` },
   music:         { variant: 'info',    fmt: p => `Music: ${p?.type?.replace(/_/g, ' ') || 'generated'}` },
+  commerce:      { variant: 'success', fmt: p => `Commerce: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.order_id ? ` — order ${p.order_id}` : ''}` },
+  calendar:      { variant: 'info',    fmt: p => `Calendar: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.topic ? ` — ${p.topic.slice(0, 40)}` : ''}` },
   mail:          { variant: 'info',    fmt: () => 'New mail received' },
 };
 

@@ -21,6 +21,8 @@ const WIDGETS = [
   { id: 'distribution', label: 'Distribution', icon: '⊕', color: '#3b82f6', panel: 'distribution' },
   { id: 'analytics', label: 'Analytics', icon: '◎', color: '#10b981', panel: 'analytics' },
   { id: 'nerve-center', label: 'Nerve Center', icon: '◈', color: '#ef4444', panel: 'nerve-center' },
+  { id: 'learning-loop', label: 'Learning Loop', icon: '◆', color: '#10b981', panel: 'learning-loop' },
+  { id: 'calendar', label: 'Calendar', icon: '▤', color: '#f59e0b', panel: 'calendar' },
   { id: 'settings', label: 'Settings', icon: '⚙', color: '#64748b', panel: 'settings' },
 ];
 
@@ -52,6 +54,8 @@ const EVENT_STYLES = {
   analytics: { icon: '◎', color: '#10b981', drawer: 'analytics' },
   music: { icon: '♫', color: '#8b5cf6', drawer: 'media' },
   mail: { icon: '✉', color: '#60a5fa', drawer: 'dashboard' },
+  commerce: { icon: '◆', color: '#10b981', drawer: 'learning-loop' },
+  calendar: { icon: '▤', color: '#f59e0b', drawer: 'calendar' },
 };
 
 function formatEvent(ev) {

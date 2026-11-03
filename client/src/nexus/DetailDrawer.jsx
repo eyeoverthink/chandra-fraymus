@@ -29,6 +29,8 @@ import CreationPanel from '../panels/CreationPanel.jsx';
 import DistributionPanel from '../panels/DistributionPanel.jsx';
 import AnalyticsPanel from '../panels/AnalyticsPanel.jsx';
 import NerveCenterPanel from '../panels/NerveCenterPanel.jsx';
+import LearningLoopPanel from '../panels/LearningLoopPanel.jsx';
+import CalendarPanel from '../panels/CalendarPanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -60,6 +62,8 @@ const PANELS = {
   distribution: { component: DistributionPanel, label: 'Social Distribution' },
   analytics: { component: AnalyticsPanel, label: 'Analytics Feedback' },
   'nerve-center': { component: NerveCenterPanel, label: 'Intelligence Nerve Center' },
+  'learning-loop': { component: LearningLoopPanel, label: 'Commerce Learning Loop' },
+  calendar: { component: CalendarPanel, label: 'Content Calendar' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {

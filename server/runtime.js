@@ -51,6 +51,10 @@ import { installDistributionRoutes } from './distribution/routes.js';
 import { createAnalyticsTools } from './analytics/tools.js';
 import { installAnalyticsRoutes } from './analytics/routes.js';
 import musicRouter from './media/music-routes.js';
+import { createLearningLoopTools } from './commerce/learning-loop-tools.js';
+import { installLearningLoopRoutes } from './commerce/learning-loop-routes.js';
+import { createCalendarTools } from './calendar/tools.js';
+import { installCalendarRoutes } from './calendar/routes.js';
 import { getObsBridge } from './streaming/overlay.js';
 import { installCommandRouter } from './command-router.js';
 import { installDeployRoutes } from './deploy-api/routes.js';
@@ -135,11 +139,15 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   try { distributionTools = createDistributionTools({ memoryBridge, broadcast }); } catch (e) { console.error('runtime: distribution tools failed:', e.message); }
   let analyticsTools = [];
   try { analyticsTools = createAnalyticsTools({ memoryBridge }); } catch (e) { console.error('runtime: analytics tools failed:', e.message); }
+  let learningLoopTools = [];
+  try { learningLoopTools = createLearningLoopTools({ memoryBridge, broadcast }); } catch (e) { console.error('runtime: learning-loop tools failed:', e.message); }
+  let calendarTools = [];
+  try { calendarTools = createCalendarTools({ memoryBridge, broadcast }); } catch (e) { console.error('runtime: calendar tools failed:', e.message); }
   agent = createAgentService({ db, workspace, ollamaUrl, fetchImpl,
     cloud, codeExecutor, desktopBroker:desktop, extraTools: [...createExtensionTools(artifacts, web),...desktop.tools(),
       ...createTaskTools({scheduler:tasks,db,now:taskClock,onReceipt:(id,receipt)=>agent?.recordTaskReceipt(id,receipt)}),
       ...createSemanticTools({artifacts,store:semanticStore,embedder:embeddings}),...createVisionTools({artifacts,provider:localVision}),...createOcrTools({artifacts,provider:localOcr}),...createFraymusTools(),
-      ...fleetTools, ...mcpImported, ...browserTools, ...vertisoTools, ...youtubeTools, ...commerceTools, ...streamingTools, ...creationTools, ...distributionTools, ...analyticsTools],
+      ...fleetTools, ...mcpImported, ...browserTools, ...vertisoTools, ...youtubeTools, ...commerceTools, ...streamingTools, ...creationTools, ...distributionTools, ...analyticsTools, ...learningLoopTools, ...calendarTools],
     resolveAttachments: (ids, options) => artifacts.resolve(ids, options),
     onEvent: event => {
       if(agent&&['usage','auxiliary_usage'].includes(event.type)) {
@@ -206,6 +214,8 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installCreationRoutes(app, { memoryBridge, broadcast });
   installDistributionRoutes(app, { memoryBridge, broadcast });
   installAnalyticsRoutes(app, { memoryBridge, broadcast });
+  installLearningLoopRoutes(app, { memoryBridge, broadcast });
+  installCalendarRoutes(app, { memoryBridge, broadcast });
   app.use(musicRouter);
   installStreamingRoutes(app, { broadcast, memoryBridge, db, obsBridge });
   installDeployRoutes(app, { broadcast, memoryBridge });
@@ -245,7 +255,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
       'visual-workflow-engine', '17-agent-fleet', 'mcp-server-gateway', 'mcp-client-bridge', 'cron-automations',
       'puppeteer-headless-browser', 'chrome-extension-bridge', 'vertiso-vector-memory', 'recursive-self-improvement',
       'event-driven-orchestration', 'agent-persistent-memory', 'system-health-monitor',
-      'agent-forge', 'workflow-synthesis', 'reflection-loop', 'nudp-mesh-protocol', 'sharp-image-engine', 'comfyui-bridge', 'ffmpeg-video-pipeline', 'tts-speech-engine', 'stt-transcription-engine', 'windows-media-ocr-pipeline', 'media-hub-panel', 'error-boundary-resilience', 'forge-synthesis-panel', 'system-settings-panel', 'notification-toasts', 'global-search', 'keyboard-shortcuts', 'agent-chat-panel', 'activity-timeline', 'system-metrics', 'agent-profiles', 'memory-browser', 'run-history', 'evolution-log', 'system-pulse', 'agent-leaderboard', 'agent-collaboration', 'edit-rebuild-pipeline', 'carbon-x-biological-encoding', 'social-distribution-engine', 'analytics-feedback-loop', 'ai-music-layer'] }));
+      'agent-forge', 'workflow-synthesis', 'reflection-loop', 'nudp-mesh-protocol', 'sharp-image-engine', 'comfyui-bridge', 'ffmpeg-video-pipeline', 'tts-speech-engine', 'stt-transcription-engine', 'windows-media-ocr-pipeline', 'media-hub-panel', 'error-boundary-resilience', 'forge-synthesis-panel', 'system-settings-panel', 'notification-toasts', 'global-search', 'keyboard-shortcuts', 'agent-chat-panel', 'activity-timeline', 'system-metrics', 'agent-profiles', 'memory-browser', 'run-history', 'evolution-log', 'system-pulse', 'agent-leaderboard', 'agent-collaboration', 'edit-rebuild-pipeline', 'carbon-x-biological-encoding', 'social-distribution-engine', 'analytics-feedback-loop', 'ai-music-layer', 'commerce-learning-loop', 'smart-content-calendar'] }));
   const clientErrors = [];
   app.post('/api/client-error', express.json(), (req, res) => {
     const { message, stack, component, view, ts } = req.body || {};

@@ -130,6 +130,28 @@ function getHistory({ type, status, limit = 100, offset = 0 }) {
       }));
   }
 
+  if (!type || type === 'revenue') {
+    safe(`SELECT id, order_id, order_total, source_content_topic, source_platform, attribution_confidence, attribution_method, attributed_at
+          FROM revenue_attributions ORDER BY attributed_at DESC LIMIT 200`)
+      .forEach(r => rows.push({
+        id: r.id, type: 'revenue', status: 'attributed',
+        label: r.source_content_topic || 'revenue', detail: `$${(r.order_total || 0).toFixed(2)} via ${r.source_platform || 'unknown'}`,
+        meta: { order_id: r.order_id, total: r.order_total, confidence: r.attribution_confidence, method: r.attribution_method },
+        timestamp: ts(r.attributed_at)
+      }));
+  }
+
+  if (!type || type === 'calendar') {
+    safe(`SELECT id, topic, format, platforms, scheduled_at, status, priority, source, reasoning, created_at
+          FROM smart_calendar ORDER BY scheduled_at DESC LIMIT 200`)
+      .forEach(r => rows.push({
+        id: r.id, type: 'calendar', status: r.status || 'scheduled',
+        label: r.topic || 'calendar', detail: `${r.format || 'content'} — ${r.source || 'manual'}`,
+        meta: { format: r.format, priority: r.priority, source: r.source, reasoning: r.reasoning },
+        timestamp: ts(r.scheduled_at || r.created_at)
+      }));
+  }
+
   rows.sort((a, b) => b.timestamp - a.timestamp);
 
   if (status) {
@@ -162,6 +184,8 @@ router.get('/api/run-history/stats', (_req, res) => {
   counts.creation = safe('SELECT COUNT(*) as c FROM creation_pipeline_runs')[0]?.c || 0;
   counts.distribution = safe('SELECT COUNT(*) as c FROM distribution_runs')[0]?.c || 0;
   counts.analytics = safe('SELECT COUNT(*) as c FROM content_analytics')[0]?.c || 0;
+  counts.revenue = safe('SELECT COUNT(*) as c FROM revenue_attributions')[0]?.c || 0;
+  counts.calendar = safe('SELECT COUNT(*) as c FROM smart_calendar')[0]?.c || 0;
   const total = Object.values(counts).reduce((s, v) => s + v, 0);
   res.json({ total, counts });
 });

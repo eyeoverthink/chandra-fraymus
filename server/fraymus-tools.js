@@ -454,6 +454,52 @@ function buildHermesExecutors() {
         return { error: e.message };
       }
     },
+
+    // ── Commerce Learning Loop + Calendar ──
+    revenue_report: async () => {
+      try {
+        const res = await fetch('http://127.0.0.1:8787/api/commerce/revenue/summary', { signal: AbortSignal.timeout(15_000) });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    learning_decisions: async () => {
+      try {
+        const res = await fetch('http://127.0.0.1:8787/api/commerce/learning/decisions', {
+          method: 'POST', signal: AbortSignal.timeout(30_000),
+        });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    calendar_suggest: async ({ count, daysAhead }) => {
+      try {
+        const res = await fetch('http://127.0.0.1:8787/api/calendar/suggest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ count: count || 5, daysAhead: daysAhead || 7 }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    calendar_schedule: async ({ topic, format, platforms }) => {
+      try {
+        const res = await fetch('http://127.0.0.1:8787/api/calendar/schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic, format: format || 'short_video', platforms: platforms || ['youtube', 'tiktok'] }),
+          signal: AbortSignal.timeout(15_000),
+        });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
   };
 }
 

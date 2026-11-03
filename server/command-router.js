@@ -30,6 +30,13 @@ const PIPELINE_ALIASES = {
   'music': 'music',
   'soundtrack': 'music',
   'score': 'music',
+  'learning-loop': 'learning-loop',
+  'learning': 'learning-loop',
+  'revenue': 'learning-loop',
+  'attribution': 'learning-loop',
+  'calendar': 'calendar',
+  'schedule': 'calendar',
+  'suggest': 'calendar',
 };
 
 const PIPELINE_ENDPOINTS = {
@@ -43,6 +50,8 @@ const PIPELINE_ENDPOINTS = {
   distribution: '/api/distribution/publish',
   analytics: '/api/analytics/insights',
   music: '/api/media/music/pipeline',
+  'learning-loop': '/api/commerce/learning/decisions',
+  calendar: '/api/calendar/suggest',
 };
 
 export function installCommandRouter(app, { broadcast }) {
@@ -95,6 +104,8 @@ export function installCommandRouter(app, { broadcast }) {
             : pipeline === 'distribution' ? { content: arg, platforms: ['youtube', 'tiktok', 'instagram', 'x'] }
             : pipeline === 'analytics' ? {}
             : pipeline === 'music' ? { topic: arg }
+            : pipeline === 'learning-loop' ? {}
+            : pipeline === 'calendar' ? { count: 5, daysAhead: 7 }
             : {};
           const pRes = await fetch(`http://127.0.0.1:${process.env.PORT || 8787}${endpoint}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
