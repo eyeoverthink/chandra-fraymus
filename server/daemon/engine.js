@@ -26,10 +26,11 @@ let daemonState = {
 
 const CONSOLIDATION_PROMPT = `You are a Dream Consolidator for a sovereign AI system. Your job is to compress recent system activity into a concise knowledge summary that agents can use as context.
 
-Given recent events (agent runs, bus messages, workflow executions, health alerts), produce a brief consolidated summary. Focus on:
+Given recent events (agent runs, bus messages, workflow executions, health alerts, perspective shifts), produce a brief consolidated summary. Focus on:
 1. Patterns — what happened repeatedly?
 2. Outcomes — what succeeded, what failed, and why?
 3. Learnings — what should be remembered for next time?
+4. Perspective patterns — which cognitive framings/approaches worked for which situations?
 
 Output JSON only, no markdown fences:
 {"patterns": ["..."], "outcomes": ["..."], "learnings": ["..."], "summary": "one paragraph compressed context"}`;
@@ -101,7 +102,22 @@ async function consolidateDreams() {
     } catch (_) { return []; }
   })();
 
-  const activityCount = recentBus.length + recentRuns.length + recentAlerts.length + recentVerifications.length + recentChains.length + recentDebates.length + recentGoals.length + recentRouting.length;
+  const recentPerspectives = (() => {
+    try {
+      const sessions = db.prepare(
+        `SELECT id, task, pattern_match, confidence FROM perspective_sessions WHERE created_at > ? ORDER BY created_at DESC LIMIT 10`
+      ).all(oneHourAgo);
+      const shifts = db.prepare(
+        `SELECT session_id, from_perspective, to_perspective, reason FROM perspective_shifts WHERE created_at > ? ORDER BY created_at DESC LIMIT 15`
+      ).all(oneHourAgo);
+      const playbook = db.prepare(
+        `SELECT pattern, perspective, success_rate, uses FROM perspective_playbook ORDER BY updated_at DESC LIMIT 10`
+      ).all();
+      return { sessions, shifts, playbook };
+    } catch (_) { return { sessions: [], shifts: [], playbook: [] }; }
+  })();
+
+  const activityCount = recentBus.length + recentRuns.length + recentAlerts.length + recentVerifications.length + recentChains.length + recentDebates.length + recentGoals.length + recentRouting.length + recentPerspectives.sessions.length + recentPerspectives.shifts.length;
   if (activityCount === 0) return { consolidated: false, reason: 'no_recent_activity' };
 
   const input = JSON.stringify({
@@ -113,6 +129,9 @@ async function consolidateDreams() {
     debates: recentDebates.map(d => ({ id: d.id, topic: d.topic?.slice(0, 150), verdict: d.verdict, confidence: d.confidence, durationMs: d.duration_ms })),
     goals: recentGoals.map(g => ({ id: g.id, objective: g.objective?.slice(0, 150), priority: g.priority, status: g.status, source: g.source })),
     modelRouting: recentRouting.map(r => ({ taskType: r.task_type, complexity: r.complexity, model: r.model_selected, tier: r.model_tier, success: r.success })),
+    perspectiveSessions: recentPerspectives.sessions.map(s => ({ id: s.id, task: s.task?.slice(0, 150), pattern: s.pattern_match, confidence: s.confidence })),
+    perspectiveShifts: recentPerspectives.shifts.map(s => ({ session: s.session_id, from: s.from_perspective, to: s.to_perspective, reason: s.reason?.slice(0, 100) })),
+    perspectivePlaybook: recentPerspectives.playbook.map(p => ({ pattern: p.pattern, perspective: p.perspective, successRate: p.success_rate, uses: p.uses })),
   }, null, 2);
 
   const response = await chatOllama([
@@ -135,7 +154,18 @@ async function consolidateDreams() {
     } catch (_) {}
   }
 
-  return { consolidated: true, activityCount, patterns: parsed.patterns?.length || 0, learnings: parsed.learnings?.length || 0, summary: parsed.summary };
+  // Refine perspective playbook from dream insights
+  const perspectiveInsights = (parsed.patterns || []).concat(parsed.learnings || [])
+    .filter(item => typeof item === 'string' && /perspective|framing|lens|approach/i.test(item));
+  for (const insight of perspectiveInsights.slice(0, 3)) {
+    try {
+      db.prepare(
+        `INSERT OR REPLACE INTO agent_memories (agent_id, category, key, value, confidence, source, access_count, created_at, updated_at) VALUES ('system', 'perspective_dream', ?, ?, 0.75, 'daemon-perspective', 0, ?, ?)`
+      ).run(`pdream:${now()}:${Math.random().toString(36).slice(2, 6)}`, String(insight).slice(0, 4000), now(), now());
+    } catch (_) {}
+  }
+
+  return { consolidated: true, activityCount, patterns: parsed.patterns?.length || 0, learnings: parsed.learnings?.length || 0, perspectiveInsights: perspectiveInsights.length, summary: parsed.summary };
 }
 
 // ─── Chain Findings Consolidation ────────────────────────────
@@ -255,7 +285,18 @@ async function evolvePrompts() {
       `- Verified: "${p.goal}" (${p.language}, ${p.iterations} iteration${p.iterations === 1 ? '' : 's'})`
     ).join('\n');
 
-    const evolvedPrompt = manifest.systemPrompt + `\n\n[Proven Patterns — injected by daemon at ${new Date().toISOString()}]\n${patternBlock}`;
+    let perspectivePlaybookBlock = '';
+    try {
+      const topPlaybook = db.prepare(
+        `SELECT pattern, perspective, success_rate FROM perspective_playbook WHERE uses > 0 ORDER BY success_rate DESC LIMIT 3`
+      ).all();
+      if (topPlaybook.length > 0) {
+        perspectivePlaybookBlock = `\n\n[Perspective Playbook — injected by daemon at ${new Date().toISOString()}]\n` +
+          topPlaybook.map(p => `- "${p.perspective}" approach works ${Math.round(p.success_rate * 100)}% for "${p.pattern}" tasks`).join('\n');
+      }
+    } catch (_) {}
+
+    const evolvedPrompt = manifest.systemPrompt + `\n\n[Proven Patterns — injected by daemon at ${new Date().toISOString()}]\n${patternBlock}` + perspectivePlaybookBlock;
 
     writeOverride({ ...manifest, systemPrompt: evolvedPrompt });
     evolvedCount++;
@@ -332,6 +373,7 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
         evolved: stepResults.promptEvolution?.evolved ?? false,
         reflectionActions: stepResults.reflection?.actionsCount ?? 0,
         goalsGenerated: stepResults.goalGeneration?.count ?? 0,
+        perspectiveInsights: stepResults.consolidation?.perspectiveInsights ?? 0,
         durationMs: duration, at: t0,
       }));
     } catch (_) {}
