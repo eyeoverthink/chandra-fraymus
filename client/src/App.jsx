@@ -35,6 +35,7 @@ const NAV_BUTTONS = [
   { panel: 'debate', title: 'Debate Protocol', icon: '⚔', label: 'Debate', color: '#dc2626' },
   { panel: 'swarm', title: 'Swarm Protocol', icon: '🐝', label: 'Swarm', color: '#f59e0b' },
   { panel: 'strategy', title: 'Strategy Engine', icon: '🧭', label: 'Strategy', color: '#0d9488' },
+  { panel: 'trust', title: 'Trust Engine', icon: '🛡', label: 'Trust', color: '#dc2626' },
 ];
 
 function NavButton({ btn, openDrawer }) {
@@ -118,6 +119,7 @@ export default function App() {
     if (action === 'debate') { setDrawer({ panel: 'debate', title: 'Debate Protocol' }); return; }
     if (action === 'swarm') { setDrawer({ panel: 'swarm', title: 'Swarm Protocol' }); return; }
     if (action === 'strategy') { setDrawer({ panel: 'strategy', title: 'Strategy Engine' }); return; }
+    if (action === 'trust') { setDrawer({ panel: 'trust', title: 'Trust Engine' }); return; }
     if (action.startsWith('view:')) {
       setView(action.slice(5));
       setDrawer(null);

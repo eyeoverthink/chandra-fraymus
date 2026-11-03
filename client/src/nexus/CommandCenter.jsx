@@ -35,6 +35,7 @@ const WIDGETS = [
   { id: 'perspective', label: 'Perspective', icon: '🔮', color: '#8b5cf6', panel: 'perspective' },
   { id: 'swarm', label: 'Swarm', icon: '🐝', color: '#f59e0b', panel: 'swarm' },
   { id: 'strategy', label: 'Strategy', icon: '🧭', color: '#0d9488', panel: 'strategy' },
+  { id: 'trust', label: 'Trust', icon: '🛡', color: '#dc2626', panel: 'trust' },
   { id: 'settings', label: 'Settings', icon: '⚙', color: '#64748b', panel: 'settings' },
 ];
 
@@ -80,6 +81,7 @@ const EVENT_STYLES = {
   perspective: { icon: '🔮', color: '#8b5cf6', drawer: 'perspective' },
   swarm: { icon: '🐝', color: '#f59e0b', drawer: 'swarm' },
   strategy: { icon: '🧭', color: '#0d9488', drawer: 'strategy' },
+  trust: { icon: '🛡', color: '#dc2626', drawer: 'trust' },
   daemon: { icon: '◎', color: '#8b5cf6', drawer: 'evolution' },
   reflection: { icon: '◇', color: '#f59e0b', drawer: 'evolution' },
 };

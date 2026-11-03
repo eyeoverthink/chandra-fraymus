@@ -14,6 +14,7 @@ import { selectModel, routingStats, logRouting } from '../intelligence/model-rou
 import { assessSituation, shiftPerspective, recordOutcome, briefNextInstance, getStats as perspectiveStats } from '../intelligence/perspective.js';
 import { initiateSwarm, getSwarmSession, listSwarms, getSwarmStats } from '../intelligence/swarm.js';
 import { analyzeTask, executeStrategy, listStrategies, getStrategyStats } from '../intelligence/strategy.js';
+import { recordEvent as recordTrustEvent, getAgentTrust, getLeaderboard, recommendAgents, getTrustStats } from '../intelligence/trust.js';
 import { executeChain, listRuns as listChainRuns } from '../chain/engine.js';
 import observatoryRouter from '../observatory.js';
 import { encodeCodon, decodeCodon, codonStats } from '../fraymus/encoding/codon.js';
@@ -1275,6 +1276,48 @@ export function createFleetTools({ workflowStore }) {
       description: 'List recent strategy sessions with execution paths and outcomes.',
       parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Max results (default 10)' } }),
       execute: async ({ args }) => ({ strategies: listStrategies(args.limit || 10) }),
+    },
+    {
+      name: 'trust_record',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Record a trust event for an agent — outcome of a task in a domain. Updates Bayesian trust score.',
+      parameters: object({
+        agentId: string(100, { description: 'Agent ID' }),
+        domain: string(100, { description: 'Task domain (default: general)' }),
+        task: string(2000, { description: 'Task description' }),
+        outcome: string(20, { description: 'success | failure | partial | error | timeout' }),
+        quality: { type: 'number', minimum: 0, maximum: 1, description: 'Quality score 0-1 (optional)' },
+      }, ['agentId', 'task', 'outcome']),
+      execute: async ({ args }) => {
+        recordTrustEvent({ agentId: args.agentId, domain: args.domain, task: args.task, outcome: args.outcome, quality: args.quality });
+        return getAgentTrust(args.agentId, args.domain || 'general');
+      },
+    },
+    {
+      name: 'trust_query',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Get trust scores for an agent across all domains, or the leaderboard for a domain.',
+      parameters: object({
+        agentId: string(100, { description: 'Agent ID (omit for leaderboard)' }),
+        domain: string(100, { description: 'Filter by domain' }),
+      }),
+      execute: async ({ args }) => {
+        if (args.agentId) return { trust: getAgentTrust(args.agentId, args.domain) };
+        return { leaderboard: getLeaderboard({ domain: args.domain, limit: 10 }) };
+      },
+    },
+    {
+      name: 'trust_recommend',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Recommend the best agents for a domain based on Bayesian trust scores.',
+      parameters: object({
+        domain: string(100, { description: 'Task domain to find agents for (default: general)' }),
+        count: { type: 'integer', minimum: 1, maximum: 10, description: 'How many agents (default 3)' },
+      }),
+      execute: async ({ args }) => ({ recommendations: recommendAgents({ domain: args.domain || 'general', count: args.count || 3 }) }),
     },
     {
       name: 'chain_run',

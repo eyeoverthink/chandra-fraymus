@@ -84,6 +84,7 @@ import { installModelRouterRoutes } from './intelligence/model-router.js';
 import { installPerspectiveRoutes } from './intelligence/perspective.js';
 import { installSwarmRoutes } from './intelligence/swarm.js';
 import { installStrategyRoutes } from './intelligence/strategy.js';
+import { installTrustRoutes } from './intelligence/trust.js';
 import { installNUDPRoutes } from './fraymus/protocol/nudp-routes.js';
 import { installBridgeRoutes } from './fraymus/protocol/bridge-routes.js';
 import { installImageRoutes } from './media/image-routes.js';
@@ -218,6 +219,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installPerspectiveRoutes(app);
   installSwarmRoutes(app);
   installStrategyRoutes(app);
+  installTrustRoutes(app);
   installNUDPRoutes(app);
   installBridgeRoutes(app);
   installImageRoutes(app);

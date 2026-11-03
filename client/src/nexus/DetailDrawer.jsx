@@ -43,6 +43,7 @@ import ModelRouterPanel from '../panels/ModelRouterPanel.jsx';
 import PerspectivePanel from '../panels/PerspectivePanel.jsx';
 import SwarmPanel from '../panels/SwarmPanel.jsx';
 import StrategyPanel from '../panels/StrategyPanel.jsx';
+import TrustPanel from '../panels/TrustPanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -88,6 +89,7 @@ const PANELS = {
   perspective: { component: PerspectivePanel, label: 'Perspective Engine' },
   swarm: { component: SwarmPanel, label: 'Swarm Protocol' },
   strategy: { component: StrategyPanel, label: 'Strategy Engine' },
+  trust: { component: TrustPanel, label: 'Trust Engine' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {

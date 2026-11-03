@@ -141,6 +141,7 @@ function nodeKind(type) {
   if (type === 'perspective_assess') return 'perspective_assess';
   if (type === 'swarm_solve') return 'swarm_solve';
   if (type === 'strategy_route') return 'strategy_route';
+  if (type === 'trust_evaluate') return 'trust_evaluate';
   if (type === 'stream_capture') return 'stream_capture';
   if (type === 'stream_mint') return 'stream_mint';
   if (type === 'stream_deliver') return 'stream_deliver';
@@ -796,6 +797,22 @@ export async function runPipeline(nodes, edges, opts = {}) {
         const result = await executeStrategy({ task: upstreamText || node.data?.task || 'strategy task', context: node.data?.context || '', autoExecute: !!node.data?.autoExecute });
         r.data = { strategyId: result.strategyId, path: result.executionPath || result.recommendedPath, confidence: result.analysis?.confidence, quality: result.quality };
         r.text = `Strategy → ${result.executionPath || result.recommendedPath || 'planned'} (confidence: ${result.analysis?.confidence ? Math.round(result.analysis.confidence * 100) + '%' : 'N/A'})`;
+        texts[id] = r.text;
+
+      } else if (k === 'trust_evaluate') {
+        const { getAgentTrust, recommendAgents } = await import('../intelligence/trust.js');
+        const agentId = node.data?.agentId;
+        const domain = node.data?.domain || 'general';
+        if (agentId) {
+          const trust = getAgentTrust(agentId, domain);
+          const t = Array.isArray(trust) ? trust[0] : trust;
+          r.data = { agentId, domain, score: t.score, confidence: t.confidence, totalRuns: t.total_runs };
+          r.text = `Trust: ${agentId} → ${Math.round(t.score * 100)}% (confidence: ${Math.round(t.confidence * 100)}%, ${t.total_runs} runs)`;
+        } else {
+          const recs = recommendAgents({ domain, count: node.data?.count || 3 });
+          r.data = { domain, recommendations: recs };
+          r.text = `Trust recommend for ${domain}: ${recs.map(a => `${a.agentId} (${Math.round(a.score * 100)}%)`).join(', ') || 'no data yet'}`;
+        }
         texts[id] = r.text;
 
       // ── Carbon X biological encoding nodes ──────────────────
