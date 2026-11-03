@@ -2,9 +2,10 @@
  * Logic Chain REST API routes.
  */
 
-import { executeChain, loadRun, loadRunStages, listRuns, deleteRun, renderDocument } from './engine.js';
+import { executeChain, loadRun, loadRunStages, listRuns, deleteRun, renderDocument, saveRun } from './engine.js';
 import { getDefaultSlots } from './roles.js';
 import { ledgerStats } from './ledger.js';
+import { reviewLedger, REVIEW_PANEL, JEV_THRESHOLD } from './review.js';
 
 let broadcastFn = () => {};
 let memoryBridgeRef = null;
@@ -63,6 +64,38 @@ export function installChainRoutes(app, { broadcast, memoryBridge } = {}) {
       if (!deleted) return res.status(404).json({ error: 'Run not found' });
       res.json({ deleted: req.params.id });
     } catch (e) { next(e); }
+  });
+
+  app.get('/api/chain/runs/:id/review', (req, res, next) => {
+    try {
+      const run = loadRun(req.params.id);
+      if (!run) return res.status(404).json({ error: 'Run not found' });
+      if (!run.review) return res.json({ review: null, message: 'No review yet — run is still in progress or review was skipped' });
+      res.json({ review: run.review });
+    } catch (e) { next(e); }
+  });
+
+  app.post('/api/chain/runs/:id/review', async (req, res, next) => {
+    try {
+      const run = loadRun(req.params.id);
+      if (!run) return res.status(404).json({ error: 'Run not found' });
+      if (run.status === 'running') return res.status(409).json({ error: 'Cannot review a running chain — wait for completion' });
+
+      const reviewPromise = reviewLedger(run.objective, run.ledger, run.config || {}, { broadcast: broadcastFn });
+      reviewPromise.then(review => {
+        const freshRun = loadRun(req.params.id);
+        if (freshRun) {
+          freshRun.review = review;
+          saveRun(freshRun);
+        }
+      }).catch(err => console.error('chain: standalone review failed:', err.message));
+
+      res.status(202).json({ status: 'review_started', runId: req.params.id });
+    } catch (e) { next(e); }
+  });
+
+  app.get('/api/chain/review-panel', (_req, res) => {
+    res.json({ panel: REVIEW_PANEL, jevThreshold: JEV_THRESHOLD });
   });
 
   app.get('/api/chain/slots', (_req, res) => {

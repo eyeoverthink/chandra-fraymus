@@ -8,6 +8,7 @@ import { db } from '../db.js';
 import { chatOllama, parseJSON } from '../commerce/shared.js';
 import { emptyLedger, parseDelta, merge, boundedLedger, ledgerStats, FIELDS } from './ledger.js';
 import { resolveSlots, slotName } from './roles.js';
+import { reviewLedger } from './review.js';
 
 const PASSES = 2;
 const SLOTS_PER_PASS = 8;
@@ -109,7 +110,7 @@ Write the synthesis document.`;
   });
 }
 
-function saveRun(run) {
+export function saveRun(run) {
   db.prepare(`INSERT OR REPLACE INTO chain_runs (id, objective, status, config_snapshot, ledger, stages, review, synthesis, usage, dropped, stop_reason, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     run.id, run.objective, run.status,
@@ -205,6 +206,17 @@ export async function executeChain(objective, config = {}, { broadcast = () => {
         });
 
         saveRun(run);
+      }
+    }
+
+    if (config.skipReview !== true) {
+      try {
+        run.review = await reviewLedger(objective, run.ledger, config, { broadcast });
+        run.usage.totalCalls += (run.review.reviews?.length || 0);
+        saveRun(run);
+      } catch (err) {
+        run.review = { error: `Review failed: ${err.message}` };
+        console.error('chain: review failed:', err.message);
       }
     }
 
