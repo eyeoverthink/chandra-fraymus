@@ -1,0 +1,70 @@
+/**
+ * Logic Chain REST API routes.
+ */
+
+import { executeChain, loadRun, loadRunStages, listRuns, deleteRun, renderDocument } from './engine.js';
+import { getDefaultSlots } from './roles.js';
+import { ledgerStats } from './ledger.js';
+
+let broadcastFn = () => {};
+let memoryBridgeRef = null;
+
+export function installChainRoutes(app, { broadcast, memoryBridge } = {}) {
+  broadcastFn = broadcast || (() => {});
+  memoryBridgeRef = memoryBridge || null;
+
+  app.post('/api/chain/run', async (req, res, next) => {
+    try {
+      const { objective, config } = req.body || {};
+      if (!objective || typeof objective !== 'string' || objective.trim().length < 3) {
+        return res.status(400).json({ error: 'Objective must be a non-empty string (min 3 chars)' });
+      }
+
+      const run = executeChain(objective.trim(), config || {}, { broadcast: broadcastFn, memoryBridge: memoryBridgeRef });
+      run.then(() => {}).catch(err => console.error('chain: background run failed:', err.message));
+
+      await new Promise(resolve => setTimeout(resolve, 200));
+      const saved = loadRun((await run).id) || { id: 'pending', status: 'starting' };
+      res.status(202).json({ id: saved.id, status: saved.status });
+    } catch (e) { next(e); }
+  });
+
+  app.get('/api/chain/runs', (_req, res, next) => {
+    try {
+      const limit = Math.min(500, Math.max(1, parseInt(_req.query.limit) || 50));
+      res.json({ runs: listRuns(limit) });
+    } catch (e) { next(e); }
+  });
+
+  app.get('/api/chain/runs/:id', (req, res, next) => {
+    try {
+      const run = loadRun(req.params.id);
+      if (!run) return res.status(404).json({ error: 'Run not found' });
+      run.stageDetails = loadRunStages(req.params.id);
+      run.ledgerStats = ledgerStats(run.ledger);
+      res.json(run);
+    } catch (e) { next(e); }
+  });
+
+  app.get('/api/chain/runs/:id/document', (req, res, next) => {
+    try {
+      const run = loadRun(req.params.id);
+      if (!run) return res.status(404).json({ error: 'Run not found' });
+      const md = renderDocument(run);
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      res.send(md);
+    } catch (e) { next(e); }
+  });
+
+  app.delete('/api/chain/runs/:id', (req, res, next) => {
+    try {
+      const deleted = deleteRun(req.params.id);
+      if (!deleted) return res.status(404).json({ error: 'Run not found' });
+      res.json({ deleted: req.params.id });
+    } catch (e) { next(e); }
+  });
+
+  app.get('/api/chain/slots', (_req, res) => {
+    res.json({ slots: getDefaultSlots() });
+  });
+}

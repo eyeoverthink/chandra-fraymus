@@ -371,5 +371,41 @@ export function migrateWorkspaces() {
       hello_count INTEGER DEFAULT 0,
       meta TEXT DEFAULT '{}'
     );
+
+    CREATE TABLE IF NOT EXISTS chain_runs (
+      id TEXT PRIMARY KEY,
+      objective TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'running',
+      config_snapshot TEXT,
+      ledger TEXT,
+      stages TEXT,
+      review TEXT,
+      synthesis TEXT,
+      usage TEXT,
+      dropped TEXT,
+      stop_reason TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_chain_run ON chain_runs(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS chain_stages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      run_id TEXT NOT NULL,
+      number INTEGER NOT NULL,
+      pass INTEGER NOT NULL,
+      agent_id TEXT,
+      name TEXT,
+      status TEXT NOT NULL DEFAULT 'running',
+      delta TEXT,
+      raw TEXT,
+      error TEXT,
+      added INTEGER DEFAULT 0,
+      attempts INTEGER DEFAULT 1,
+      duration_ms INTEGER,
+      started_at INTEGER,
+      ended_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_chain_stage ON chain_stages(run_id, number);
   `);
 }

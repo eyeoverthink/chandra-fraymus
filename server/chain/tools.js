@@ -1,0 +1,77 @@
+/**
+ * Fleet tools for Logic Chain — allows agents to trigger and query chain runs.
+ */
+
+import { executeChain, loadRun, listRuns, renderDocument } from './engine.js';
+import { ledgerStats } from './ledger.js';
+
+export function createChainTools({ broadcast, memoryBridge } = {}) {
+  return [
+    {
+      name: 'chain.run',
+      description: 'Start a Logic Chain run: 8 specialized agents analyze an objective across 2 passes (16 stages), accumulating evidence in a structured ledger.',
+      safety: 'safe',
+      parameters: {
+        type: 'object',
+        properties: {
+          objective: { type: 'string', description: 'The objective to analyze' },
+          model: { type: 'string', description: 'Ollama model to use (optional)' },
+        },
+        required: ['objective'],
+      },
+      handler: async (params) => {
+        const run = await executeChain(params.objective, { model: params.model }, { broadcast, memoryBridge });
+        const stats = ledgerStats(run.ledger);
+        return { id: run.id, status: run.status, stages: run.stages.length, ledger: stats, durationMs: run.usage?.durationMs };
+      },
+    },
+    {
+      name: 'chain.status',
+      description: 'Get the status and ledger stats of a chain run.',
+      safety: 'safe',
+      parameters: {
+        type: 'object',
+        properties: {
+          runId: { type: 'string', description: 'Chain run ID' },
+        },
+        required: ['runId'],
+      },
+      handler: async (params) => {
+        const run = loadRun(params.runId);
+        if (!run) return { error: 'Run not found' };
+        return { id: run.id, status: run.status, stages: run.stages.length, ledger: ledgerStats(run.ledger), stopReason: run.stopReason };
+      },
+    },
+    {
+      name: 'chain.document',
+      description: 'Get the synthesis document from a completed chain run.',
+      safety: 'safe',
+      parameters: {
+        type: 'object',
+        properties: {
+          runId: { type: 'string', description: 'Chain run ID' },
+        },
+        required: ['runId'],
+      },
+      handler: async (params) => {
+        const run = loadRun(params.runId);
+        if (!run) return { error: 'Run not found' };
+        return { document: renderDocument(run) };
+      },
+    },
+    {
+      name: 'chain.list_runs',
+      description: 'List recent Logic Chain runs.',
+      safety: 'safe',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', description: 'Max runs to return (default 20)' },
+        },
+      },
+      handler: async (params) => {
+        return { runs: listRuns(params.limit || 20) };
+      },
+    },
+  ];
+}
