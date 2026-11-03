@@ -28,6 +28,7 @@ import { runPageGenerator, runCollectionOrganizer, runDescriptionEnhancer, runPr
 import { mintArtifact, verifyArtifact } from '../streaming/mint.js';
 import { executeChain, loadRun, listRuns as listChainRuns } from '../chain/engine.js';
 import { executeChainToCode } from '../chain/executor.js';
+import { generateGoals } from '../intelligence/goal-engine.js';
 import { ledgerStats as chainLedgerStats } from '../chain/ledger.js';
 import { getObsBridge } from '../streaming/overlay.js';
 import {
@@ -132,6 +133,7 @@ function nodeKind(type) {
   if (type === 'carbon_checkpoint') return 'carbon_checkpoint';
   if (type === 'chain_run') return 'chain_run';
   if (type === 'chain_to_code') return 'chain_to_code';
+  if (type === 'goal_generate') return 'goal_generate';
   if (type === 'stream_capture') return 'stream_capture';
   if (type === 'stream_mint') return 'stream_mint';
   if (type === 'stream_deliver') return 'stream_deliver';
@@ -736,6 +738,17 @@ export async function runPipeline(nodes, edges, opts = {}) {
           durationMs: execResult.durationMs,
         };
         r.text = `ChainToCode ${execResult.execId}: ${execResult.passed}/${execResult.total} steps produced verified code (${execResult.status})`;
+        texts[id] = r.text;
+
+      } else if (k === 'goal_generate') {
+        const goalResult = await generateGoals({ trigger: 'workflow' });
+        r.data = {
+          generated: goalResult.generated, count: goalResult.count,
+          proposals: (goalResult.proposals || []).map(p => ({ id: p.id, objective: p.objective, priority: p.priority })),
+        };
+        r.text = goalResult.generated
+          ? `GoalEngine: ${goalResult.count} new objective${goalResult.count === 1 ? '' : 's'} proposed`
+          : `GoalEngine: no new objectives (${goalResult.reason || 'landscape empty'})`;
         texts[id] = r.text;
 
       // ── Carbon X biological encoding nodes ──────────────────

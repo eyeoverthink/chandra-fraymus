@@ -31,6 +31,7 @@ const NAV_BUTTONS = [
   { panel: 'collab', title: 'Agent Collaboration', icon: '⊗', label: 'Collab', color: '#7c3aed' },
   { panel: 'nerve-center', title: 'Nerve Center', icon: '◈', label: 'Nerve', color: '#ef4444' },
   { panel: 'chain', title: 'Logic Chain', icon: '⛓', label: 'Chain', color: '#7c3aed' },
+  { panel: 'observatory', title: 'Intelligence Observatory', icon: '🔭', label: 'Observe', color: '#0d9488' },
 ];
 
 function NavButton({ btn, openDrawer }) {

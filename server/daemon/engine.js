@@ -5,6 +5,7 @@ import { publish } from '../fleet/bus.js';
 import { loadManifests, writeOverride } from '../fleet/manifest.js';
 import { reloadManifests } from '../fleet/runtime.js';
 import { reflect } from '../intelligence/reflection.js';
+import { generateGoals } from '../intelligence/goal-engine.js';
 
 const now = () => Date.now();
 const DEFAULT_CYCLE_MS = 30 * 60 * 1000;
@@ -280,6 +281,13 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
       stepResults.reflection = { error: e.message };
     }
 
+    // Step 5: Goal generation (proposes new chain objectives from knowledge gaps)
+    try {
+      stepResults.goalGeneration = await generateGoals({ trigger: `daemon:${trigger}` });
+    } catch (e) {
+      stepResults.goalGeneration = { error: e.message };
+    }
+
     const duration = now() - t0;
 
     db.prepare(
@@ -296,6 +304,7 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
         chainFindings: stepResults.chainConsolidation?.findingsStored ?? 0,
         evolved: stepResults.promptEvolution?.evolved ?? false,
         reflectionActions: stepResults.reflection?.actionsCount ?? 0,
+        goalsGenerated: stepResults.goalGeneration?.count ?? 0,
         durationMs: duration, at: t0,
       }));
     } catch (_) {}

@@ -36,6 +36,7 @@ import TrendRadarPanel from '../panels/TrendRadarPanel.jsx';
 import AudiencePanel from '../panels/AudiencePanel.jsx';
 import RepurposePanel from '../panels/RepurposePanel.jsx';
 import ChainPanel from '../panels/ChainPanel.jsx';
+import ObservatoryPanel from '../panels/ObservatoryPanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -74,6 +75,7 @@ const PANELS = {
   audience: { component: AudiencePanel, label: 'Audience Intelligence' },
   repurpose: { component: RepurposePanel, label: 'Content Repurposing' },
   chain: { component: ChainPanel, label: 'Logic Chain' },
+  observatory: { component: ObservatoryPanel, label: 'Intelligence Observatory' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {

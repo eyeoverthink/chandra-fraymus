@@ -8,6 +8,7 @@ import { forgeAgent, listForgedAgents } from './forge.js';
 import { synthesizeWorkflow } from '../workflow/synthesizer.js';
 import { runVerifierLoop, listLoops as listVerifierLoops } from '../intelligence/verifier-loop.js';
 import { startDaemon, stopDaemon, getDaemonStatus, runCycle, listCycles } from '../daemon/engine.js';
+import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { encodeCodon, decodeCodon, codonStats } from '../fraymus/encoding/codon.js';
 import { forgePlasmid, digestPlasmid, plasmidToFasta } from '../fraymus/encoding/plasmid.js';
 import { createGenomeSnapshot, saveCheckpoint, listCheckpoints } from '../fraymus/encoding/carbon.js';
@@ -1074,6 +1075,40 @@ export function createFleetTools({ workflowStore }) {
     },
 
     // --- Bridge tools (fraymus-bridge git message bus) ---
+    {
+      name: 'goal_generate',
+      group: 'evolution',
+      risk: 'safe',
+      description: 'Generate new chain objectives by analyzing the knowledge landscape. The Goal Engine reads memory categories, chain runs, fossils, and knowledge gaps, then proposes 1-3 new objectives for the Logic Chain to analyze.',
+      parameters: object({}),
+      execute: async () => generateGoals({ trigger: 'agent' }),
+    },
+    {
+      name: 'goal_list',
+      group: 'evolution',
+      risk: 'safe',
+      description: 'List goal proposals. Filter by status: proposed, accepted, rejected, executing, completed.',
+      parameters: object({
+        status: string(20, { description: 'Filter by status (proposed, accepted, rejected, executing, completed)' }),
+        limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Max proposals (default 20)' },
+      }),
+      execute: async ({ args }) => ({ proposals: listProposals({ status: args.status, limit: args.limit || 20 }) }),
+    },
+    {
+      name: 'goal_update',
+      group: 'evolution',
+      risk: 'medium',
+      description: 'Update a goal proposal status. Use to accept, reject, or mark as executing/completed.',
+      parameters: object({
+        id: string(30, { description: 'Goal proposal ID' }),
+        status: string(20, { description: 'New status: accepted, rejected, executing, completed', enum: ['accepted', 'rejected', 'executing', 'completed'] }),
+        chainRunId: string(50, { description: 'Chain run ID if the goal was executed' }),
+      }, ['id', 'status']),
+      execute: async ({ args }) => {
+        updateProposalStatus(args.id, args.status, args.chainRunId);
+        return { updated: args.id, status: args.status };
+      },
+    },
     {
       name: 'bridge_list',
       group: 'bridge',
