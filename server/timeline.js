@@ -229,11 +229,34 @@ function getEvents(limit = 20) {
     timestamp: safeTs(r.last_seen_at || r.first_seen_at),
   }));
 
+  const audienceSegments = query(
+    `SELECT id, name, description, size_estimate, engagement_avg, status, source, created_at
+     FROM audience_segments ORDER BY created_at DESC LIMIT :limit`, perTable
+  ).map(r => ({
+    id: `aud-${r.id}`, type: 'audience-segment', category: 'audience',
+    title: `Segment: ${r.name || 'unnamed'}`,
+    detail: `${r.source || 'manual'} — ${r.size_estimate || 0} est. size — ${((r.engagement_avg || 0) * 100).toFixed(0)}% engagement`,
+    status: r.status || 'active',
+    timestamp: safeTs(r.created_at),
+  }));
+
+  const repurposeJobs = query(
+    `SELECT id, source_format, variant_count, quality_score, status, duration_ms, created_at
+     FROM repurpose_jobs ORDER BY created_at DESC LIMIT :limit`, perTable
+  ).map(r => ({
+    id: `rp-${r.id}`, type: 'repurpose-job', category: 'repurpose',
+    title: `Repurpose: ${r.source_format || 'content'}`,
+    detail: `${r.variant_count || 0} variants — quality ${((r.quality_score || 0) * 100).toFixed(0)}%`,
+    status: r.status || 'pending',
+    timestamp: safeTs(r.created_at),
+  }));
+
   const all = [
     ...agentRuns, ...workflowRuns, ...automationRuns,
     ...commerceRuns, ...apparelRuns, ...mysteryRuns, ...fixerRuns,
     ...creationRuns, ...distributionRuns, ...analyticsEntries,
     ...revenueEvents, ...calendarEvents, ...abExperiments, ...trendSignals,
+    ...audienceSegments, ...repurposeJobs,
     ...busMessages, ...healthAlerts, ...reflections,
     ...forged, ...synthesized,
   ];
@@ -248,7 +271,7 @@ router.get('/api/timeline', (req, res) => {
     const category = req.query.category || null;
     let events = getEvents(limit);
     if (category) events = events.filter(e => e.category === category);
-    const categories = ['agent', 'workflow', 'commerce', 'creation', 'distribution', 'analytics', 'revenue', 'calendar', 'ab-testing', 'trend-radar', 'bus', 'health', 'evolution'];
+    const categories = ['agent', 'workflow', 'commerce', 'creation', 'distribution', 'analytics', 'revenue', 'calendar', 'ab-testing', 'trend-radar', 'audience', 'repurpose', 'bus', 'health', 'evolution'];
     res.json({ events, categories, total: events.length });
   } catch (err) {
     console.error('[timeline]', err.message);

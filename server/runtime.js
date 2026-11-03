@@ -59,6 +59,10 @@ import { createAbTestingTools } from './ab-testing/tools.js';
 import { installAbTestingRoutes } from './ab-testing/routes.js';
 import { createTrendRadarTools } from './trend-radar/tools.js';
 import { installTrendRadarRoutes } from './trend-radar/routes.js';
+import { createAudienceTools } from './audience/tools.js';
+import { installAudienceRoutes } from './audience/routes.js';
+import { createRepurposeTools } from './repurpose/tools.js';
+import { installRepurposeRoutes } from './repurpose/routes.js';
 import { getObsBridge } from './streaming/overlay.js';
 import { installCommandRouter } from './command-router.js';
 import { installDeployRoutes } from './deploy-api/routes.js';
@@ -151,11 +155,15 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   try { abTestingTools = createAbTestingTools({ memoryBridge, broadcast }); } catch (e) { console.error('runtime: ab-testing tools failed:', e.message); }
   let trendRadarTools = [];
   try { trendRadarTools = createTrendRadarTools({ memoryBridge, broadcast }); } catch (e) { console.error('runtime: trend-radar tools failed:', e.message); }
+  let audienceTools = [];
+  try { audienceTools = createAudienceTools({ memoryBridge, broadcast }); } catch (e) { console.error('runtime: audience tools failed:', e.message); }
+  let repurposeTools = [];
+  try { repurposeTools = createRepurposeTools({ memoryBridge, broadcast }); } catch (e) { console.error('runtime: repurpose tools failed:', e.message); }
   agent = createAgentService({ db, workspace, ollamaUrl, fetchImpl,
     cloud, codeExecutor, desktopBroker:desktop, extraTools: [...createExtensionTools(artifacts, web),...desktop.tools(),
       ...createTaskTools({scheduler:tasks,db,now:taskClock,onReceipt:(id,receipt)=>agent?.recordTaskReceipt(id,receipt)}),
       ...createSemanticTools({artifacts,store:semanticStore,embedder:embeddings}),...createVisionTools({artifacts,provider:localVision}),...createOcrTools({artifacts,provider:localOcr}),...createFraymusTools(),
-      ...fleetTools, ...mcpImported, ...browserTools, ...vertisoTools, ...youtubeTools, ...commerceTools, ...streamingTools, ...creationTools, ...distributionTools, ...analyticsTools, ...learningLoopTools, ...calendarTools, ...abTestingTools, ...trendRadarTools],
+      ...fleetTools, ...mcpImported, ...browserTools, ...vertisoTools, ...youtubeTools, ...commerceTools, ...streamingTools, ...creationTools, ...distributionTools, ...analyticsTools, ...learningLoopTools, ...calendarTools, ...abTestingTools, ...trendRadarTools, ...audienceTools, ...repurposeTools],
     resolveAttachments: (ids, options) => artifacts.resolve(ids, options),
     onEvent: event => {
       if(agent&&['usage','auxiliary_usage'].includes(event.type)) {
@@ -226,6 +234,8 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installCalendarRoutes(app, { memoryBridge, broadcast });
   installAbTestingRoutes(app, { memoryBridge, broadcast });
   installTrendRadarRoutes(app, { memoryBridge, broadcast });
+  installAudienceRoutes(app, { memoryBridge, broadcast });
+  installRepurposeRoutes(app, { memoryBridge, broadcast });
   app.use(musicRouter);
   installStreamingRoutes(app, { broadcast, memoryBridge, db, obsBridge });
   installDeployRoutes(app, { broadcast, memoryBridge });
@@ -265,7 +275,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
       'visual-workflow-engine', '17-agent-fleet', 'mcp-server-gateway', 'mcp-client-bridge', 'cron-automations',
       'puppeteer-headless-browser', 'chrome-extension-bridge', 'vertiso-vector-memory', 'recursive-self-improvement',
       'event-driven-orchestration', 'agent-persistent-memory', 'system-health-monitor',
-      'agent-forge', 'workflow-synthesis', 'reflection-loop', 'nudp-mesh-protocol', 'sharp-image-engine', 'comfyui-bridge', 'ffmpeg-video-pipeline', 'tts-speech-engine', 'stt-transcription-engine', 'windows-media-ocr-pipeline', 'media-hub-panel', 'error-boundary-resilience', 'forge-synthesis-panel', 'system-settings-panel', 'notification-toasts', 'global-search', 'keyboard-shortcuts', 'agent-chat-panel', 'activity-timeline', 'system-metrics', 'agent-profiles', 'memory-browser', 'run-history', 'evolution-log', 'system-pulse', 'agent-leaderboard', 'agent-collaboration', 'edit-rebuild-pipeline', 'carbon-x-biological-encoding', 'social-distribution-engine', 'analytics-feedback-loop', 'ai-music-layer', 'commerce-learning-loop', 'smart-content-calendar', 'ab-testing-engine', 'trend-radar'] }));
+      'agent-forge', 'workflow-synthesis', 'reflection-loop', 'nudp-mesh-protocol', 'sharp-image-engine', 'comfyui-bridge', 'ffmpeg-video-pipeline', 'tts-speech-engine', 'stt-transcription-engine', 'windows-media-ocr-pipeline', 'media-hub-panel', 'error-boundary-resilience', 'forge-synthesis-panel', 'system-settings-panel', 'notification-toasts', 'global-search', 'keyboard-shortcuts', 'agent-chat-panel', 'activity-timeline', 'system-metrics', 'agent-profiles', 'memory-browser', 'run-history', 'evolution-log', 'system-pulse', 'agent-leaderboard', 'agent-collaboration', 'edit-rebuild-pipeline', 'carbon-x-biological-encoding', 'social-distribution-engine', 'analytics-feedback-loop', 'ai-music-layer', 'commerce-learning-loop', 'smart-content-calendar', 'ab-testing-engine', 'trend-radar', 'audience-intelligence', 'content-repurposing'] }));
   const clientErrors = [];
   app.post('/api/client-error', express.json(), (req, res) => {
     const { message, stack, component, view, ts } = req.body || {};

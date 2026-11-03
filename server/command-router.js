@@ -45,6 +45,13 @@ const PIPELINE_ALIASES = {
   'trends': 'trend-radar',
   'radar': 'trend-radar',
   'trend-radar': 'trend-radar',
+  'audience': 'audience',
+  'segments': 'audience',
+  'persona': 'audience',
+  'repurpose': 'repurpose',
+  'reformat': 'repurpose',
+  'adapt': 'repurpose',
+  'content-repurpose': 'repurpose',
 };
 
 const PIPELINE_ENDPOINTS = {
@@ -62,6 +69,8 @@ const PIPELINE_ENDPOINTS = {
   calendar: '/api/calendar/suggest',
   'ab-testing': '/api/ab/experiments/auto',
   'trend-radar': '/api/trends/scan',
+  audience: '/api/audience/discover',
+  repurpose: '/api/repurpose/suggest',
 };
 
 export function installCommandRouter(app, { broadcast }) {
@@ -118,6 +127,8 @@ export function installCommandRouter(app, { broadcast }) {
             : pipeline === 'calendar' ? { count: 5, daysAhead: 7 }
             : pipeline === 'ab-testing' ? { topic: arg }
             : pipeline === 'trend-radar' ? { niche: arg }
+            : pipeline === 'audience' ? {}
+            : pipeline === 'repurpose' ? { content: arg }
             : {};
           const pRes = await fetch(`http://127.0.0.1:${process.env.PORT || 8787}${endpoint}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),

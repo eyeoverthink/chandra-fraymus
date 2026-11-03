@@ -174,6 +174,28 @@ function getHistory({ type, status, limit = 100, offset = 0 }) {
       }));
   }
 
+  if (!type || type === 'audience') {
+    safe(`SELECT id, name, description, size_estimate, engagement_avg, status, source, created_at
+          FROM audience_segments ORDER BY created_at DESC LIMIT 200`)
+      .forEach(r => rows.push({
+        id: r.id, type: 'audience', status: r.status || 'active',
+        label: r.name || 'segment', detail: `${r.source || 'manual'} — ${r.size_estimate || 0} est. size`,
+        meta: { engagement: r.engagement_avg, source: r.source, description: r.description },
+        timestamp: ts(r.created_at)
+      }));
+  }
+
+  if (!type || type === 'repurpose') {
+    safe(`SELECT id, source_format, variant_count, quality_score, status, duration_ms, created_at
+          FROM repurpose_jobs ORDER BY created_at DESC LIMIT 200`)
+      .forEach(r => rows.push({
+        id: r.id, type: 'repurpose', status: r.status || 'pending',
+        label: `${r.source_format || 'content'} repurpose`, detail: `${r.variant_count || 0} variants — quality ${((r.quality_score || 0) * 100).toFixed(0)}%`,
+        meta: { sourceFormat: r.source_format, variants: r.variant_count, quality: r.quality_score, duration: r.duration_ms },
+        timestamp: ts(r.created_at)
+      }));
+  }
+
   rows.sort((a, b) => b.timestamp - a.timestamp);
 
   if (status) {
@@ -210,6 +232,8 @@ router.get('/api/run-history/stats', (_req, res) => {
   counts.calendar = safe('SELECT COUNT(*) as c FROM smart_calendar')[0]?.c || 0;
   counts['ab-test'] = safe('SELECT COUNT(*) as c FROM ab_experiments')[0]?.c || 0;
   counts.trend = safe('SELECT COUNT(*) as c FROM trend_signals')[0]?.c || 0;
+  counts.audience = safe('SELECT COUNT(*) as c FROM audience_segments')[0]?.c || 0;
+  counts.repurpose = safe('SELECT COUNT(*) as c FROM repurpose_jobs')[0]?.c || 0;
   const total = Object.values(counts).reduce((s, v) => s + v, 0);
   res.json({ total, counts });
 });

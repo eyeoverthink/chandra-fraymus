@@ -33,6 +33,8 @@ import LearningLoopPanel from '../panels/LearningLoopPanel.jsx';
 import CalendarPanel from '../panels/CalendarPanel.jsx';
 import AbTestingPanel from '../panels/AbTestingPanel.jsx';
 import TrendRadarPanel from '../panels/TrendRadarPanel.jsx';
+import AudiencePanel from '../panels/AudiencePanel.jsx';
+import RepurposePanel from '../panels/RepurposePanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -68,6 +70,8 @@ const PANELS = {
   calendar: { component: CalendarPanel, label: 'Content Calendar' },
   'ab-testing': { component: AbTestingPanel, label: 'A/B Testing Engine' },
   'trend-radar': { component: TrendRadarPanel, label: 'Trend Radar' },
+  audience: { component: AudiencePanel, label: 'Audience Intelligence' },
+  repurpose: { component: RepurposePanel, label: 'Content Repurposing' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {

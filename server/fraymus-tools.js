@@ -561,6 +561,80 @@ function buildHermesExecutors() {
         return { error: e.message };
       }
     },
+    audience_list_segments: async () => {
+      try {
+        const res = await fetch('http://127.0.0.1:8787/api/audience/segments', { signal: AbortSignal.timeout(10_000) });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    audience_discover: async () => {
+      try {
+        const res = await fetch('http://127.0.0.1:8787/api/audience/discover', {
+          method: 'POST',
+          signal: AbortSignal.timeout(30_000),
+        });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    audience_predict: async ({ segmentId, contentTopic }) => {
+      try {
+        const res = await fetch(`http://127.0.0.1:8787/api/audience/segments/${segmentId}/predict`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contentTopic }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    audience_stats: async () => {
+      try {
+        const res = await fetch('http://127.0.0.1:8787/api/audience/stats', { signal: AbortSignal.timeout(10_000) });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    repurpose_run: async ({ content, sourceFormat, targetFormats }) => {
+      try {
+        const res = await fetch('http://127.0.0.1:8787/api/repurpose/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, sourceFormat, targetFormats }),
+          signal: AbortSignal.timeout(60_000),
+        });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    repurpose_suggest: async ({ content }) => {
+      try {
+        const res = await fetch('http://127.0.0.1:8787/api/repurpose/suggest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    repurpose_stats: async () => {
+      try {
+        const res = await fetch('http://127.0.0.1:8787/api/repurpose/stats', { signal: AbortSignal.timeout(10_000) });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
   };
 }
 

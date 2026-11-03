@@ -107,6 +107,8 @@ export default function App() {
     if (action === 'calendar') { setDrawer({ panel: 'calendar', title: 'Content Calendar' }); return; }
     if (action === 'ab-testing') { setDrawer({ panel: 'ab-testing', title: 'A/B Testing Engine' }); return; }
     if (action === 'trend-radar') { setDrawer({ panel: 'trend-radar', title: 'Trend Radar' }); return; }
+    if (action === 'audience') { setDrawer({ panel: 'audience', title: 'Audience Intelligence' }); return; }
+    if (action === 'repurpose') { setDrawer({ panel: 'repurpose', title: 'Content Repurposing' }); return; }
     if (action.startsWith('view:')) {
       setView(action.slice(5));
       setDrawer(null);

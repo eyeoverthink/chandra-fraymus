@@ -25,6 +25,8 @@ const WIDGETS = [
   { id: 'calendar', label: 'Calendar', icon: '▤', color: '#f59e0b', panel: 'calendar' },
   { id: 'ab-testing', label: 'A/B Testing', icon: '⚖', color: '#6366f1', panel: 'ab-testing' },
   { id: 'trend-radar', label: 'Trend Radar', icon: '◉', color: '#f59e0b', panel: 'trend-radar' },
+  { id: 'audience', label: 'Audience', icon: '◎', color: '#7c3aed', panel: 'audience' },
+  { id: 'repurpose', label: 'Repurpose', icon: '⟳', color: '#ec4899', panel: 'repurpose' },
   { id: 'settings', label: 'Settings', icon: '⚙', color: '#64748b', panel: 'settings' },
 ];
 
@@ -60,6 +62,8 @@ const EVENT_STYLES = {
   calendar: { icon: '▤', color: '#f59e0b', drawer: 'calendar' },
   ab_testing: { icon: '⚖', color: '#6366f1', drawer: 'ab-testing' },
   trend_radar: { icon: '◉', color: '#f59e0b', drawer: 'trend-radar' },
+  audience: { icon: '◎', color: '#7c3aed', drawer: 'audience' },
+  repurpose: { icon: '⟳', color: '#ec4899', drawer: 'repurpose' },
 };
 
 function formatEvent(ev) {

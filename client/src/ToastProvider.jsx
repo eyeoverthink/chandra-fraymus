@@ -43,6 +43,8 @@ const WS_MAP = {
   mail:          { variant: 'info',    fmt: () => 'New mail received' },
   ab_testing:    { variant: 'info',    fmt: p => `A/B Test: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.id ? ` — ${p.id.slice(0, 12)}` : ''}` },
   trend_radar:   { variant: 'info',    fmt: p => `Trend Radar: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.newTrends ? ` — ${p.newTrends} new` : ''}` },
+  audience:      { variant: 'info',    fmt: p => `Audience: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.count ? ` — ${p.count} segments` : ''}` },
+  repurpose:     { variant: 'success', fmt: p => `Repurpose: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.variants ? ` — ${p.variants} variants` : ''}` },
 };
 
 export default function ToastProvider({ children, wsEvent }) {
