@@ -105,6 +105,8 @@ export default function App() {
     if (action === 'analytics') { setDrawer({ panel: 'analytics', title: 'Analytics Feedback' }); return; }
     if (action === 'learning-loop') { setDrawer({ panel: 'learning-loop', title: 'Commerce Learning Loop' }); return; }
     if (action === 'calendar') { setDrawer({ panel: 'calendar', title: 'Content Calendar' }); return; }
+    if (action === 'ab-testing') { setDrawer({ panel: 'ab-testing', title: 'A/B Testing Engine' }); return; }
+    if (action === 'trend-radar') { setDrawer({ panel: 'trend-radar', title: 'Trend Radar' }); return; }
     if (action.startsWith('view:')) {
       setView(action.slice(5));
       setDrawer(null);

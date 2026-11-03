@@ -41,6 +41,8 @@ const WS_MAP = {
   commerce:      { variant: 'success', fmt: p => `Commerce: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.order_id ? ` — order ${p.order_id}` : ''}` },
   calendar:      { variant: 'info',    fmt: p => `Calendar: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.topic ? ` — ${p.topic.slice(0, 40)}` : ''}` },
   mail:          { variant: 'info',    fmt: () => 'New mail received' },
+  ab_testing:    { variant: 'info',    fmt: p => `A/B Test: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.id ? ` — ${p.id.slice(0, 12)}` : ''}` },
+  trend_radar:   { variant: 'info',    fmt: p => `Trend Radar: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.newTrends ? ` — ${p.newTrends} new` : ''}` },
 };
 
 export default function ToastProvider({ children, wsEvent }) {

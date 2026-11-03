@@ -23,6 +23,8 @@ const WIDGETS = [
   { id: 'nerve-center', label: 'Nerve Center', icon: '◈', color: '#ef4444', panel: 'nerve-center' },
   { id: 'learning-loop', label: 'Learning Loop', icon: '◆', color: '#10b981', panel: 'learning-loop' },
   { id: 'calendar', label: 'Calendar', icon: '▤', color: '#f59e0b', panel: 'calendar' },
+  { id: 'ab-testing', label: 'A/B Testing', icon: '⚖', color: '#6366f1', panel: 'ab-testing' },
+  { id: 'trend-radar', label: 'Trend Radar', icon: '◉', color: '#f59e0b', panel: 'trend-radar' },
   { id: 'settings', label: 'Settings', icon: '⚙', color: '#64748b', panel: 'settings' },
 ];
 
@@ -56,6 +58,8 @@ const EVENT_STYLES = {
   mail: { icon: '✉', color: '#60a5fa', drawer: 'dashboard' },
   commerce: { icon: '◆', color: '#10b981', drawer: 'learning-loop' },
   calendar: { icon: '▤', color: '#f59e0b', drawer: 'calendar' },
+  ab_testing: { icon: '⚖', color: '#6366f1', drawer: 'ab-testing' },
+  trend_radar: { icon: '◉', color: '#f59e0b', drawer: 'trend-radar' },
 };
 
 function formatEvent(ev) {

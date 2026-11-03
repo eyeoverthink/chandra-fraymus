@@ -152,6 +152,28 @@ function getHistory({ type, status, limit = 100, offset = 0 }) {
       }));
   }
 
+  if (!type || type === 'ab-test') {
+    safe(`SELECT id, name, hypothesis, dimension, variant_a, variant_b, status, winner, confidence, created_at, concluded_at
+          FROM ab_experiments ORDER BY created_at DESC LIMIT 200`)
+      .forEach(r => rows.push({
+        id: r.id, type: 'ab-test', status: r.status || 'running',
+        label: r.name || 'experiment', detail: `${r.dimension || 'general'}: ${(r.variant_a || 'A').slice(0, 30)} vs ${(r.variant_b || 'B').slice(0, 30)}`,
+        meta: { hypothesis: r.hypothesis, dimension: r.dimension, winner: r.winner, confidence: r.confidence },
+        timestamp: ts(r.concluded_at || r.created_at)
+      }));
+  }
+
+  if (!type || type === 'trend') {
+    safe(`SELECT id, topic, source, category, relevance_score, velocity, status, first_seen_at, last_seen_at
+          FROM trend_signals WHERE status IN ('emerging', 'trending', 'peaked') ORDER BY last_seen_at DESC LIMIT 200`)
+      .forEach(r => rows.push({
+        id: r.id, type: 'trend', status: r.status || 'emerging',
+        label: r.topic || 'trend', detail: `${r.category || 'general'} — relevance ${((r.relevance_score || 0) * 100).toFixed(0)}%`,
+        meta: { category: r.category, relevance: r.relevance_score, velocity: r.velocity, source: r.source },
+        timestamp: ts(r.last_seen_at || r.first_seen_at)
+      }));
+  }
+
   rows.sort((a, b) => b.timestamp - a.timestamp);
 
   if (status) {
@@ -186,6 +208,8 @@ router.get('/api/run-history/stats', (_req, res) => {
   counts.analytics = safe('SELECT COUNT(*) as c FROM content_analytics')[0]?.c || 0;
   counts.revenue = safe('SELECT COUNT(*) as c FROM revenue_attributions')[0]?.c || 0;
   counts.calendar = safe('SELECT COUNT(*) as c FROM smart_calendar')[0]?.c || 0;
+  counts['ab-test'] = safe('SELECT COUNT(*) as c FROM ab_experiments')[0]?.c || 0;
+  counts.trend = safe('SELECT COUNT(*) as c FROM trend_signals')[0]?.c || 0;
   const total = Object.values(counts).reduce((s, v) => s + v, 0);
   res.json({ total, counts });
 });

@@ -207,11 +207,33 @@ function getEvents(limit = 20) {
     timestamp: safeTs(r.scheduled_at || r.created_at),
   }));
 
+  const abExperiments = query(
+    `SELECT id, name, hypothesis, dimension, variant_a, variant_b, status, winner, confidence, created_at, concluded_at
+     FROM ab_experiments ORDER BY created_at DESC LIMIT :limit`, perTable
+  ).map(r => ({
+    id: `ab-${r.id}`, type: 'ab-experiment', category: 'ab-testing',
+    title: `Experiment: ${r.name || 'unnamed'}`,
+    detail: `${r.dimension || 'general'}: ${(r.variant_a || 'A').slice(0, 25)} vs ${(r.variant_b || 'B').slice(0, 25)}${r.winner ? ` — winner: ${r.winner}` : ''}`,
+    status: r.status || 'running',
+    timestamp: safeTs(r.concluded_at || r.created_at),
+  }));
+
+  const trendSignals = query(
+    `SELECT id, topic, source, category, relevance_score, velocity, status, first_seen_at, last_seen_at
+     FROM trend_signals WHERE status IN ('emerging', 'trending', 'peaked') ORDER BY last_seen_at DESC LIMIT :limit`, perTable
+  ).map(r => ({
+    id: `trend-${r.id}`, type: 'trend-signal', category: 'trend-radar',
+    title: `Trend: ${r.topic || 'unknown'}`,
+    detail: `${r.category || 'general'} — relevance ${((r.relevance_score || 0) * 100).toFixed(0)}% — velocity ${((r.velocity || 0) * 100).toFixed(0)}%`,
+    status: r.status || 'emerging',
+    timestamp: safeTs(r.last_seen_at || r.first_seen_at),
+  }));
+
   const all = [
     ...agentRuns, ...workflowRuns, ...automationRuns,
     ...commerceRuns, ...apparelRuns, ...mysteryRuns, ...fixerRuns,
     ...creationRuns, ...distributionRuns, ...analyticsEntries,
-    ...revenueEvents, ...calendarEvents,
+    ...revenueEvents, ...calendarEvents, ...abExperiments, ...trendSignals,
     ...busMessages, ...healthAlerts, ...reflections,
     ...forged, ...synthesized,
   ];
@@ -226,7 +248,7 @@ router.get('/api/timeline', (req, res) => {
     const category = req.query.category || null;
     let events = getEvents(limit);
     if (category) events = events.filter(e => e.category === category);
-    const categories = ['agent', 'workflow', 'commerce', 'creation', 'distribution', 'analytics', 'revenue', 'calendar', 'bus', 'health', 'evolution'];
+    const categories = ['agent', 'workflow', 'commerce', 'creation', 'distribution', 'analytics', 'revenue', 'calendar', 'ab-testing', 'trend-radar', 'bus', 'health', 'evolution'];
     res.json({ events, categories, total: events.length });
   } catch (err) {
     console.error('[timeline]', err.message);

@@ -500,6 +500,67 @@ function buildHermesExecutors() {
         return { error: e.message };
       }
     },
+    ab_list_experiments: async () => {
+      try {
+        const res = await fetch('http://127.0.0.1:8787/api/ab/experiments', { signal: AbortSignal.timeout(10_000) });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    ab_auto_experiment: async ({ topic }) => {
+      try {
+        const res = await fetch('http://127.0.0.1:8787/api/ab/experiments/auto', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    ab_get_results: async ({ experimentId }) => {
+      try {
+        const res = await fetch(`http://127.0.0.1:8787/api/ab/experiments/${experimentId}/results`, { signal: AbortSignal.timeout(10_000) });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    trend_scan: async ({ niche }) => {
+      try {
+        const res = await fetch('http://127.0.0.1:8787/api/trends/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ niche }),
+          signal: AbortSignal.timeout(30_000),
+        });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    trend_assess: async ({ trendId }) => {
+      try {
+        const res = await fetch(`http://127.0.0.1:8787/api/trends/${trendId}/assess`, {
+          method: 'POST',
+          signal: AbortSignal.timeout(30_000),
+        });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+    trend_stats: async () => {
+      try {
+        const res = await fetch('http://127.0.0.1:8787/api/trends/stats', { signal: AbortSignal.timeout(10_000) });
+        return await res.json();
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
   };
 }
 

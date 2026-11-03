@@ -31,6 +31,8 @@ import AnalyticsPanel from '../panels/AnalyticsPanel.jsx';
 import NerveCenterPanel from '../panels/NerveCenterPanel.jsx';
 import LearningLoopPanel from '../panels/LearningLoopPanel.jsx';
 import CalendarPanel from '../panels/CalendarPanel.jsx';
+import AbTestingPanel from '../panels/AbTestingPanel.jsx';
+import TrendRadarPanel from '../panels/TrendRadarPanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -64,6 +66,8 @@ const PANELS = {
   'nerve-center': { component: NerveCenterPanel, label: 'Intelligence Nerve Center' },
   'learning-loop': { component: LearningLoopPanel, label: 'Commerce Learning Loop' },
   calendar: { component: CalendarPanel, label: 'Content Calendar' },
+  'ab-testing': { component: AbTestingPanel, label: 'A/B Testing Engine' },
+  'trend-radar': { component: TrendRadarPanel, label: 'Trend Radar' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {

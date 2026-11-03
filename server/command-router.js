@@ -37,6 +37,14 @@ const PIPELINE_ALIASES = {
   'calendar': 'calendar',
   'schedule': 'calendar',
   'suggest': 'calendar',
+  'ab-test': 'ab-testing',
+  'ab': 'ab-testing',
+  'experiment': 'ab-testing',
+  'split-test': 'ab-testing',
+  'trend': 'trend-radar',
+  'trends': 'trend-radar',
+  'radar': 'trend-radar',
+  'trend-radar': 'trend-radar',
 };
 
 const PIPELINE_ENDPOINTS = {
@@ -52,6 +60,8 @@ const PIPELINE_ENDPOINTS = {
   music: '/api/media/music/pipeline',
   'learning-loop': '/api/commerce/learning/decisions',
   calendar: '/api/calendar/suggest',
+  'ab-testing': '/api/ab/experiments/auto',
+  'trend-radar': '/api/trends/scan',
 };
 
 export function installCommandRouter(app, { broadcast }) {
@@ -106,6 +116,8 @@ export function installCommandRouter(app, { broadcast }) {
             : pipeline === 'music' ? { topic: arg }
             : pipeline === 'learning-loop' ? {}
             : pipeline === 'calendar' ? { count: 5, daysAhead: 7 }
+            : pipeline === 'ab-testing' ? { topic: arg }
+            : pipeline === 'trend-radar' ? { niche: arg }
             : {};
           const pRes = await fetch(`http://127.0.0.1:${process.env.PORT || 8787}${endpoint}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
