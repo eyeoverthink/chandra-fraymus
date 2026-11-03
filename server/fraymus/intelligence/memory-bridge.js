@@ -88,6 +88,40 @@ export class MemoryBridge {
     });
   }
 
+  async storeChainFindings(run) {
+    if (!this.vertiso || !run?.ledger) return null;
+    const PROTECTED = new Set(['contradictions', 'unsupported_claims']);
+    const fields = ['new_logic', 'improved_logic', 'contradictions', 'implementation_steps', 'test_cases', 'unsupported_claims', 'remaining_dependencies'];
+    let stored = 0;
+
+    for (const field of fields) {
+      const entries = run.ledger[field] || [];
+      const verified = entries.filter(e => e.verified);
+      const warnings = PROTECTED.has(field) ? entries : [];
+      const toStore = [...new Map([...verified, ...warnings].map(e => [e.text, e])).values()];
+
+      for (const entry of toStore.slice(0, 10)) {
+        const hash = `chain:${run.id}:${field}:${entry.text?.slice(0, 60)}`;
+        if (this.recentHashes.has(hash)) continue;
+        this.recentHashes.add(hash);
+
+        const importance = PROTECTED.has(field) ? 0.9 : entry.verified ? 0.8 : 0.5;
+        await this.vertiso.store({
+          agentId: AGENT_ID,
+          content: `[Chain/${field}] ${entry.text}`,
+          namespace: 'chain',
+          importance,
+          provenance: entry.verified ? 'measured' : 'imagined',
+          confidence: entry.verified ? 0.95 : 0.5,
+          metadata: { type: 'chain', field, stage: entry.stage, runId: run.id, objective: run.objective?.slice(0, 200), verified: !!entry.verified, rejected: !!entry.rejected },
+        });
+        stored++;
+      }
+    }
+
+    return { stored, runId: run.id };
+  }
+
   async recallRelated(query, limit = 5) {
     if (!this.vertiso) return [];
     return this.vertiso.recallGlobal({ query, limit, minSimilarity: 0.3 });

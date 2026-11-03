@@ -26,6 +26,8 @@ import { runTrendScout, runDesigner, runPrintifyPush, runShopifySync, runPricing
 import { runShopperAgent, runUxAuditor, runPriceAnalyst, runReportAndFix } from '../commerce/mystery-shopper.js';
 import { runPageGenerator, runCollectionOrganizer, runDescriptionEnhancer, runPriceAdjuster, runShopifyApplier } from '../commerce/store-fixer.js';
 import { mintArtifact, verifyArtifact } from '../streaming/mint.js';
+import { executeChain, loadRun, listRuns as listChainRuns } from '../chain/engine.js';
+import { ledgerStats as chainLedgerStats } from '../chain/ledger.js';
 import { getObsBridge } from '../streaming/overlay.js';
 import {
   runCreativeBrief, runScriptWriter, runVoiceSynth,
@@ -127,6 +129,7 @@ function nodeKind(type) {
   if (type === 'carbon_encode') return 'carbon_encode';
   if (type === 'carbon_plasmid') return 'carbon_plasmid';
   if (type === 'carbon_checkpoint') return 'carbon_checkpoint';
+  if (type === 'chain_run') return 'chain_run';
   if (type === 'stream_capture') return 'stream_capture';
   if (type === 'stream_mint') return 'stream_mint';
   if (type === 'stream_deliver') return 'stream_deliver';
@@ -695,6 +698,22 @@ export async function runPipeline(nodes, edges, opts = {}) {
           dream: { number: dreamResult.number },
         };
         r.text = JSON.stringify(r.data);
+        texts[id] = r.text;
+
+      // ── Logic Chain node ───────────────────────────────────────
+      } else if (k === 'chain_run') {
+        const objective = upstreamText || node.data?.objective || '';
+        if (!objective) throw new Error('chain_run requires an objective');
+        const chainConfig = { model: node.data?.model, skipReview: node.data?.skipReview ?? false };
+        const chainRun = await executeChain(objective, chainConfig, { broadcast: opts.broadcast || (() => {}), memoryBridge: opts.memoryBridge });
+        const stats = chainLedgerStats(chainRun.ledger);
+        r.data = {
+          runId: chainRun.id, status: chainRun.status, objective,
+          entries: stats.total, warnings: stats.warnings,
+          reviewed: !!chainRun.review, verified: chainRun.review?.stats?.verified || 0,
+          durationMs: chainRun.usage?.durationMs,
+        };
+        r.text = `Chain ${chainRun.id}: ${stats.total} entries, ${stats.warnings} warnings, ${chainRun.review?.stats?.verified || 0} verified`;
         texts[id] = r.text;
 
       // ── Carbon X biological encoding nodes ──────────────────

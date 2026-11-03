@@ -246,6 +246,9 @@ export async function executeChain(objective, config = {}, { broadcast = () => {
           durationMs: run.usage.durationMs,
         });
       } catch (_) {}
+      try {
+        await memoryBridge.storeChainFindings(run);
+      } catch (_) {}
     }
 
     saveRun(run);

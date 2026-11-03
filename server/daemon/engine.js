@@ -68,7 +68,15 @@ async function consolidateDreams() {
     } catch (_) { return []; }
   })();
 
-  const activityCount = recentBus.length + recentRuns.length + recentAlerts.length + recentVerifications.length;
+  const recentChains = (() => {
+    try {
+      return db.prepare(
+        `SELECT id, objective, status, stop_reason FROM chain_runs WHERE created_at > ? ORDER BY created_at DESC LIMIT 10`
+      ).all(oneHourAgo);
+    } catch (_) { return []; }
+  })();
+
+  const activityCount = recentBus.length + recentRuns.length + recentAlerts.length + recentVerifications.length + recentChains.length;
   if (activityCount === 0) return { consolidated: false, reason: 'no_recent_activity' };
 
   const input = JSON.stringify({
@@ -76,6 +84,7 @@ async function consolidateDreams() {
     workflowRuns: recentRuns.map(r => ({ id: r.workflow_id, status: r.status, durationMs: r.duration_ms })),
     healthAlerts: recentAlerts.map(a => ({ rule: a.rule, severity: a.severity, message: a.message })),
     verifications: recentVerifications.map(v => ({ goal: v.goal?.slice(0, 100), status: v.status, iterations: v.iterations_used })),
+    chainRuns: recentChains.map(c => ({ id: c.id, objective: c.objective?.slice(0, 200), status: c.status, stopReason: c.stop_reason })),
   }, null, 2);
 
   const response = await chatOllama([
@@ -101,6 +110,50 @@ async function consolidateDreams() {
   return { consolidated: true, activityCount, patterns: parsed.patterns?.length || 0, learnings: parsed.learnings?.length || 0, summary: parsed.summary };
 }
 
+// ─── Chain Findings Consolidation ────────────────────────────
+// Reads completed chain runs, extracts verified findings as system memories
+
+async function consolidateChainFindings() {
+  const oneDayAgo = now() - 86400_000;
+
+  const completedChains = (() => {
+    try {
+      return db.prepare(
+        `SELECT id, objective, ledger, review FROM chain_runs WHERE status = 'completed' AND created_at > ? ORDER BY created_at DESC LIMIT 5`
+      ).all(oneDayAgo);
+    } catch (_) { return []; }
+  })();
+
+  if (completedChains.length === 0) return { consolidated: false, reason: 'no_recent_chains' };
+
+  let stored = 0;
+  for (const row of completedChains) {
+    let ledger, review;
+    try { ledger = JSON.parse(row.ledger || '{}'); } catch { continue; }
+    try { review = JSON.parse(row.review || 'null'); } catch { review = null; }
+
+    if (!review?.stats?.verified) continue;
+
+    const fields = ['new_logic', 'improved_logic', 'implementation_steps', 'test_cases', 'contradictions', 'unsupported_claims'];
+    for (const field of fields) {
+      const entries = ledger[field] || [];
+      for (const e of entries.filter(x => x.verified)) {
+        const key = `chain:${row.id}:${field}:${String(e.text).slice(0, 60)}`;
+        try {
+          const exists = db.prepare(`SELECT 1 FROM agent_memories WHERE agent_id = 'system' AND key = ?`).get(key);
+          if (exists) continue;
+          db.prepare(
+            `INSERT INTO agent_memories (agent_id, category, key, value, confidence, source, access_count, created_at, updated_at) VALUES ('system', 'chain_verified', ?, ?, 0.9, 'daemon-chain', 0, ?, ?)`
+          ).run(key, JSON.stringify({ objective: row.objective, field, text: e.text, stage: e.stage }), now(), now());
+          stored++;
+        } catch (_) {}
+      }
+    }
+  }
+
+  return { consolidated: stored > 0, chainsProcessed: completedChains.length, findingsStored: stored };
+}
+
 // ─── Prompt Evolution ─────────────────────────────────────────
 // Reads verified fossils and injects proven patterns into agent prompts
 
@@ -123,18 +176,34 @@ async function evolvePrompts() {
     } catch (_) { return []; }
   })();
 
+  const chainVerified = (() => {
+    try {
+      return db.prepare(
+        `SELECT id, agent_id, key, value, confidence FROM agent_memories WHERE category = 'chain_verified' AND confidence >= 0.9 ORDER BY updated_at DESC LIMIT 10`
+      ).all();
+    } catch (_) { return []; }
+  })();
+
   const allFossils = [...fossils, ...recentFossils];
   const uniqueFossils = [...new Map(allFossils.map(f => [f.id, f])).values()];
 
-  if (uniqueFossils.length === 0) return { evolved: false, reason: 'no_fossils' };
+  if (uniqueFossils.length === 0 && chainVerified.length === 0) return { evolved: false, reason: 'no_fossils_or_chain_findings' };
 
-  // Parse fossil data to extract proven patterns
   const patterns = [];
   for (const fossil of uniqueFossils) {
     try {
       const data = JSON.parse(fossil.value);
       if (data.goal && data.code) {
         patterns.push({ goal: data.goal.slice(0, 200), language: data.language, iterations: data.iterations });
+      }
+    } catch (_) {}
+  }
+
+  for (const cv of chainVerified.slice(0, 5)) {
+    try {
+      const data = JSON.parse(cv.value);
+      if (data.objective && data.text) {
+        patterns.push({ goal: `Chain insight (${data.field}): ${data.text.slice(0, 150)}`, language: 'analysis', iterations: 1 });
       }
     } catch (_) {}
   }
@@ -197,7 +266,14 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
       stepResults.promptEvolution = { error: e.message };
     }
 
-    // Step 3: Reflection (only if there's new data)
+    // Step 3: Chain findings consolidation
+    try {
+      stepResults.chainConsolidation = await consolidateChainFindings();
+    } catch (e) {
+      stepResults.chainConsolidation = { error: e.message };
+    }
+
+    // Step 4: Reflection (only if there's new data)
     try {
       stepResults.reflection = await reflect({ trigger: `daemon:${trigger}` });
     } catch (e) {
@@ -217,6 +293,7 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
       publish('system', 'system.daemon', JSON.stringify({
         action: 'cycle_complete', cycleId, trigger,
         consolidation: stepResults.consolidation?.consolidated ?? false,
+        chainFindings: stepResults.chainConsolidation?.findingsStored ?? 0,
         evolved: stepResults.promptEvolution?.evolved ?? false,
         reflectionActions: stepResults.reflection?.actionsCount ?? 0,
         durationMs: duration, at: t0,

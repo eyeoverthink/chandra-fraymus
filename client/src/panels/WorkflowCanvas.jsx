@@ -31,6 +31,7 @@ const NODE_CATEGORIES = [
     { type: 'cognition', label: 'Cognition', color: '#22c55e', icon: '⚡' },
     { type: 'memory_recall', label: 'Memory Recall', color: '#14b8a6', icon: '🌉' },
     { type: 'intelligence_cycle', label: 'Intelligence Cycle', color: '#d946ef', icon: '🔮' },
+    { type: 'chain_run', label: 'Logic Chain', color: '#7c3aed', icon: '⛓' },
   ]},
   { id: 'fraymus', label: 'FRAYMUS', color: '#6366f1', types: [
     { type: 'tool:fraymus.encode.dna', label: 'DNA Encode', color: '#6366f1', icon: '🧬' },
