@@ -140,6 +140,7 @@ function nodeKind(type) {
   if (type === 'model_select') return 'model_select';
   if (type === 'perspective_assess') return 'perspective_assess';
   if (type === 'swarm_solve') return 'swarm_solve';
+  if (type === 'strategy_route') return 'strategy_route';
   if (type === 'stream_capture') return 'stream_capture';
   if (type === 'stream_mint') return 'stream_mint';
   if (type === 'stream_deliver') return 'stream_deliver';
@@ -788,6 +789,13 @@ export async function runPipeline(nodes, edges, opts = {}) {
         const result = await initiateSwarm({ task: upstreamText || node.data?.task || 'swarm task', context: node.data?.context || '', agentCount: node.data?.agentCount || 3, perspectiveMode: node.data?.perspectiveMode || 'diverse' });
         r.data = { swarmId: result.swarmId, quality: result.quality, keyInsights: result.keyInsights, agentCount: result.agentCount };
         r.text = `Swarm [${result.agentCount} agents] — ${result.keyInsights?.length || 0} insights, quality: ${result.quality ? Math.round(result.quality * 100) + '%' : 'N/A'}`;
+        texts[id] = r.text;
+
+      } else if (k === 'strategy_route') {
+        const { executeStrategy } = await import('../intelligence/strategy.js');
+        const result = await executeStrategy({ task: upstreamText || node.data?.task || 'strategy task', context: node.data?.context || '', autoExecute: !!node.data?.autoExecute });
+        r.data = { strategyId: result.strategyId, path: result.executionPath || result.recommendedPath, confidence: result.analysis?.confidence, quality: result.quality };
+        r.text = `Strategy → ${result.executionPath || result.recommendedPath || 'planned'} (confidence: ${result.analysis?.confidence ? Math.round(result.analysis.confidence * 100) + '%' : 'N/A'})`;
         texts[id] = r.text;
 
       // ── Carbon X biological encoding nodes ──────────────────

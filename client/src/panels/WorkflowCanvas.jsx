@@ -38,6 +38,7 @@ const NODE_CATEGORIES = [
     { type: 'model_select', label: 'Model Router', color: '#2563eb', icon: '🔀' },
     { type: 'perspective_assess', label: 'Perspective', color: '#8b5cf6', icon: '🔮' },
     { type: 'swarm_solve', label: 'Swarm', color: '#f59e0b', icon: '🐝' },
+    { type: 'strategy_route', label: 'Strategy', color: '#0d9488', icon: '🧭' },
   ]},
   { id: 'fraymus', label: 'FRAYMUS', color: '#6366f1', types: [
     { type: 'tool:fraymus.encode.dna', label: 'DNA Encode', color: '#6366f1', icon: '🧬' },

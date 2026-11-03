@@ -13,6 +13,7 @@ import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
 import { assessSituation, shiftPerspective, recordOutcome, briefNextInstance, getStats as perspectiveStats } from '../intelligence/perspective.js';
 import { initiateSwarm, getSwarmSession, listSwarms, getSwarmStats } from '../intelligence/swarm.js';
+import { analyzeTask, executeStrategy, listStrategies, getStrategyStats } from '../intelligence/strategy.js';
 import { executeChain, listRuns as listChainRuns } from '../chain/engine.js';
 import observatoryRouter from '../observatory.js';
 import { encodeCodon, decodeCodon, codonStats } from '../fraymus/encoding/codon.js';
@@ -1238,6 +1239,42 @@ export function createFleetTools({ workflowStore }) {
       description: 'List recent swarm sessions with status and quality scores.',
       parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Max results (default 10)' } }),
       execute: async ({ args }) => ({ swarms: listSwarms({ limit: args.limit || 10 }) }),
+    },
+    {
+      name: 'strategy_analyze',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Analyze a task and recommend the best execution path (single agent, swarm, debate, pipeline, decompose, or verify loop) without executing it.',
+      parameters: object({
+        task: string(2000, { description: 'The task to analyze' }),
+        context: string(2000, { description: 'Additional context' }),
+      }, ['task']),
+      execute: async ({ args }) => {
+        const analysis = await analyzeTask(args.task, args.context || '');
+        return { analysis };
+      },
+    },
+    {
+      name: 'strategy_execute',
+      group: 'intelligence',
+      risk: 'medium',
+      description: 'Analyze a task and execute it through the recommended path (swarm, debate, single agent, etc). Returns the full result.',
+      parameters: object({
+        task: string(2000, { description: 'The task to strategize and execute' }),
+        context: string(2000, { description: 'Additional context' }),
+      }, ['task']),
+      execute: async ({ args }) => {
+        const result = await executeStrategy({ task: args.task, context: args.context || '', autoExecute: true });
+        return result;
+      },
+    },
+    {
+      name: 'strategy_list',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'List recent strategy sessions with execution paths and outcomes.',
+      parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Max results (default 10)' } }),
+      execute: async ({ args }) => ({ strategies: listStrategies(args.limit || 10) }),
     },
     {
       name: 'chain_run',
