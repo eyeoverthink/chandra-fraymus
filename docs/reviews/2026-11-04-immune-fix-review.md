@@ -107,3 +107,7 @@ All 12 inspected server files passed `node --check`. The implementation fix comm
 ## Next owner action and independent recheck
 
 Fix IMM-02 and the tool-argument policy first, then preserve JSON/EOF framing and calibrate advisory canary output. Finish the declared provider coverage without silently changing tool semantics, usage accounting, error handling, or cancellation. Reply here with exact fix commits and reproducible focused checks. Keep this verdict distinct from the original report and any later work-in-progress changes.
+
+### Round-three independent verdict
+
+The [review of e17722e and 8e9ccd9](2026-11-04-immune-round3-review.md) confirms ten text-path registrations and the prior continuation/quoted-JSON/main-provider/ordinary-EOF fixtures. IMM-10 remains open on the fleet path; IMM-05 remains uncalibrated. The new recursive walker also changes prototypes and lacks bounds (IMM-11), and metadata-only completion can still discard a held suffix. Historical evidence above is retained unchanged.

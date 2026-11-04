@@ -1,0 +1,430 @@
+{
+  "capturedAt": "2026-11-04T10:15:49.259Z",
+  "gitHead": "8e9ccd927fb244c6207983cb017d477684ae922b",
+  "node": "v24.11.1",
+  "platform": "win32",
+  "method": "Existing probe plus synthetic in-memory streams, isolated fleet function, deterministic clock and pure helpers; no app import, DB, network or live model",
+  "sourceSha256": {
+    "server/agent/provider.js": "e22926ce593e0c606e178bfad0aa9b04155ab72195e9c7cf39bcf5576fdde274",
+    "server/fleet/runtime.js": "73acd28a1bbb7a1b3131c2f50cec4fbff332f3376d7598b6dc017f8410a4edab",
+    "server/commerce/shared.js": "09891c94ffc26340eea193e46b35af5127afdd9b59dd9a7a94d3ff4f05062349",
+    "server/creation/shared.js": "a09f6d1928e4cdb1963b85069a6e08f2e8c7e25197e56b3c4ef6f391885d3a82",
+    "server/distribution/shared.js": "1226cb7ef48c0cb7b2ce1a50b90f3fb20a4a8199f9db60af49ea7b9b0c942695",
+    "server/intelligence/strategy.js": "031c6e7c592046516461609585ed9aef882deb6565b1949e199cd57f8f8e62ae",
+    "server/intelligence/subconscious.js": "7475f34e84b1fc14080654f0c3311db20c712f87504777f83babbd783d7f7fbd",
+    "server/media/music-engine.js": "4623d92ec0c1c49aafd8811e9dc0c848675f1df9418583420a73ac9d903afc56",
+    "server/vision/local.js": "4345b641d2a9be40e2f1af35057a00e86695ee926f937c9d4bdea777d446b6dc",
+    "server/vertiso/rsi.js": "a8bb7ef460202cd653aaf34cc518d844b383aa50400c06025c740365cc7bd247",
+    "server/agent/schema.js": "7e36ca866b2fa40497354dfb2e7858daae75f0185ff084964384f2dd829cf18f",
+    "server/fraymus-tools.js": "be63588d1628f562e798a2fa0e51b1e6e7acca8ce08acddcde04ca0856075a84",
+    "server/fraymus-routes.js": "bb30d0fb00a15db0dc7bf46a81ec163fb8da55e04ba7782ba4fbee09abcce4ea",
+    "server/fraymus/intelligence/ep3.js": "dc4b806e50b3222321a177752026f1ab580438705fc5ceac5bee45d0faa522f5",
+    "server/fraymus/intelligence/transcoder4d.js": "102ca0adabeec65f9813102270e461c905fdbd3eca1235071972f04e931df45f",
+    "server/fraymus/intelligence/canary.js": "10a903d9a61c1e3438c4fef829aee81a507478b1e7daaa66e7418928ffddefe3",
+    "server/fraymus/intelligence/stream-canary.js": "9f3e8cf83d7657c1b2f012773f8204565ee55aac636391f498ffd35632bbae30",
+    "server/fraymus/intelligence/ollama-sanitize.js": "9b6e94a27df96e0f396b39f6a8441b9b09e6413da5a28235a29b4c88ae468c1f"
+  },
+  "sourcesStableDuringProbe": true,
+  "priorProbe": {
+    "capturedAt": "2026-11-04T10:15:49.177Z",
+    "gitHead": "8e9ccd927fb244c6207983cb017d477684ae922b",
+    "platform": "win32",
+    "node": "v24.11.1",
+    "method": "Synthetic NDJSON and mocked provider fetch; deterministic 50ms clock only within this disposable probe process; no DB, app, network, or live model",
+    "sourceSha256": {
+      "server/fraymus/intelligence/ep3.js": "dc4b806e50b3222321a177752026f1ab580438705fc5ceac5bee45d0faa522f5",
+      "server/fraymus/intelligence/transcoder4d.js": "102ca0adabeec65f9813102270e461c905fdbd3eca1235071972f04e931df45f",
+      "server/fraymus/intelligence/canary.js": "10a903d9a61c1e3438c4fef829aee81a507478b1e7daaa66e7418928ffddefe3",
+      "server/fraymus/intelligence/stream-canary.js": "9f3e8cf83d7657c1b2f012773f8204565ee55aac636391f498ffd35632bbae30",
+      "server/fraymus-tools.js": "be63588d1628f562e798a2fa0e51b1e6e7acca8ce08acddcde04ca0856075a84",
+      "server/fraymus-routes.js": "bb30d0fb00a15db0dc7bf46a81ec163fb8da55e04ba7782ba4fbee09abcce4ea",
+      "server/commerce/shared.js": "09891c94ffc26340eea193e46b35af5127afdd9b59dd9a7a94d3ff4f05062349",
+      "server/fleet/runtime.js": "73acd28a1bbb7a1b3131c2f50cec4fbff332f3376d7598b6dc017f8410a4edab",
+      "server/agent/provider.js": "e22926ce593e0c606e178bfad0aa9b04155ab72195e9c7cf39bcf5576fdde274",
+      "server/creation/shared.js": "a09f6d1928e4cdb1963b85069a6e08f2e8c7e25197e56b3c4ef6f391885d3a82",
+      "server/distribution/shared.js": "1226cb7ef48c0cb7b2ce1a50b90f3fb20a4a8199f9db60af49ea7b9b0c942695",
+      "server/fraymus/intelligence/ollama-sanitize.js": "9b6e94a27df96e0f396b39f6a8441b9b09e6413da5a28235a29b4c88ae468c1f"
+    },
+    "sourcesStableDuringProbe": true,
+    "confirmedCorrections": {
+      "byteChecks": 1024,
+      "plaintextMarkerAbsentFromWholeSanitizerResult": true,
+      "shortPrefixNoLongerThrows": true,
+      "actualComplexRootRelativeResiduals": [
+        2.1175823681357508e-16,
+        0,
+        0
+      ],
+      "quantizer": [
+        {
+          "epsilon": 0,
+          "output": 0
+        },
+        {
+          "epsilon": 1e-12,
+          "output": 0
+        },
+        {
+          "epsilon": 1e-10,
+          "output": 42
+        },
+        {
+          "epsilon": 1e-8,
+          "output": 85
+        },
+        {
+          "epsilon": 0.000001,
+          "output": 128
+        },
+        {
+          "epsilon": 0.0001,
+          "output": 170
+        },
+        {
+          "epsilon": 0.01,
+          "output": 212
+        },
+        {
+          "epsilon": 1,
+          "output": 255
+        }
+      ],
+      "originalSplitAfterSkMarkerRemoved": true
+    },
+    "remainingStreamFailures": {
+      "prefixBoundaryCases": [
+        {
+          "prefix": "ghp_",
+          "redactions": 3,
+          "credentialBodyExposed": false,
+          "output": "[REDACTED:4D(78,84,93,73)] after"
+        },
+        {
+          "prefix": "github_pat_",
+          "redactions": 3,
+          "credentialBodyExposed": false,
+          "output": "[REDACTED:4D(78,85,97,118)] after"
+        },
+        {
+          "prefix": "xai-",
+          "redactions": 3,
+          "credentialBodyExposed": false,
+          "output": "[REDACTED:4D(51,93,102,187)] after"
+        },
+        {
+          "prefix": "xoxb-",
+          "redactions": 3,
+          "credentialBodyExposed": false,
+          "output": "[REDACTED:4D(51,87,85,124)] after"
+        },
+        {
+          "prefix": "sk-",
+          "redactions": 3,
+          "credentialBodyExposed": false,
+          "output": "[REDACTED:4D(58,83,170,158)] after"
+        }
+      ],
+      "characterFragments": {
+        "credentialBodyExposed": false,
+        "output": "[REDACTED:4D(58,83,170,158)]"
+      },
+      "benignEof": {
+        "original": "books",
+        "standardContent": "books",
+        "records": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "book"
+            },
+            "done": false
+          },
+          {
+            "message": {
+              "role": "assistant",
+              "content": "s"
+            },
+            "done": true
+          }
+        ]
+      }
+    },
+    "benignCanaryAtExpectedTiming": [
+      {
+        "tokens": 1,
+        "totalSamples": 2,
+        "triggered": false,
+        "confidence": 0,
+        "dominant": "lexical_entropy",
+        "epsilons": {
+          "alpha": 0,
+          "beta": 2.0780719051126377,
+          "gamma": 0.25
+        }
+      },
+      {
+        "tokens": 2,
+        "totalSamples": 5,
+        "triggered": false,
+        "confidence": 0,
+        "dominant": "lexical_entropy",
+        "epsilons": {
+          "alpha": 0,
+          "beta": 2.0780719051126377,
+          "gamma": 0.27608878275977805
+        }
+      },
+      {
+        "tokens": 3,
+        "totalSamples": 8,
+        "triggered": false,
+        "confidence": 0,
+        "dominant": "lexical_entropy",
+        "epsilons": {
+          "alpha": 0,
+          "beta": 2.0780719051126377,
+          "gamma": 0.30248126133693887
+        }
+      },
+      {
+        "tokens": 4,
+        "totalSamples": 11,
+        "triggered": false,
+        "confidence": 0,
+        "dominant": "lexical_entropy",
+        "epsilons": {
+          "alpha": 0,
+          "beta": 2.0780719051126377,
+          "gamma": 0.32889885990285134
+        }
+      },
+      {
+        "tokens": 5,
+        "totalSamples": 14,
+        "triggered": true,
+        "confidence": 0.7775070881461758,
+        "dominant": "lexical_entropy",
+        "epsilons": {
+          "alpha": 0,
+          "beta": 2.0780719051126377,
+          "gamma": 0.35509550464356726
+        }
+      },
+      {
+        "tokens": 6,
+        "totalSamples": 17,
+        "triggered": true,
+        "confidence": 0.7775070881461758,
+        "dominant": "lexical_entropy",
+        "epsilons": {
+          "alpha": 0,
+          "beta": 2.0780719051126377,
+          "gamma": 0.38085051387385616
+        }
+      },
+      {
+        "tokens": 7,
+        "totalSamples": 20,
+        "triggered": true,
+        "confidence": 0.7775070881461758,
+        "dominant": "lexical_entropy",
+        "epsilons": {
+          "alpha": 0,
+          "beta": 2.0780719051126377,
+          "gamma": 0.4059642106933384
+        }
+      },
+      {
+        "tokens": 8,
+        "totalSamples": 23,
+        "triggered": true,
+        "confidence": 0.7775070881461758,
+        "dominant": "lexical_entropy",
+        "epsilons": {
+          "alpha": 0,
+          "beta": 2.0780719051126377,
+          "gamma": 0.4302553183131426
+        }
+      }
+    ],
+    "workingTreeOllamaBoundary": {
+      "available": true,
+      "contentMarkerRemoved": true,
+      "toolArgumentMarkerExposed": false,
+      "usagePreserved": {
+        "inputTokens": 3,
+        "outputTokens": 5,
+        "costUsd": 0
+      },
+      "requestedStream": false,
+      "structuredContent": {
+        "original": "{\"token\":\"sk-UNIT_TEST_ONLY_0123456789\",\"ok\":true}",
+        "sanitized": "{\"token\":\"[REDACTED:4D(58,83,170,83)]\",\"ok\":true}",
+        "parsesAsJson": true,
+        "parseError": null
+      },
+      "completedTimingSamplesAfterTwoSanitizations": 0,
+      "helperResults": [
+        {
+          "folder": "commerce",
+          "contentMarkerRemoved": true
+        },
+        {
+          "folder": "creation",
+          "contentMarkerRemoved": true
+        }
+      ]
+    }
+  },
+  "fleetFunctionIsolation": {
+    "sourceFunctionSha256": "3250265a31fb398161b920827d80886d5afd2fb4e9d0ce1f1700673bcf638511",
+    "contentMarkerRemoved": true,
+    "toolArgumentMarkerExposed": true
+  },
+  "normalSentenceCanaryChunking": {
+    "sentence": "The local model is ready to process your next request.",
+    "cases": [
+      {
+        "kind": "whole",
+        "fragmentCount": 1,
+        "triggered": false,
+        "confidence": 0,
+        "epsilons": {
+          "alpha": 0,
+          "beta": 0.009931478320748255,
+          "gamma": 0.5
+        }
+      },
+      {
+        "kind": "words",
+        "fragmentCount": 10,
+        "triggered": true,
+        "confidence": 0.7193860575255537,
+        "epsilons": {
+          "alpha": 0,
+          "beta": 1.812742708277888,
+          "gamma": 0.4544133394668639
+        }
+      },
+      {
+        "kind": "characters",
+        "fragmentCount": 54,
+        "triggered": true,
+        "confidence": 0.9640275800758169,
+        "epsilons": {
+          "alpha": 0,
+          "beta": 4,
+          "gamma": 0.6091551295708454
+        }
+      }
+    ]
+  },
+  "bufferedProviderTelemetry": {
+    "requests": 20,
+    "timingSamples": 0,
+    "entropySamples": 20,
+    "phaseSamples": 20,
+    "triggered": false,
+    "confidence": 0
+  },
+  "recursiveWalker": {
+    "prototypeChanged": true,
+    "syntheticInheritedValue": true,
+    "ownProtoKeyPreserved": false,
+    "originalInputSchemaError": "invalid_arguments",
+    "sanitizedInputSchemaError": null,
+    "serializedOutput": "{\"ok\":true}",
+    "globalObjectPrototypeUnchanged": true,
+    "deeplyNestedFixture": {
+      "depth": 5000,
+      "serializedBytes": 50030,
+      "error": {
+        "name": "RangeError",
+        "message": "Maximum call stack size exceeded"
+      }
+    }
+  },
+  "metadataOnlyCompletions": [
+    {
+      "shape": "chat",
+      "text": "book",
+      "outputs": [
+        {
+          "message": {
+            "role": "assistant",
+            "content": "book"
+          },
+          "done": false
+        },
+        {
+          "done": true
+        }
+      ]
+    },
+    {
+      "shape": "generate",
+      "text": "book",
+      "outputs": [
+        {
+          "response": "book",
+          "done": false
+        },
+        {
+          "done": true
+        }
+      ]
+    }
+  ],
+  "callerReferences": [
+    {
+      "file": "server/agent/provider.js",
+      "referencesTextSanitizer": true,
+      "referencesDeepSanitizer": true
+    },
+    {
+      "file": "server/fleet/runtime.js",
+      "referencesTextSanitizer": true,
+      "referencesDeepSanitizer": false
+    },
+    {
+      "file": "server/commerce/shared.js",
+      "referencesTextSanitizer": true,
+      "referencesDeepSanitizer": false
+    },
+    {
+      "file": "server/creation/shared.js",
+      "referencesTextSanitizer": true,
+      "referencesDeepSanitizer": false
+    },
+    {
+      "file": "server/distribution/shared.js",
+      "referencesTextSanitizer": true,
+      "referencesDeepSanitizer": false
+    },
+    {
+      "file": "server/intelligence/strategy.js",
+      "referencesTextSanitizer": true,
+      "referencesDeepSanitizer": false
+    },
+    {
+      "file": "server/intelligence/subconscious.js",
+      "referencesTextSanitizer": true,
+      "referencesDeepSanitizer": false
+    },
+    {
+      "file": "server/media/music-engine.js",
+      "referencesTextSanitizer": true,
+      "referencesDeepSanitizer": false
+    },
+    {
+      "file": "server/vision/local.js",
+      "referencesTextSanitizer": true,
+      "referencesDeepSanitizer": false
+    },
+    {
+      "file": "server/vertiso/rsi.js",
+      "referencesTextSanitizer": true,
+      "referencesDeepSanitizer": false
+    }
+  ]
+}
