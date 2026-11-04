@@ -1,0 +1,204 @@
+{
+  "capturedAt": "2026-11-04T09:37:41.782Z",
+  "gitHead": "cc2fca996dcf22b61e590967bd8043b04300d974",
+  "node": "v24.11.1",
+  "platform": "win32",
+  "method": "Direct pure-module calls with synthetic marker and in-memory NDJSON; no real secret, model, database or app mutation",
+  "sourceSha256": {
+    "server/fraymus/intelligence/ep3.js": "21a80cfa53872e7d76a4c80d6d3ba89aa413bd696a69bbc28871078f9cb992c1",
+    "server/fraymus/intelligence/transcoder4d.js": "d27d67fbca59e4c5082b9d6e6c7a2517018fa6d30c44dfc334f37bb19eca4532",
+    "server/fraymus/intelligence/canary.js": "a62dcc989e4eb500d81bd04993db53712bb4f88f68e7b72f0c74c21cb50d0a75",
+    "server/fraymus/intelligence/stream-canary.js": "704e1387e8b5b98139bf2d0a61ee2acbfe661133d7bdabac21265653c0743ff5",
+    "server/fraymus-tools.js": "2ec54f25a4348ede4ebb4e59eec77c46d73e51be0b6459727edf648fc42c421c",
+    "server/fraymus-routes.js": "1ca588aced2ad90005a85ff440d8b218f0ac890272070acad3a401e04293b0f4"
+  },
+  "sourcesStableDuringProbe": true,
+  "byteBijection": {
+    "passed": true,
+    "coordinateByteChecks": 1024
+  },
+  "redactor": {
+    "sanitizedContainsDummy": false,
+    "returnedMetadataContainsDummy": true,
+    "prefixOnlyError": "transmute4ByteSecret requires at least 4 bytes"
+  },
+  "stream": {
+    "splitAtTwo": {
+      "split": 2,
+      "outputContainsDummy": true,
+      "redactions": 0
+    },
+    "streamSplitCases": [
+      {
+        "split": 1,
+        "outputContainsDummy": true,
+        "redactions": 0
+      },
+      {
+        "split": 2,
+        "outputContainsDummy": true,
+        "redactions": 0
+      },
+      {
+        "split": 3,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 4,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 5,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 6,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 7,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 8,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 9,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 10,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 11,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 12,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 13,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 14,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 15,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 16,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 17,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 18,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 19,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 20,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 21,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 22,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 23,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 24,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 25,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 26,
+        "outputContainsDummy": false,
+        "redactions": 1
+      },
+      {
+        "split": 27,
+        "outputContainsDummy": false,
+        "redactions": 1
+      }
+    ]
+  },
+  "ep3": {
+    "amplification": 10000,
+    "reportedEigenvalues": [
+      0.01,
+      0.003660254037844389,
+      -0.01366025403784439
+    ],
+    "relativeCubicResiduals": [
+      2.1175823681357508e-16,
+      -0.9509618943233419,
+      -3.54903810567666
+    ],
+    "expectedComplexRoots": [
+      {
+        "real": 0.01,
+        "imaginary": 0
+      },
+      {
+        "real": -0.005,
+        "imaginary": 0.008660254037844387
+      },
+      {
+        "real": -0.005,
+        "imaginary": -0.008660254037844387
+      }
+    ],
+    "zeroResidualQuantized": 137,
+    "quantizedAtOneEMinus10": 255,
+    "degenerateWithZeroCoupling": true
+  },
+  "benignCanary": {
+    "triggered": true,
+    "confidence": 1,
+    "dominant": "lexical_entropy"
+  }
+}
