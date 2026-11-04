@@ -104,3 +104,7 @@ This is an explicit metadata-only completion fixture, not a claim that every liv
 4. Record IMM-05 as deferred advisory work until calibrated, or implement and validate the missing feature collection/calibration. It should not be reported as completed merely because warm-up changed.
 
 The ten text-path registrations and the prior regression fixes are real progress. Independent Phase 2 work can be planned from that verified state, but security-dependent ports should not rely on the blanket claim that the immune layer is fully resolved. Reply here with exact fix commits and focused test results for the remaining boundaries.
+
+### Independent closure check on 2d61f0d
+
+The [round-four independent review](2026-11-04-immune-round4-independent-review.md) closes the tested IMM-08, IMM-10 and IMM-11 reproductions: actual fleet/main arguments are sanitized, object prototypes and schema rejection are preserved, deep input is capped, and metadata-only completion retains the suffix. The author's 22 assertions and independent closure checks pass. IMM-05 remains deferred advisory work. The original source-specific evidence above remains unchanged.

@@ -1,6 +1,7 @@
 // Fraynix - By Vaughn Scott
 // Independent round-three checks. Synthetic data, mocked fetch, no DB imports.
 // node docs/reviews/2026-11-04-immune-round3-probe.mjs [--output relative-path]
+// Add --verify-round4 to assert closure of IMM-08, IMM-10 and IMM-11.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -45,7 +46,7 @@ assert.ok(start >= 0 && end > start, 'Fleet source markers changed; inspect befo
 const fleetChatSource = fleetSource.slice(start, end).trim();
 const marker = 'sk-UNIT_TEST_ONLY_0123456789';
 const fleetChat = runInNewContext('(' + fleetChatSource + ')', {
-  sanitizeOllamaContent, AbortSignal, OLLAMA_URL: 'http://127.0.0.1:11434', process: { env: {} },
+  sanitizeOllamaContent, sanitizeDeep, AbortSignal, OLLAMA_URL: 'http://127.0.0.1:11434', process: { env: {} },
   fetch: async () => Response.json({ message: { content: 'before ' + marker + ' after',
     tool_calls: [{ function: { name: 'synthetic_tool', arguments: { token: marker } } }] } }),
 });
@@ -87,7 +88,14 @@ try { assertSchema(protoOutput, schema); } catch (error) { afterSchemaError = er
 const nestedWire = '{"child":'.repeat(5000) + JSON.stringify(marker) + '}'.repeat(5000);
 const nested = JSON.parse(nestedWire);
 let deepError = null;
-try { sanitizeDeep(nested); } catch (error) { deepError = { name: error.name, message: error.message }; }
+let deepResult;
+try { deepResult = sanitizeDeep(nested); } catch (error) { deepError = { name: error.name, message: error.message }; }
+let cutoffDepth = 0;
+let cutoffValue = deepResult;
+while (cutoffValue && typeof cutoffValue === 'object' && cutoffDepth < 64) {
+  cutoffValue = cutoffValue.child;
+  cutoffDepth++;
+}
 
 async function completionCase(shape) {
   const first = shape === 'chat' ? { message: { role: 'assistant', content: 'books' }, done: false }
@@ -128,11 +136,28 @@ const evidence = {
     sanitizedInputSchemaError: afterSchemaError,
     serializedOutput: JSON.stringify(protoOutput),
     globalObjectPrototypeUnchanged: Object.prototype.syntheticInherited === undefined,
-    deeplyNestedFixture: { depth: 5000, serializedBytes: Buffer.byteLength(nestedWire), error: deepError },
+    deeplyNestedFixture: { depth: 5000, serializedBytes: Buffer.byteLength(nestedWire), error: deepError,
+      cutoffDepth, cutoffValue },
   },
   metadataOnlyCompletions,
   callerReferences,
 };
+if (process.argv.includes('--verify-round4')) {
+  assert.equal(evidence.sourcesStableDuringProbe, true);
+  assert.equal(evidence.fleetFunctionIsolation.contentMarkerRemoved, true);
+  assert.equal(evidence.fleetFunctionIsolation.toolArgumentMarkerExposed, false);
+  assert.equal(evidence.priorProbe.workingTreeOllamaBoundary.toolArgumentMarkerExposed, false);
+  assert.equal(evidence.recursiveWalker.prototypeChanged, false);
+  assert.equal(evidence.recursiveWalker.ownProtoKeyPreserved, true);
+  assert.equal(evidence.recursiveWalker.originalInputSchemaError, 'invalid_arguments');
+  assert.equal(evidence.recursiveWalker.sanitizedInputSchemaError, 'invalid_arguments');
+  assert.equal(evidence.recursiveWalker.deeplyNestedFixture.error, null);
+  assert.equal(evidence.recursiveWalker.deeplyNestedFixture.cutoffDepth, 33);
+  assert.equal(evidence.recursiveWalker.deeplyNestedFixture.cutoffValue, '[REDACTED:depth_exceeded]');
+  assert.ok(evidence.metadataOnlyCompletions.every(item => item.text === 'books'));
+  evidence.round4ClosureChecks = { passed: true, findings: ['IMM-08', 'IMM-10', 'IMM-11'],
+    deferred: ['IMM-05: calibration and live timing collection'] };
+}
 const output = JSON.stringify(evidence, null, 2) + '\n';
 const index = process.argv.indexOf('--output');
 if (index !== -1) {
