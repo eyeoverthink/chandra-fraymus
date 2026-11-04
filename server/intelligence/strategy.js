@@ -1,4 +1,5 @@
 import { db } from '../db.js';
+import { sanitizeOllamaContent } from '../fraymus/intelligence/ollama-sanitize.js';
 
 const OLLAMA = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 
@@ -85,7 +86,7 @@ async function chatOllama(prompt, system) {
       signal: ctrl.signal,
     });
     const data = await res.json();
-    return data.message?.content || '';
+    return sanitizeOllamaContent(data.message?.content || '');
   } finally { clearTimeout(timer); }
 }
 

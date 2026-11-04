@@ -1,5 +1,6 @@
 import { AgentError, fail } from '../agent/schema.js';
 import { assertLocalModel, localOllamaUrl } from '../agent/provider.js';
+import { sanitizeOllamaContent } from '../fraymus/intelligence/ollama-sanitize.js';
 import { validateImage } from '../image-validation.js';
 import { createHash } from 'node:crypto';
 
@@ -176,7 +177,7 @@ export function createLocalVisionProvider({ url, fetchImpl = fetch, model = 'gem
         fail('vision_output_limit', 'Local vision answer exceeds its output limit');
       await inspectFresh(signal, pinned);
       signal.throwIfAborted();
-      return { text: message.content, identity: pinned, imageSha256, dimensions,
+      return { text: sanitizeOllamaContent(message.content), identity: pinned, imageSha256, dimensions,
         usage: Object.freeze({ ...knownUsage, costUsd: 0 }) };
     } catch (caught) { throw annotate(caught, dispatched, knownUsage); }
   }

@@ -3,6 +3,7 @@
 // and converge toward optimal behavior through evolutionary selection.
 import { randomUUID } from 'node:crypto';
 import { OLLAMA_URL } from '../config.js';
+import { sanitizeOllamaContent } from '../fraymus/intelligence/ollama-sanitize.js';
 
 const MAX_GENERATIONS = 1000;
 const MAX_HISTORY = 200;
@@ -342,7 +343,7 @@ OUTPUT ONLY the improved system prompt, nothing else:`,
       });
       if (!res.ok) return { error: 'Ollama unavailable', rewritten: false };
       const data = await res.json();
-      const newPrompt = (data.response || '').trim();
+      const newPrompt = sanitizeOllamaContent(data.response || '').trim();
       if (!newPrompt || newPrompt.length < 20) return { error: 'Rewrite too short', rewritten: false };
 
       const id = randomUUID();

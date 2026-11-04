@@ -1,5 +1,6 @@
 import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { sanitizeOllamaContent } from '../fraymus/intelligence/ollama-sanitize.js';
 
 const OLLAMA = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const DATA_DIR = process.env.CHANDRA_DATA_DIR || './data';
@@ -71,7 +72,7 @@ Format: ${format}`;
     });
     const data = await res.json();
     return {
-      prompt: data.message?.content || `${params.dominant} ${params.key} instrumental at ${params.tempo} BPM`,
+      prompt: sanitizeOllamaContent(data.message?.content) || `${params.dominant} ${params.key} instrumental at ${params.tempo} BPM`,
       params,
       duration,
     };
