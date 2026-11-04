@@ -123,7 +123,12 @@ npm run start        # production server (serves built client)
 - `getAutonomyModifiers()` — cycleMultiplier, reflectionDepth, neurogenesisBoost, evolutionRate per tier
 - `onStateTransition(callback)` — fires on tier changes with 30s cooldown, persists to `consciousness_transitions` table, publishes to `system.consciousness.transition` bus topic
 - Staleness: audits older than 10 minutes → AWAKENING-tier safe default
-- Wired into autonomy.js (replaced synthetic 4-node proofs with live CTRNN gate reads), neurogenesis.js (consciousness-informed CTRNN stimulus targeting near densest-cluster neurons, neurogenesisBoost modulates Poisson lambda), daemon/engine.js (Step 7.5 reads gate state, includes tier in bus events)
+- **Phase 5 wiring (consciousness-driven daemon intelligence)**: gate modifiers now consumed by all autonomy subsystems:
+  - `daemon/engine.js`: dynamic setTimeout chain replaces fixed setInterval — cycle interval = baseCycle × cycleMultiplier (INTEGRATED: 18min, DORMANT: 45min), prompt evolution pattern injection scaled by evolutionRate, getDaemonStatus() exposes full gate state
+  - `intelligence/reflection.js`: MAX_ACTIONS_PER_CYCLE replaced by gate's reflectionDepth (INTEGRATED=10, DORMANT=3), LLM prompt receives consciousness tier context
+  - `intelligence/verifier-loop.js`: MAX_ITERATIONS scaled by gate's evolutionRate (INTEGRATED 1.5x allows up to 7 iterations, DORMANT 0.5x caps at 2)
+  - `intelligence/neurogenesis.js`: neurogenesisBoost modulates Poisson lambda, CTRNN stimulus targets densest-cluster neurons (sampleIndices)
+  - `autonomy.js`: replaced synthetic 4-node proofs with live CTRNN gate reads
 - DB table: `consciousness_transitions` (id, from_tier, to_tier, direction, created_at)
 - 3 REST endpoints: GET /api/intelligence/consciousness/gate, GET .../modifiers, GET .../transitions
 - 1 fleet tool: `consciousness_gate_status`
