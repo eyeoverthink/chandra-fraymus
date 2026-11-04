@@ -48,7 +48,7 @@ export default function ManifestationPlane({ wsEvent }) {
 
   useEffect(() => {
     if (wsEvent?.type === 'ctrnn') {
-      const d = wsEvent.data || wsEvent;
+      const d = wsEvent.payload || {};
       if (d.B && d.gridSize) {
         stateRef.current.B = new Float64Array(d.B);
         stateRef.current.gridSize = d.gridSize;

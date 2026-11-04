@@ -164,7 +164,7 @@ export function createContentNexus({ db, ollamaUrl, broadcast }) {
     if (pending.length === 0) return { recommendations: [], message: 'No pending items to recommend.' };
     const summary = pending.map(i => `[${i.source}] "${i.title}" (score: ${i.relevance_score})`).join('\n');
     try {
-      const response = await chatOllama(ollamaUrl, [
+      const response = await chatOllama([
         { role: 'system', content: 'You are a content strategist. Given items from YouTube, web research, trends, browsing, and the content calendar, recommend which 5 to act on first and what action (commerce pipeline, creation pipeline, repurpose, distribute). Reply as JSON array: [{id, title, action, reason}]' },
         { role: 'user', content: `Pending items:\n${summary}\n\nPick the top ${limit} to act on and explain why.` }
       ]);

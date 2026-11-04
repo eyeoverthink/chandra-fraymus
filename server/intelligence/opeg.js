@@ -61,6 +61,7 @@ function collectPreMetrics() {
   const metrics = {};
   try {
     metrics.agentCount = db.prepare(`SELECT COUNT(*) as c FROM agents`).get()?.c || 0;
+    metrics.forgedAgentCount = db.prepare(`SELECT COUNT(*) as c FROM forged_agents`).get()?.c || 0;
     metrics.memoryCount = db.prepare(`SELECT COUNT(*) as c FROM agent_memories`).get()?.c || 0;
     metrics.verifiedMemories = db.prepare(`SELECT COUNT(*) as c FROM agent_memories WHERE verified_at IS NOT NULL`).get()?.c || 0;
     metrics.workflowCount = db.prepare(`SELECT COUNT(*) as c FROM workflows`).get()?.c || 0;
@@ -157,8 +158,8 @@ function evaluateModification(type, pre, post, execResult) {
   checks.push({ check: 'no_new_alerts', passed: true, detail: 'No new alerts' });
 
   if (type === 'forge_agent') {
-    const countGrew = post.agentCount > pre.agentCount;
-    checks.push({ check: 'agent_created', passed: countGrew, detail: `Agents: ${pre.agentCount} → ${post.agentCount}` });
+    const countGrew = post.forgedAgentCount > pre.forgedAgentCount;
+    checks.push({ check: 'agent_created', passed: countGrew, detail: `Forged agents: ${pre.forgedAgentCount} → ${post.forgedAgentCount}` });
     if (!countGrew) {
       return { decision: 'REJECTED', reason: 'Agent forge did not produce a new agent', checks };
     }
@@ -175,11 +176,17 @@ function evaluateModification(type, pre, post, execResult) {
   if (type === 'prune_memory') {
     const countShrank = post.memoryCount < pre.memoryCount;
     checks.push({ check: 'memory_pruned', passed: countShrank, detail: `Memories: ${pre.memoryCount} → ${post.memoryCount}` });
+    if (!countShrank) {
+      return { decision: 'REJECTED', reason: 'Memory prune did not reduce memory count', checks };
+    }
   }
 
   if (type === 'verify_memory') {
     const verifiedGrew = post.verifiedMemories > pre.verifiedMemories;
     checks.push({ check: 'memory_verified', passed: verifiedGrew, detail: `Verified: ${pre.verifiedMemories} → ${post.verifiedMemories}` });
+    if (!verifiedGrew) {
+      return { decision: 'REJECTED', reason: 'Memory verification did not increase verified count', checks };
+    }
   }
 
   if (post.recentRunSuccess < pre.recentRunSuccess - 10) {
@@ -235,6 +242,10 @@ export async function runPipeline({ type, hypothesis, params, source = 'unknown'
 
   const finalStep = update(proposal.id);
 
+  if (!finalStep.approved) {
+    try { rollbackExecution(type, execResult, params); } catch (_) {}
+  }
+
   return {
     ok: true,
     proposalId: proposal.id,
@@ -243,6 +254,22 @@ export async function runPipeline({ type, hypothesis, params, source = 'unknown'
     verdict: finalStep.verdict,
     executionResult: execResult,
   };
+}
+
+function rollbackExecution(type, execResult, params) {
+  if (type === 'forge_agent') {
+    const agentId = execResult?.agent?.id;
+    if (agentId) {
+      db.prepare(`DELETE FROM forged_agents WHERE agent_id = ?`).run(agentId);
+      publish('system', 'opeg.rollback', JSON.stringify({ type, agentId, reason: 'OPEG rejection' }));
+    }
+  } else if (type === 'synthesize_workflow') {
+    const workflowId = execResult?.workflow?.id;
+    if (workflowId) {
+      db.prepare(`DELETE FROM synthesized_workflows WHERE workflow_id = ?`).run(workflowId);
+      publish('system', 'opeg.rollback', JSON.stringify({ type, workflowId, reason: 'OPEG rejection' }));
+    }
+  }
 }
 
 export function getProposal(id) {

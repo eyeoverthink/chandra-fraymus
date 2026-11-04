@@ -335,7 +335,7 @@ export function createCTRNN(config = {}) {
     start(broadcast) {
       if (running) return;
       running = true;
-      this.initialize();
+      if (tick === 0) this.initialize();
 
       const intervalMs = Math.round(1000 / cfg.tickRate);
       let lastBroadcast = 0;
@@ -360,7 +360,7 @@ export function createCTRNN(config = {}) {
         }
       }, intervalMs);
 
-      publish('ctrnn', 'system.ctrnn', JSON.stringify({ event: 'start', N, gridSize: cfg.gridSize, tickRate: cfg.tickRate }));
+      publish('ctrnn', 'system.ctrnn', JSON.stringify({ event: 'start', N, gridSize: cfg.gridSize, tickRate: cfg.tickRate, resumed: tick > 0 }));
     },
 
     stop() {
@@ -401,12 +401,32 @@ export function createCTRNN(config = {}) {
       return {
         tick,
         B: Array.from(B),
-        W: Array.from(W.slice(0, 1000)),
+        W: Array.from(W),
         Theta: Array.from(Theta),
+        Iext: Array.from(Iext),
         metrics: computeMetrics(),
         stats: { ...stats },
+        gridSize: cfg.gridSize,
         ts: now(),
       };
+    },
+
+    restore(snap) {
+      if (!snap || !snap.B || !snap.W || !snap.Theta) {
+        throw new Error('Invalid snapshot: missing B, W, or Theta');
+      }
+      if (snap.B.length !== N || snap.Theta.length !== N) {
+        throw new Error(`Snapshot size mismatch: expected N=${N}, got B=${snap.B.length}`);
+      }
+      if (snap.W.length !== N * N) {
+        throw new Error(`Snapshot weight mismatch: expected ${N * N}, got ${snap.W.length}`);
+      }
+      B = new Float64Array(snap.B);
+      W = new Float64Array(snap.W);
+      Theta = new Float64Array(snap.Theta);
+      Iext = snap.Iext ? new Float64Array(snap.Iext) : new Float64Array(N);
+      tick = snap.tick || 0;
+      if (snap.stats) stats = { ...stats, ...snap.stats };
     },
   };
 }

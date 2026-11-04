@@ -81,7 +81,7 @@ function collectIntelligenceState() {
 
   try {
     const verLoops = db.prepare(`SELECT COUNT(*) as c FROM verification_loops`).get()?.c || 0;
-    const approved = db.prepare(`SELECT COUNT(*) as c FROM verification_loops WHERE status = 'APPROVED'`).get()?.c || 0;
+    const approved = db.prepare(`SELECT COUNT(*) as c FROM verification_loops WHERE LOWER(status) = 'approved'`).get()?.c || 0;
     state.verification = { total: verLoops, approved };
   } catch (_) { state.verification = { total: 0, approved: 0 }; }
 

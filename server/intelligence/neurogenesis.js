@@ -2,6 +2,7 @@ import { db } from '../db.js';
 import { publish } from '../fleet/bus.js';
 import { randomUUID } from 'node:crypto';
 import { runPipeline as opegPipeline } from './opeg.js';
+import { forgeAgent } from '../fleet/forge.js';
 
 const now = () => Date.now();
 
@@ -132,17 +133,18 @@ async function injectStimulus(type, context) {
       ];
       const goal = goals[Math.floor(Math.random() * goals.length)];
       const opegResult = await opegPipeline({
-        type: 'neurogenesis',
+        type: 'forge_agent',
         hypothesis: `Connectivity below floor (${context.score.toFixed(3)} < ${CONNECTIVITY_FLOOR}). Forging specialist: ${goal}`,
         params: { goal, trigger: 'neurogenesis_emergency' },
         source: 'neurogenesis',
         executeFn: async () => {
-          publish('neurogenesis', 'system.evolution', JSON.stringify({
-            event: 'emergency_forge_requested',
-            goal,
-            connectivity: context.score,
-          }));
-          return { ok: true, goal, requested: true };
+          try {
+            const result = await forgeAgent(goal, { context: `Emergency neurogenesis: connectivity ${context.score.toFixed(3)}`, forgedBy: 'neurogenesis' });
+            return { ok: true, agent: { id: result.agent?.id || result.agentId }, goal, forged: true };
+          } catch (e) {
+            publish('neurogenesis', 'system.evolution', JSON.stringify({ event: 'emergency_forge_failed', goal, error: e.message }));
+            return { ok: false, error: e.message, goal };
+          }
         },
       });
       return { type: 'forge_agent', goal, opeg: opegResult.proposalId, approved: opegResult.approved };
