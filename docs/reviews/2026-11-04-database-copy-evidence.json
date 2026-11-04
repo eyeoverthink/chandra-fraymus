@@ -1,0 +1,133 @@
+{
+  "capturedAtUtc": "2026-11-04T08:57:41.275Z",
+  "evidenceDir": "F:/Codex-brain/evidence/chandra-db-2026-11-04-aeaf51ce",
+  "method": "Read-only SQLite on private analysis copies, no application startup or migrations imported; live bundle remains an uncertified raw snapshot.",
+  "databases": [
+    {
+      "name": "chandra-corrupt-2026-11-03.db",
+      "integrityError": "database disk image is malformed",
+      "schemaError": "database disk image is malformed"
+    },
+    {
+      "name": "chandra-corrupt2-2026-11-04.db",
+      "integrityError": "database disk image is malformed",
+      "schemaError": "database disk image is malformed"
+    },
+    {
+      "name": "chandra.db",
+      "integrity": [
+        "ok"
+      ],
+      "tablesIncludingInternal": 130,
+      "userTables": 129,
+      "rowsIncludingInternal": 1287,
+      "userRows": 1277,
+      "failedTables": [],
+      "criticalCounts": {
+        "agent_memories": 12,
+        "daemon_cycles": 1,
+        "forged_agents": 7,
+        "fraymus_entities": 782,
+        "opeg_proposals": 0,
+        "ouroboros_cycles": 0,
+        "ouroboros_genome": 0,
+        "state_fossils": 0,
+        "synthesized_workflows": 2,
+        "vertiso_memories": 6
+      },
+      "absentCriticalTables": [
+        "ctrnn_state"
+      ]
+    },
+    {
+      "name": "chandra.pre-provenance.db",
+      "integrity": [
+        "ok"
+      ],
+      "tablesIncludingInternal": 73,
+      "userTables": 72,
+      "rowsIncludingInternal": 19012,
+      "userRows": 19002,
+      "failedTables": [],
+      "criticalCounts": {
+        "agent_memories": 12,
+        "daemon_cycles": 1,
+        "forged_agents": 7,
+        "fraymus_entities": 780,
+        "synthesized_workflows": 2,
+        "vertiso_memories": 6
+      },
+      "absentCriticalTables": [
+        "ouroboros_cycles",
+        "ouroboros_genome",
+        "state_fossils",
+        "ctrnn_state",
+        "opeg_proposals"
+      ]
+    },
+    {
+      "name": "chandra_corrupt_backup.db",
+      "integrityError": "database disk image is malformed",
+      "schemaError": "database disk image is malformed"
+    },
+    {
+      "name": "chandra_corrupt_final_2026-11-04.db",
+      "integrityError": "database disk image is malformed",
+      "schemaError": "database disk image is malformed"
+    },
+    {
+      "name": "chandra_fresh_backup.db",
+      "integrityError": "database disk image is malformed",
+      "schemaError": "database disk image is malformed"
+    }
+  ],
+  "reviewedSourceCommit": "c17a7ef",
+  "controlledShutdown": {
+    "platform": "win32",
+    "node": "v24.11.1",
+    "scope": "Disposable child processes and SQLite only",
+    "normal": {
+      "exitListenerRan": true,
+      "walBytesBeforeReopen": 0,
+      "committedRowsAfterReopen": 1,
+      "integrityCheck": "ok"
+    },
+    "forced": {
+      "signal": "SIGKILL",
+      "exitListenerRan": false,
+      "walBytesBeforeReopen": 12392,
+      "committedRowsAfterReopen": 1,
+      "integrityCheck": "ok"
+    }
+  },
+  "liveDaemonObservation": {
+    "running": true,
+    "cycleMs": 1800000,
+    "lastCycleAt": 0,
+    "cyclesRun": 0,
+    "fossils": 0,
+    "agentMemories": 12
+  },
+  "commonTableCountDifferences": [
+    {
+      "table": "health_metrics",
+      "old": 17775,
+      "current": 15
+    },
+    {
+      "table": "events",
+      "old": 243,
+      "current": 248
+    },
+    {
+      "table": "agents",
+      "old": 54,
+      "current": 57
+    },
+    {
+      "table": "fraymus_entities",
+      "old": 780,
+      "current": 782
+    }
+  ]
+}
