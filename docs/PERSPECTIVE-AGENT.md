@@ -80,15 +80,32 @@ Humans ask AI to "create this, build that." They expect a single agent to do it 
 
 No agent repeats work. The playbook means the hive learns permanently. The bartender remembers.
 
-## Arena Mode (Next Step)
+## Arena Mode (BUILT)
 
-The "arena" is where the hive advantage becomes concrete:
+The arena is where the hive advantage becomes concrete:
 
-- Given a task, Perspective launches N agents with different framings
-- Each agent works independently (swarm tool already exists — `swarm_launch` in fleet tools)
-- Results are compared by Perspective, which doesn't pick a winner by logic alone — it evaluates from multiple lenses
-- The winning approach is recorded in the playbook
-- Every future instance of every agent benefits from this
+- Given a task, Perspective launches N agents (2-6) with different lens framings
+- Each agent works independently with their assigned perspective
+- Perspective judges ALL contributions through ALL 6 lenses (not just the assigned one)
+- Winner picked by best aggregate cross-lens score — solid across all six beats brilliant in two and weak in four
+- Winning approach is burned into the playbook with the pattern label and lesson learned
+- Every future instance of every agent benefits from this accumulated wisdom
+
+### Arena vs Swarm
+
+| | Swarm | Arena |
+|---|---|---|
+| **Goal** | Merge best insights from all agents | Pick the single best approach |
+| **Output** | Synthesized combined result | Winner + evaluation breakdown |
+| **Judging** | LLM synthesizes contributions | Perspective evaluates through ALL 6 lenses |
+| **Playbook** | No playbook update | Winner's perspective burned into playbook |
+| **When to use** | Complex tasks needing multiple viewpoints | Learning which approach works best for a pattern |
+
+### Arena Infrastructure
+- SQLite tables: `arena_sessions`, `arena_entries`
+- 4 REST endpoints: POST `/api/perspective/arena`, GET `.../list`, GET `.../:id`, GET `.../arena-stats`
+- 4 fleet tools: `arena_challenge`, `arena_session`, `arena_list`, `arena_stats`
+- Bus events on `system.arena` (started + completed)
 
 This is what Vaughn means by "the system does half the work for you." Once the arena has enough playbook entries, Perspective pre-selects the best approach before any agent starts.
 
@@ -138,9 +155,9 @@ Porting battle-tested patterns from `F:\FRAYNIX-DREAMER-120B` into Chandra-FRAYM
 | Clock-Honesty Tagging | DONE |
 
 ### Perspective Agent Expansion (Next)
-1. **Deeper hive wiring** — Perspective should automatically assess before every fleet run, not just when explicitly called
-2. **Arena mode** — multi-agent perspective competition with playbook learning
-3. **Cross-instance continuity check on boot** — state-seek pattern but for perspective (load playbook, brief self)
+1. ~~Deeper hive wiring~~ **DONE** — Auto-assess on every fleet run (TAG-not-BLOCK: 8s timeout)
+2. ~~Arena mode~~ **DONE** — Competitive multi-agent evaluation with playbook learning
+3. ~~Cross-instance continuity check on boot~~ **DONE** — briefNextInstance() runs at startup
 4. **Perspective-aware command routing** — `command-router.js` consults Perspective before dispatching
 5. **Human/AI lens toggle** — explicit "think like a human" vs "think like a machine" mode switch exposed to the user
 6. **Continuity plasmid** — pack the perspective playbook into a DNA-encoded plasmid for disaster recovery
