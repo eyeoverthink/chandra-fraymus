@@ -1,6 +1,6 @@
 import { startRun, listAgents } from './fleet/runtime.js';
 import { guardCommandInput } from './integrity/guard-tasks.js';
-import { assessSituation, arenaChallenge } from './intelligence/perspective.js';
+import { assessSituation, arenaChallenge, setLensMode, getLensMode } from './intelligence/perspective.js';
 
 const PIPELINE_ALIASES = {
   'content-pipeline': 'commerce',
@@ -118,6 +118,15 @@ export function installCommandRouter(app, { broadcast }) {
       const guardResult = guardCommandInput(trimmed);
       if (!guardResult.pass) {
         return res.status(403).json({ type: 'guard_rejected', error: guardResult.reason, verdict: guardResult.verdict });
+      }
+
+      // Lens mode toggle: "human mode", "machine mode", "auto mode", "think like a human/machine"
+      const lensMatch = trimmed.match(/^(?:think\s+like\s+(?:a\s+)?(human|machine)|(?:(human|machine|auto)\s+mode))$/i);
+      if (lensMatch) {
+        const mode = (lensMatch[1] || lensMatch[2]).toLowerCase();
+        const result = setLensMode(mode);
+        broadcast('perspective', { type: 'lens_mode', ...result });
+        return res.json({ type: 'lens_mode', ...result });
       }
 
       const agentMatch = trimmed.match(/^@(\S+)\s+(.+)$/s);

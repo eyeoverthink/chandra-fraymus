@@ -122,11 +122,67 @@ Output JSON only, no markdown fences:
 let currentSession = null;
 let instanceId = randomUUID().slice(0, 8);
 
+// ─── Lens Mode ──────────────────────────────────────────────
+// Explicit "think like a human" vs "think like a machine" toggle.
+// 'auto' lets assessSituation decide (default).
+// 'human' forces human/creative/strategic lenses with intuition-first framing.
+// 'machine' forces engineer/meta/adversarial lenses with precision-first framing.
+let lensMode = 'auto';
+
+const LENS_MODES = {
+  auto: {
+    label: 'Auto',
+    description: 'Perspective decides which lenses fit the task',
+    forcedPerspectives: null,
+    framing: null,
+  },
+  human: {
+    label: 'Human',
+    description: 'Think like a person — intuition, empathy, creativity first',
+    forcedPerspectives: ['human', 'creative', 'strategic'],
+    framing: '[LENS: HUMAN] Approach this the way a person would. Prioritize what feels right, what resonates, what a real human would actually want. Skip the technically perfect answer if it misses the human truth. Be intuitive, empathetic, and creative.',
+  },
+  machine: {
+    label: 'Machine',
+    description: 'Think like a machine — precision, rigor, adversarial testing first',
+    forcedPerspectives: ['engineer', 'meta', 'adversarial'],
+    framing: '[LENS: MACHINE] Approach this with pure systematic precision. Prioritize correctness, edge cases, and stress testing. Challenge every assumption. Be rigorous, self-critical, and thorough. If it can break, find how.',
+  },
+};
+
+export function getLensMode() { return { mode: lensMode, ...LENS_MODES[lensMode] }; }
+
+export function setLensMode(mode) {
+  if (!LENS_MODES[mode]) return { error: `Invalid mode: ${mode}. Use: auto, human, machine` };
+  const previous = lensMode;
+  lensMode = mode;
+
+  // Record the mode switch as a perspective shift
+  if (currentSession && previous !== mode) {
+    try {
+      const toPerspective = LENS_MODES[mode].forcedPerspectives?.[0] || 'auto';
+      db.prepare('INSERT INTO perspective_shifts (session_id, from_perspective, to_perspective, trigger, reasoning, timestamp) VALUES (?, ?, ?, ?, ?, ?)').run(
+        currentSession, previous, toPerspective, 'lens_mode_switch', `Lens mode changed: ${previous} → ${mode}`, now(),
+      );
+    } catch (_) {}
+  }
+
+  try {
+    publish('system', 'system.perspective', JSON.stringify({ action: 'lens_mode', mode, previous }));
+  } catch (_) {}
+
+  return { mode, previous, ...LENS_MODES[mode] };
+}
+
 export function getInstanceId() { return instanceId; }
 export function getPerspectives() { return PERSPECTIVES; }
 export function getCurrentSession() { return currentSession; }
 
 export function getActiveFraming() {
+  // Lens mode override takes priority when set
+  const modeConfig = LENS_MODES[lensMode];
+  if (modeConfig?.framing) return modeConfig.framing;
+
   if (!currentSession) return null;
   try {
     const session = db.prepare('SELECT active_perspectives, approach_log FROM perspective_sessions WHERE id = ?').get(currentSession);
@@ -192,6 +248,14 @@ export async function assessSituation({ context, task, agentId, emotionalState }
 
   result.perspectives = (result.perspectives || ['engineer']).filter(p => PERSPECTIVES[p]);
   if (result.perspectives.length === 0) result.perspectives = ['engineer'];
+
+  // Lens mode override: force perspectives when human/machine mode is active
+  const modeConfig = LENS_MODES[lensMode];
+  if (modeConfig?.forcedPerspectives) {
+    result.perspectives = modeConfig.forcedPerspectives;
+    result.framing = modeConfig.framing;
+    result.lens_mode = lensMode;
+  }
 
   const sessionId = randomUUID();
   currentSession = sessionId;
@@ -360,6 +424,7 @@ export function getStats() {
   return {
     instanceId,
     currentSession,
+    lensMode: getLensMode(),
     totalSessions,
     totalShifts,
     playbookSize,
@@ -411,6 +476,19 @@ export function installPerspectiveRoutes(app) {
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
     const sessions = db.prepare('SELECT * FROM perspective_sessions ORDER BY started_at DESC LIMIT ?').all(limit);
     res.json({ sessions: sessions.map(s => ({ ...s, active_perspectives: JSON.parse(s.active_perspectives || '[]'), approach_log: JSON.parse(s.approach_log || '[]') })) });
+  }));
+
+  // ─── Lens mode endpoints ───
+  app.get('/api/perspective/lens', route((_req, res) => {
+    res.json(getLensMode());
+  }));
+
+  app.post('/api/perspective/lens', route((req, res) => {
+    const { mode } = req.body || {};
+    if (!mode) return res.status(400).json({ error: 'mode is required (auto, human, machine)' });
+    const result = setLensMode(mode);
+    if (result.error) return res.status(400).json(result);
+    res.json(result);
   }));
 
   // ─── Arena endpoints ───

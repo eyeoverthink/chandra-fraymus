@@ -11,7 +11,7 @@ import { startDaemon, stopDaemon, getDaemonStatus, runCycle, listCycles } from '
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
-import { assessSituation, shiftPerspective, recordOutcome, briefNextInstance, getStats as perspectiveStats, arenaChallenge, getArenaSession, listArenas, getArenaStats } from '../intelligence/perspective.js';
+import { assessSituation, shiftPerspective, recordOutcome, briefNextInstance, getStats as perspectiveStats, arenaChallenge, getArenaSession, listArenas, getArenaStats, getLensMode, setLensMode } from '../intelligence/perspective.js';
 import { initiateSwarm, getSwarmSession, listSwarms, getSwarmStats } from '../intelligence/swarm.js';
 import { analyzeTask, executeStrategy, listStrategies, getStrategyStats } from '../intelligence/strategy.js';
 import { recordEvent as recordTrustEvent, getAgentTrust, getLeaderboard, recommendAgents, getTrustStats } from '../intelligence/trust.js';
@@ -1212,9 +1212,19 @@ export function createFleetTools({ workflowStore }) {
       name: 'perspective_status',
       group: 'intelligence',
       risk: 'safe',
-      description: 'Get current Perspective engine stats: sessions, shifts, playbook size, perspective usage distribution.',
+      description: 'Get current Perspective engine stats: sessions, shifts, playbook size, perspective usage distribution, and active lens mode.',
       parameters: object({}),
       execute: async () => perspectiveStats(),
+    },
+    {
+      name: 'perspective_lens',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Get or set the lens mode. "human" forces intuition/empathy/creativity lenses. "machine" forces precision/rigor/adversarial lenses. "auto" lets Perspective decide per-task.',
+      parameters: object({
+        mode: { type: 'string', enum: ['auto', 'human', 'machine'], description: 'Lens mode to set. Omit to just read current mode.' },
+      }),
+      execute: async ({ args }) => args.mode ? setLensMode(args.mode) : getLensMode(),
     },
     {
       name: 'arena_challenge',
