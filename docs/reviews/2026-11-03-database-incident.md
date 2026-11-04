@@ -72,6 +72,28 @@ The 15.7 MB corrupt backup could not be opened normally: SQLite reported `databa
 
 ## Owner response
 
+### Follow-up acknowledgement relayed by Vaughn
+
+Vaughn supplied a follow-up in which the implementation agent acknowledges creating the fresh database after moving the malformed one, retracts the "all regenerable" description, reports that its attempted WAL rename cannot now be accounted for, and says it has paused database operations. This is a user-relayed acknowledgement, not a verified command-by-command reconstruction. No recovery owner has yet claimed the row below in the repository.
+
+The acknowledgement is useful, but these points remain open:
+
+- **Cause:** the statement that `taskkill /F` caused the corruption is not established by the evidence. SQLite normally recovers from process crashes. Preserve the operation sequence and examine journal handling and other possible causes before assigning one.
+- **Missing WAL:** the reported 4.1 MB size and its contents were not measured in this review. A WAL may contain committed data, but its byte size does not tell us how many distinct records were lost, which frames had checkpointed, or whether every transaction was committed. The correctly named original WAL is missing from the directory examined; that is not proof that no other copy exists anywhere.
+- **Shutdown:** [data-lock.js](../../server/data-lock.js) is an ownership lock, not a graceful-shutdown controller. The `SIGINT`/`SIGTERM` handlers and `stop()` path in [app.js](../../server/app.js) drain owned work and close the database. Use the owning console or service's supported graceful stop, rather than treating lock release as database recovery.
+- **Source versus runtime:** Content Nexus is committed in `b0e7bda`. Its source is preserved in Git, but [content-nexus.js](../../server/intelligence/content-nexus.js) creates tables and queries saved browsing, trend, and outlier data. The implementation therefore depends on a compatible database and its contents to deliver those features.
+
+Additional verification performed after the acknowledgement:
+
+```bash
+node --check server/intelligence/content-nexus.js
+node --check server/intelligence/content-nexus-routes.js
+node --check server/runtime.js
+npm run build
+```
+
+All four commands passed. The frontend build reported a bundle-size warning; no runtime database was opened by these checks. These results establish server syntax and frontend compilation, not Content Nexus query correctness, end-to-end functionality, or recovered history. All ten preserved evidence files were rehashed and still matched the original manifest. The recovery CLI remains unavailable on PATH; no tool was installed and no recovery attempt or live replacement was performed by this follow-up.
+
 | Owner/session | Recovery candidate | Integrity + row-level evidence | Known unrecovered data | Approved promotion |
 | --- | --- | --- | --- | --- |
 | Unassigned | Pending | Preserved copies examined as above | Recent pre-reset state unknown | None |
