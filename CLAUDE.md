@@ -116,6 +116,19 @@ npm run start        # production server (serves built client)
 - 1 fleet tool: `ctrnn_consciousness_audit` (uses live CTRNN, unlike `consciousness_prove` which uses synthetic FraymusStrangeLoopSubstrate)
 - Wired into daemon engine as Step 7 (9-step cycle: dream → prompt-evolve → reflect → neurogenesis → debate → consciousness-audit → state-snapshot → fossil-prune → intelligence-cycle)
 
+### Consciousness Feedback Gate (server/intelligence/consciousness-gate.js)
+- `consciousness-gate.js` — Phase 4 feedback loop: reads latest consciousness_audits row, classifies into 4 tiers (DORMANT/AWAKENING/EMERGING/INTEGRATED) based on proofs passed, provides autonomy modifiers that other subsystems use to modulate behavior
+- Tier system: DORMANT (0 proofs, conservative), AWAKENING (1-2 proofs, standard), EMERGING (3 proofs, active), INTEGRATED (4/4, full autonomy)
+- `getConsciousnessState()` — current tier, proof values, staleness, sample indices (densest-cluster neurons)
+- `getAutonomyModifiers()` — cycleMultiplier, reflectionDepth, neurogenesisBoost, evolutionRate per tier
+- `onStateTransition(callback)` — fires on tier changes with 30s cooldown, persists to `consciousness_transitions` table, publishes to `system.consciousness.transition` bus topic
+- Staleness: audits older than 10 minutes → AWAKENING-tier safe default
+- Wired into autonomy.js (replaced synthetic 4-node proofs with live CTRNN gate reads), neurogenesis.js (consciousness-informed CTRNN stimulus targeting near densest-cluster neurons, neurogenesisBoost modulates Poisson lambda), daemon/engine.js (Step 7.5 reads gate state, includes tier in bus events)
+- DB table: `consciousness_transitions` (id, from_tier, to_tier, direction, created_at)
+- 3 REST endpoints: GET /api/intelligence/consciousness/gate, GET .../modifiers, GET .../transitions
+- 1 fleet tool: `consciousness_gate_status`
+- Gate data included in GET /api/intelligence/live aggregated dashboard
+
 ### State Bridge (server/intelligence/state-bridge.js)
 - `state-bridge.js` — Bridges dynamic runtime state with semantic memory. Snapshots autonomy/intelligence/fleet state each daemon cycle, fossilizes into agent_memories (category 'state_fossil') with hash-based dedup and 30-day retention.
 - Three snapshot collectors: collectAutonomyState (OPEG + reflections + neurogenesis), collectIntelligenceState (memories + verifier + daemon + debates), collectFleetState (agents + bus + workflows)
