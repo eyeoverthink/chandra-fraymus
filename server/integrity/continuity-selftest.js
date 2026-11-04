@@ -6,18 +6,18 @@
 
 import { encodeDna, decodeDna } from '../fraymus/encoding/dna.js';
 import { encodeCodon, decodeCodon } from '../fraymus/encoding/codon.js';
-import { verifyAll, getStatus as watchdogStatus } from './watchdog.js';
+import { getStatus as watchdogStatus } from './watchdog.js';
 import { selftest as strixSelftest } from './strix-laws.js';
 import { selftest as guardSelftest } from './guard-tasks.js';
 import { selftest as writSelftest } from './writ-system.js';
 import { selftest as clockSelftest } from './clock-honesty.js';
 import { db } from '../db.js';
 
-function timedProbe(name, fn) {
+function timedProbe(name, fn, accepts = result => result?.pass !== false) {
   const start = Date.now();
   try {
     const result = fn();
-    return { name, pass: true, ms: Date.now() - start, detail: result };
+    return { name, pass: accepts(result) === true, ms: Date.now() - start, detail: result };
   } catch (e) {
     return { name, pass: false, ms: Date.now() - start, error: e.message };
   }
@@ -56,14 +56,15 @@ function dbPresence() {
 export function continuitySelftest({ dreamer, remembered, ledger, ouroboros } = {}) {
   const results = [];
 
-  results.push(timedProbe('dna_roundtrip', dnaRoundTrip));
-  results.push(timedProbe('codon_roundtrip', codonRoundTrip));
-  results.push(timedProbe('database', dbPresence));
+  results.push(timedProbe('dna_roundtrip', dnaRoundTrip, result => result.roundtrip === true));
+  results.push(timedProbe('codon_roundtrip', codonRoundTrip, result => result.roundtrip === true));
+  results.push(timedProbe('database', dbPresence, result => result.present === true));
 
   results.push(timedProbe('watchdog', () => {
     const status = watchdogStatus();
-    return { running: status.running, tracked: status.tracked_files, violations: status.recent_violations?.length || 0 };
-  }));
+    return { running: status.running, tracked: status.tracked_files, violations: status.recent_violations?.length || 0,
+      checked: status.last_check !== null, failed: status.last_check?.results?.failed || 0 };
+  }, result => result.failed === 0));
 
   results.push(timedProbe('strix_laws', strixSelftest));
   results.push(timedProbe('guard_tasks', guardSelftest));
@@ -86,7 +87,7 @@ export function continuitySelftest({ dreamer, remembered, ledger, ouroboros } = 
         return { ...stats, first_entry_verified: verify.verified };
       }
       return stats;
-    }));
+    }, result => result.total === 0 || result.first_entry_verified === true));
   }
 
   if (ledger) {
@@ -94,7 +95,7 @@ export function continuitySelftest({ dreamer, remembered, ledger, ouroboros } = 
       const counts = ledger.countByKind();
       const integrity = ledger.verify(20);
       return { counts, integrity_chain: integrity.verified, checked: integrity.checked };
-    }));
+    }, result => result.integrity_chain === true));
   }
 
   if (ouroboros) {

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync, readdirSync, statSync, openSync, readSync, closeSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { db } from '../db.js';
 import { DATA_DIR } from '../config.js';
@@ -65,8 +65,28 @@ function logEvent(type, filePath, expectedHash, actualHash, action, detail) {
   return id;
 }
 
+// SQLite changes its main file during ordinary commits/checkpoints. Restoring
+// one file behind an open connection can roll back committed state or corrupt it.
+export function isDatabaseFile(filePath) {
+  const absPath = resolve(filePath);
+  if (absPath === resolve(db.name) || /\.(?:db|sqlite|sqlite3)(?:-(?:wal|shm|journal))?$/i.test(absPath)
+      || /-(?:wal|shm|journal)$/i.test(absPath)) return true;
+  let handle;
+  try {
+    handle = openSync(absPath, 'r');
+    const header = Buffer.alloc(16);
+    return readSync(handle, header, 0, 16, 0) === 16 && header.toString('binary') === 'SQLite format 3\0';
+  } catch { return false; }
+  finally { if (handle !== undefined) closeSync(handle); }
+}
+
+export function isProtectedMutableFile(filePath) {
+  return isDatabaseFile(filePath) || /\.(?:jsonl|ndjson)$/i.test(filePath);
+}
+
 export function trackFile(filePath) {
   const absPath = resolve(filePath);
+  if (isProtectedMutableFile(absPath)) throw new Error('Mutable databases and append-only journals require application-level recovery, not file-watchdog tracking');
   const hash = sha256File(absPath);
   if (!hash) throw new Error(`Cannot track: file not readable at ${absPath}`);
   mkdirSync(FOSSIL_DIR, { recursive: true });
@@ -96,6 +116,7 @@ export function verifyFile(filePath) {
   const manifest = loadManifest();
   const entry = manifest.tracked[absPath];
   if (!entry) return { tracked: false, path: absPath };
+  if (isProtectedMutableFile(absPath)) return { tracked: true, path: absPath, status: 'protected_mutable' };
   const currentHash = sha256File(absPath);
   if (currentHash === null) {
     return { tracked: true, path: absPath, status: 'missing', expected: entry.hash, actual: null };
@@ -108,6 +129,7 @@ export function verifyFile(filePath) {
 
 export function healFile(filePath) {
   const absPath = resolve(filePath);
+  if (isProtectedMutableFile(absPath)) return { healed: false, protected: true, reason: 'Mutable state requires coordinated application recovery' };
   const manifest = loadManifest();
   const entry = manifest.tracked[absPath];
   if (!entry) return { healed: false, reason: 'not tracked' };
@@ -116,6 +138,7 @@ export function healFile(filePath) {
     logEvent('heal_failed', absPath, entry.hash, null, 'no_fossil', 'Fossil backup not found');
     return { healed: false, reason: 'fossil not found' };
   }
+  if (isDatabaseFile(fossilPath)) return { healed: false, protected: true, reason: 'SQLite fossil cannot be restored by the file watchdog' };
   const fossilHash = sha256File(fossilPath);
   if (fossilHash !== entry.hash) {
     logEvent('heal_failed', absPath, entry.hash, fossilHash, 'fossil_corrupt', 'Fossil itself is corrupted');
@@ -130,10 +153,13 @@ export function healFile(filePath) {
 
 export function verifyAll() {
   const manifest = loadManifest();
-  const results = { intact: 0, tampered: 0, missing: 0, healed: 0, failed: 0, files: [] };
+  const results = { intact: 0, tampered: 0, missing: 0, healed: 0, failed: 0, skipped: 0, files: [] };
   for (const [absPath, entry] of Object.entries(manifest.tracked)) {
     const check = verifyFile(absPath);
-    if (check.status === 'intact') {
+    if (check.status === 'protected_mutable') {
+      results.skipped++;
+      results.files.push({ path: absPath, status: check.status, healed: false });
+    } else if (check.status === 'intact') {
       results.intact++;
     } else if (check.status === 'tampered') {
       results.tampered++;
@@ -218,7 +244,6 @@ export function getStatus() {
 
 export function autoTrackCriticalFiles() {
   const critical = [
-    join(DATA_DIR, 'chandra.db'),
     join(DATA_DIR, 'streaming-identity.json'),
   ];
   const tracked = [];

@@ -1,9 +1,9 @@
-// State Seek on Boot — the agent seeks its own state before doing anything else
+// Boot continuity inventory and immutable-file integrity verification.
 // Ported from FRAYNIX-DREAMER-120B's learnStateSeekOnBoot() + stateSeek() + writeDistManifest()
 //
 // At boot: ensure critical directories exist, register continuity files with the
-// watchdog, verify-and-heal, fall back to state_fossils DB if file fossils fail,
-// generate a boot manifest, publish boot health to the bus.
+// watchdog, verify-and-heal immutable files, find state-fossil references when
+// file fossils fail, generate a boot inventory, and publish health to the bus.
 // Vaughn D. Scott | EYEOVERTHINK® | ephless llc
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { DATA_DIR } from '../config.js';
 import { db } from '../db.js';
-import { trackFile, verifyAll, healFile, getManifest } from './watchdog.js';
+import { trackFile, verifyAll, isProtectedMutableFile, getManifest } from './watchdog.js';
 
 const BOOT_MANIFEST_FILE = join(DATA_DIR, 'boot-manifest.json');
 
@@ -77,8 +77,12 @@ function discoverContinuityFiles() {
 function registerWithWatchdog(files) {
   const manifest = getManifest();
   const tracked = manifest.tracked || {};
-  const results = { already_tracked: 0, newly_tracked: 0, failed: 0 };
+  const results = { already_tracked: 0, newly_tracked: 0, failed: 0, protected_mutable: 0 };
   for (const f of files) {
+    if (isProtectedMutableFile(f)) {
+      results.protected_mutable++;
+      continue;
+    }
     if (tracked[f]) {
       results.already_tracked++;
       continue;
@@ -94,9 +98,8 @@ function registerWithWatchdog(files) {
   return results;
 }
 
-function restoreFromStateFossils(missingFiles) {
-  if (!missingFiles.length) return { restored: 0, attempted: 0 };
-  let restored = 0;
+function findStateFossilReferences(missingFiles) {
+  let referencesFound = 0;
   for (const filePath of missingFiles) {
     try {
       const row = db.prepare(
@@ -105,13 +108,14 @@ function restoreFromStateFossils(missingFiles) {
       if (row) {
         const fossil = JSON.parse(row.data);
         if (fossil && typeof fossil === 'object') {
-          restored++;
+          referencesFound++;
           console.log(`[state-seek] Found state fossil reference for ${filePath}`);
         }
       }
     } catch {}
   }
-  return { restored, attempted: missingFiles.length };
+  return { restored: 0, references_found: referencesFound, attempted: missingFiles.length,
+    reason: 'State fossil references are not recoverable file payloads' };
 }
 
 function generateBootManifest(seekResult) {
@@ -133,11 +137,13 @@ function generateBootManifest(seekResult) {
     name: 'CHANDRA-FRAYMUS',
     built: new Date().toISOString(),
     identity: 'chandra-fraymus-v1',
+    scope: 'File inventory; not a consistent database backup',
     boot_seek: {
       intact: seekResult.intact,
       tampered: seekResult.tampered,
       missing: seekResult.missing,
       healed: seekResult.healed,
+      skipped: seekResult.skipped || 0,
     },
     artifact_count: Object.keys(artifacts).length,
     artifacts,
@@ -180,13 +186,14 @@ export function stateSeekOnBoot({ broadcast } = {}) {
       missing: seekResult.missing,
       healed: seekResult.healed,
       failed: seekResult.failed,
+      skipped: seekResult.skipped || 0,
     };
 
     if (seekResult.failed > 0) {
       const missingPaths = (seekResult.files || [])
-        .filter(f => !f.healed)
+        .filter(f => !f.healed && ['missing', 'tampered'].includes(f.status))
         .map(f => f.path);
-      report.fossil_fallback = restoreFromStateFossils(missingPaths);
+      report.fossil_fallback = findStateFossilReferences(missingPaths);
     }
 
     report.manifest = generateBootManifest(seekResult);
@@ -210,7 +217,9 @@ export function stateSeekOnBoot({ broadcast } = {}) {
       broadcast('integrity', {
         type: 'state_seek_boot',
         verdict: report.verdict,
-        files_checked: report.continuity_files,
+        files_discovered: report.continuity_files,
+        files_checked: (report.verify?.intact || 0) + (report.verify?.tampered || 0) + (report.verify?.missing || 0),
+        protected_mutable: report.registration?.protected_mutable || 0,
         tampered: report.verify?.tampered || 0,
         healed: report.verify?.healed || 0,
         duration_ms: report.duration_ms,

@@ -63,7 +63,7 @@ function sha256(data) {
 }
 
 function lastReceiptHash() {
-  const row = db.prepare('SELECT hash FROM writ_receipts ORDER BY created_at DESC LIMIT 1').get();
+  const row = db.prepare('SELECT hash FROM writ_receipts ORDER BY rowid DESC LIMIT 1').get();
   return row?.hash || '0'.repeat(64);
 }
 
@@ -199,7 +199,7 @@ export function getWritStats() {
 }
 
 export function verifyReceiptChain(limit) {
-  const rows = db.prepare('SELECT * FROM writ_receipts ORDER BY created_at ASC LIMIT ?').all(limit || 100);
+  const rows = db.prepare('SELECT * FROM writ_receipts ORDER BY rowid ASC LIMIT ?').all(limit || 100);
   let prevHash = '0'.repeat(64);
   const violations = [];
 
@@ -220,7 +220,7 @@ export function verifyReceiptChain(limit) {
 export function isEnabled() { return _enabled; }
 export function setEnabled(val) { _enabled = !!val; return _enabled; }
 
-export function selftest() {
+function runSelftest() {
   const results = [];
 
   // Grant local writ
@@ -261,4 +261,19 @@ export function selftest() {
 
   const allPass = results.every(r => r.pass);
   return { pass: allPass, results, probes: results.length };
+}
+
+export function selftest() {
+  const ownerSlot = _ownerSlot;
+  const enabled = _enabled;
+  const broadcast = _broadcast;
+  db.exec('SAVEPOINT writ_selftest');
+  try {
+    _enabled = true;
+    _broadcast = null;
+    return runSelftest();
+  } finally {
+    try { db.exec('ROLLBACK TO writ_selftest; RELEASE writ_selftest'); }
+    finally { _ownerSlot = ownerSlot; _enabled = enabled; _broadcast = broadcast; }
+  }
 }
