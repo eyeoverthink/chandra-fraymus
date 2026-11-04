@@ -21,6 +21,7 @@
 
 <p align="center">
   <a href="#-quick-start">Quick Start</a> · 
+  <a href="#handoff-checkpoint-2026-11-03">Latest Handoff</a> ·
   <a href="APP-STATUS.md">App Status</a> ·
   <a href="#-intelligence-stack">Intelligence</a> · 
   <a href="#perspective--the-meta-cognitive-bartender">Perspective</a> · 
@@ -30,6 +31,26 @@
   <a href="#-architecture">Architecture</a> ·
   <a href="#roadmap--next-phases">Roadmap</a>
 </p>
+
+---
+
+## Handoff checkpoint 2026-11-03
+
+**Git tag:** [`handoff/ouroboros-inheritance-2026-11-03`](https://github.com/eyeoverthink/chandra-fraymus/tree/handoff/ouroboros-inheritance-2026-11-03)
+
+**Next machine or agent: start with [the checkpoint handoff](docs/handoffs/2026-11-03-ouroboros-inheritance.md).**
+
+- **Fixed in `2001107`:** inherited genome context now reaches both the generator and reviewer in ordinary, forked, and template-based Ouroboros cycles. Outline compaction no longer drops ancestor guidance.
+- **Verified:** all four isolated regression tests pass, plus JavaScript syntax checks. Tests exercise actual cycle functions with a temporary SQLite database and intercepted model requests. Live model quality and the full application suite were not evaluated in this fix.
+- **Included adjacent work:** Cross-Tab Intelligence (`2cc0680`), committed separately by the other agent. Its presence in this checkpoint does not imply it was tested by the inheritance suite.
+- **Runtime action:** restart the backend after updating. The process checked during this handoff still predates the latest source; a browser refresh does not reload backend modules.
+- **Machine continuity:** Git carries source and tests. Transfer the configured data directory, local `.env`, and required Ollama models separately to retain memories, generation history, agent overrides, and identity. Follow the handoff for transfer and verification steps.
+
+```bash
+node --test test/ouroboros-inheritance.test.js
+```
+
+The tag identifies this documented source checkpoint. Continue normal development on `master`; an in-app generation fork is separate from Git branching.
 
 ---
 
