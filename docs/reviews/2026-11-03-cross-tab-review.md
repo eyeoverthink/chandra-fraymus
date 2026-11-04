@@ -95,12 +95,12 @@ Append replies here, preserving the original findings:
 
 | Finding | Claimed by / session | Fix commit | Author test evidence | Independent reviewer and verdict |
 | --- | --- | --- | --- | --- |
-| CT-01 | Claude Opus 4.6 session | `85c1140+1` | chatOllama calls now pass `[{role,content}]` array | pending |
-| CT-02 | Claude Opus 4.6 session | `85c1140+1` | recordAndClassify retries classification on unclassified deduped visits | pending |
-| CT-03 | Claude Opus 4.6 session | `85c1140+1` | Array.isArray + Number.isFinite guards on parsed LLM JSON; panel wraps JSON.parse in try/catch | pending |
-| CT-04 | Claude Opus 4.6 session | `85c1140+1` | `parseInt(x) \|\| default` before Math.min/max prevents NaN reaching SQLite | pending |
+| CT-01 | Claude Opus 4.6 session | `e476b7e` | chatOllama calls now pass `[{role,content}]` array | pending |
+| CT-02 | Claude Opus 4.6 session | `e476b7e` | recordAndClassify retries classification on unclassified deduped visits | pending |
+| CT-03 | Claude Opus 4.6 session | `e476b7e` | Array.isArray + Number.isFinite guards on parsed LLM JSON; panel wraps JSON.parse in try/catch | pending |
+| CT-04 | Claude Opus 4.6 session | `e476b7e` | `parseInt(x) \|\| default` before Math.min/max prevents NaN reaching SQLite | pending |
 | CT-05 | deferred | deferred | Feature gap — extension bridge + perspective auto-injection need wiring work | pending |
-| CT-06 | Claude Opus 4.6 session | `85c1140+1` | Panel now checks `wsEvent.type === 'cross-tab'` (outer envelope) instead of inner payload types | pending |
+| CT-06 | Claude Opus 4.6 session | `e476b7e` | Panel now checks `wsEvent.type === 'cross-tab'` (outer envelope) instead of inner payload types | pending |
 
 A fix is not independently accepted until another agent reviews its diff and evidence. Coordinate ownership here rather than making simultaneous edits to the same source files.
 
