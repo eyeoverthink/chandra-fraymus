@@ -4,6 +4,8 @@ import { publish } from '../fleet/bus.js';
 import { forgeAgent } from '../fleet/forge.js';
 import { synthesizeWorkflow } from '../workflow/synthesizer.js';
 import { runPipeline as opegPipeline } from './opeg.js';
+import { runDebate } from './debate.js';
+import { heart } from '../fraymus-tools.js';
 
 const now = () => Date.now();
 const MAX_ACTIONS_PER_CYCLE = 5;
@@ -127,7 +129,14 @@ function collectState() {
     } catch (_) { return { sessions: 0, shifts: 0, playbookSize: 0 }; }
   })();
 
-  return { memoryStats, workflowStats, healthStats, busStats, forgeStats, synthesisStats, debateStats, goalStats, chainStats, routingStats, perspectiveStats, collectedAt: now() };
+  const emotionStats = (() => {
+    try {
+      const mood = heart.recentMood();
+      return { mood: mood.mood, readings: mood.readings, distribution: mood.distribution || {} };
+    } catch (_) { return { mood: 'unknown', readings: 0, distribution: {} }; }
+  })();
+
+  return { memoryStats, workflowStats, healthStats, busStats, forgeStats, synthesisStats, debateStats, goalStats, chainStats, routingStats, perspectiveStats, emotionStats, collectedAt: now() };
 }
 
 const REFLECTION_PROMPT = `You are the Reflection Engine for a sovereign AI system called Chandra-FRAYMUS. You analyze system state and decide what actions to take to improve the system.
@@ -138,12 +147,15 @@ You can take these actions (max ${MAX_ACTIONS_PER_CYCLE} per cycle):
 3. forge_agent: {"action": "forge_agent", "goal": "..."} — create a new specialist agent to handle a pattern you identified
 4. synthesize_workflow: {"action": "synthesize_workflow", "goal": "..."} — create a new workflow for a recurring need
 5. publish_insight: {"action": "publish_insight", "topic": "...", "insight": "..."} — share a finding with other agents
+6. run_debate: {"action": "run_debate", "topic": "...", "proposition": "..."} — trigger an adversarial debate between agents on a controversial or uncertain proposition. Use when you see conflicting evidence, a decision with unclear trade-offs, or an assumption that should be stress-tested.
 
 Rules:
 - Only take actions when there's clear evidence from the data
 - Prefer verify_memory for memories with high confidence that match system behavior
 - Only forge an agent when there's a clear repeated need no existing agent covers
 - Only synthesize a workflow when you see a recurring multi-step pattern
+- Use run_debate when the system faces a decision with conflicting signals or untested assumptions
+- Consider the system's emotional state (emotionStats) — sustained negative mood may indicate unresolved friction that a debate or insight could address
 - Always explain your reasoning in the "reason" field of each action
 
 Output ONLY valid JSON: {"actions": [...], "insights": "brief summary of what you observed"}
@@ -211,6 +223,16 @@ async function executeAction(action) {
         if (!action.insight) return { ok: false, error: 'insight required' };
         publish('reflection', action.topic || 'system.insight', typeof action.insight === 'string' ? action.insight : JSON.stringify(action.insight));
         return { ok: true, action: 'publish_insight', topic: action.topic || 'system.insight' };
+      }
+      case 'run_debate': {
+        if (!action.topic || !action.proposition) return { ok: false, error: 'topic and proposition required' };
+        const debateResult = await runDebate({
+          topic: action.topic,
+          proposition: action.proposition,
+          config: {},
+          source: 'reflection',
+        });
+        return { ok: true, action: 'run_debate', debateId: debateResult.id, verdict: debateResult.verdict, confidence: debateResult.confidence };
       }
       default:
         return { ok: false, error: `unknown action: ${action.action}` };

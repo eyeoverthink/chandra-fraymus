@@ -8,6 +8,7 @@ import { reflect } from '../intelligence/reflection.js';
 import { generateGoals } from '../intelligence/goal-engine.js';
 import { runCycle as runOuroborosCycle } from '../intelligence/ouroboros-cycle.js';
 import { snapshotState, pruneFossils } from '../intelligence/state-bridge.js';
+import { heart } from '../fraymus-tools.js';
 
 const now = () => Date.now();
 const DEFAULT_CYCLE_MS = 30 * 60 * 1000;
@@ -28,11 +29,12 @@ let daemonState = {
 
 const CONSOLIDATION_PROMPT = `You are a Dream Consolidator for a sovereign AI system. Your job is to compress recent system activity into a concise knowledge summary that agents can use as context.
 
-Given recent events (agent runs, bus messages, workflow executions, health alerts, perspective shifts), produce a brief consolidated summary. Focus on:
+Given recent events (agent runs, bus messages, workflow executions, health alerts, perspective shifts, emotional state), produce a brief consolidated summary. Focus on:
 1. Patterns — what happened repeatedly?
 2. Outcomes — what succeeded, what failed, and why?
 3. Learnings — what should be remembered for next time?
 4. Perspective patterns — which cognitive framings/approaches worked for which situations?
+5. Emotional context — how does the system's emotional state relate to what happened? Does sustained negative mood correlate with specific failures?
 
 Output JSON only, no markdown fences:
 {"patterns": ["..."], "outcomes": ["..."], "learnings": ["..."], "summary": "one paragraph compressed context"}`;
@@ -119,10 +121,18 @@ async function consolidateDreams() {
     } catch (_) { return { sessions: [], shifts: [], playbook: [] }; }
   })();
 
+  const emotionalState = (() => {
+    try {
+      const mood = heart.recentMood();
+      return { mood: mood.mood, readings: mood.readings, distribution: mood.distribution || {} };
+    } catch (_) { return { mood: 'unknown', readings: 0, distribution: {} }; }
+  })();
+
   const activityCount = recentBus.length + recentRuns.length + recentAlerts.length + recentVerifications.length + recentChains.length + recentDebates.length + recentGoals.length + recentRouting.length + recentPerspectives.sessions.length + recentPerspectives.shifts.length;
   if (activityCount === 0) return { consolidated: false, reason: 'no_recent_activity' };
 
   const input = JSON.stringify({
+    emotionalState,
     busMessages: recentBus.slice(0, 20).map(m => ({ from: m.from_agent, topic: m.topic, payload: m.payload?.slice(0, 200) })),
     workflowRuns: recentRuns.map(r => ({ id: r.workflow_id, status: r.status, durationMs: r.duration_ms })),
     healthAlerts: recentAlerts.map(a => ({ rule: a.rule, severity: a.severity, message: a.message })),

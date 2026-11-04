@@ -13,11 +13,12 @@
 import { db } from '../db.js';
 import { chatOllama, parseJSON } from '../commerce/shared.js';
 import { publish } from '../fleet/bus.js';
+import { loadManifests } from '../fleet/manifest.js';
 
 const MAX_ROUNDS = 3;
 const ROUND_NAMES = ['opening', 'rebuttal', 'synthesis'];
 
-const DEBATE_ROLES = {
+const FALLBACK_ROLES = {
   proponent: {
     agentId: 'fraymus-prime',
     perspective: 'Construct the strongest possible argument FOR the proposition. Use evidence, logical reasoning, and concrete examples. Anticipate counterarguments and address them preemptively.',
@@ -31,6 +32,53 @@ const DEBATE_ROLES = {
     perspective: 'You are an impartial analytical judge. Evaluate both arguments on: logical soundness, evidence quality, assumption awareness, practical implications, and intellectual honesty. Identify the strongest and weakest points from each side.',
   },
 };
+
+function discoverDebateAgents() {
+  try {
+    const manifests = loadManifests();
+    const found = { proponent: null, opponent: null, judge: null };
+    for (const [id, agent] of manifests) {
+      const role = (agent.role || '').toLowerCase();
+      const name = (agent.name || '').toLowerCase();
+      const combined = `${id} ${name} ${role}`;
+      if (!combined.includes('debate')) continue;
+      if (/evaluat|judge|scor/i.test(combined) && !found.judge) {
+        found.judge = { agentId: id, perspective: agent.systemPrompt?.slice(0, 500) || FALLBACK_ROLES.judge.perspective };
+      } else if (/outcome|resolution|analyz/i.test(combined) && !found.opponent) {
+        found.opponent = { agentId: id, perspective: agent.systemPrompt?.slice(0, 500) || FALLBACK_ROLES.opponent.perspective };
+      } else if (/specialist|expert|manag/i.test(combined) && !found.proponent) {
+        found.proponent = { agentId: id, perspective: agent.systemPrompt?.slice(0, 500) || FALLBACK_ROLES.proponent.perspective };
+      }
+    }
+    return {
+      proponent: found.proponent || FALLBACK_ROLES.proponent,
+      opponent: found.opponent || FALLBACK_ROLES.opponent,
+      judge: found.judge || FALLBACK_ROLES.judge,
+    };
+  } catch (_) {
+    return FALLBACK_ROLES;
+  }
+}
+
+let cachedRoles = null;
+let rolesLoadedAt = 0;
+function getDebateRoles() {
+  if (!cachedRoles || Date.now() - rolesLoadedAt > 300_000) {
+    cachedRoles = discoverDebateAgents();
+    rolesLoadedAt = Date.now();
+  }
+  return cachedRoles;
+}
+
+function fossilizeVerdict(debateId, topic, verdict, verdictReasoning, confidence) {
+  try {
+    const key = `debate:${debateId}`;
+    const value = `Debate on "${topic}": verdict=${verdict} (confidence ${Math.round(confidence * 100)}%). ${verdictReasoning}`.slice(0, 4000);
+    db.prepare(
+      `INSERT OR REPLACE INTO agent_memories (agent_id, category, key, value, confidence, source, access_count, created_at, updated_at) VALUES ('system', 'debate_verdict', ?, ?, ?, 'debate-engine', 0, ?, ?)`
+    ).run(key, value, confidence, Date.now(), Date.now());
+  } catch (_) {}
+}
 
 const ROUND_PROMPTS = {
   opening: (topic, proposition, side) =>
@@ -88,6 +136,7 @@ export async function runDebate({ topic, proposition, config = {}, source = 'api
   ensureTable();
 
   const debateId = `debate-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const DEBATE_ROLES = getDebateRoles();
   const proRole = { ...DEBATE_ROLES.proponent, ...(config.proponent || {}) };
   const oppRole = { ...DEBATE_ROLES.opponent, ...(config.opponent || {}) };
   const judgeRole = { ...DEBATE_ROLES.judge, ...(config.judge || {}) };
@@ -140,6 +189,8 @@ export async function runDebate({ topic, proposition, config = {}, source = 'api
   db.prepare(`UPDATE debates SET status = 'completed', rounds = ?, verdict = ?, verdict_reasoning = ?, confidence = ?, duration_ms = ? WHERE id = ?`).run(
     JSON.stringify(rounds), verdict, verdictReasoning, confidence, durationMs, debateId,
   );
+
+  fossilizeVerdict(debateId, topic, verdict, verdictReasoning, confidence);
 
   try {
     publish('system.debate', {
