@@ -45,6 +45,7 @@ import SwarmPanel from '../panels/SwarmPanel.jsx';
 import StrategyPanel from '../panels/StrategyPanel.jsx';
 import TrustPanel from '../panels/TrustPanel.jsx';
 import SubconsciousPanel from '../panels/SubconsciousPanel.jsx';
+import OuroborosCyclePanel from '../panels/OuroborosCyclePanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -92,6 +93,7 @@ const PANELS = {
   strategy: { component: StrategyPanel, label: 'Strategy Engine' },
   trust: { component: TrustPanel, label: 'Trust Engine' },
   subconscious: { component: SubconsciousPanel, label: 'Subconscious Engine' },
+  'ouroboros-cycle': { component: OuroborosCyclePanel, label: 'Ouroboros RSI' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {

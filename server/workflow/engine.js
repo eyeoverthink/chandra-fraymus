@@ -143,6 +143,7 @@ function nodeKind(type) {
   if (type === 'strategy_route') return 'strategy_route';
   if (type === 'trust_evaluate') return 'trust_evaluate';
   if (type === 'subconscious_recall') return 'subconscious_recall';
+  if (type === 'ouroboros_cycle') return 'ouroboros_cycle';
   if (type === 'stream_capture') return 'stream_capture';
   if (type === 'stream_mint') return 'stream_mint';
   if (type === 'stream_deliver') return 'stream_deliver';
@@ -824,6 +825,13 @@ export async function runPipeline(nodes, edges, opts = {}) {
         const ctx = await getSubconsciousContext({ agentId, task, domain });
         r.data = { agentId, domain, thoughtCount: ctx.thoughtIds?.length || 0, patternCount: ctx.patternIds?.length || 0 };
         r.text = ctx.context || 'No subconscious context available yet.';
+        texts[id] = r.text;
+
+      } else if (k === 'ouroboros_cycle') {
+        const { runCycle } = await import('../intelligence/ouroboros-cycle.js');
+        const result = await runCycle(process.cwd());
+        r.data = result;
+        r.text = `Ouroboros RSI cycle ${result.cycleId}: ${result.proposalsGenerated} proposals, ${result.accepted} accepted, ${result.rejected} rejected (${result.durationMs}ms)`;
         texts[id] = r.text;
 
       // ── Carbon X biological encoding nodes ──────────────────

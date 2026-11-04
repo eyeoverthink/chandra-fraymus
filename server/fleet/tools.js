@@ -16,6 +16,7 @@ import { initiateSwarm, getSwarmSession, listSwarms, getSwarmStats } from '../in
 import { analyzeTask, executeStrategy, listStrategies, getStrategyStats } from '../intelligence/strategy.js';
 import { recordEvent as recordTrustEvent, getAgentTrust, getLeaderboard, recommendAgents, getTrustStats } from '../intelligence/trust.js';
 import { captureThought, getSubconsciousContext, distillPatterns, introspect as subconsciousIntrospect, getSubconsciousStats } from '../intelligence/subconscious.js';
+import { runCycle as runOuroborosCycle, absorbCodebase, getCycle as getOuroborosCycle, listCycles as listOuroborosCycles, getStats as getOuroborosStats } from '../intelligence/ouroboros-cycle.js';
 import { executeChain, listRuns as listChainRuns } from '../chain/engine.js';
 import observatoryRouter from '../observatory.js';
 import { encodeCodon, decodeCodon, codonStats } from '../fraymus/encoding/codon.js';
@@ -1363,6 +1364,41 @@ export function createFleetTools({ workflowStore }) {
         domain: string(100, { description: 'Filter to a domain' }),
       }, ['agentId']),
       execute: async ({ args }) => subconsciousIntrospect(args.agentId, { domain: args.domain }),
+    },
+    {
+      name: 'ouroboros_run',
+      group: 'intelligence',
+      risk: 'medium',
+      description: 'Run a full Ouroboros RSI cycle — absorb codebase, analyze for improvements, review proposals. Returns cycle ID with accepted/rejected counts.',
+      parameters: object({}),
+      execute: async () => {
+        const result = await runOuroborosCycle(process.cwd());
+        return result;
+      },
+    },
+    {
+      name: 'ouroboros_absorb',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Absorb (scan) the codebase and return a structured outline with stats — file counts, line counts, exports, DB tables, routes, agents.',
+      parameters: object({}),
+      execute: async () => {
+        const outline = absorbCodebase(process.cwd());
+        return { stats: outline.stats };
+      },
+    },
+    {
+      name: 'ouroboros_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Get Ouroboros RSI stats and recent cycles.',
+      parameters: object({
+        cycleId: string(100, { description: 'Get a specific cycle with its proposals' }),
+      }),
+      execute: async ({ args }) => {
+        if (args.cycleId) return getOuroborosCycle(args.cycleId);
+        return { stats: getOuroborosStats(), recentCycles: listOuroborosCycles(5) };
+      },
     },
     {
       name: 'chain_run',
