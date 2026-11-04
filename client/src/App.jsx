@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
 import useWebSocket from './useWebSocket.js';
 import ErrorBoundary from './ErrorBoundary.jsx';
 import ToastProvider from './ToastProvider.jsx';
@@ -11,11 +11,14 @@ import ConstellationView from './nexus/ConstellationView.jsx';
 import LibraryView from './nexus/LibraryView.jsx';
 import DetailDrawer from './nexus/DetailDrawer.jsx';
 
+const ManifestationPlane = lazy(() => import('./nexus/ManifestationPlane.jsx'));
+
 const VIEWS = [
   { id: 'command', label: 'Command Center', icon: '◈' },
   { id: 'constellation', label: 'Constellation', icon: '✦' },
   { id: 'canvas', label: 'Canvas', icon: '⬡' },
   { id: 'library', label: 'Library', icon: '▤' },
+  { id: 'manifold', label: 'Manifold', icon: '◬' },
 ];
 
 const NAV_BUTTONS = [
@@ -216,6 +219,13 @@ export default function App() {
         {view === 'library' && (
           <ErrorBoundary label="Library">
             <LibraryView wsEvent={wsEvent} onOpenDrawer={openDrawer} />
+          </ErrorBoundary>
+        )}
+        {view === 'manifold' && (
+          <ErrorBoundary label="Manifold">
+            <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#555', fontSize: 14 }}>Loading ManifestationPlane...</div>}>
+              <ManifestationPlane wsEvent={wsEvent} />
+            </Suspense>
           </ErrorBoundary>
         )}
       </main>

@@ -8,6 +8,7 @@ import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, pr
 import * as opeg from './intelligence/opeg.js';
 import { neurogenesisCycle, neurogenesisStats, neurogenesisHistory } from './intelligence/neurogenesis.js';
 import { snapshotState, fossilStats, getFossil, fossilTimeline } from './intelligence/state-bridge.js';
+import { createCTRNN } from './intelligence/ctrnn.js';
 
 const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
 
@@ -486,6 +487,50 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
   app.post('/api/fraymus/fossils/snapshot', route(async (_req, res) => {
     const result = await snapshotState();
     if (result.stored) broadcast('state', { type: 'fossil', id: result.id });
+    res.json(result);
+  }));
+
+  // ── CTRNN Neural Core ──
+  const ctrnn = createCTRNN();
+
+  app.get('/api/fraymus/ctrnn/stats', route((_req, res) => {
+    res.json(ctrnn.stats());
+  }));
+
+  app.get('/api/fraymus/ctrnn/state', route((_req, res) => {
+    res.json(ctrnn.state());
+  }));
+
+  app.get('/api/fraymus/ctrnn/metrics', route((_req, res) => {
+    res.json(ctrnn.metrics());
+  }));
+
+  app.get('/api/fraymus/ctrnn/history', route((req, res) => {
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    res.json(ctrnn.history({ limit }));
+  }));
+
+  app.post('/api/fraymus/ctrnn/start', route((_req, res) => {
+    ctrnn.start(broadcast);
+    res.json({ started: true, ...ctrnn.stats() });
+  }));
+
+  app.post('/api/fraymus/ctrnn/stop', route((_req, res) => {
+    ctrnn.stop();
+    res.json({ stopped: true, tick: ctrnn.tick });
+  }));
+
+  app.post('/api/fraymus/ctrnn/inject', route((req, res) => {
+    const { tx, ty, sigma, amplitude } = req.body || {};
+    const x = Math.max(0, Math.min(ctrnn.config.gridSize - 1, parseFloat(tx) || 0));
+    const y = Math.max(0, Math.min(ctrnn.config.gridSize - 1, parseFloat(ty) || 0));
+    ctrnn.inject(x, y, parseFloat(sigma) || 2.0, parseFloat(amplitude) || 1.0);
+    res.json({ injected: true, tx: x, ty: y });
+  }));
+
+  app.post('/api/fraymus/ctrnn/step', route(async (req, res) => {
+    const parallel = req.body?.parallel === true;
+    const result = await ctrnn.step(parallel);
     res.json(result);
   }));
 }
