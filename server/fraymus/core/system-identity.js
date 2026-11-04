@@ -42,7 +42,8 @@ export function getSystemIdentity() {
   if (!pending) {
     pending = loadOrCreate().catch(error => {
       pending = undefined;
-      throw new Error(`FRAYMUS identity unavailable; existing key preserved: ${error.message}`);
+      // JSON/crypto errors can quote fragments of the private key file.
+      throw new Error(`FRAYMUS identity unavailable; existing key preserved (${error.code || error.name})`);
     });
   }
   return pending;

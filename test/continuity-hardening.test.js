@@ -192,7 +192,11 @@ test('signing identity and vault authentication survive a fresh process', async 
   try {
     writeFileSync(file, 'invalid stored key');
     const invalidRestart = await import('../server/fraymus/core/system-identity.js?invalid-key-fixture');
-    await assert.rejects(invalidRestart.getSystemIdentity(), /existing key preserved/);
+    await assert.rejects(invalidRestart.getSystemIdentity(), error => {
+      assert.match(error.message, /existing key preserved/);
+      assert.equal(error.message.includes('invalid stored key'), false);
+      return true;
+    });
     assert.equal(readFileSync(file, 'utf8'), 'invalid stored key');
   } finally { writeFileSync(file, original); }
 });
