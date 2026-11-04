@@ -32,7 +32,7 @@ export default function CrossTabPanel({ wsEvent }) {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    if (wsEvent?.type === 'visit' || wsEvent?.type === 'ingested' || wsEvent?.type === 'insights_generated') load();
+    if (wsEvent?.type === 'cross-tab') load();
   }, [wsEvent, load]);
 
   const ingest = async () => {
@@ -179,13 +179,15 @@ export default function CrossTabPanel({ wsEvent }) {
               <div style={{ fontSize: '0.85rem', color: '#e0e0e0', marginTop: 4, fontWeight: 500 }}>{v.title || '(no title)'}</div>
               <div style={{ fontSize: '0.75rem', color: '#06b6d4', marginTop: 2, wordBreak: 'break-all' }}>{v.domain}</div>
               {v.summary && <div style={{ fontSize: '0.75rem', color: '#aaa', marginTop: 4 }}>{v.summary}</div>}
-              {v.topics && v.topics !== '[]' && (
-                <div style={{ marginTop: 4, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {JSON.parse(v.topics).map((t, i) => (
-                    <span key={i} style={{ ...s.stat('#1e3a5f'), fontSize: '0.65rem' }}>{t}</span>
-                  ))}
-                </div>
-              )}
+              {v.topics && v.topics !== '[]' && (() => {
+                try { const arr = JSON.parse(v.topics); return Array.isArray(arr) && arr.length > 0 ? (
+                  <div style={{ marginTop: 4, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {arr.map((t, i) => (
+                      <span key={i} style={{ ...s.stat('#1e3a5f'), fontSize: '0.65rem' }}>{t}</span>
+                    ))}
+                  </div>
+                ) : null; } catch { return null; }
+              })()}
             </div>
           ))}
           {visits.length === 0 && <div style={{ color: '#666', textAlign: 'center', padding: '2rem' }}>No visits recorded yet. Use the Ingest tab or Chrome extension to start.</div>}

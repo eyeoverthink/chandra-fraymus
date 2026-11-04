@@ -160,7 +160,7 @@ export async function classifyVisit(id, { content } = {}) {
     .replace('{url}', visit.url)
     .replace('{content}', excerpt);
 
-  const raw = await chatOllama(prompt, { temperature: 0.3 });
+  const raw = await chatOllama([{ role: 'user', content: prompt }], { temperature: 0.3 });
   let parsed;
   try {
     const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
@@ -168,6 +168,11 @@ export async function classifyVisit(id, { content } = {}) {
   } catch {
     parsed = { category: 'other', topics: [], entities: [], summary: raw.slice(0, 200), sentiment: 'neutral', actionability: 0, relevance_signals: [] };
   }
+
+  parsed.topics = Array.isArray(parsed.topics) ? parsed.topics : [];
+  parsed.entities = Array.isArray(parsed.entities) ? parsed.entities : [];
+  parsed.relevance_signals = Array.isArray(parsed.relevance_signals) ? parsed.relevance_signals : [];
+  parsed.actionability = Number.isFinite(parsed.actionability) ? parsed.actionability : 0;
 
   const category = CATEGORIES.includes(parsed.category) ? parsed.category : 'other';
 
@@ -196,7 +201,10 @@ export async function classifyVisit(id, { content } = {}) {
 
 export async function recordAndClassify({ url, title, content, source = 'extension' } = {}) {
   const visit = recordVisit({ url, title, content, source });
-  if (visit.deduplicated) return { ...visit, classified: false };
+  if (visit.deduplicated) {
+    const existing = db.prepare('SELECT classified_at FROM cross_tab_visits WHERE id = ?').get(visit.id);
+    if (existing?.classified_at) return { ...visit, classified: true, skipped: 'already_classified' };
+  }
 
   try {
     const classification = await classifyVisit(visit.id, { content });
@@ -216,7 +224,7 @@ export function getVisits({ limit = 50, offset = 0, category, domain, since } = 
   if (since) { sql += ' AND visited_at > ?'; params.push(since); }
 
   sql += ' ORDER BY visited_at DESC LIMIT ? OFFSET ?';
-  params.push(Math.min(200, Math.max(1, limit)), Math.max(0, offset));
+  params.push(Math.min(200, Math.max(1, parseInt(limit) || 50)), Math.max(0, parseInt(offset) || 0));
 
   return db.prepare(sql).all(...params);
 }
@@ -251,7 +259,7 @@ export async function generateInsights({ hours = 24, memoryBridge } = {}) {
     .replace('{count}', String(visits.length))
     .replace('{visits}', visitsText);
 
-  const raw = await chatOllama(prompt, { temperature: 0.4 });
+  const raw = await chatOllama([{ role: 'user', content: prompt }], { temperature: 0.4 });
   let parsed;
   try {
     const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
