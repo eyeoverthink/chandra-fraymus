@@ -32,6 +32,7 @@ import { getNode } from '../fraymus/protocol/mesh-node.js';
 import { listMessages as bridgeList, readMessage as bridgeRead, searchMessages as bridgeSearch, postMessage as bridgePost } from '../fraymus/protocol/bridge.js';
 import { record as replayRecord, replay as replayReplay, sweep as replaySweep, applyWinner, getPolicy, listWorlds, listSweeps } from '../intelligence/replay-engine.js';
 import { add as akashicAdd, query as akashicQuery, summary as akashicSummary, buildPromptContext as akashicPromptContext, seedFromMemories as akashicSeed } from '../intelligence/akashic.js';
+import { recordAndClassify, getVisits, getVisitStats, generateInsights, getInsights, getClusters, getPerspectiveContext } from '../intelligence/cross-tab.js';
 import {
   imageInfo, imageResize, imageConvert, imageEffects, imageThumbnail,
   imageUpscale, comfyuiStatus, listMedia,
@@ -1675,6 +1676,67 @@ export function createFleetTools({ workflowStore }) {
       description: 'Seed the Akashic store from verified agent memories (fossils, chain findings, reflections).',
       parameters: object({}),
       execute: async () => akashicSeed(),
+    },
+
+    // ── Cross-Tab Intelligence ──────────────────────────────
+    {
+      name: 'cross_tab_ingest',
+      group: 'cross-tab',
+      risk: 'low',
+      description: 'Ingest a page visit into Cross-Tab Intelligence — records URL + title + content and classifies via LLM.',
+      parameters: object({
+        url: { type: 'string', description: 'Page URL' },
+        title: { type: 'string', description: 'Page title' },
+        content: { type: 'string', description: 'Page content excerpt' },
+        source: { type: 'string', description: 'Visit source (extension, manual, agent)', default: 'agent' },
+      }),
+      execute: async ({ args }) => recordAndClassify({ ...args, source: args.source || 'agent' }),
+    },
+    {
+      name: 'cross_tab_visits',
+      group: 'cross-tab',
+      risk: 'low',
+      description: 'List recent browsing visits tracked by Cross-Tab Intelligence.',
+      parameters: object({
+        limit: { type: 'number', description: 'Max results (default 20)' },
+        category: { type: 'string', description: 'Filter by category' },
+        domain: { type: 'string', description: 'Filter by domain' },
+      }),
+      execute: async ({ args }) => ({ visits: getVisits({ limit: args.limit || 20, category: args.category, domain: args.domain }) }),
+    },
+    {
+      name: 'cross_tab_stats',
+      group: 'cross-tab',
+      risk: 'low',
+      description: 'Get Cross-Tab Intelligence statistics (visit counts, top domains, category breakdown).',
+      parameters: object({}),
+      execute: async () => getVisitStats(),
+    },
+    {
+      name: 'cross_tab_insights',
+      group: 'cross-tab',
+      risk: 'low',
+      description: 'Generate browsing insights from recent Cross-Tab visits using LLM analysis.',
+      parameters: object({
+        hours: { type: 'number', description: 'Hours of history to analyze (default 24)' },
+      }),
+      execute: async ({ args }) => generateInsights({ hours: args.hours || 24 }),
+    },
+    {
+      name: 'cross_tab_clusters',
+      group: 'cross-tab',
+      risk: 'low',
+      description: 'List topic clusters detected from browsing patterns.',
+      parameters: object({}),
+      execute: async () => ({ clusters: getClusters() }),
+    },
+    {
+      name: 'cross_tab_context',
+      group: 'cross-tab',
+      risk: 'low',
+      description: 'Get Perspective-ready context string from recent browsing for injection into agent prompts.',
+      parameters: object({}),
+      execute: async () => ({ context: getPerspectiveContext() }),
     },
   ];
 }

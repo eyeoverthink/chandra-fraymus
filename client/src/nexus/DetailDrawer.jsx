@@ -48,6 +48,7 @@ import SubconsciousPanel from '../panels/SubconsciousPanel.jsx';
 import OuroborosCyclePanel from '../panels/OuroborosCyclePanel.jsx';
 import OuroborosLineagePanel from '../panels/OuroborosLineagePanel.jsx';
 import IntegrityPanel from '../panels/IntegrityPanel.jsx';
+import CrossTabPanel from '../panels/CrossTabPanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -98,6 +99,7 @@ const PANELS = {
   'ouroboros-cycle': { component: OuroborosCyclePanel, label: 'Ouroboros RSI' },
   'ouroboros-lineage': { component: OuroborosLineagePanel, label: 'Ouroboros Lineage' },
   integrity: { component: IntegrityPanel, label: 'System Integrity' },
+  'cross-tab': { component: CrossTabPanel, label: 'Cross-Tab Intelligence' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {

@@ -27,6 +27,7 @@ import { runShopperAgent, runUxAuditor, runPriceAnalyst, runReportAndFix } from 
 import { runPageGenerator, runCollectionOrganizer, runDescriptionEnhancer, runPriceAdjuster, runShopifyApplier } from '../commerce/store-fixer.js';
 import { mintArtifact, verifyArtifact } from '../streaming/mint.js';
 import { executeChain, loadRun, listRuns as listChainRuns } from '../chain/engine.js';
+import { recordAndClassify, generateInsights, getPerspectiveContext } from '../intelligence/cross-tab.js';
 import { executeChainToCode } from '../chain/executor.js';
 import { generateGoals } from '../intelligence/goal-engine.js';
 import { runDebate } from '../intelligence/debate.js';
@@ -156,6 +157,9 @@ function nodeKind(type) {
   if (type === 'social_publish') return 'social_publish';
   if (type === 'analytics_collect') return 'analytics_collect';
   if (type === 'music_generate') return 'music_generate';
+  if (type === 'cross_tab_ingest') return 'cross_tab_ingest';
+  if (type === 'cross_tab_analyze') return 'cross_tab_analyze';
+  if (type === 'cross_tab_context') return 'cross_tab_context';
   return 'unknown';
 }
 
@@ -1024,6 +1028,31 @@ export async function runPipeline(nodes, edges, opts = {}) {
           throw new Error(`music_generate failed: ${e.message}`);
         }
         opts.memoryBridge?.storeCognitionResult({ phase: 'music_generate', feeling: { primary: 'joy', intensity: 0.6 }, response: `Workflow music: ${topic}`, durationMs: 0 }).catch(() => {});
+
+      // ── Cross-Tab Intelligence nodes ───────────────────────
+      } else if (k === 'cross_tab_ingest') {
+        const url = node.data?.url || upstreamText || '';
+        const title = node.data?.title || '';
+        const content = node.data?.content || '';
+        if (!url) throw new Error('cross_tab_ingest: url required');
+        const result = await recordAndClassify({ url, title, content, source: 'workflow' });
+        r.data = result;
+        r.text = `Ingested: [${result.category || 'pending'}] ${result.summary?.slice(0, 80) || url}`;
+        texts[id] = JSON.stringify(result);
+        opts.memoryBridge?.storeCognitionResult({ phase: 'cross_tab_ingest', feeling: { primary: 'curiosity', intensity: 0.5 }, response: `Workflow ingest: ${url}`, durationMs: 0 }).catch(() => {});
+
+      } else if (k === 'cross_tab_analyze') {
+        const hours = node.data?.hours || 24;
+        const result = await generateInsights({ hours, memoryBridge: opts.memoryBridge });
+        r.data = result;
+        r.text = result.insights ? `${(result.clusters || []).length} clusters, ${(result.suggestions || []).length} suggestions` : (result.reason || 'No insights');
+        texts[id] = JSON.stringify(result);
+
+      } else if (k === 'cross_tab_context') {
+        const context = getPerspectiveContext();
+        r.data = { context, active: !!context };
+        r.text = context || 'No cross-tab context available';
+        texts[id] = context || '';
 
       } else {
         throw new Error(`Unknown node type: ${node.type}`);
