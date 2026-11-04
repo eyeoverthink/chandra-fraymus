@@ -160,7 +160,7 @@ Porting battle-tested patterns from `F:\FRAYNIX-DREAMER-120B` into Chandra-FRAYM
 3. ~~Cross-instance continuity check on boot~~ **DONE** — briefNextInstance() runs at startup
 4. ~~Perspective-aware command routing~~ **DONE** — Smart routing with 3s timeout + arena/swarm/perspective command aliases
 5. ~~Human/AI lens toggle~~ **DONE** — "human mode" / "machine mode" / "auto mode" with forced lenses + framing injection
-6. **Continuity plasmid** — pack the perspective playbook into a DNA-encoded plasmid for disaster recovery
+6. ~~Continuity plasmid~~ **DONE** — Full playbook + sessions + arena + lens mode packed into FRAYMUS DNA plasmid (codon/plasmid stack)
 
 ## Architecture Vision
 
