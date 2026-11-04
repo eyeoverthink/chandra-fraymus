@@ -82,7 +82,7 @@ import { installDaemonRoutes, startDaemon } from './daemon/engine.js';
 import { installGoalRoutes } from './intelligence/goal-engine.js';
 import { installDebateRoutes } from './intelligence/debate.js';
 import { installModelRouterRoutes } from './intelligence/model-router.js';
-import { installPerspectiveRoutes } from './intelligence/perspective.js';
+import { installPerspectiveRoutes, briefNextInstance, getInstanceId } from './intelligence/perspective.js';
 import { installSwarmRoutes } from './intelligence/swarm.js';
 import { installStrategyRoutes } from './intelligence/strategy.js';
 import { installTrustRoutes } from './intelligence/trust.js';
@@ -230,6 +230,10 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installDebateRoutes(app);
   installModelRouterRoutes(app);
   installPerspectiveRoutes(app);
+  try {
+    const brief = briefNextInstance();
+    console.log(`[perspective] Instance ${getInstanceId()} warmed — ${brief.playbookSize || brief.playbook?.length || 0} playbook entries, ${brief.continuityNotes?.length || 0} continuity notes`);
+  } catch (e) { console.error('[perspective] boot warm-up failed (non-fatal):', e.message); }
   installSwarmRoutes(app);
   installStrategyRoutes(app);
   installTrustRoutes(app);

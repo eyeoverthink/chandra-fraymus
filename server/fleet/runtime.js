@@ -5,7 +5,7 @@ import { OLLAMA_URL } from '../config.js';
 import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
 import { setMemoryBridgeRef } from './tools.js';
 import { buildPromptContext, autoStoreFromCompletion } from './agent-memory.js';
-import { getActiveFraming } from '../intelligence/perspective.js';
+import { getActiveFraming, assessSituation, recordOutcome } from '../intelligence/perspective.js';
 import {
   sealToolResult, sealRefusal, budgetBands, bandDirective,
   salvageOnCrash, boundResult, checkPermission, createRunEnvelope, recordStep,
@@ -325,6 +325,20 @@ async function drive(runId, depth = 0) {
   const lastUserMsg = db.prepare("SELECT content FROM messages WHERE thread_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1").get(run.thread_id);
   const envelope = createRunEnvelope(runId, agent.id, lastUserMsg?.content || '');
 
+  // Perspective auto-assess: frame the run before the agent starts (top-level only)
+  if (depth === 0 && lastUserMsg?.content) {
+    try {
+      const assessment = await Promise.race([
+        assessSituation({ task: lastUserMsg.content, agentId: agent.id, context: `agent=${agent.name}, role=${agent.role || 'general'}` }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('perspective timeout')), 8000)),
+      ]);
+      if (assessment.perspectives?.length) {
+        broadcastFn('perspective', { type: 'auto_assess', runId, agentId: agent.id, perspectives: assessment.perspectives, confidence: assessment.confidence });
+        ledger.record('fleet.perspective_auto', { agent: agent.id, perspectives: assessment.perspectives, pattern: assessment.pattern_match, runId }, 'fleet');
+      }
+    } catch (_) {}
+  }
+
   for (let step = run.steps || 0; step < MAX_STEPS; step++) {
     // Harness Law 3: Budget bands — fire warnings at 60/75/85%
     const { firedNow, inReserve, newFired } = budgetBands(step + 1, MAX_STEPS, envelope.budget.fired);
@@ -366,6 +380,7 @@ async function drive(runId, depth = 0) {
       // Harness Law 2: Salvage on crash — persist partial history before death
       salvageOnCrash(runId, agent.id, e, step, run.thread_id);
       setRun(runId, { status: 'error', error: e.message });
+      if (depth === 0) try { recordOutcome({ success: false, summary: `${agent.id} crashed at step ${step}: ${e.message}` }); } catch (_) {}
       return;
     }
 
@@ -378,6 +393,7 @@ async function drive(runId, depth = 0) {
       broadcastFn('fleet', { type: 'done', runId, harness: { steps: envelope.steps.length, evidence: true } });
       try { autoStoreFromCompletion(agent.id, lastUser?.content, res.content); } catch (_) {}
       try { replayRecord(agent.id, lastUser?.content || '', agent.model, envelope.steps, 0.5, step + 1); } catch (_) {}
+      if (depth === 0) try { recordOutcome({ success: true, summary: `${agent.id} completed in ${step + 1} steps`, effectivePerspectives: null }); } catch (_) {}
       return;
     }
 
@@ -433,6 +449,7 @@ async function drive(runId, depth = 0) {
 
   setRun(runId, { status: 'done' });
   try { replayRecord(agent.id, 'max_steps_reached', agent.model, envelope.steps, 0.3, MAX_STEPS); } catch (_) {}
+  if (depth === 0) try { recordOutcome({ success: true, summary: `${agent.id} hit max steps (${MAX_STEPS})` }); } catch (_) {}
 }
 
 export function startRun(userId, agentId, message, threadId) {
