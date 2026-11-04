@@ -7,6 +7,7 @@ import { AGENTS, ZONES, COMPUTE_NODES } from './fraymus/core/constants.js';
 import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching, negativeControlConsciousnessProofs } from './fraymus/intelligence/ouroboros.js';
 import * as opeg from './intelligence/opeg.js';
 import { neurogenesisCycle, neurogenesisStats, neurogenesisHistory } from './intelligence/neurogenesis.js';
+import { snapshotState, fossilStats, getFossil, fossilTimeline } from './intelligence/state-bridge.js';
 
 const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
 
@@ -462,6 +463,29 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
   app.post('/api/fraymus/neurogenesis/trigger', route(async (_req, res) => {
     const result = await neurogenesisCycle();
     broadcast('neurogenesis', { type: 'manual', ...result });
+    res.json(result);
+  }));
+
+  // ── State Bridge (Persistence Fossils) ──
+  app.get('/api/fraymus/fossils/stats', route(async (_req, res) => {
+    res.json(fossilStats());
+  }));
+
+  app.get('/api/fraymus/fossils/timeline', route(async (req, res) => {
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    const since = req.query.since ? parseInt(req.query.since) : undefined;
+    res.json(fossilTimeline({ limit, since }));
+  }));
+
+  app.get('/api/fraymus/fossils/:id', route(async (req, res) => {
+    const fossil = getFossil(req.params.id);
+    if (!fossil) return res.status(404).json({ error: 'Fossil not found' });
+    res.json(fossil);
+  }));
+
+  app.post('/api/fraymus/fossils/snapshot', route(async (_req, res) => {
+    const result = await snapshotState();
+    if (result.stored) broadcast('state', { type: 'fossil', id: result.id });
     res.json(result);
   }));
 }

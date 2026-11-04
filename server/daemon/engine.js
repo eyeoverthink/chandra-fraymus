@@ -7,6 +7,7 @@ import { reloadManifests } from '../fleet/runtime.js';
 import { reflect } from '../intelligence/reflection.js';
 import { generateGoals } from '../intelligence/goal-engine.js';
 import { runCycle as runOuroborosCycle } from '../intelligence/ouroboros-cycle.js';
+import { snapshotState, pruneFossils } from '../intelligence/state-bridge.js';
 
 const now = () => Date.now();
 const DEFAULT_CYCLE_MS = 30 * 60 * 1000;
@@ -361,6 +362,20 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
       stepResults.ouroboros = { error: e.message };
     }
 
+    // Step 7: State Bridge — fossilize dynamic state into semantic memory
+    try {
+      stepResults.stateBridge = await snapshotState();
+    } catch (e) {
+      stepResults.stateBridge = { error: e.message };
+    }
+
+    // Step 8: Prune old fossils beyond retention window
+    try {
+      stepResults.fossilPrune = pruneFossils();
+    } catch (e) {
+      stepResults.fossilPrune = { error: e.message };
+    }
+
     const duration = now() - t0;
 
     db.prepare(
@@ -381,6 +396,8 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
         perspectiveInsights: stepResults.consolidation?.perspectiveInsights ?? 0,
         ouroborosGeneration: stepResults.ouroboros?.generation ?? null,
         ouroborosAccepted: stepResults.ouroboros?.accepted ?? 0,
+        stateFossilized: stepResults.stateBridge?.stored ?? false,
+        fossilsPruned: stepResults.fossilPrune?.fossilsPruned ?? 0,
         durationMs: duration, at: t0,
       }));
     } catch (_) {}
