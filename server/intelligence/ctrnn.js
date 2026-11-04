@@ -41,6 +41,16 @@ const DEFAULT_CONFIG = {
   workerCount: 2,
   tickRate: 60,
   connectivityFloor: 0.05,
+  // Hebbian plasticity: co-active neurons strengthen their mutual connections
+  hebbianRate: 0.003,
+  hebbianDecay: 0.0001,
+  // Spatial locality: neurogenesis probability decays with grid distance
+  spatialSigma: 3.0,
+  // Per-weight clamp: caps individual synaptic weights so Hebbian can
+  // strengthen cluster connections without runaway growth, while leaving
+  // non-cluster connections free to stay weak. This replaces per-neuron
+  // budget normalization which homogenized all weights.
+  maxWeight: 2.0,
 };
 
 function ensureTable() {
@@ -169,12 +179,17 @@ export function createCTRNN(config = {}) {
     let count = 0;
     const totalW = W.reduce((s, v) => s + Math.abs(v), 0);
     const avgW = totalW / (N * N);
+    const sigma = cfg.spatialSigma;
+    const sigma2x2 = 2 * sigma * sigma;
 
     if (avgW < cfg.connectivityFloor) {
       for (let i = 0; i < N; i++) {
         for (let j = 0; j < N; j++) {
           const idx = i * N + j;
-          if (W[idx] === 0 && Math.random() < cfg.neurogenesisThreshold) {
+          if (W[idx] !== 0) continue;
+          const d = gridDist(i, j);
+          const spatialP = Math.exp(-(d * d) / sigma2x2);
+          if (Math.random() < cfg.neurogenesisThreshold * spatialP) {
             W[idx] = (Math.random() - 0.5) * 0.3;
             count++;
           }
@@ -186,7 +201,10 @@ export function createCTRNN(config = {}) {
         for (let i = 0; i < N; i++) {
           for (let j = 0; j < N; j++) {
             const idx = i * N + j;
-            if (W[idx] === 0 && Math.random() < lambda) {
+            if (W[idx] !== 0) continue;
+            const d = gridDist(i, j);
+            const spatialP = Math.exp(-(d * d) / sigma2x2);
+            if (Math.random() < lambda * spatialP) {
               W[idx] = (Math.random() - 0.5) * 0.2;
               count++;
             }
@@ -223,6 +241,47 @@ export function createCTRNN(config = {}) {
     stats.predatorEvents += predatorEvents;
     stats.preyEvents += preyEvents;
     return { predatorEvents, preyEvents };
+  }
+
+  // Hebbian plasticity: ΔW[i][j] = η · tanh(B[i]) · tanh(B[j]) - decay
+  // Co-active neurons strengthen, uncorrelated ones weaken → clustered topology
+  function hebbianPlasticity() {
+    const eta = cfg.hebbianRate;
+    const decay = cfg.hebbianDecay;
+    if (eta <= 0) return;
+
+    for (let i = 0; i < N; i++) {
+      const ai = Math.tanh(B[i] + Theta[i]);
+      for (let j = 0; j < N; j++) {
+        const idx = i * N + j;
+        if (W[idx] === 0) continue;
+        const aj = Math.tanh(B[j] + Theta[j]);
+        // Hebbian: strengthen co-active, weaken anti-correlated
+        W[idx] += eta * ai * aj - decay * W[idx];
+      }
+    }
+  }
+
+  // Per-weight clamp: cap each synaptic weight individually so Hebbian
+  // can strengthen specific connections (creating clusters) without
+  // runaway growth. Unlike per-neuron normalization, this preserves
+  // weight heterogeneity — essential for Phi (integrated information).
+  function clampWeights() {
+    const maxW = cfg.maxWeight;
+    if (maxW <= 0) return;
+
+    for (let i = 0; i < N * N; i++) {
+      if (W[i] > maxW) W[i] = maxW;
+      else if (W[i] < -maxW) W[i] = -maxW;
+    }
+  }
+
+  // Grid distance between two neuron indices on the 16x16 grid
+  function gridDist(a, b) {
+    const ax = a % cfg.gridSize, ay = (a / cfg.gridSize) | 0;
+    const bx = b % cfg.gridSize, by = (b / cfg.gridSize) | 0;
+    const dx = ax - bx, dy = ay - by;
+    return Math.sqrt(dx * dx + dy * dy);
   }
 
   function injectGaussian(tx, ty, sigma = 2.0, amplitude = 1.0) {
@@ -278,6 +337,8 @@ export function createCTRNN(config = {}) {
       eulerStepSync();
     }
 
+    hebbianPlasticity();
+    clampWeights();
     const pruned = prune();
     const neuroCount = neurogenesis();
     const bio = biosphere();
