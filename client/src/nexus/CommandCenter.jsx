@@ -228,7 +228,7 @@ export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigat
   };
 
   return (
-    <div style={{ padding: 32, maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ padding: 32, paddingBottom: 80, maxWidth: 1200, margin: '0 auto' }}>
       <div style={{ marginBottom: 28 }}>
         <h2 style={{ fontSize: 24, fontWeight: 700, color: '#e0e0e8', marginBottom: 4 }}>Command Center</h2>
         <p style={{ fontSize: 13, color: '#666' }}>System overview — click any widget to dive deeper, or type a command below</p>
@@ -322,9 +322,7 @@ export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigat
         </div>
       </div>
 
-      <div style={{ marginTop: 'auto', paddingTop: 8 }}>
-        <CommandBar onOpenDrawer={onOpenDrawer} />
-      </div>
+      <CommandBar onOpenDrawer={onOpenDrawer} />
 
       <style>{`
         @keyframes slideIn {
