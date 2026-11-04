@@ -12,6 +12,7 @@ import {
 } from './harness.js';
 import { append as chainAppend } from '../intelligence/record-chain.js';
 import { compactHistory } from '../integrity/strix-laws.js';
+import { requestWrit, consumeWrit } from '../integrity/writ-system.js';
 import { buildPromptContext as akashicPromptContext } from '../intelligence/akashic.js';
 import { record as replayRecord } from '../intelligence/replay-engine.js';
 
@@ -245,6 +246,17 @@ async function executeTool(toolName, args, ctx) {
       persistEvidence(ctx.runId, ctx.step || 0, sealed);
       return sealed;
     }
+  }
+
+  // Writ-system permission layer (deterministic, time-limited, receipt-chained)
+  if (ctx.agent) {
+    const writ = requestWrit(ctx.agent.id, toolName, toolName.toUpperCase());
+    if (!writ.granted) {
+      const sealed = sealRefusal(toolName, `writ denied: ${writ.reason}`);
+      persistEvidence(ctx.runId, ctx.step || 0, sealed);
+      return sealed;
+    }
+    if (writ.writ?.id) consumeWrit(writ.writ.id);
   }
 
   // Budget reserve check — past 85%, only output tools allowed
