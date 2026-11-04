@@ -90,6 +90,38 @@ npm run start        # production server (serves built client)
 - 3 REST endpoints: POST run, GET loops, GET loops/:id
 - 2 agent tools: `verify_loop`, `verify_list`
 
+### OPEG V1.0 Protocol (server/intelligence/opeg.js)
+- `opeg.js` — Empirical grounding state machine: S0_IDLE → S1_HYPOTHESIS → S2_EXECUTE → S3_SANITIZE → S4_UPDATE. Gates all autonomous self-modifications through hypothesis/execute/sanitize/update cycle with pre/post metric collection and regression detection.
+- `runPipeline()` convenience wrapper chains all 4 stages with an executeFn callback
+- `evaluateModification()` checks: execution success, no new alerts, type-specific checks, no regression
+- Wired into reflection loop: forge_agent and synthesize_workflow actions pass through OPEG
+- DB table: `opeg_proposals` (id, type, state, hypothesis, params, pre_metrics, post_metrics, execution_result, sanitize_verdict, source, created_at, updated_at, completed_at)
+- 4 REST endpoints: GET stats, GET proposals, GET proposals/:id, POST propose
+- Exports: `propose`, `execute`, `sanitize`, `update`, `runPipeline`, `getProposal`, `listProposals`, `stats`
+
+### Autonomous Neurogenesis Engine (server/intelligence/neurogenesis.js)
+- `neurogenesis.js` — Prevents degenerate sparse connectivity by spontaneously re-igniting dead connections. Connectivity score = weighted composite of agent activity (0.30), memory health (0.25), bus traffic (0.25), workflow activity (0.20) minus health penalty.
+- Below floor (0.15) → emergency: bus stimulus + memory seed + OPEG-gated forge
+- Above floor → Poisson(λ*(1-score)) probabilistic stimulus injection
+- Wired into autonomy engine on 2-minute cycle; emergency triggers survival dreams
+- DB table: `neurogenesis_events` (id, trigger_type, connectivity_score, action_taken, stimulus_count, opeg_id, created_at)
+- 3 REST endpoints: GET stats, GET history, POST trigger
+
+### State Bridge (server/intelligence/state-bridge.js)
+- `state-bridge.js` — Bridges dynamic runtime state with semantic memory. Snapshots autonomy/intelligence/fleet state each daemon cycle, fossilizes into agent_memories (category 'state_fossil') with hash-based dedup and 30-day retention.
+- Three snapshot collectors: collectAutonomyState (OPEG + reflections + neurogenesis), collectIntelligenceState (memories + verifier + daemon + debates), collectFleetState (agents + bus + workflows)
+- Wired into daemon engine as Steps 7-8 (snapshot + prune)
+- DB table: `state_fossils` (id, snapshot_type, state_hash, data, created_at)
+- 4 REST endpoints: GET fossils/stats, GET fossils/timeline, GET fossils/:id, POST fossils/snapshot
+
+### CTRNN Neural Core (server/intelligence/ctrnn.js + ctrnn-worker.js)
+- `ctrnn.js` — Continuous-Time Recurrent Neural Network, ported from Java LogicCircuit. Forward Euler integration: B[i] += (dt/τ)(−B[i] + Σⱼ W[i][j]·tanh(B[j]+Θ[j]) + I_ext[i]). Configurable grid (default 16x16 = 256 neurons).
+- `ctrnn-worker.js` — worker_threads parallel Euler step (replaces Java ForkJoinPool)
+- Subsystems: Euler integration, synaptic pruning (activity-dependent exponential decay), dead zone cleanup, autonomous neurogenesis (connectivity floor + Poisson), biosphere perturbation (predator/prey)
+- Gaussian injection for tactile input, 60Hz tick rate, 10Hz WebSocket broadcast
+- DB table: `ctrnn_snapshots` (id, tick, neuron_count, active_synapses, total_activation, mean_weight, pruned_count, neurogenesis_count, created_at)
+- 8 REST endpoints: GET stats/state/metrics/history, POST start/stop/inject/step
+
 ### Background Evolution Daemon (server/daemon/engine.js)
 - `engine.js` — Persistent background loop: dream consolidation → prompt evolution → reflection
 - Dream consolidation: reads recent bus_messages, workflow_runs, health_alerts, verification_loops → Ollama summarizes → stores learnings as agent_memories (category "dream")
@@ -269,6 +301,7 @@ Ariadne, Artifact Minter, Cantor, Concierge, DevArchivist, Director, EYE Soverei
 - `CommandBar.jsx` — persistent command input with @agent autocomplete, pipeline/workflow launching, response panel with thread polling; routes through `POST /api/command`
 - `ConstellationView.jsx` — living SVG constellation: CHANDRA breathing hub + inner ring (intelligence) + outer ring (capabilities), 15 edge connections, WebSocket-driven node activity pulses (glow + ripple on events, 4s fade), animated dash-flow edges between active nodes, always-visible status badges, hover tooltips, click-to-inspect via drawer
 - `LibraryView.jsx` — unified content archive aggregating commerce runs, workflow runs, outlier saves, agent threads from 7 endpoints; source filter tabs, search, expandable items
+- `ManifestationPlane.jsx` — Lazy-loaded (React.lazy) CTRNN neural terrain visualization: Canvas2D isometric projection of 16x16 neuron grid as height map driven by B(t) via WebSocket, drag-to-rotate, click-to-inject Gaussian stimulus, live stat cards (tick/neurons/synapses/connectivity), start/stop CTRNN controls
 - `DetailDrawer.jsx` — slide-out panel (55% width) rendering any of 12 panels contextually, with backdrop overlay and CSS animation
 
 ### Panels (client/src/panels/) — rendered inside Detail Drawer
