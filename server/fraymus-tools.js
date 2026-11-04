@@ -26,7 +26,8 @@ import { NeedleQueue, NeedleWorker } from './fraymus/intelligence/needle.js';
 import { OrificeBridge } from './fraymus/bridge/orifice.js';
 import { NILES_MODEL, FRAYVM_OPCODES, buildModelfile, executeFrayvm } from './fraymus/intelligence/niles.js';
 import { Heart, analyze as heartAnalyze } from './fraymus/intelligence/heart.js';
-import { Ledger } from './fraymus/intelligence/ledger.js';
+import { Ledger, setClockTrustedFn } from './fraymus/intelligence/ledger.js';
+import { isClockTrusted } from './integrity/clock-honesty.js';
 import { Dreamer } from './fraymus/intelligence/dreamer.js';
 import { CognitionPipeline } from './fraymus/intelligence/cognition.js';
 import { SCHEMAS, getSchema, entitiesBySource } from './fraymus/entities/schemas.js';
@@ -69,6 +70,7 @@ const openclaw = new OpenClawGateway({ hermes, motor, ouroboros, controlPlane, b
 // New modules from fraynix-continuity + fraynix-dreamer-120b
 const heart = new Heart(entityStore);
 const ledger = new Ledger(entityStore);
+setClockTrustedFn(isClockTrusted);
 const dreamer = new Dreamer(entityStore, null); // identity injected lazily below
 const cognition = new CognitionPipeline({ heart, ledger, dreamer, ouroboros, ollamaChat: chatOllama });
 

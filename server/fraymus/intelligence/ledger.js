@@ -6,6 +6,9 @@ import { existsSync, mkdirSync, appendFileSync, readFileSync, statSync } from 'f
 import { join } from 'path';
 import { createHash } from 'crypto';
 
+let _clockTrustedFn = null;
+export function setClockTrustedFn(fn) { _clockTrustedFn = fn; }
+
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB per ledger file before rotation
 
 export class Ledger {
@@ -56,7 +59,9 @@ export class Ledger {
     const seq = this.sequence++;
     const ts = new Date().toISOString();
 
-    const entry = { seq, ts, kind, source, data };
+    let clockTrusted = false;
+    try { if (_clockTrustedFn) clockTrusted = _clockTrustedFn(); } catch (_) {}
+    const entry = { seq, ts, kind, source, data, clock_trusted: clockTrusted };
     const payload = JSON.stringify(entry);
     const hash = createHash('sha256').update(this.prevHash + payload).digest('hex');
     entry.hash = hash;

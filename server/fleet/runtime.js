@@ -13,6 +13,7 @@ import {
 import { append as chainAppend } from '../intelligence/record-chain.js';
 import { compactHistory } from '../integrity/strix-laws.js';
 import { requestWrit, consumeWrit } from '../integrity/writ-system.js';
+import { isClockTrusted, getLastVerdict } from '../integrity/clock-honesty.js';
 import { buildPromptContext as akashicPromptContext } from '../intelligence/akashic.js';
 import { record as replayRecord } from '../intelligence/replay-engine.js';
 
@@ -283,6 +284,7 @@ async function executeTool(toolName, args, ctx) {
   const durationMs = now() - t0;
 
   const sealed = sealToolResult(toolName, args, result, durationMs);
+  sealed.evidence.clock_trusted = isClockTrusted();
   persistEvidence(ctx.runId, ctx.step || 0, sealed);
   return sealed;
 }
@@ -308,6 +310,16 @@ async function drive(runId, depth = 0) {
 
   const tools = agentTools(agent);
   const userId = run.user_id || 'local';
+
+  // Clock-honesty check: warn if system clock is suspect at run start
+  if (!isClockTrusted()) {
+    const verdict = getLastVerdict();
+    broadcastFn('integrity', {
+      type: 'clock_suspect_during_run',
+      runId, agentId: agent.id,
+      drift_ms: verdict.drift_ms, verdict: verdict.verdict,
+    });
+  }
 
   // Harness: create run envelope for audit trail
   const lastUserMsg = db.prepare("SELECT content FROM messages WHERE thread_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1").get(run.thread_id);
@@ -399,6 +411,7 @@ async function drive(runId, depth = 0) {
           run_id: runId, step, tool: fn.name,
           evidence_sha: result?.evidence?.evidence_sha,
           executed: result?.evidence?.executed,
+          clock_trusted: isClockTrusted(),
         });
       } catch (_) {}
 

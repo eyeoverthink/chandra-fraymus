@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { db } from '../db.js';
+import { isClockTrusted } from './clock-honesty.js';
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS writs (
@@ -69,7 +70,9 @@ function lastReceiptHash() {
 function appendReceipt(writId, action, detail) {
   const id = randomUUID();
   const prevHash = lastReceiptHash();
-  const payload = JSON.stringify({ writId, action, detail, prevHash, ts: Date.now() });
+  let clockTrusted = false;
+  try { clockTrusted = isClockTrusted(); } catch (_) {}
+  const payload = JSON.stringify({ writId, action, detail, prevHash, ts: Date.now(), clock_trusted: clockTrusted });
   const hash = sha256(payload);
   db.prepare(`INSERT INTO writ_receipts (id, writ_id, action, detail, prev_hash, hash, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)`).run(id, writId, action, detail, prevHash, hash, Date.now());
