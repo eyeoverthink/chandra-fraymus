@@ -1,4 +1,5 @@
 import { heart } from '../fraymus-tools.js';
+import { sanitizeOllamaContent } from '../fraymus/intelligence/ollama-sanitize.js';
 
 const OLLAMA = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 
@@ -10,7 +11,7 @@ export async function chatOllama(system, user, model = 'llama3.2') {
     signal: AbortSignal.timeout(60_000),
   });
   const data = await res.json();
-  return data.message?.content || '';
+  return sanitizeOllamaContent(data.message?.content || '');
 }
 
 export function parseJSON(text) {

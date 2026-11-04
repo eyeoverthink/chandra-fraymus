@@ -2,6 +2,7 @@ import express from 'express';
 import { createFraymusTools, heart, ledger, dreamer, cognition, needle, needleWorker, motor, hermes, ouroboros, ep3Sensor, canaryArray, streamCanary } from './fraymus-tools.js';
 import { evaluateEp3Sensor } from './fraymus/intelligence/ep3.js';
 import { sanitizeStreamText, detectSecretPrefixes } from './fraymus/intelligence/transcoder4d.js';
+import { getInterceptorStats, resetInterceptorStats } from './fraymus/intelligence/ollama-sanitize.js';
 import { SCHEMAS, getSchema } from './fraymus/entities/schemas.js';
 import { getWorkflow, scheduledWorkflows, eventTriggeredWorkflows } from './fraymus/workflows/definitions.js';
 import { listTools as listMcpTools } from './fraymus/mcp/tools.js';
@@ -597,6 +598,16 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
 
   app.post('/api/fraymus/stream-canary/reset', route((_req, res) => {
     streamCanary.reset();
+    res.json({ reset: true });
+  }));
+
+  // ── Ollama Sanitizer (provider boundary) ──
+  app.get('/api/fraymus/ollama-sanitizer/stats', route((_req, res) => {
+    res.json(getInterceptorStats());
+  }));
+
+  app.post('/api/fraymus/ollama-sanitizer/reset', route((_req, res) => {
+    resetInterceptorStats();
     res.json({ reset: true });
   }));
 }

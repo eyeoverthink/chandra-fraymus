@@ -36,6 +36,7 @@ import { evaluateEp3Sensor, Ep3Sensor, amplificationFactor } from './fraymus/int
 import { sanitizeStreamText, verifyBijectiveRoundTrip, detectSecretPrefixes } from './fraymus/intelligence/transcoder4d.js';
 import { TriangulatedHoneypotArray, CANARY_TYPES } from './fraymus/intelligence/canary.js';
 import { StreamCanaryInterceptor } from './fraymus/intelligence/stream-canary.js';
+import { getInterceptorStats as getOllamaSanitizerStats, resetInterceptorStats as resetOllamaSanitizer } from './fraymus/intelligence/ollama-sanitize.js';
 import { getWorkflow, scheduledWorkflows, eventTriggeredWorkflows } from './fraymus/workflows/definitions.js';
 import { MCP_TOOLS, getToolDefinition, listTools as listMcpTools } from './fraymus/mcp/tools.js';
 import { AGENTS, ZONES, COMPUTE_NODES, PHI } from './fraymus/core/constants.js';
@@ -1252,6 +1253,22 @@ export function createFraymusTools() {
       description: 'Reset all stream canary accumulators and alerts.',
       parameters: object({}),
       execute: async () => { streamCanary.reset(); return { reset: true }; },
+    },
+
+    // ── Ollama Sanitizer (provider boundary) ──
+    {
+      name: 'fraymus.ollama_sanitizer.stats',
+      group: 'fraymus-immune',
+      description: 'Get Ollama response sanitizer stats — total requests, redactions, recent alerts, and canary triangulation from the provider output boundary.',
+      parameters: object({}),
+      execute: async () => getOllamaSanitizerStats(),
+    },
+    {
+      name: 'fraymus.ollama_sanitizer.reset',
+      group: 'fraymus-immune',
+      description: 'Reset Ollama sanitizer counters and shared canary accumulators.',
+      parameters: object({}),
+      execute: async () => { resetOllamaSanitizer(); return { reset: true }; },
     },
   ];
 }

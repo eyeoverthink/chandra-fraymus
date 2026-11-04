@@ -1,4 +1,5 @@
 import { OLLAMA_URL } from '../config.js';
+import { sanitizeOllamaContent } from '../fraymus/intelligence/ollama-sanitize.js';
 
 export async function chatOllama(messages, opts = {}) {
   const url = process.env.OLLAMA_BASE_URL || OLLAMA_URL || 'http://127.0.0.1:11434';
@@ -15,7 +16,7 @@ export async function chatOllama(messages, opts = {}) {
   });
   if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`);
   const data = await res.json();
-  return data.message?.content || '';
+  return sanitizeOllamaContent(data.message?.content || '');
 }
 
 export function parseJSON(raw) {
