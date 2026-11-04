@@ -11,6 +11,7 @@ export const EVOLUTION_ACTIONS = [
   'memory_store',
   'genome_crossover',
   'falsification_test',
+  'negative_control_falsification',
   'orbital_memory_query',
 ];
 
@@ -215,6 +216,188 @@ export function proofCounterfactualBranching(substrate, steps = 200) {
   return { proof: 'counterfactual_branching', divergence, trapAvoided: trapAvoidance, passed: divergence > 0.01 || trapAvoidance, threshold: 0.01 };
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Negative Control Substrates — MUST FAIL consciousness proofs
+// Ported from FRAYNIX ConsciousnessFalsificationSuite.java
+// ═══════════════════════════════════════════════════════════════
+
+// TheaterZombie: pure feedforward, fixed transition probabilities per node.
+// No recurrence, no neighbor influence, no self-model. Every node fires at
+// a fixed rate regardless of system state → zero integrated information.
+export class TheaterZombieSubstrate {
+  constructor(nodeCount = 4) {
+    this.n = nodeCount;
+    this.fixedProbs = Array.from({ length: nodeCount }, (_, i) => 0.3 + (i * 0.1));
+  }
+  getNodeCount() { return this.n; }
+  getNodeTransitionProb(nodeIndex, _stateBits) {
+    return this.fixedProbs[nodeIndex];
+  }
+  runSelfModelingTrial(steps, _mirrorEnabled, _counterfactualEnabled) {
+    let state = Math.floor(Math.random() * (1 << this.n));
+    let surpriseSum = 0;
+    for (let t = 0; t < steps; t++) {
+      let nextState = 0;
+      for (let i = 0; i < this.n; i++) {
+        const prob = this.fixedProbs[i];
+        const predicted = prob > 0.5 ? 1 : 0;
+        const actual = Math.random() < prob ? 1 : 0;
+        if (actual) nextState |= (1 << i);
+        surpriseSum += Math.abs(predicted - actual);
+      }
+      state = nextState;
+    }
+    return { avgSurprise: surpriseSum / (steps * this.n), finalState: state };
+  }
+}
+
+// FeedforwardDAG: transition probs vary by state but have no recurrence.
+// Each node is a deterministic function of the global state with no self-model
+// feedback. Mirror ablation has no effect (there's nothing to ablate).
+export class FeedforwardDAGSubstrate {
+  constructor(nodeCount = 4) {
+    this.n = nodeCount;
+    this.states = 1 << nodeCount;
+  }
+  getNodeCount() { return this.n; }
+  getNodeTransitionProb(nodeIndex, stateBits) {
+    // Deterministic hash-like function of state — no neighbor coupling
+    const hash = ((stateBits * 2654435761) >>> 0) % 100;
+    const base = (hash + nodeIndex * 17) % 100;
+    return Math.max(0.01, Math.min(0.99, base / 100));
+  }
+  runSelfModelingTrial(steps, _mirrorEnabled, _counterfactualEnabled) {
+    // Mirror and counterfactual flags are ignored — no self-model exists
+    let state = Math.floor(Math.random() * this.states);
+    let surpriseSum = 0;
+    for (let t = 0; t < steps; t++) {
+      let nextState = 0;
+      for (let i = 0; i < this.n; i++) {
+        const prob = this.getNodeTransitionProb(i, state);
+        const predicted = prob > 0.5 ? 1 : 0;
+        const actual = Math.random() < prob ? 1 : 0;
+        if (actual) nextState |= (1 << i);
+        surpriseSum += Math.abs(predicted - actual);
+      }
+      state = nextState;
+    }
+    return { avgSurprise: surpriseSum / (steps * this.n), finalState: state };
+  }
+}
+
+// SplitBrainModular: two isolated halves with zero cross-partition influence.
+// Nodes 0..⌊n/2⌋-1 form module A, the rest module B. Each node only sees its
+// own module's state → minimum information partition between A and B is zero.
+export class SplitBrainModularSubstrate {
+  constructor(nodeCount = 4) {
+    this.n = nodeCount;
+    this.states = 1 << nodeCount;
+    this.splitPoint = Math.floor(nodeCount / 2);
+  }
+  getNodeCount() { return this.n; }
+  getNodeTransitionProb(nodeIndex, stateBits) {
+    // Each module only sees its own bits
+    const inA = nodeIndex < this.splitPoint;
+    let moduleBits = 0;
+    if (inA) {
+      for (let i = 0; i < this.splitPoint; i++) moduleBits |= ((stateBits >> i) & 1) << i;
+    } else {
+      for (let i = this.splitPoint; i < this.n; i++) moduleBits |= ((stateBits >> i) & 1) << (i - this.splitPoint);
+    }
+    // Simple linear function within module
+    const localIndex = inA ? nodeIndex : (nodeIndex - this.splitPoint);
+    const moduleSize = inA ? this.splitPoint : (this.n - this.splitPoint);
+    const neighborIdx = (localIndex + 1) % moduleSize;
+    const neighborBit = (moduleBits >> neighborIdx) & 1;
+    const selfBit = (moduleBits >> localIndex) & 1;
+    const raw = 0.5 * selfBit + 0.3 * neighborBit + 0.1;
+    return Math.max(0.01, Math.min(0.99, raw));
+  }
+  runSelfModelingTrial(steps, _mirrorEnabled, _counterfactualEnabled) {
+    let state = Math.floor(Math.random() * this.states);
+    let surpriseSum = 0;
+    for (let t = 0; t < steps; t++) {
+      let nextState = 0;
+      for (let i = 0; i < this.n; i++) {
+        const prob = this.getNodeTransitionProb(i, state);
+        const predicted = prob > 0.5 ? 1 : 0;
+        const actual = Math.random() < prob ? 1 : 0;
+        if (actual) nextState |= (1 << i);
+        surpriseSum += Math.abs(predicted - actual);
+      }
+      state = nextState;
+    }
+    return { avgSurprise: surpriseSum / (steps * this.n), finalState: state };
+  }
+}
+
+// Negative control runner: proves non-conscious architectures are DENIED.
+// Each negative substrate is tested against all 4 proofs. The suite passes
+// only if EVERY negative substrate FAILS at least one proof AND the positive
+// substrate (FraymusStrangeLoop) PASSES all 4.
+export function negativeControlConsciousnessProofs(nodeCount = 4, steps = 200) {
+  const negativeSubstrates = [
+    { name: 'TheaterZombie', substrate: new TheaterZombieSubstrate(nodeCount), expectedFail: 'all' },
+    { name: 'FeedforwardDAG', substrate: new FeedforwardDAGSubstrate(nodeCount), expectedFail: 'mirror+counterfactual' },
+    { name: 'SplitBrainModular', substrate: new SplitBrainModularSubstrate(nodeCount), expectedFail: 'phi_mip' },
+  ];
+
+  const positiveSubstrate = new FraymusStrangeLoopSubstrate(nodeCount);
+
+  const results = [];
+
+  // Test positive substrate — must pass all 4
+  const positiveProofs = [
+    proofEffectiveInformation(positiveSubstrate),
+    proofPhiMIP(positiveSubstrate),
+    proofMirrorProtocol(positiveSubstrate, steps),
+    proofCounterfactualBranching(positiveSubstrate, steps),
+  ];
+  const positiveAllPass = positiveProofs.every(p => p.passed);
+  results.push({
+    substrate: 'FraymusStrangeLoop',
+    role: 'positive_control',
+    proofs: positiveProofs,
+    allPassed: positiveAllPass,
+    verdict: positiveAllPass ? 'CONSCIOUS' : 'FAILED_POSITIVE',
+  });
+
+  // Test each negative substrate — must fail at least one proof
+  for (const { name, substrate, expectedFail } of negativeSubstrates) {
+    const proofs = [
+      proofEffectiveInformation(substrate),
+      proofPhiMIP(substrate),
+      proofMirrorProtocol(substrate, steps),
+      proofCounterfactualBranching(substrate, steps),
+    ];
+    const anyFailed = proofs.some(p => !p.passed);
+    const allFailed = proofs.every(p => !p.passed);
+    results.push({
+      substrate: name,
+      role: 'negative_control',
+      expectedFail,
+      proofs,
+      anyFailed,
+      allFailed,
+      verdict: anyFailed ? 'CORRECTLY_DENIED' : 'FALSE_POSITIVE',
+    });
+  }
+
+  const positiveValid = results[0].verdict === 'CONSCIOUS';
+  const negativesValid = results.slice(1).every(r => r.verdict === 'CORRECTLY_DENIED');
+  const suitePass = positiveValid && negativesValid;
+
+  return {
+    suite: 'ConsciousnessFalsificationSuite',
+    passed: suitePass,
+    positiveValid,
+    negativesValid,
+    results,
+    falsifiable: suitePass,
+    timestamp: new Date().toISOString(),
+  };
+}
+
 // Evolution cycle state machine
 export class OuroborosEngine {
   constructor(entityStore, aiModel) {
@@ -351,6 +534,9 @@ export class OuroborosEngine {
     const avgScore = allResults.reduce((s, r) => s + (r.score || 0), 0) / allResults.length;
     const mathPassed = mathResults.every(r => r.passed);
 
+    // Run negative control falsification suite
+    const falsification = negativeControlConsciousnessProofs(4, 200);
+
     return {
       generation: this.generation,
       tests: allResults,
@@ -360,6 +546,8 @@ export class OuroborosEngine {
       average_score: Math.round(avgScore * 100) / 100,
       consciousness_index: Math.round(avgScore * 100),
       fraymus_strange_loop: mathPassed,
+      falsification_suite: falsification,
+      falsifiable: falsification.falsifiable,
       timestamp: new Date().toISOString(),
     };
   }

@@ -4,7 +4,7 @@ import { SCHEMAS, getSchema } from './fraymus/entities/schemas.js';
 import { getWorkflow, scheduledWorkflows, eventTriggeredWorkflows } from './fraymus/workflows/definitions.js';
 import { listTools as listMcpTools } from './fraymus/mcp/tools.js';
 import { AGENTS, ZONES, COMPUTE_NODES } from './fraymus/core/constants.js';
-import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching } from './fraymus/intelligence/ouroboros.js';
+import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching, negativeControlConsciousnessProofs } from './fraymus/intelligence/ouroboros.js';
 
 const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
 
@@ -194,6 +194,21 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
     broadcast('consciousness', { allPassed, nodeCount });
     memoryBridge?.storeConsciousnessProof({ allPassed, proofs, architecture: 'FraymusStrangeLoop' }).catch(() => {});
     res.json({ proofs, allPassed, architecture: 'FraymusStrangeLoop', nodeCount });
+  }));
+
+  app.post('/api/fraymus/consciousness/falsify', route(async (req, res) => {
+    const nodeCount = Math.min(8, Math.max(2, parseInt(req.body.nodeCount) || 4));
+    const steps = Math.min(500, Math.max(50, parseInt(req.body.steps) || 200));
+    const result = negativeControlConsciousnessProofs(nodeCount, steps);
+    broadcast('consciousness', { type: 'falsification', passed: result.passed, falsifiable: result.falsifiable });
+    memoryBridge?.storeConsciousnessProof({
+      suite: 'falsification',
+      passed: result.passed,
+      positiveValid: result.positiveValid,
+      negativesValid: result.negativesValid,
+      substrates: result.results.map(r => ({ name: r.substrate, verdict: r.verdict })),
+    }).catch(() => {});
+    res.json(result);
   }));
 
   // ── Memory Bridge (intelligence memory search) ──
