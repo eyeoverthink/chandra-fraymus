@@ -8,6 +8,7 @@ import { reflect } from '../intelligence/reflection.js';
 import { generateGoals } from '../intelligence/goal-engine.js';
 import { runCycle as runOuroborosCycle } from '../intelligence/ouroboros-cycle.js';
 import { snapshotState, pruneFossils } from '../intelligence/state-bridge.js';
+import { runConsciousnessAudit } from '../intelligence/consciousness-cycle.js';
 import { heart } from '../fraymus-tools.js';
 
 const now = () => Date.now();
@@ -372,14 +373,21 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
       stepResults.ouroboros = { error: e.message };
     }
 
-    // Step 7: State Bridge — fossilize dynamic state into semantic memory
+    // Step 7: CTRNN Consciousness Audit — run 4 mathematical proofs against live neural core
+    try {
+      stepResults.consciousness = runConsciousnessAudit({ trigger: `daemon:${trigger}` });
+    } catch (e) {
+      stepResults.consciousness = { error: e.message };
+    }
+
+    // Step 8: State Bridge — fossilize dynamic state into semantic memory
     try {
       stepResults.stateBridge = await snapshotState();
     } catch (e) {
       stepResults.stateBridge = { error: e.message };
     }
 
-    // Step 8: Prune old fossils beyond retention window
+    // Step 9: Prune old fossils beyond retention window
     try {
       stepResults.fossilPrune = pruneFossils();
     } catch (e) {
@@ -406,6 +414,8 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
         perspectiveInsights: stepResults.consolidation?.perspectiveInsights ?? 0,
         ouroborosGeneration: stepResults.ouroboros?.generation ?? null,
         ouroborosAccepted: stepResults.ouroboros?.accepted ?? 0,
+        consciousnessVerdict: stepResults.consciousness?.verdict ?? null,
+        consciousnessProofsPassed: stepResults.consciousness?.proofsPassed ?? 0,
         stateFossilized: stepResults.stateBridge?.stored ?? false,
         fossilsPruned: stepResults.fossilPrune?.fossilsPruned ?? 0,
         durationMs: duration, at: t0,

@@ -8,6 +8,7 @@ import { forgeAgent, listForgedAgents } from './forge.js';
 import { synthesizeWorkflow } from '../workflow/synthesizer.js';
 import { runVerifierLoop, listLoops as listVerifierLoops } from '../intelligence/verifier-loop.js';
 import { startDaemon, stopDaemon, getDaemonStatus, runCycle, listCycles } from '../daemon/engine.js';
+import { runConsciousnessAudit, listAudits as listConsciousnessAudits, getAuditStats as getConsciousnessStats } from '../intelligence/consciousness-cycle.js';
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
@@ -222,6 +223,19 @@ export function createFleetTools({ workflowStore }) {
         const out = { allPassed: proofs.every(p => p.passed), proofs, architecture: 'FraymusStrangeLoop' };
         ledger.record('consciousness.proof.fleet', { allPassed: out.allPassed, passed: proofs.filter(p => p.passed).length }, 'fleet');
         return out;
+      },
+    },
+    {
+      name: 'ctrnn_consciousness_audit',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Run 4 mathematical consciousness proofs (EI, Phi-MIP, Mirror, Counterfactual) against the LIVE 256-neuron CTRNN neural core. Unlike consciousness_prove (synthetic substrate), this tests real integrated information from the running network.',
+      parameters: object({ sampleCount: { type: 'integer', default: 4, minimum: 3, maximum: 8 } }),
+      execute: async ({ args }) => {
+        const sampleCount = Math.min(8, Math.max(3, parseInt(args.sampleCount) || 4));
+        const result = runConsciousnessAudit({ trigger: 'fleet', sampleCount });
+        ledger.record('consciousness.ctrnn_audit.fleet', { verdict: result.verdict, proofsPassed: result.proofsPassed, ei: result.proofs?.effective_information?.ei, phi: result.proofs?.phi_mip?.phi }, 'fleet');
+        return result;
       },
     },
     {

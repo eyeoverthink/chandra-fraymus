@@ -13,7 +13,7 @@ import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, pr
 import * as opeg from './intelligence/opeg.js';
 import { neurogenesisCycle, neurogenesisStats, neurogenesisHistory } from './intelligence/neurogenesis.js';
 import { snapshotState, fossilStats, getFossil, fossilTimeline } from './intelligence/state-bridge.js';
-import { createCTRNN } from './intelligence/ctrnn.js';
+import { getCTRNN } from './intelligence/ctrnn-instance.js';
 
 const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
 
@@ -547,7 +547,7 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
   }));
 
   // ── CTRNN Neural Core ──
-  const ctrnn = createCTRNN();
+  const ctrnn = getCTRNN();
 
   app.get('/api/fraymus/ctrnn/stats', route((_req, res) => {
     res.json(ctrnn.stats());

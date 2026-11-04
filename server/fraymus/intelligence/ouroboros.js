@@ -160,35 +160,61 @@ export function proofEffectiveInformation(substrate) {
 }
 
 // Proof 2: Phi_MIP — minimum information partition across all non-trivial bipartitions
+// Upgraded to exact interventional marginalization matching FRAYNIX Java implementation:
+// for each bipartition (A, B), sever B→A connections by marginalizing A-node transition
+// probabilities over all 2^|B| possible B-states, then measure KL divergence.
 export function proofPhiMIP(substrate) {
   const n = substrate.getNodeCount();
   const totalStates = 1 << n;
   let phiMIP = Infinity;
+  let weakestCut = 'NONE';
 
   for (let mask = 1; mask < totalStates - 1; mask++) {
-    const partA = [];
-    const partB = [];
+    const setA = [];
+    const setB = [];
     for (let i = 0; i < n; i++) {
-      if ((mask >> i) & 1) partA.push(i);
-      else partB.push(i);
+      if ((mask >> i) & 1) setA.push(i);
+      else setB.push(i);
     }
-    if (!partA.length || !partB.length) continue;
+    if (!setA.length || !setB.length) continue;
 
-    let integratedInfo = 0;
+    const numBStates = 1 << setB.length;
+    let cutDivergence = 0;
+
     for (let s = 0; s < totalStates; s++) {
-      for (const nodeA of partA) {
-        const pWhole = substrate.getNodeTransitionProb(nodeA, s);
-        const maskedState = s & mask;
-        const pPart = substrate.getNodeTransitionProb(nodeA, maskedState);
-        const diff = Math.abs(pWhole - pPart);
-        integratedInfo += diff / totalStates;
+      for (const aNode of setA) {
+        const pIntact = substrate.getNodeTransitionProb(aNode, s);
+
+        // Marginalize: average transition prob over all 2^|B| states of partition B
+        let sumP = 0;
+        for (let bVal = 0; bVal < numBStates; bVal++) {
+          let sMod = s;
+          for (let bitIdx = 0; bitIdx < setB.length; bitIdx++) {
+            const bNode = setB[bitIdx];
+            if ((bVal >> bitIdx) & 1) sMod |= (1 << bNode);
+            else sMod &= ~(1 << bNode);
+          }
+          sumP += substrate.getNodeTransitionProb(aNode, sMod);
+        }
+        const pCut = sumP / numBStates;
+
+        // Per-node KL divergence between intact and cut
+        const pi = Math.max(1e-15, pIntact);
+        const qi = Math.max(1e-15, pCut);
+        const pi0 = Math.max(1e-15, 1 - pIntact);
+        const qi0 = Math.max(1e-15, 1 - pCut);
+        cutDivergence += (pi * Math.log2(pi / qi) + pi0 * Math.log2(pi0 / qi0)) / totalStates;
       }
     }
-    phiMIP = Math.min(phiMIP, integratedInfo);
+
+    if (cutDivergence < phiMIP) {
+      phiMIP = cutDivergence;
+      weakestCut = `{${setB.join(',')}} -/-> {${setA.join(',')}}`;
+    }
   }
 
   if (!isFinite(phiMIP)) phiMIP = 0;
-  return { proof: 'phi_mip', phi: phiMIP, passed: phiMIP > 0.01, threshold: 0.01 };
+  return { proof: 'phi_mip', phi: phiMIP, weakestCut, passed: phiMIP > 0.01, threshold: 0.01 };
 }
 
 // Proof 3: Mirror Protocol — self-model ablation (intact vs blinded surprise delta)
