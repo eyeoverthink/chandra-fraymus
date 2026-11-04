@@ -109,7 +109,7 @@ npm run start        # production server (serves built client)
 
 ### CTRNN Consciousness Cycle (server/intelligence/consciousness-cycle.js + ctrnn-substrate.js + ctrnn-instance.js)
 - `ctrnn-instance.js` — Singleton accessor for the 256-neuron CTRNN so routes and daemon share the same live neural core
-- `ctrnn-substrate.js` — CTRNNSubstrate adapter: samples 4-8 neurons from strategic grid positions (corners, center cross, quarter points), binarizes activations (B > 0 → 1), estimates transition probabilities empirically via 32 samples per state with 15 Euler steps each. `auditCTRNNConsciousness(ctrnn, opts)` runs all 4 proofs inline with structured results + verdict
+- `ctrnn-substrate.js` — CTRNNSubstrate adapter: greedy densest-cluster neuron selection (finds tightest-coupled core via mutual weight sum), binarizes activations (B > 0 → 1), estimates transition probabilities empirically via 64 samples per state with 3 Euler steps each (causally isolated to sampled subset). Seedable PRNG (mulberry32) for reproducible CF trials. Fixed-point detection CF strategy with 2-neuron flip at amplitude 2.5 (mutual negative reinforcement sustains trajectory divergence). `auditCTRNNConsciousness(ctrnn, opts)` runs all 4 proofs inline with structured results + verdict. Proven: EI=3.5-3.9, Phi=0.50-0.77, Mirror=0.84, CF trajectory=0.62-0.99
 - `consciousness-cycle.js` — Daemon step + REST API + SQLite storage: runs 4 mathematical consciousness proofs (EI, Phi_MIP, Mirror Protocol, Counterfactual Branching) against the live CTRNN, stores results in `consciousness_audits` table, publishes bus events to `system.consciousness`
 - DB table: `consciousness_audits` (id, substrate, sample_count, sample_indices, ei, ei_passed, phi, phi_passed, phi_weakest_cut, mirror_delta, mirror_passed, cf_divergence, cf_survival_gain, cf_passed, verdict, proofs_passed, proofs_total, ctrnn_tick, ctrnn_active_synapses, duration_ms, trigger, created_at)
 - 4 REST endpoints: GET /api/intelligence/consciousness/stats, GET .../audits, GET .../audits/:id, POST .../run
@@ -126,7 +126,7 @@ npm run start        # production server (serves built client)
 ### CTRNN Neural Core (server/intelligence/ctrnn.js + ctrnn-worker.js)
 - `ctrnn.js` — Continuous-Time Recurrent Neural Network, ported from Java LogicCircuit. Forward Euler integration: B[i] += (dt/τ)(−B[i] + Σⱼ W[i][j]·tanh(B[j]+Θ[j]) + I_ext[i]). Configurable grid (default 16x16 = 256 neurons).
 - `ctrnn-worker.js` — worker_threads parallel Euler step (replaces Java ForkJoinPool)
-- Subsystems: Euler integration, synaptic pruning (activity-dependent exponential decay), dead zone cleanup, autonomous neurogenesis (connectivity floor + Poisson), biosphere perturbation (predator/prey)
+- Subsystems: Euler integration, synaptic pruning (activity-dependent exponential decay), dead zone cleanup, autonomous neurogenesis (connectivity floor + Poisson, spatialSigma=3.0 locality bias), biosphere perturbation (predator/prey), Hebbian plasticity (hebbianRate=0.003, co-activity strengthening with decay, per-weight clamp maxWeight=2.0 replacing budget normalization)
 - Gaussian injection for tactile input, 60Hz tick rate, 10Hz WebSocket broadcast
 - DB table: `ctrnn_snapshots` (id, tick, neuron_count, active_synapses, total_activation, mean_weight, pruned_count, neurogenesis_count, created_at)
 - 8 REST endpoints: GET stats/state/metrics/history, POST start/stop/inject/step
