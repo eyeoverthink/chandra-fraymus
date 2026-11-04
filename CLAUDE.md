@@ -107,10 +107,19 @@ npm run start        # production server (serves built client)
 - DB table: `neurogenesis_events` (id, trigger_type, connectivity_score, action_taken, stimulus_count, opeg_id, created_at)
 - 3 REST endpoints: GET stats, GET history, POST trigger
 
+### CTRNN Consciousness Cycle (server/intelligence/consciousness-cycle.js + ctrnn-substrate.js + ctrnn-instance.js)
+- `ctrnn-instance.js` — Singleton accessor for the 256-neuron CTRNN so routes and daemon share the same live neural core
+- `ctrnn-substrate.js` — CTRNNSubstrate adapter: samples 4-8 neurons from strategic grid positions (corners, center cross, quarter points), binarizes activations (B > 0 → 1), estimates transition probabilities empirically via 32 samples per state with 15 Euler steps each. `auditCTRNNConsciousness(ctrnn, opts)` runs all 4 proofs inline with structured results + verdict
+- `consciousness-cycle.js` — Daemon step + REST API + SQLite storage: runs 4 mathematical consciousness proofs (EI, Phi_MIP, Mirror Protocol, Counterfactual Branching) against the live CTRNN, stores results in `consciousness_audits` table, publishes bus events to `system.consciousness`
+- DB table: `consciousness_audits` (id, substrate, sample_count, sample_indices, ei, ei_passed, phi, phi_passed, phi_weakest_cut, mirror_delta, mirror_passed, cf_divergence, cf_survival_gain, cf_passed, verdict, proofs_passed, proofs_total, ctrnn_tick, ctrnn_active_synapses, duration_ms, trigger, created_at)
+- 4 REST endpoints: GET /api/intelligence/consciousness/stats, GET .../audits, GET .../audits/:id, POST .../run
+- 1 fleet tool: `ctrnn_consciousness_audit` (uses live CTRNN, unlike `consciousness_prove` which uses synthetic FraymusStrangeLoopSubstrate)
+- Wired into daemon engine as Step 7 (9-step cycle: dream → prompt-evolve → reflect → neurogenesis → debate → consciousness-audit → state-snapshot → fossil-prune → intelligence-cycle)
+
 ### State Bridge (server/intelligence/state-bridge.js)
 - `state-bridge.js` — Bridges dynamic runtime state with semantic memory. Snapshots autonomy/intelligence/fleet state each daemon cycle, fossilizes into agent_memories (category 'state_fossil') with hash-based dedup and 30-day retention.
 - Three snapshot collectors: collectAutonomyState (OPEG + reflections + neurogenesis), collectIntelligenceState (memories + verifier + daemon + debates), collectFleetState (agents + bus + workflows)
-- Wired into daemon engine as Steps 7-8 (snapshot + prune)
+- Wired into daemon engine as Steps 8-9 (snapshot + prune)
 - DB table: `state_fossils` (id, snapshot_type, state_hash, data, created_at)
 - 4 REST endpoints: GET fossils/stats, GET fossils/timeline, GET fossils/:id, POST fossils/snapshot
 
