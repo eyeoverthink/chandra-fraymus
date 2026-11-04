@@ -3,7 +3,7 @@ import { db } from '../db.js';
 import { loadManifests, writeOverride, removeOverride } from './manifest.js';
 import { OLLAMA_URL } from '../config.js';
 import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
-import { sanitizeOllamaContent } from '../fraymus/intelligence/ollama-sanitize.js';
+import { sanitizeOllamaContent, sanitizeDeep } from '../fraymus/intelligence/ollama-sanitize.js';
 import { setMemoryBridgeRef } from './tools.js';
 import { buildPromptContext, autoStoreFromCompletion } from './agent-memory.js';
 import { getActiveFraming, assessSituation, recordOutcome } from '../intelligence/perspective.js';
@@ -198,7 +198,7 @@ async function chat(messages, tools, model) {
   const data = await res.json();
   return {
     content: sanitizeOllamaContent(data.message?.content || ''),
-    tool_calls: data.message?.tool_calls || [],
+    tool_calls: sanitizeDeep(data.message?.tool_calls || []),
   };
 }
 

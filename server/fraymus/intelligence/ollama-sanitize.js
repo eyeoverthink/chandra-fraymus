@@ -48,12 +48,22 @@ export function resetInterceptorStats() {
   sharedCanary.reset();
 }
 
-export function sanitizeDeep(value) {
+const MAX_SANITIZE_DEPTH = 32;
+
+export function sanitizeDeep(value, depth = 0) {
+  if (depth > MAX_SANITIZE_DEPTH) return '[REDACTED:depth_exceeded]';
   if (typeof value === 'string') return sanitizeOllamaContent(value);
-  if (Array.isArray(value)) return value.map(sanitizeDeep);
+  if (Array.isArray(value)) return value.map(v => sanitizeDeep(v, depth + 1));
   if (value && typeof value === 'object') {
     const out = {};
-    for (const [k, v] of Object.entries(value)) out[k] = sanitizeDeep(v);
+    for (const [k, v] of Object.entries(value)) {
+      Object.defineProperty(out, k, {
+        value: sanitizeDeep(v, depth + 1),
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+    }
     return out;
   }
   return value;

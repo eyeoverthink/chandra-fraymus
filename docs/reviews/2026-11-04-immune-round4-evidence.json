@@ -1,0 +1,93 @@
+
+=== Round 4 Probe Results ===
+Pass: 22  Fail: 0
+{
+  "IMM-10:fleet_tool_token": {
+    "pass": true,
+    "detail": "token: [REDACTED:4D(58,83,170,83)]"
+  },
+  "IMM-10:fleet_tool_nested": {
+    "pass": true,
+    "detail": "nested.key: [REDACTED:4D(78,84,93,73)]"
+  },
+  "IMM-10:fleet_tool_name_preserved": {
+    "pass": true,
+    "detail": "name: test_tool"
+  },
+  "IMM-11:proto_not_inherited": {
+    "pass": true,
+    "detail": "syntheticInherited: undefined"
+  },
+  "IMM-11:ok_preserved": {
+    "pass": true,
+    "detail": "ok: true"
+  },
+  "IMM-11:proto_is_own_property": {
+    "pass": true,
+    "detail": "has own __proto__: true"
+  },
+  "IMM-11:global_prototype_safe": {
+    "pass": true,
+    "detail": "global check: undefined"
+  },
+  "IMM-11:json_roundtrip": {
+    "pass": true,
+    "detail": "json: {\"__proto__\":{\"syntheticInherited\":true},\"ok\":true}"
+  },
+  "IMM-11:proto_in_json": {
+    "pass": true,
+    "detail": "json includes __proto__: true"
+  },
+  "IMM-11:depth_no_throw": {
+    "pass": true,
+    "detail": "deep nesting should not throw"
+  },
+  "IMM-11:depth_capped": {
+    "pass": true,
+    "detail": "at depth 33: [REDACTED:depth_exceeded]"
+  },
+  "IMM-11:deep_secret_redacted": {
+    "pass": true,
+    "detail": "leaf at depth 32: [REDACTED:depth_exceeded]"
+  },
+  "IMM-08:chat_metadata_done": {
+    "pass": true,
+    "detail": "done record content: \"s\""
+  },
+  "IMM-08:chat_full_text": {
+    "pass": true,
+    "detail": "reconstructed: \"books\""
+  },
+  "IMM-08:gen_metadata_done": {
+    "pass": true,
+    "detail": "done record response: \"s\""
+  },
+  "IMM-08:gen_full_text": {
+    "pass": true,
+    "detail": "reconstructed: \"books\""
+  },
+  "REGR:continuation": {
+    "pass": true,
+    "detail": "tokens: \"[REDACTED:4D(58,83,170,158)]| after\""
+  },
+  "REGR:continuation_after": {
+    "pass": true,
+    "detail": "\"after\" preserved: true"
+  },
+  "REGR:json_parse": {
+    "pass": true,
+    "detail": "parsed: {\"token\":\"[REDACTED:4D(58,83,170,77)]\",\"ok\":true}"
+  },
+  "REGR:json_ok": {
+    "pass": true,
+    "detail": "ok: true"
+  },
+  "REGR:standard_completion": {
+    "pass": true,
+    "detail": "standard: \"books\""
+  },
+  "IMM-10:main_provider_control": {
+    "pass": true,
+    "detail": "key: [REDACTED:4D(58,83,170,91)]"
+  }
+}

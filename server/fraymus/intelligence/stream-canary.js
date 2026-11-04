@@ -128,9 +128,11 @@ export class StreamCanaryInterceptor {
       if (parsed.done === true && this.prefixBuffer) {
         const tail = this.prefixBuffer;
         this.prefixBuffer = '';
-        if (this.lastResponseShape === 'chat' && parsed.message) {
+        if (this.lastResponseShape === 'chat') {
+          if (!parsed.message) parsed.message = { role: 'assistant', content: '' };
           parsed.message.content = (parsed.message.content || '') + tail;
-        } else if (parsed.response !== undefined) {
+        } else {
+          if (parsed.response === undefined) parsed.response = '';
           parsed.response += tail;
         }
       }
