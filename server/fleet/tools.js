@@ -11,7 +11,7 @@ import { startDaemon, stopDaemon, getDaemonStatus, runCycle, listCycles } from '
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
-import { assessSituation, shiftPerspective, recordOutcome, briefNextInstance, getStats as perspectiveStats } from '../intelligence/perspective.js';
+import { assessSituation, shiftPerspective, recordOutcome, briefNextInstance, getStats as perspectiveStats, arenaChallenge, getArenaSession, listArenas, getArenaStats } from '../intelligence/perspective.js';
 import { initiateSwarm, getSwarmSession, listSwarms, getSwarmStats } from '../intelligence/swarm.js';
 import { analyzeTask, executeStrategy, listStrategies, getStrategyStats } from '../intelligence/strategy.js';
 import { recordEvent as recordTrustEvent, getAgentTrust, getLeaderboard, recommendAgents, getTrustStats } from '../intelligence/trust.js';
@@ -1215,6 +1215,43 @@ export function createFleetTools({ workflowStore }) {
       description: 'Get current Perspective engine stats: sessions, shifts, playbook size, perspective usage distribution.',
       parameters: object({}),
       execute: async () => perspectiveStats(),
+    },
+    {
+      name: 'arena_challenge',
+      group: 'intelligence',
+      risk: 'medium',
+      description: 'Launch an Arena challenge — N agents compete on the same task from different perspective lenses. Perspective judges ALL contributions through ALL 6 lenses and picks a winner. The winning approach is burned into the playbook for future tasks of this type. Unlike swarm (which merges), arena picks a single winner.',
+      parameters: object({
+        task: string(2000, { description: 'The task for agents to compete on' }),
+        context: string(2000, { description: 'Additional context for the task' }),
+        agentCount: { type: 'integer', minimum: 2, maximum: 6, description: 'Number of competing agents (default 3)' },
+        timeoutMs: { type: 'integer', minimum: 30000, maximum: 300000, description: 'Max time per agent in ms (default 180000)' },
+      }, ['task']),
+      execute: async ({ args }) => arenaChallenge(args),
+    },
+    {
+      name: 'arena_session',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Get details of an arena session — all contestants, their scores across 6 lenses, the winner, and the lesson learned.',
+      parameters: object({ id: string(50, { description: 'Arena session ID' }) }, ['id']),
+      execute: async ({ args }) => getArenaSession(args.id) || { error: 'not found' },
+    },
+    {
+      name: 'arena_list',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'List recent arena sessions with winners and patterns.',
+      parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Max results (default 10)' } }),
+      execute: async ({ args }) => ({ arenas: listArenas({ limit: args.limit || 10 }) }),
+    },
+    {
+      name: 'arena_stats',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Get arena statistics: wins by perspective, top agents, completion rates.',
+      parameters: object({}),
+      execute: async () => getArenaStats(),
     },
     {
       name: 'swarm_initiate',
