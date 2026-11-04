@@ -28,6 +28,14 @@ after(() => {
   else process.env.CHANDRA_DATA_DIR = originalDataDir;
 });
 
+test('an unperformed watchdog check cannot produce an all-clear continuity verdict', () => {
+  const result = continuity().selftest;
+  const check = result.probes.find(item => item.name === 'watchdog');
+  assert.equal(check.detail.checked, false);
+  assert.equal(check.pass, false);
+  assert.notEqual(result.verdict, 'ALL_CLEAR');
+});
+
 test('state seeking ignores legacy SQLite fossils and preserves checkpointed commits', async () => {
   const path = join(directory, 'chandra.db');
   db.exec('CREATE TABLE regression_records (id INTEGER PRIMARY KEY, value TEXT)');

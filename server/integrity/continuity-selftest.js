@@ -64,7 +64,7 @@ export function continuitySelftest({ dreamer, remembered, ledger, ouroboros } = 
     const status = watchdogStatus();
     return { running: status.running, tracked: status.tracked_files, violations: status.recent_violations?.length || 0,
       checked: status.last_check !== null, failed: status.last_check?.results?.failed || 0 };
-  }, result => result.failed === 0));
+  }, result => result.checked === true && result.failed === 0));
 
   results.push(timedProbe('strix_laws', strixSelftest));
   results.push(timedProbe('guard_tasks', guardSelftest));
