@@ -508,11 +508,12 @@ function condensedOutline(outlineText) {
   return kept.join('\n');
 }
 
-async function analyzeForImprovements(outlineText) {
+async function analyzeForImprovements(outlineText, genomeContext = '') {
   const trimmed = condensedOutline(outlineText);
+  // Compact only the codebase outline; inherited context must survive intact.
   const raw = await chatOllama([
     { role: 'system', content: ANALYSIS_PROMPT },
-    { role: 'user', content: 'Analyze this codebase and return a JSON array of improvements:\n\n' + trimmed },
+    { role: 'user', content: 'Analyze this codebase and return a JSON array of improvements:\n\n' + trimmed + genomeContext },
   ], { temperature: 0.3, maxTokens: 4096 });
   const proposals = parseJSONArray(raw);
   if (!proposals) throw new Error('LLM did not return a parseable JSON array');
@@ -537,7 +538,7 @@ Return ONLY valid JSON array with one entry per proposal:
   "notes": "Specific feedback"
 }]`;
 
-async function reviewProposals(proposals, outlineText) {
+async function reviewProposals(proposals, outlineText, genomeContext = '') {
   const summaryForReview = proposals.map(p => ({
     id: p.id, title: p.title, category: p.category,
     description: p.description, targetFiles: p.target_files,
@@ -546,7 +547,7 @@ async function reviewProposals(proposals, outlineText) {
 
   const raw = await chatOllama([
     { role: 'system', content: REVIEW_PROMPT },
-    { role: 'user', content: `Codebase context (abbreviated):\n${outlineText.slice(0, 3000)}\n\nProposals to review:\n${JSON.stringify(summaryForReview, null, 2)}` },
+    { role: 'user', content: `Codebase context (abbreviated):\n${outlineText.slice(0, 3000)}${genomeContext}\n\nProposals to review:\n${JSON.stringify(summaryForReview, null, 2)}` },
   ], { temperature: 0.3, maxTokens: 3000 });
 
   const reviews = parseJSONArray(raw);
@@ -585,7 +586,11 @@ export async function runCycle(rootDir) {
 
     // Phase 2: ANALYZE
     db.prepare(`UPDATE ouroboros_cycles SET phase = 'analyze' WHERE id = ?`).run(cycleId);
-    const rawProposals = await analyzeForImprovements(outlineText);
+    const parentGenome = getGenome(cycleId);
+    const parentContext = parentGenome.length > 0
+      ? `\n\nThis cycle inherits from generation ${parent.generation} (${parentId}). Its genome carries ${inheritedGenes} inherited genes:\n${parentGenome.map(g => `- [${g.category}] ${g.title}`).join('\n')}\n\nPropose improvements that BUILD ON these accepted patterns. Avoid re-proposing what is already in the genome.`
+      : '';
+    const rawProposals = await analyzeForImprovements(outlineText, parentContext);
 
     // Store proposals
     const insert = db.prepare(`INSERT INTO ouroboros_proposals (id, cycle_id, category, priority, title, description, target_files, rationale, implementation_sketch) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
@@ -605,7 +610,7 @@ export async function runCycle(rootDir) {
     // Phase 3: REVIEW
     db.prepare(`UPDATE ouroboros_cycles SET phase = 'review' WHERE id = ?`).run(cycleId);
     const storedProposals = db.prepare(`SELECT * FROM ouroboros_proposals WHERE cycle_id = ?`).all(cycleId);
-    const reviews = await reviewProposals(storedProposals, outlineText);
+    const reviews = await reviewProposals(storedProposals, outlineText, parentContext);
 
     let accepted = 0, rejected = 0;
     const updateProposal = db.prepare(`UPDATE ouroboros_proposals SET status = ?, review_verdict = ?, review_notes = ? WHERE id = ?`);
@@ -838,10 +843,10 @@ export async function forkCycle(ancestorCycleId, rootDir) {
 
     const ancestorGenome = getGenome(ancestorCycleId);
     const ancestorContext = ancestorGenome.length > 0
-      ? `\n\nThis cycle is forked from generation ${ancestor.generation} (${ancestorCycleId}). Its genome carries ${inheritedGenes} inherited genes:\n${ancestorGenome.map(g => `- [${g.category}] ${g.title}`).join('\n')}\n\nPropose improvements that BUILD ON these proven patterns. Avoid re-proposing what is already in the genome.`
+      ? `\n\nThis cycle is forked from generation ${ancestor.generation} (${ancestorCycleId}). Its genome carries ${inheritedGenes} inherited genes:\n${ancestorGenome.map(g => `- [${g.category}] ${g.title}`).join('\n')}\n\nPropose improvements that BUILD ON these accepted patterns. Avoid re-proposing what is already in the genome.`
       : '';
 
-    const rawProposals = await analyzeForImprovements(outlineText + ancestorContext);
+    const rawProposals = await analyzeForImprovements(outlineText, ancestorContext);
 
     const insert = db.prepare(`INSERT INTO ouroboros_proposals (id, cycle_id, category, priority, title, description, target_files, rationale, implementation_sketch) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     for (const p of rawProposals) {
@@ -860,7 +865,7 @@ export async function forkCycle(ancestorCycleId, rootDir) {
     // Phase 3: REVIEW
     db.prepare(`UPDATE ouroboros_cycles SET phase = 'review' WHERE id = ?`).run(cycleId);
     const storedProposals = db.prepare(`SELECT * FROM ouroboros_proposals WHERE cycle_id = ?`).all(cycleId);
-    const reviews = await reviewProposals(storedProposals, outlineText);
+    const reviews = await reviewProposals(storedProposals, outlineText, ancestorContext);
 
     let accepted = 0, rejected = 0;
     const updateP = db.prepare(`UPDATE ouroboros_proposals SET status = ?, review_verdict = ?, review_notes = ? WHERE id = ?`);
@@ -1095,10 +1100,10 @@ export async function instantiateTemplate(templateId, rootDir) {
     db.prepare(`UPDATE ouroboros_cycles SET phase = 'analyze' WHERE id = ?`).run(cycleId);
 
     const templateContext = template.genome.length > 0
-      ? `\n\nThis cycle is seeded from template "${template.name}" (Gen ${template.source_generation}). Template genome carries ${template.genome.length} genes:\n${template.genome.map(g => `- [${g.category}] ${g.title}`).join('\n')}\n\nPropose improvements that BUILD ON these proven patterns. Avoid re-proposing what is already in the genome.`
+      ? `\n\nThis cycle is seeded from template "${template.name}" (Gen ${template.source_generation}). Template genome carries ${template.genome.length} genes:\n${template.genome.map(g => `- [${g.category}] ${g.title}`).join('\n')}\n\nPropose improvements that BUILD ON these accepted patterns. Avoid re-proposing what is already in the genome.`
       : '';
 
-    const rawProposals = await analyzeForImprovements(outlineText + templateContext);
+    const rawProposals = await analyzeForImprovements(outlineText, templateContext);
 
     const insert = db.prepare(`INSERT INTO ouroboros_proposals (id, cycle_id, category, priority, title, description, target_files, rationale, implementation_sketch) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     for (const p of rawProposals) {
@@ -1110,7 +1115,7 @@ export async function instantiateTemplate(templateId, rootDir) {
     // Review
     db.prepare(`UPDATE ouroboros_cycles SET phase = 'review' WHERE id = ?`).run(cycleId);
     const storedProposals = db.prepare(`SELECT * FROM ouroboros_proposals WHERE cycle_id = ?`).all(cycleId);
-    const reviews = await reviewProposals(storedProposals, outlineText);
+    const reviews = await reviewProposals(storedProposals, outlineText, templateContext);
 
     let accepted = 0, rejected = 0;
     const updateP = db.prepare(`UPDATE ouroboros_proposals SET status = ?, review_verdict = ?, review_notes = ? WHERE id = ?`);
