@@ -292,7 +292,9 @@ async function evolvePrompts() {
     const promptLower = (manifest.systemPrompt || '').toLowerCase();
     if (promptLower.includes('[proven patterns]')) continue; // already evolved
 
-    const patternBlock = patterns.slice(0, 3).map(p =>
+    const gateMods = getAutonomyModifiers();
+    const patternLimit = Math.round(3 * gateMods.evolutionRate);
+    const patternBlock = patterns.slice(0, Math.max(1, patternLimit)).map(p =>
       `- Verified: "${p.goal}" (${p.language}, ${p.iterations} iteration${p.iterations === 1 ? '' : 's'})`
     ).join('\n');
 
@@ -319,9 +321,9 @@ async function evolvePrompts() {
 
   db.prepare(
     `INSERT INTO daemon_cycles (id, type, input_summary, output, created_at) VALUES (?, 'prompt_evolution', ?, ?, ?)`
-  ).run(randomUUID().slice(0, 12), `${uniqueFossils.length} fossils, ${patterns.length} patterns`, `evolved ${evolvedCount} agents`, now());
+  ).run(randomUUID().slice(0, 12), `${uniqueFossils.length} fossils, ${patterns.length} patterns, tier=${gateMods.tier}`, `evolved ${evolvedCount} agents (rate=${gateMods.evolutionRate})`, now());
 
-  return { evolved: evolvedCount > 0, fossilCount: uniqueFossils.length, patternCount: patterns.length, agentsEvolved: evolvedCount };
+  return { evolved: evolvedCount > 0, fossilCount: uniqueFossils.length, patternCount: patterns.length, agentsEvolved: evolvedCount, gateTier: gateMods.tier, evolutionRate: gateMods.evolutionRate };
 }
 
 // ─── Daemon Cycle ─────────────────────────────────────────────
@@ -438,6 +440,8 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
         consciousnessProofsPassed: stepResults.consciousness?.proofsPassed ?? 0,
         consciousnessTier: stepResults.consciousnessGate?.tier ?? null,
         consciousnessPhi: stepResults.consciousnessGate?.phi ?? 0,
+        effectiveCycleMs: daemonState.effectiveCycleMs ?? daemonState.cycleMs,
+        cycleMultiplier: stepResults.consciousnessGate?.cycleMultiplier ?? 1.0,
         stateFossilized: stepResults.stateBridge?.stored ?? false,
         fossilsPruned: stepResults.fossilPrune?.fossilsPruned ?? 0,
         durationMs: duration, at: t0,
@@ -457,31 +461,44 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
 
 export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
   stopDaemon();
-  const interval = Math.max(MIN_CYCLE_MS, cycleMs);
+  const baseCycleMs = Math.max(MIN_CYCLE_MS, cycleMs);
   daemonState = {
     running: true,
-    cycleMs: interval,
+    cycleMs: baseCycleMs,
+    baseCycleMs,
+    effectiveCycleMs: baseCycleMs,
     lastCycleAt: 0,
-    nextCycleAt: now() + interval,
+    nextCycleAt: now() + baseCycleMs,
     cyclesRun: 0,
     startedAt: now(),
+    lastGateTier: null,
   };
 
-  daemonTimer = setInterval(async () => {
-    daemonState.nextCycleAt = now() + interval;
-    try {
-      await runCycle({ trigger: 'scheduled' });
-    } catch (e) {
-      console.error('daemon cycle error:', e.message);
-    }
-  }, interval);
+  function scheduleNext() {
+    if (!daemonState.running) return;
+    const mods = getAutonomyModifiers();
+    const effective = Math.max(MIN_CYCLE_MS, Math.round(baseCycleMs * mods.cycleMultiplier));
+    daemonState.effectiveCycleMs = effective;
+    daemonState.nextCycleAt = now() + effective;
+    daemonState.lastGateTier = mods.tier;
 
-  return { started: true, intervalMs: interval };
+    daemonTimer = setTimeout(async () => {
+      try {
+        await runCycle({ trigger: 'scheduled' });
+      } catch (e) {
+        console.error('daemon cycle error:', e.message);
+      }
+      scheduleNext();
+    }, effective);
+  }
+
+  scheduleNext();
+  return { started: true, baseCycleMs, effectiveCycleMs: daemonState.effectiveCycleMs, tier: daemonState.lastGateTier };
 }
 
 export function stopDaemon() {
   if (daemonTimer) {
-    clearInterval(daemonTimer);
+    clearTimeout(daemonTimer);
     daemonTimer = null;
   }
   daemonState.running = false;
@@ -490,7 +507,19 @@ export function stopDaemon() {
 }
 
 export function getDaemonStatus() {
-  return { ...daemonState };
+  const gateMods = getAutonomyModifiers();
+  return {
+    ...daemonState,
+    consciousnessGate: {
+      tier: gateMods.tier,
+      cycleMultiplier: gateMods.cycleMultiplier,
+      reflectionDepth: gateMods.reflectionDepth,
+      evolutionRate: gateMods.evolutionRate,
+      neurogenesisBoost: gateMods.neurogenesisBoost,
+      proofsPassed: gateMods.proofsPassed,
+      stale: gateMods.stale,
+    },
+  };
 }
 
 export function listCycles({ limit = 20 } = {}) {

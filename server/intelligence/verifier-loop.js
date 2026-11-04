@@ -7,9 +7,10 @@ import os from 'node:os';
 import { chatOllama } from '../commerce/shared.js';
 import { publish } from '../fleet/bus.js';
 import { storeMemory } from '../fleet/agent-memory.js';
+import { getAutonomyModifiers } from './consciousness-gate.js';
 
 const now = () => Date.now();
-const MAX_ITERATIONS = 5;
+const BASE_MAX_ITERATIONS = 5;
 const EXEC_TIMEOUT = 15_000;
 
 const GENERATOR_PROMPT = `You are a Generator agent — an expert software architect and implementer.
@@ -112,7 +113,11 @@ async function executeCode(code, language) {
 export async function runVerifierLoop(goal, { language, maxIterations, context, triggeredBy = 'api' } = {}) {
   if (!goal || typeof goal !== 'string') throw new Error('goal is required');
   const loopId = randomUUID().slice(0, 12);
-  const iterations = Math.min(MAX_ITERATIONS, Math.max(1, parseInt(maxIterations) || 3));
+
+  const gateMods = getAutonomyModifiers();
+  const scaledMax = Math.round(BASE_MAX_ITERATIONS * gateMods.evolutionRate);
+  const effectiveMax = Math.min(10, Math.max(1, scaledMax));
+  const iterations = Math.min(effectiveMax, Math.max(1, parseInt(maxIterations) || Math.round(3 * gateMods.evolutionRate)));
 
   db.prepare(`INSERT INTO verification_loops (id, goal, language, max_iterations, triggered_by, status, created_at) VALUES (?, ?, ?, ?, ?, 'running', ?)`).run(
     loopId, goal, language || 'auto', iterations, triggeredBy, now()
@@ -200,13 +205,15 @@ export async function runVerifierLoop(goal, { language, maxIterations, context, 
       try {
         publish('system', 'system.evolution', JSON.stringify({
           action: 'code_verified', loopId, goal: goal.slice(0, 200),
-          iterations: iteration, status, at: now(),
+          iterations: iteration, status, gateTier: gateMods.tier,
+          evolutionRate: gateMods.evolutionRate, effectiveMax, at: now(),
         }));
       } catch (_) {}
     }
 
     return {
       loopId, status, iterations: iteration, maxIterations: iterations,
+      effectiveMax, gateTier: gateMods.tier, evolutionRate: gateMods.evolutionRate,
       code: currentCode?.slice(0, 8000), goal,
     };
   } catch (err) {

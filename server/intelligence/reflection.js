@@ -5,10 +5,11 @@ import { forgeAgent } from '../fleet/forge.js';
 import { synthesizeWorkflow } from '../workflow/synthesizer.js';
 import { runPipeline as opegPipeline } from './opeg.js';
 import { runDebate } from './debate.js';
+import { getAutonomyModifiers } from './consciousness-gate.js';
 import { heart } from '../fraymus-tools.js';
 
 const now = () => Date.now();
-const MAX_ACTIONS_PER_CYCLE = 5;
+const BASE_MAX_ACTIONS = 5;
 const DEFAULT_INTERVAL_MS = 30 * 60 * 1000;
 
 let reflectionTimer = null;
@@ -139,9 +140,12 @@ function collectState() {
   return { memoryStats, workflowStats, healthStats, busStats, forgeStats, synthesisStats, debateStats, goalStats, chainStats, routingStats, perspectiveStats, emotionStats, collectedAt: now() };
 }
 
-const REFLECTION_PROMPT = `You are the Reflection Engine for a sovereign AI system called Chandra-FRAYMUS. You analyze system state and decide what actions to take to improve the system.
+function buildReflectionPrompt(maxActions, gateTier) {
+  return `You are the Reflection Engine for a sovereign AI system called Chandra-FRAYMUS. You analyze system state and decide what actions to take to improve the system.
 
-You can take these actions (max ${MAX_ACTIONS_PER_CYCLE} per cycle):
+Current consciousness tier: ${gateTier} — this determines how aggressively you should act. At INTEGRATED, you have full autonomy and should pursue deeper analysis. At DORMANT, be conservative and minimal.
+
+You can take these actions (max ${maxActions} per cycle):
 1. verify_memory: {"action": "verify_memory", "memoryId": <number>} — mark a high-confidence memory as verified
 2. prune_memory: {"action": "prune_memory", "memoryId": <number>} — remove a stale/low-confidence memory
 3. forge_agent: {"action": "forge_agent", "goal": "..."} — create a new specialist agent to handle a pattern you identified
@@ -160,8 +164,9 @@ Rules:
 
 Output ONLY valid JSON: {"actions": [...], "insights": "brief summary of what you observed"}
 No markdown fences.`;
+}
 
-function parseReflectionResponse(text) {
+function parseReflectionResponse(text, maxActions) {
   const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
@@ -169,7 +174,7 @@ function parseReflectionResponse(text) {
   try {
     const parsed = JSON.parse(cleaned.slice(start, end + 1));
     if (!Array.isArray(parsed.actions)) parsed.actions = [];
-    parsed.actions = parsed.actions.slice(0, MAX_ACTIONS_PER_CYCLE);
+    parsed.actions = parsed.actions.slice(0, maxActions);
     return parsed;
   } catch (_) {
     return { actions: [], insights: 'Failed to parse LLM response' };
@@ -246,13 +251,18 @@ export async function reflect({ trigger = 'manual' } = {}) {
   const t0 = now();
   const state = collectState();
 
+  const gateMods = getAutonomyModifiers();
+  const maxActions = gateMods.reflectionDepth || BASE_MAX_ACTIONS;
+  const gateTier = gateMods.tier || 'AWAKENING';
+
   const stateStr = JSON.stringify(state, null, 2);
+  const prompt = buildReflectionPrompt(maxActions, gateTier);
   const response = await chatOllama([
-    { role: 'system', content: REFLECTION_PROMPT },
+    { role: 'system', content: prompt },
     { role: 'user', content: `Current system state:\n${stateStr}\n\nAnalyze this state and decide what actions to take.` },
   ]);
 
-  const plan = parseReflectionResponse(response);
+  const plan = parseReflectionResponse(response, maxActions);
   const results = [];
 
   for (const action of plan.actions) {
@@ -274,6 +284,8 @@ export async function reflect({ trigger = 'manual' } = {}) {
       successful: results.filter(r => r.result?.ok).length,
       insights: plan.insights,
       durationMs: duration,
+      gateTier,
+      maxActions,
       at: t0,
     }));
   } catch (_) {}
@@ -284,6 +296,8 @@ export async function reflect({ trigger = 'manual' } = {}) {
     actions: results,
     insights: plan.insights,
     durationMs: duration,
+    gateTier,
+    maxActions,
   };
 }
 
