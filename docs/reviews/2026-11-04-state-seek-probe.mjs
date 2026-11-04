@@ -2,7 +2,30 @@
 // Verifies the ported FRAYNIX stateSeek subsystem.
 // Run: node docs/reviews/2026-11-04-state-seek-probe.mjs
 
-import { stateSeekOnBoot, getBootManifest } from '../../server/integrity/state-seek.js';
+import { mkdtempSync, realpathSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, relative, sep, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
+import assertNode from 'node:assert/strict';
+
+// Never import a DB-backed module before a fresh, isolated child is selected.
+if (process.argv[2] !== '--isolated-child') {
+  const directory = mkdtempSync(join(tmpdir(), 'chandra-state-seek-probe-'));
+  const result = spawnSync(process.execPath, [fileURLToPath(import.meta.url), '--isolated-child', directory], {
+    env: { ...process.env, CHANDRA_DATA_DIR: directory, HOST: '127.0.0.1' },
+    encoding: 'utf8', timeout: 20000, maxBuffer: 1024 * 1024,
+  });
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  if (result.error) console.error('Isolated probe failed:', result.error.message);
+  process.exit(result.status ?? 1);
+}
+const directory = process.argv[3];
+assertNode.equal(resolve(process.env.CHANDRA_DATA_DIR), resolve(directory));
+const relativeDirectory = relative(realpathSync(tmpdir()), realpathSync(directory));
+assertNode.ok(!relativeDirectory.startsWith('..') && relativeDirectory.split(sep)[0].startsWith('chandra-state-seek-probe-'));
+const { stateSeekOnBoot, getBootManifest } = await import('../../server/integrity/state-seek.js');
 
 const results = {};
 let pass = 0;

@@ -36,18 +36,20 @@
 
 ## Handoff checkpoint 2026-11-04
 
-### DB Persistence & Daemon Auto-Start Fix
+### Persistence and continuity status
 
-Three root causes of database corruption and system amnesia identified and fixed:
+The historical corruption cause remains unresolved. The [shutdown/WAL review](docs/reviews/2026-11-04-shutdown-claims-review.md) disproved forced-exit cleanup guarantees; the [Phase 2 continuity review](docs/reviews/2026-11-04-phase2-continuity-review.md) separately reproduced and patched a boot-time committed-data rollback.
 
-| Root Cause | Fix | File |
-|-----------|-----|------|
-| **No WAL checkpoint on startup** — a killed process leaves a dirty WAL that corrupts the DB on next open | `db.pragma('wal_checkpoint(TRUNCATE)')` immediately after opening | `server/db.js` |
-| **No safety-net `db.close()`** — graceful shutdown puts `db.close()` inside a callback that may never fire if Windows kills the process | `process.on('exit', () => db.close())` as last-resort handler | `server/db.js` |
-| **Daemon never auto-starts** — the 8-step background loop (dream consolidation, prompt evolution, chain findings, reflection, goal generation, ouroboros RSI, state bridge snapshots, fossil prune) required a manual API call; with 0 daemon cycles, the system had no dreams, no evolved prompts, no state fossils | Import `startDaemon`/`stopDaemon`, auto-start alongside autonomy, stop on shutdown | `server/app.js` |
+| Change | Verified meaning / limitation | Source |
+| --- | --- | --- |
+| Startup WAL checkpoint | Added in `c17a7ef`; a retained matching WAL is valid recovery state. The checkpoint is not evidence that the original corruption cause was fixed. | `server/db.js` |
+| Exit cleanup | Normal exits can run synchronous cleanup. A controlled forced-termination test skipped the exit listener. | `server/db.js` |
+| Daemon autostart | Wired alongside autonomy when enabled; scheduling is distinct from successful learning cycles and database persistence. | `server/app.js` |
+| Mutable-state protection | Databases and append-only journals are excluded from file-watchdog restoration. Legacy entries are preserved but skipped. Local regression tests pass; another agent must review the fixes. | `be2cbde` through `9a2ec22` |
+| Durable signing identity | The system reuses `DATA_DIR/fraymus-identity.json` across restarts; invalid existing keys are preserved and rejected. | `4e96c48`, `a67ebd3` |
 
-- **Runtime action:** restart the backend. The daemon starts automatically on boot — no manual `POST /api/daemon/start` needed. WAL recovery runs on every startup.
-- **Machine continuity:** Git carries source. Transfer `data/`, `.env`, and Ollama models separately.
+- **Runtime action:** apply source changes with a normal backend start/restart. Live API validation is pending; `localhost:8787` was unreachable during the latest check.
+- **Machine continuity:** Git carries source and review evidence. Preserve configured runtime data, signing keys, configuration and local models separately. Create a consistent SQLite backup rather than transferring a moving main database file alone.
 
 ### Previous: 2026-11-03
 
@@ -67,6 +69,7 @@ Three root causes of database corruption and system amnesia identified and fixed
 
 | Review | Source / owner | Reviewer | Status and next action |
 | --- | --- | --- | --- |
+| [Phase 2 continuity hardening and handoff](docs/reviews/2026-11-04-phase2-continuity-review.md) | Reviewed `3167e38` / `5d7e21e`; fixes `be2cbde` through `9a2ec22`, Codex author | **Different agent required** | **IMPLEMENTED + LOCALLY TESTED; AWAITING INDEPENDENT REVIEW.** Reproduced committed-row rollback in disposable DBs, then protected databases/journals from file healing. Self-tests now honor failures; vault signatures, exact bytes and numbering are checked; signing identity survives restart. 13 tests + isolated 27-case probe pass. Source changes require a normal backend restart. |
 | [Immune round 4: independent closure check](docs/reviews/2026-11-04-immune-round4-independent-review.md) | `2d61f0d` | Codex independent recheck | **SCOPED FIXES VERIFIED.** IMM-08, IMM-10 and IMM-11 pass independent fleet/main, schema, depth and completion checks; author's probe is 22/22. IMM-05 stays deferred/advisory. Phase 2 planning can proceed; no Phase 2 implementation has been reviewed yet. |
 | [Immune round 3: two fix commits rechecked](docs/reviews/2026-11-04-immune-round3-review.md) | `e17722e` and `8e9ccd9` | Codex independent recheck | **CHANGES REQUESTED.** Prior fixtures improve and all ten text paths reference the sanitizer. Fleet tool arguments still leak credentials; the recursive walker changes prototypes and lacks bounds. Canary calibration remains deferred; metadata-only completion still drops held text. Focused reproductions and completion criteria are linked. |
 | [Immune fixes and Ollama boundary recheck](docs/reviews/2026-11-04-immune-fix-review.md) | `caca6bc` and IMM-07 commit `be2bdea`; measured source hashes in evidence | Codex independent follow-up | **4/6 FOCUSED FIXES CONFIRMED.** IMM-02 still exposes credential bodies; IMM-05 still flags benign text after warm-up. Buffered provider content is sanitized, but tool arguments bypass it, quoted JSON is truncated, and stream EOF framing loses text. Finish these checks before closing IMM-07. |
