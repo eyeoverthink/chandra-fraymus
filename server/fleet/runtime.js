@@ -10,6 +10,7 @@ import {
   sealToolResult, sealRefusal, budgetBands, bandDirective,
   salvageOnCrash, boundResult, checkPermission, createRunEnvelope, recordStep,
 } from './harness.js';
+import { append as chainAppend } from '../intelligence/record-chain.js';
 
 const MAX_STEPS = 8;
 const MAX_HISTORY = 40;
@@ -367,6 +368,15 @@ async function drive(runId, depth = 0) {
 
       // Record step in envelope for audit
       recordStep(envelope, step, fn.name, fn.arguments || {}, result);
+
+      // Append to hash-chained record (Akashic audit trail)
+      try {
+        chainAppend(agent.id, 'tool_call', {
+          run_id: runId, step, tool: fn.name,
+          evidence_sha: result?.evidence?.evidence_sha,
+          executed: result?.evidence?.executed,
+        });
+      } catch (_) {}
 
       if (result?.result?.awaiting_approval) {
         setRun(runId, { status: 'awaiting_approval' });

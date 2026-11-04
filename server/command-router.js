@@ -1,4 +1,5 @@
 import { startRun, listAgents } from './fleet/runtime.js';
+import { guardCommandInput } from './integrity/guard-tasks.js';
 
 const PIPELINE_ALIASES = {
   'content-pipeline': 'commerce',
@@ -102,6 +103,12 @@ export function installCommandRouter(app, { broadcast }) {
         return res.status(400).json({ error: 'text is required' });
       }
       const trimmed = text.trim();
+
+      // Governance: Guard Tasks injection check
+      const guardResult = guardCommandInput(trimmed);
+      if (!guardResult.pass) {
+        return res.status(403).json({ type: 'guard_rejected', error: guardResult.reason, verdict: guardResult.verdict });
+      }
 
       const agentMatch = trimmed.match(/^@(\S+)\s+(.+)$/s);
       if (agentMatch) {
