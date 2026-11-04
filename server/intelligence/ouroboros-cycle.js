@@ -56,6 +56,18 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_proposals_status ON ouroboros_proposals(status);
   CREATE INDEX IF NOT EXISTS idx_genome_cycle ON ouroboros_genome(cycle_id);
   CREATE INDEX IF NOT EXISTS idx_genome_active ON ouroboros_genome(active);
+
+  CREATE TABLE IF NOT EXISTS ouroboros_workspaces (
+    id TEXT PRIMARY KEY,
+    cycle_id TEXT NOT NULL UNIQUE,
+    generation INTEGER NOT NULL,
+    snapshot TEXT NOT NULL,
+    fingerprint TEXT NOT NULL,
+    created_at DATETIME DEFAULT (datetime('now')),
+    FOREIGN KEY (cycle_id) REFERENCES ouroboros_cycles(id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_workspace_cycle ON ouroboros_workspaces(cycle_id);
+  CREATE INDEX IF NOT EXISTS idx_workspace_gen ON ouroboros_workspaces(generation);
 `);
 
 // Migrate existing cycles that lack generation columns
@@ -115,6 +127,165 @@ function getGenome(cycleId) {
 }
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+// ─── Workspace Capture ──────────────────────────────────────────────
+
+function safeQuery(sql, params = []) {
+  try { return Array.isArray(params) && params.length ? db.prepare(sql).all(...params) : db.prepare(sql).all(); } catch { return []; }
+}
+
+function safeQueryGet(sql) {
+  try { return db.prepare(sql).get() || {}; } catch { return {}; }
+}
+
+function captureFleetState(rootDir) {
+  const agents = [];
+  try {
+    const agentDir = path.join(rootDir, 'server/fleet/agents');
+    for (const f of fs.readdirSync(agentDir).filter(x => x.endsWith('.md'))) {
+      const raw = fs.readFileSync(path.join(agentDir, f), 'utf8');
+      const fm = raw.match(/^---\n([\s\S]*?)\n---/);
+      if (fm) {
+        const id = (fm[1].match(/id:\s*(.+)/) || [])[1]?.trim();
+        const name = (fm[1].match(/name:\s*(.+)/) || [])[1]?.trim();
+        const role = (fm[1].match(/role:\s*(.+)/) || [])[1]?.trim();
+        const tools = (fm[1].match(/tools:\n([\s\S]*?)(?:\n\w|$)/) || [])[1];
+        const toolCount = tools ? (tools.match(/^\s*-/gm) || []).length : 0;
+        agents.push({ id: id || f, name: name || f, role: role || '', toolCount, source: 'manifest' });
+      }
+    }
+  } catch {}
+  const forged = safeQuery(`SELECT agent_id, forged_by, goal FROM forged_agents ORDER BY created_at DESC`);
+  for (const f of forged) {
+    agents.push({ id: f.agent_id, name: f.agent_id, role: f.goal || '', toolCount: 0, source: 'forged', forgedBy: f.forged_by });
+  }
+  const runStats = safeQueryGet(`SELECT COUNT(*) as totalRuns, SUM(CASE WHEN status='complete' THEN 1 ELSE 0 END) as successRuns FROM runs`);
+  return { agents, count: agents.length, manifestCount: agents.filter(a => a.source === 'manifest').length, forgedCount: forged.length, totalRuns: runStats.totalRuns || 0, successRuns: runStats.successRuns || 0 };
+}
+
+function captureWorkflowState() {
+  const workflows = safeQuery(`SELECT id, name, node_count, status FROM workflows ORDER BY created_at DESC LIMIT 100`);
+  const synthesized = safeQuery(`SELECT workflow_id, goal, node_count FROM synthesized_workflows ORDER BY created_at DESC`);
+  const runStats = safeQueryGet(`SELECT COUNT(*) as total, SUM(CASE WHEN status='complete' THEN 1 ELSE 0 END) as completed FROM workflow_runs`);
+  return { definitions: workflows.map(w => ({ id: w.id, name: w.name, nodes: w.node_count })), count: workflows.length, synthesizedCount: synthesized.length, totalRuns: runStats.total || 0, completedRuns: runStats.completed || 0 };
+}
+
+function captureIntelligenceState() {
+  const reflections = safeQueryGet(`SELECT COUNT(*) as total FROM reflections`);
+  const verifications = safeQueryGet(`SELECT COUNT(*) as total, SUM(CASE WHEN final_status='APPROVED' THEN 1 ELSE 0 END) as approved FROM verification_loops`);
+  const daemonCycles = safeQueryGet(`SELECT COUNT(*) as total FROM daemon_cycles`);
+  const memories = safeQueryGet(`SELECT COUNT(*) as total, COUNT(DISTINCT agent_id) as agents FROM agent_memories`);
+  const verifiedMemories = safeQueryGet(`SELECT COUNT(*) as total FROM agent_memories WHERE verified_at IS NOT NULL`);
+  return {
+    reflections: reflections.total || 0,
+    verifications: verifications.total || 0, verificationsApproved: verifications.approved || 0,
+    daemonCycles: daemonCycles.total || 0,
+    memories: memories.total || 0, memoriesAgents: memories.agents || 0,
+    verifiedMemories: verifiedMemories.total || 0,
+  };
+}
+
+function captureBusState() {
+  const topics = safeQuery(`SELECT DISTINCT topic FROM bus_messages`);
+  const msgCount = safeQueryGet(`SELECT COUNT(*) as total FROM bus_messages`);
+  const triggers = safeQuery(`SELECT topic, label, enabled FROM bus_triggers`);
+  return { topicCount: topics.length, topics: topics.map(t => t.topic), messageCount: msgCount.total || 0, triggers: triggers.length, activeTriggers: triggers.filter(t => t.enabled).length };
+}
+
+function captureSystemVitals() {
+  const mem = process.memoryUsage();
+  return { heapMB: Math.round(mem.heapUsed / 1024 / 1024), rssMB: Math.round(mem.rss / 1024 / 1024), uptimeSec: Math.round(process.uptime()) };
+}
+
+export function captureWorkspace(cycleId, rootDir) {
+  const cycle = db.prepare(`SELECT id, generation, genome_hash, status, proposal_count, accepted_count, rejected_count, duration_ms, created_at FROM ouroboros_cycles WHERE id = ?`).get(cycleId);
+  if (!cycle) return null;
+
+  const genome = getGenome(cycleId);
+  const outline = absorbCodebase(rootDir || process.cwd());
+
+  const snapshot = {
+    capturedAt: new Date().toISOString(),
+    generation: cycle.generation || 1,
+    fleet: captureFleetState(rootDir || process.cwd()),
+    workflows: captureWorkflowState(),
+    intelligence: captureIntelligenceState(),
+    genome: { size: genome.length, hash: cycle.genome_hash || '', mutations: genome.filter(g => g.gene_type === 'mutation').length, inherited: genome.filter(g => g.gene_type === 'inherited').length, categories: [...new Set(genome.map(g => g.category))] },
+    codebase: { files: outline.stats.totalFiles, lines: outline.stats.totalLines, routes: outline.stats.totalRoutes, tables: outline.stats.dbTableCount, tableList: outline.stats.dbTables, agents: outline.stats.agentCount },
+    bus: captureBusState(),
+    vitals: captureSystemVitals(),
+  };
+
+  const snapshotJson = JSON.stringify(snapshot);
+  const fingerprint = createHash('sha256').update(snapshotJson).digest('hex').slice(0, 16);
+  const wsId = uid();
+
+  db.prepare(`INSERT OR REPLACE INTO ouroboros_workspaces (id, cycle_id, generation, snapshot, fingerprint) VALUES (?, ?, ?, ?, ?)`)
+    .run(wsId, cycleId, cycle.generation || 1, snapshotJson, fingerprint);
+
+  return { id: wsId, cycleId, generation: cycle.generation || 1, fingerprint, snapshot };
+}
+
+export function getWorkspace(cycleId) {
+  const row = db.prepare(`SELECT * FROM ouroboros_workspaces WHERE cycle_id = ?`).get(cycleId);
+  if (!row) return null;
+  row.snapshot = JSON.parse(row.snapshot);
+  return row;
+}
+
+export function diffWorkspaces(cycleA, cycleB) {
+  const wsA = getWorkspace(cycleA);
+  const wsB = getWorkspace(cycleB);
+  if (!wsA || !wsB) return null;
+  const a = wsA.snapshot;
+  const b = wsB.snapshot;
+
+  const agentIdsA = new Set(a.fleet.agents.map(x => x.id));
+  const agentIdsB = new Set(b.fleet.agents.map(x => x.id));
+
+  const wfIdsA = new Set(a.workflows.definitions.map(x => x.id));
+  const wfIdsB = new Set(b.workflows.definitions.map(x => x.id));
+
+  return {
+    generationA: a.generation, generationB: b.generation,
+    fingerprintA: wsA.fingerprint, fingerprintB: wsB.fingerprint,
+    identical: wsA.fingerprint === wsB.fingerprint,
+    fleet: {
+      added: b.fleet.agents.filter(x => !agentIdsA.has(x.id)),
+      removed: a.fleet.agents.filter(x => !agentIdsB.has(x.id)),
+      countDelta: b.fleet.count - a.fleet.count,
+      runsDelta: (b.fleet.totalRuns || 0) - (a.fleet.totalRuns || 0),
+    },
+    workflows: {
+      added: b.workflows.definitions.filter(x => !wfIdsA.has(x.id)),
+      removed: a.workflows.definitions.filter(x => !wfIdsB.has(x.id)),
+      countDelta: b.workflows.count - a.workflows.count,
+    },
+    genome: {
+      sizeDelta: b.genome.size - a.genome.size,
+      hashChanged: a.genome.hash !== b.genome.hash,
+      newMutations: b.genome.mutations,
+    },
+    codebase: {
+      filesDelta: b.codebase.files - a.codebase.files,
+      linesDelta: b.codebase.lines - a.codebase.lines,
+      routesDelta: b.codebase.routes - a.codebase.routes,
+      tablesDelta: b.codebase.tables - a.codebase.tables,
+      newTables: b.codebase.tableList.filter(t => !a.codebase.tableList.includes(t)),
+      removedTables: a.codebase.tableList.filter(t => !b.codebase.tableList.includes(t)),
+    },
+    intelligence: {
+      reflectionsDelta: b.intelligence.reflections - a.intelligence.reflections,
+      memoriesDelta: b.intelligence.memories - a.intelligence.memories,
+      verificationsDelta: b.intelligence.verifications - a.intelligence.verifications,
+    },
+    bus: {
+      topicsDelta: b.bus.topicCount - a.bus.topicCount,
+      messagesDelta: b.bus.messageCount - a.bus.messageCount,
+      newTopics: b.bus.topics.filter(t => !a.bus.topics.includes(t)),
+    },
+  };
+}
 
 // ─── Phase 1: ABSORB — scan real codebase ───────────────────────────
 
@@ -472,15 +643,24 @@ export async function runCycle(rootDir) {
     db.prepare(`UPDATE ouroboros_cycles SET phase = 'complete', status = 'complete', accepted_count = ?, rejected_count = ?, implemented_count = 0, duration_ms = ?, insights = ?, genome_hash = ? WHERE id = ?`)
       .run(accepted, rejected, durationMs, JSON.stringify(insights), genomeHash, cycleId);
 
+    // Capture workspace snapshot for this generation
+    let workspace = null;
+    try {
+      workspace = captureWorkspace(cycleId, rootDir || process.cwd());
+    } catch (wsErr) {
+      insights.workspaceError = wsErr.message;
+    }
+
     // Broadcast evolution event
     try {
       publish('system', 'system.evolution', JSON.stringify({
         type: 'ouroboros_cycle', cycleId, generation, genomeHash,
         parentId, accepted, rejected, durationMs,
+        workspaceFingerprint: workspace?.fingerprint || null,
       }));
     } catch (_) {}
 
-    return { cycleId, ...insights, durationMs };
+    return { cycleId, ...insights, durationMs, workspaceFingerprint: workspace?.fingerprint || null };
 
   } catch (err) {
     db.prepare(`UPDATE ouroboros_cycles SET status = 'failed', insights = ? WHERE id = ?`)
@@ -697,6 +877,41 @@ export function installOuroborosCycleRoutes(app) {
       const { a, b } = req.query;
       if (!a || !b) return res.status(400).json({ error: 'Provide ?a=cycleId&b=cycleId' });
       res.json(getGenomeDiff(a, b));
+    } catch (e) { next(e); }
+  });
+
+  // ── Workspace endpoints ──
+
+  app.get('/api/intelligence/ouroboros-cycle/workspace/:cycleId', (req, res, next) => {
+    try {
+      const ws = getWorkspace(req.params.cycleId);
+      if (!ws) return res.status(404).json({ error: 'No workspace captured for this cycle' });
+      res.json(ws);
+    } catch (e) { next(e); }
+  });
+
+  app.post('/api/intelligence/ouroboros-cycle/workspace/:cycleId/capture', (req, res, next) => {
+    try {
+      const ws = captureWorkspace(req.params.cycleId, req.body.rootDir || process.cwd());
+      if (!ws) return res.status(404).json({ error: 'Cycle not found' });
+      res.json(ws);
+    } catch (e) { next(e); }
+  });
+
+  app.get('/api/intelligence/ouroboros-cycle/workspace-diff', (req, res, next) => {
+    try {
+      const { a, b } = req.query;
+      if (!a || !b) return res.status(400).json({ error: 'Provide ?a=cycleId&b=cycleId' });
+      const diff = diffWorkspaces(a, b);
+      if (!diff) return res.status(404).json({ error: 'Workspace not found for one or both cycles' });
+      res.json(diff);
+    } catch (e) { next(e); }
+  });
+
+  app.get('/api/intelligence/ouroboros-cycle/workspaces', (_req, res, next) => {
+    try {
+      const workspaces = db.prepare(`SELECT id, cycle_id, generation, fingerprint, created_at FROM ouroboros_workspaces ORDER BY generation DESC`).all();
+      res.json({ workspaces });
     } catch (e) { next(e); }
   });
 }

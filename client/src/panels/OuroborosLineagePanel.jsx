@@ -208,6 +208,152 @@ function GenomeViewer({ genes }) {
   );
 }
 
+// ─── Workspace Viewer ──────────────────────────────────────────
+
+function WorkspaceSection({ title, icon, color, children }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div style={{ marginBottom: 8, background: '#1a1730', borderRadius: 8, border: `1px solid ${color}22`, overflow: 'hidden' }}>
+      <div onClick={() => setOpen(!open)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: 'pointer', background: `${color}08` }}>
+        <span style={{ fontSize: 14 }}>{icon}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color, flex: 1 }}>{title}</span>
+        <span style={{ fontSize: 10, color: '#6b7280', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>▶</span>
+      </div>
+      {open && <div style={{ padding: '8px 12px' }}>{children}</div>}
+    </div>
+  );
+}
+
+function MetricRow({ label, value, delta, unit }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', borderBottom: '1px solid #1e1b2e' }}>
+      <span style={{ fontSize: 11, color: '#a0a0b8' }}>{label}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#e0e0f0' }}>{value}{unit || ''}</span>
+        {delta !== undefined && delta !== 0 && (
+          <span style={{ fontSize: 10, fontWeight: 600, color: delta > 0 ? '#22c55e' : '#ef4444' }}>
+            {delta > 0 ? '+' : ''}{delta}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceViewer({ workspace, diffData }) {
+  if (!workspace) return <div style={{ padding: 20, textAlign: 'center', color: '#6b7280' }}>Select a generation and click "Load Workspace" to view its state snapshot.</div>;
+  const s = workspace.snapshot;
+  const d = diffData;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+        <StatPill label="Generation" value={s.generation} color="#059669" />
+        <StatPill label="Fingerprint" value={workspace.fingerprint?.slice(0, 8)} color="#6366f1" />
+        <StatPill label="Captured" value={new Date(s.capturedAt).toLocaleString()} color="#6b7280" />
+      </div>
+
+      {/* Fleet */}
+      <WorkspaceSection title={`Agent Fleet (${s.fleet.count})`} icon="⊕" color="#f59e0b">
+        <MetricRow label="Total Agents" value={s.fleet.count} delta={d?.fleet?.countDelta} />
+        <MetricRow label="Manifests" value={s.fleet.manifestCount} />
+        <MetricRow label="Forged" value={s.fleet.forgedCount} />
+        <MetricRow label="Total Runs" value={s.fleet.totalRuns} delta={d?.fleet?.runsDelta} />
+        <MetricRow label="Successful Runs" value={s.fleet.successRuns} />
+        {s.fleet.agents.length > 0 && (
+          <div style={{ marginTop: 6 }}>
+            <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Agent Roster</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {s.fleet.agents.map((a, i) => (
+                <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 4, fontSize: 10, background: a.source === 'forged' ? '#059669' + '15' : '#f59e0b' + '15', color: a.source === 'forged' ? '#059669' : '#f59e0b', border: `1px solid ${a.source === 'forged' ? '#059669' : '#f59e0b'}22` }}>
+                  {a.name}{a.toolCount > 0 ? ` (${a.toolCount}t)` : ''}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {d?.fleet?.added?.length > 0 && (
+          <div style={{ marginTop: 4 }}>
+            {d.fleet.added.map((a, i) => <Badge key={i} text={`+ ${a.name}`} color="#22c55e" />)}
+          </div>
+        )}
+        {d?.fleet?.removed?.length > 0 && (
+          <div style={{ marginTop: 4 }}>
+            {d.fleet.removed.map((a, i) => <Badge key={i} text={`- ${a.name}`} color="#ef4444" />)}
+          </div>
+        )}
+      </WorkspaceSection>
+
+      {/* Workflows */}
+      <WorkspaceSection title={`Workflows (${s.workflows.count})`} icon="⬡" color="#c4b5fd">
+        <MetricRow label="Definitions" value={s.workflows.count} delta={d?.workflows?.countDelta} />
+        <MetricRow label="Synthesized" value={s.workflows.synthesizedCount} />
+        <MetricRow label="Total Runs" value={s.workflows.totalRuns} />
+        <MetricRow label="Completed Runs" value={s.workflows.completedRuns} />
+      </WorkspaceSection>
+
+      {/* Genome */}
+      <WorkspaceSection title={`Genome (${s.genome.size} genes)`} icon="🧬" color="#059669">
+        <MetricRow label="Total Genes" value={s.genome.size} delta={d?.genome?.sizeDelta} />
+        <MetricRow label="Mutations" value={s.genome.mutations} />
+        <MetricRow label="Inherited" value={s.genome.inherited} />
+        <MetricRow label="Hash" value={s.genome.hash?.slice(0, 12) || '—'} />
+        {d?.genome?.hashChanged && <Badge text="Genome Changed" color="#f59e0b" />}
+        {s.genome.categories.length > 0 && (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+            {s.genome.categories.map((cat, i) => <Badge key={i} text={cat} color={GENE_COLORS[cat] || '#6b7280'} />)}
+          </div>
+        )}
+      </WorkspaceSection>
+
+      {/* Codebase */}
+      <WorkspaceSection title="Codebase" icon="◈" color="#3b82f6">
+        <MetricRow label="Files" value={s.codebase.files} delta={d?.codebase?.filesDelta} />
+        <MetricRow label="Lines" value={s.codebase.lines.toLocaleString()} delta={d?.codebase?.linesDelta} />
+        <MetricRow label="REST Routes" value={s.codebase.routes} delta={d?.codebase?.routesDelta} />
+        <MetricRow label="DB Tables" value={s.codebase.tables} delta={d?.codebase?.tablesDelta} />
+        {d?.codebase?.newTables?.length > 0 && (
+          <div style={{ marginTop: 4 }}>
+            {d.codebase.newTables.map((t, i) => <Badge key={i} text={`+ ${t}`} color="#22c55e" />)}
+          </div>
+        )}
+      </WorkspaceSection>
+
+      {/* Intelligence */}
+      <WorkspaceSection title="Intelligence Stack" icon="🔭" color="#8b5cf6">
+        <MetricRow label="Reflections" value={s.intelligence.reflections} delta={d?.intelligence?.reflectionsDelta} />
+        <MetricRow label="Verification Loops" value={s.intelligence.verifications} delta={d?.intelligence?.verificationsDelta} />
+        <MetricRow label="Verified (Approved)" value={s.intelligence.verificationsApproved} />
+        <MetricRow label="Daemon Cycles" value={s.intelligence.daemonCycles} />
+        <MetricRow label="Agent Memories" value={s.intelligence.memories} delta={d?.intelligence?.memoriesDelta} />
+        <MetricRow label="Verified Memories" value={s.intelligence.verifiedMemories} />
+        <MetricRow label="Agents w/ Memory" value={s.intelligence.memoriesAgents} />
+      </WorkspaceSection>
+
+      {/* Bus */}
+      <WorkspaceSection title={`Agent Bus (${s.bus.topicCount} topics)`} icon="⊗" color="#f87171">
+        <MetricRow label="Topics" value={s.bus.topicCount} delta={d?.bus?.topicsDelta} />
+        <MetricRow label="Messages" value={s.bus.messageCount} delta={d?.bus?.messagesDelta} />
+        <MetricRow label="Triggers" value={s.bus.triggers} />
+        <MetricRow label="Active Triggers" value={s.bus.activeTriggers} />
+        {d?.bus?.newTopics?.length > 0 && (
+          <div style={{ marginTop: 4 }}>
+            {d.bus.newTopics.map((t, i) => <Badge key={i} text={`+ ${t}`} color="#22c55e" />)}
+          </div>
+        )}
+      </WorkspaceSection>
+
+      {/* Vitals */}
+      <WorkspaceSection title="System Vitals" icon="♥" color="#22c55e">
+        <MetricRow label="Heap" value={s.vitals.heapMB} unit=" MB" />
+        <MetricRow label="RSS" value={s.vitals.rssMB} unit=" MB" />
+        <MetricRow label="Uptime" value={Math.round(s.vitals.uptimeSec / 60)} unit=" min" />
+      </WorkspaceSection>
+    </div>
+  );
+}
+
 // ─── Main Panel ─────────────────────────────────────────────────
 
 export default function OuroborosLineagePanel({ wsEvent }) {
@@ -216,6 +362,8 @@ export default function OuroborosLineagePanel({ wsEvent }) {
   const [selectedId, setSelectedId] = useState(null);
   const [selectedDetail, setSelectedDetail] = useState(null);
   const [genome, setGenome] = useState(null);
+  const [workspace, setWorkspace] = useState(null);
+  const [wsDiff, setWsDiff] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -233,6 +381,8 @@ export default function OuroborosLineagePanel({ wsEvent }) {
 
   const selectCycle = async (id) => {
     setSelectedId(id);
+    setWorkspace(null);
+    setWsDiff(null);
     try {
       const [detailRes, genomeRes] = await Promise.all([
         fetch(`/api/intelligence/ouroboros-cycle/cycle/${id}`),
@@ -240,13 +390,43 @@ export default function OuroborosLineagePanel({ wsEvent }) {
       ]);
       setSelectedDetail(await detailRes.json());
       setGenome(await genomeRes.json());
+
+      // Try loading workspace
+      const wsRes = await fetch(`/api/intelligence/ouroboros-cycle/workspace/${id}`);
+      if (wsRes.ok) {
+        const wsData = await wsRes.json();
+        setWorkspace(wsData);
+        // Load diff against parent if available
+        const cycle = lineage?.cycles?.find(c => c.id === id);
+        if (cycle?.parent_cycle_id) {
+          const diffRes = await fetch(`/api/intelligence/ouroboros-cycle/workspace-diff?a=${cycle.parent_cycle_id}&b=${id}`);
+          if (diffRes.ok) setWsDiff(await diffRes.json());
+        }
+      }
     } catch (e) { setError(e.message); }
+  };
+
+  const captureWorkspace = async (cycleId) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/intelligence/ouroboros-cycle/workspace/${cycleId}/capture`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      if (!res.ok) throw new Error((await res.json()).error);
+      const wsData = await res.json();
+      setWorkspace(wsData);
+      const cycle = lineage?.cycles?.find(c => c.id === cycleId);
+      if (cycle?.parent_cycle_id) {
+        const diffRes = await fetch(`/api/intelligence/ouroboros-cycle/workspace-diff?a=${cycle.parent_cycle_id}&b=${cycleId}`);
+        if (diffRes.ok) setWsDiff(await diffRes.json());
+      }
+    } catch (e) { setError(e.message); }
+    setLoading(false);
   };
 
   const tabs = [
     { id: 'graph', label: 'Lineage Graph' },
     { id: 'timeline', label: 'Evolution Timeline' },
     { id: 'genome', label: 'Genome Browser' },
+    { id: 'workspace', label: 'Workspace' },
   ];
 
   const cycles = lineage?.cycles || [];
@@ -450,6 +630,52 @@ export default function OuroborosLineagePanel({ wsEvent }) {
             </div>
           ) : (
             <div style={{ padding: 12, color: '#6b7280', fontSize: 12 }}>Loading genome...</div>
+          )}
+        </>
+      )}
+
+      {/* Workspace Tab */}
+      {tab === 'workspace' && (
+        <>
+          {!selectedId ? (
+            <div style={{ padding: 20, textAlign: 'center', color: '#6b7280' }}>
+              Select a generation from the Graph or Timeline tab to view its workspace snapshot.
+            </div>
+          ) : (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#059669' }}>
+                  Workspace — Generation {selectedDetail?.generation || '?'}
+                </span>
+                {!workspace && (
+                  <button onClick={() => captureWorkspace(selectedId)} disabled={loading}
+                    style={{ padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: '#059669', color: '#fff', opacity: loading ? 0.5 : 1 }}>
+                    {loading ? 'Capturing...' : 'Capture Workspace'}
+                  </button>
+                )}
+                {workspace && (
+                  <button onClick={() => captureWorkspace(selectedId)} disabled={loading}
+                    style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid #333', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: 'none', color: '#a0a0b8', opacity: loading ? 0.5 : 1 }}>
+                    {loading ? 'Recapturing...' : 'Recapture'}
+                  </button>
+                )}
+              </div>
+              {wsDiff && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                  <Badge text={wsDiff.identical ? 'Identical to parent' : 'Diverged from parent'} color={wsDiff.identical ? '#6b7280' : '#f59e0b'} />
+                  {wsDiff.codebase?.linesDelta !== 0 && (
+                    <Badge text={`${wsDiff.codebase.linesDelta > 0 ? '+' : ''}${wsDiff.codebase.linesDelta} lines`} color={wsDiff.codebase.linesDelta > 0 ? '#22c55e' : '#ef4444'} />
+                  )}
+                  {wsDiff.fleet?.countDelta !== 0 && (
+                    <Badge text={`${wsDiff.fleet.countDelta > 0 ? '+' : ''}${wsDiff.fleet.countDelta} agents`} color={wsDiff.fleet.countDelta > 0 ? '#22c55e' : '#ef4444'} />
+                  )}
+                  {wsDiff.genome?.sizeDelta !== 0 && (
+                    <Badge text={`${wsDiff.genome.sizeDelta > 0 ? '+' : ''}${wsDiff.genome.sizeDelta} genes`} color="#059669" />
+                  )}
+                </div>
+              )}
+              <WorkspaceViewer workspace={workspace} diffData={wsDiff} />
+            </div>
           )}
         </>
       )}
