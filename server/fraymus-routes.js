@@ -6,6 +6,7 @@ import { listTools as listMcpTools } from './fraymus/mcp/tools.js';
 import { AGENTS, ZONES, COMPUTE_NODES } from './fraymus/core/constants.js';
 import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching, negativeControlConsciousnessProofs } from './fraymus/intelligence/ouroboros.js';
 import * as opeg from './intelligence/opeg.js';
+import { neurogenesisCycle, neurogenesisStats, neurogenesisHistory } from './intelligence/neurogenesis.js';
 
 const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
 
@@ -446,5 +447,21 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
     const { type, hypothesis, params, source } = req.body;
     const result = opeg.propose({ type, hypothesis, params, source });
     res.status(result.ok ? 201 : 400).json(result);
+  }));
+
+  // ── Neurogenesis ──
+  app.get('/api/fraymus/neurogenesis/stats', route(async (_req, res) => {
+    res.json(neurogenesisStats());
+  }));
+
+  app.get('/api/fraymus/neurogenesis/history', route(async (req, res) => {
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    res.json(neurogenesisHistory({ limit }));
+  }));
+
+  app.post('/api/fraymus/neurogenesis/trigger', route(async (_req, res) => {
+    const result = await neurogenesisCycle();
+    broadcast('neurogenesis', { type: 'manual', ...result });
+    res.json(result);
   }));
 }

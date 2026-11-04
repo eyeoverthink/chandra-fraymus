@@ -4,10 +4,12 @@ import { generateIdentity, numberFromPub, signText } from './fraymus/core/identi
 import { sha256hex } from './fraymus/core/crypto.js';
 import { kuramotoR, kuramotoStep } from './fraymus/protocol/v13.js';
 import { AGENTS, COMPUTE_NODES, PHI } from './fraymus/core/constants.js';
+import { neurogenesisCycle } from './intelligence/neurogenesis.js';
 
 const AUTONOMY_INTERVAL_MS = 30_000;
 const EVOLUTION_INTERVAL_MS = 300_000;
 const DREAM_CONSOLIDATION_MS = 600_000; // consolidate dreams every 10 minutes
+const NEUROGENESIS_INTERVAL_MS = 120_000; // neurogenesis check every 2 minutes
 
 export function createAutonomyEngine({ db, broadcast, agent, tasks, memoryBridge, logEvent }) {
   let identity = null;
@@ -15,6 +17,7 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, memoryBridge
   let autonomyTimer = null;
   let evolutionTimer = null;
   let dreamTimer = null;
+  let neurogenesisTimer = null;
   let phaseState = AGENTS.map(() => Math.random() * 2 * Math.PI);
   const naturalFreqs = AGENTS.map((_, i) => 0.1 + 0.05 * Math.sin(i * PHI));
   let generation = 0;
@@ -124,6 +127,30 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, memoryBridge
     } catch (_) {}
   }
 
+  async function runNeurogenesis() {
+    try {
+      const result = await neurogenesisCycle();
+      if (result.triggered) {
+        log('neurogenesis', `${result.type} · connectivity=${result.score.toFixed(3)} · ${result.stimuli.length} stimuli`);
+        ledger.record('neurogenesis', {
+          type: result.type, score: result.score,
+          stimuli: result.stimuli.length, metrics: result.metrics,
+        }, 'autonomy');
+        broadcast?.('neurogenesis', { type: result.type, score: result.score, stimuli: result.stimuli.length });
+
+        if (result.type === 'emergency') {
+          dreamer.dream(
+            `Neurogenesis emergency: connectivity ${result.score.toFixed(3)} below floor. ${result.stimuli.length} stimuli injected.`,
+            [`connectivity:${result.score.toFixed(3)}`, 'neurogenesis:emergency'],
+            'survival'
+          ).then(d => memoryBridge?.storeDream(d).catch(() => {})).catch(() => {});
+        }
+      }
+    } catch (err) {
+      log('error', `Neurogenesis failed: ${err.message}`);
+    }
+  }
+
   async function autonomyPulse() {
     try {
       await ensureIdentity();
@@ -182,6 +209,7 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, memoryBridge
       autonomyTimer = setInterval(() => autonomyPulse(), AUTONOMY_INTERVAL_MS);
       evolutionTimer = setInterval(() => runEvolutionCycle().catch(() => {}), EVOLUTION_INTERVAL_MS);
       dreamTimer = setInterval(() => runDreamConsolidation(), DREAM_CONSOLIDATION_MS);
+      neurogenesisTimer = setInterval(() => runNeurogenesis(), NEUROGENESIS_INTERVAL_MS);
 
       await autonomyPulse();
       await runEvolutionCycle();
@@ -193,9 +221,11 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, memoryBridge
       clearInterval(autonomyTimer);
       clearInterval(evolutionTimer);
       clearInterval(dreamTimer);
+      clearInterval(neurogenesisTimer);
       autonomyTimer = null;
       evolutionTimer = null;
       dreamTimer = null;
+      neurogenesisTimer = null;
       log('stop', 'Autonomy engine stopped');
     },
 
