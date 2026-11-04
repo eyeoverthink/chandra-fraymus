@@ -87,10 +87,13 @@ export function createContentNexus({ db, ollamaUrl, broadcast }) {
   }
 
   function ingestFromBrowsing(limit = 20) {
-    const rows = db.prepare(`
-      SELECT id, url, domain, title, category, topics, summary, sentiment, actionability, relevance_signals
-      FROM cross_tab_visits WHERE category IS NOT NULL ORDER BY visited_at DESC LIMIT ?
-    `).all(limit);
+    let rows;
+    try {
+      rows = db.prepare(`
+        SELECT id, url, domain, title, category, topics, summary, sentiment, actionability, relevance_signals
+        FROM cross_tab_visits WHERE category IS NOT NULL ORDER BY visited_at DESC LIMIT ?
+      `).all(limit);
+    } catch { return 0; }
     let count = 0;
     for (const r of rows) {
       const meta = { domain: r.domain, category: r.category, sentiment: r.sentiment, signals: r.relevance_signals };
@@ -116,13 +119,11 @@ export function createContentNexus({ db, ollamaUrl, broadcast }) {
   }
 
   function ingestAll() {
-    const counts = {
-      youtube: ingestFromYouTube(),
-      web: ingestFromWeb(),
-      trends: ingestFromTrends(),
-      browsing: ingestFromBrowsing(),
-      calendar: ingestFromCalendar(),
-    };
+    const ingesters = { youtube: ingestFromYouTube, web: ingestFromWeb, trends: ingestFromTrends, browsing: ingestFromBrowsing, calendar: ingestFromCalendar };
+    const counts = {};
+    for (const [src, fn] of Object.entries(ingesters)) {
+      try { counts[src] = fn(); } catch { counts[src] = 0; }
+    }
     const total = Object.values(counts).reduce((a, b) => a + b, 0);
     if (total > 0 && broadcast) broadcast('nexus', { type: 'ingested', counts, total });
     return { counts, total };
