@@ -1,5 +1,6 @@
 import { startRun, listAgents } from './fleet/runtime.js';
 import { guardCommandInput } from './integrity/guard-tasks.js';
+import { assessSituation, arenaChallenge } from './intelligence/perspective.js';
 
 const PIPELINE_ALIASES = {
   'content-pipeline': 'commerce',
@@ -69,6 +70,12 @@ const PIPELINE_ALIASES = {
   'model-router': 'model-router',
   'route': 'model-router',
   'select-model': 'model-router',
+  'arena': 'arena',
+  'compete': 'arena',
+  'challenge': 'arena',
+  'swarm': 'swarm',
+  'hive': 'swarm',
+  'perspective': 'perspective',
 };
 
 const PIPELINE_ENDPOINTS = {
@@ -93,6 +100,9 @@ const PIPELINE_ENDPOINTS = {
   goal: '/api/goals/generate',
   observatory: '/api/observatory',
   'model-router': '/api/model-router/select',
+  arena: '/api/perspective/arena',
+  swarm: '/api/swarm/initiate',
+  perspective: '/api/perspective/assess',
 };
 
 export function installCommandRouter(app, { broadcast }) {
@@ -162,6 +172,9 @@ export function installCommandRouter(app, { broadcast }) {
             : pipeline === 'goal' ? { trigger: 'command' }
             : pipeline === 'observatory' ? {}
             : pipeline === 'model-router' ? { prompt: arg, type: 'command' }
+            : pipeline === 'arena' ? { task: arg, agentCount: 3 }
+            : pipeline === 'swarm' ? { task: arg }
+            : pipeline === 'perspective' ? { task: arg, context: 'command-router' }
             : {};
           const method = pipeline === 'observatory' ? 'GET' : 'POST';
           const fetchOpts = method === 'GET'
@@ -176,9 +189,30 @@ export function installCommandRouter(app, { broadcast }) {
         return res.json({ type: 'error', error: `Unknown command: "${pipelineName}". Try: content-pipeline, apparel, shopper, fixer, chain, workflow` });
       }
 
-      const result = startRun('local', 'fraymus_prime', trimmed);
-      broadcast('agents', { agentId: 'fraymus_prime', agentName: 'Fraymus Prime', action: 'started', preview: trimmed.slice(0, 100) });
-      return res.json({ type: 'agent_run', runId: result.runId, threadId: result.threadId, agentId: 'fraymus_prime', agentName: 'Fraymus Prime' });
+      // Perspective-aware smart routing: consult the bartender before defaulting to fraymus_prime
+      let targetAgent = 'fraymus_prime';
+      let targetName = 'Fraymus Prime';
+      let perspectiveHint = null;
+      try {
+        const assessment = await Promise.race([
+          assessSituation({ task: trimmed, context: 'command-router freetext dispatch' }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
+        ]);
+        perspectiveHint = assessment;
+        // If playbook has a strong pattern match, check if a specific agent fits better
+        if (assessment.pattern_match && assessment.confidence > 0.6) {
+          const agents = listAgents('local');
+          const recommended = assessment.recommended_agent;
+          if (recommended) {
+            const match = agents.find(a => a.id === recommended || a.name?.toLowerCase() === recommended.toLowerCase());
+            if (match) { targetAgent = match.id; targetName = match.name; }
+          }
+        }
+      } catch (_) { /* TAG-not-BLOCK: 3s timeout, proceed without framing */ }
+
+      const result = startRun('local', targetAgent, trimmed);
+      broadcast('agents', { agentId: targetAgent, agentName: targetName, action: 'started', preview: trimmed.slice(0, 100), perspectiveHint });
+      return res.json({ type: 'agent_run', runId: result.runId, threadId: result.threadId, agentId: targetAgent, agentName: targetName, perspectiveHint });
     } catch (err) {
       next(err);
     }

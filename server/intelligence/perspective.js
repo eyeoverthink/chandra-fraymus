@@ -115,7 +115,8 @@ Output JSON only, no markdown fences:
   "framing": "1-2 sentence perspective note to inject into agent prompts",
   "continuity_notes": "what the next instance should know about approach effectiveness",
   "confidence": 0.0-1.0,
-  "pattern_match": "short label for this type of situation, for playbook lookup"
+  "pattern_match": "short label for this type of situation, for playbook lookup",
+  "recommended_agent": "agent_id or null — if you see an agent in the available list whose role clearly matches this task, recommend it; otherwise null"
 }`;
 
 let currentSession = null;
@@ -167,6 +168,13 @@ export async function assessSituation({ context, task, agentId, emotionalState }
     instanceId,
     availablePerspectives: Object.keys(PERSPECTIVES),
   };
+
+  // Inject available agents for smart routing recommendations
+  try {
+    const { listAgents } = await import('./fleet/runtime.js');
+    const agents = listAgents('local');
+    input.availableAgents = agents.map(a => ({ id: a.id, name: a.name, role: a.role || '' }));
+  } catch (_) { input.availableAgents = []; }
 
   const response = await chatOllama([
     { role: 'system', content: ASSESS_PROMPT },
