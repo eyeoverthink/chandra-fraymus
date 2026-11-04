@@ -5,6 +5,7 @@ import { getWorkflow, scheduledWorkflows, eventTriggeredWorkflows } from './fray
 import { listTools as listMcpTools } from './fraymus/mcp/tools.js';
 import { AGENTS, ZONES, COMPUTE_NODES } from './fraymus/core/constants.js';
 import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching, negativeControlConsciousnessProofs } from './fraymus/intelligence/ouroboros.js';
+import * as opeg from './intelligence/opeg.js';
 
 const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
 
@@ -423,5 +424,27 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
         ? memoryBridge.recentCognitionTypes()
         : { types: {}, total: 0, latest: null },
     });
+  }));
+
+  // ── OPEG Protocol ──
+  app.get('/api/fraymus/opeg/stats', route(async (_req, res) => {
+    res.json(opeg.stats());
+  }));
+
+  app.get('/api/fraymus/opeg/proposals', route(async (req, res) => {
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    res.json(opeg.listProposals({ limit, type: req.query.type, state: req.query.state }));
+  }));
+
+  app.get('/api/fraymus/opeg/proposals/:id', route(async (req, res) => {
+    const proposal = opeg.getProposal(req.params.id);
+    if (!proposal) return res.status(404).json({ error: 'Proposal not found' });
+    res.json(proposal);
+  }));
+
+  app.post('/api/fraymus/opeg/propose', route(async (req, res) => {
+    const { type, hypothesis, params, source } = req.body;
+    const result = opeg.propose({ type, hypothesis, params, source });
+    res.status(result.ok ? 201 : 400).json(result);
   }));
 }

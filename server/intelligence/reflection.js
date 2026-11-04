@@ -3,6 +3,7 @@ import { chatOllama } from '../commerce/shared.js';
 import { publish } from '../fleet/bus.js';
 import { forgeAgent } from '../fleet/forge.js';
 import { synthesizeWorkflow } from '../workflow/synthesizer.js';
+import { runPipeline as opegPipeline } from './opeg.js';
 
 const now = () => Date.now();
 const MAX_ACTIONS_PER_CYCLE = 5;
@@ -180,13 +181,31 @@ async function executeAction(action) {
       }
       case 'forge_agent': {
         if (!action.goal) return { ok: false, error: 'goal required' };
-        const result = await forgeAgent(action.goal, { forgedBy: 'reflection' });
-        return { ok: true, action: 'forge_agent', agent: result.agent };
+        const opegResult = await opegPipeline({
+          type: 'forge_agent',
+          hypothesis: `Reflection identified need for specialist agent: ${action.goal}. Reason: ${action.reason || 'pattern detected'}`,
+          params: { goal: action.goal, forgedBy: 'reflection' },
+          source: 'reflection',
+          executeFn: async (p) => {
+            const r = await forgeAgent(p.goal, { forgedBy: p.forgedBy });
+            return { ok: true, agent: r.agent };
+          },
+        });
+        return { ok: opegResult.approved, action: 'forge_agent', opeg: opegResult.proposalId, approved: opegResult.approved, agent: opegResult.executionResult?.agent };
       }
       case 'synthesize_workflow': {
         if (!action.goal) return { ok: false, error: 'goal required' };
-        const result = await synthesizeWorkflow(action.goal, { synthesizedBy: 'reflection' });
-        return { ok: true, action: 'synthesize_workflow', workflow: { id: result.workflow.id, name: result.workflow.name } };
+        const opegResult = await opegPipeline({
+          type: 'synthesize_workflow',
+          hypothesis: `Reflection identified recurring pattern needing workflow: ${action.goal}. Reason: ${action.reason || 'multi-step pattern'}`,
+          params: { goal: action.goal, synthesizedBy: 'reflection' },
+          source: 'reflection',
+          executeFn: async (p) => {
+            const r = await synthesizeWorkflow(p.goal, { synthesizedBy: p.synthesizedBy });
+            return { ok: true, workflow: { id: r.workflow.id, name: r.workflow.name } };
+          },
+        });
+        return { ok: opegResult.approved, action: 'synthesize_workflow', opeg: opegResult.proposalId, approved: opegResult.approved, workflow: opegResult.executionResult?.workflow };
       }
       case 'publish_insight': {
         if (!action.insight) return { ok: false, error: 'insight required' };
