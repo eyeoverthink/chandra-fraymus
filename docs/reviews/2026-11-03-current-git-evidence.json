@@ -1,0 +1,77 @@
+{
+  "reviewedCommit": "d72e1c173b1d5d8d7e6d9f310263cf5abb73c794",
+  "baselineCommit": "5966361",
+  "validation": {
+    "changedServerSyntaxChecksPassed": 10,
+    "frontendBuildPassed": true,
+    "frontendModules": 254,
+    "inheritanceTestsPassed": 4,
+    "newTestFilesInReviewedCommits": 0,
+    "crossTabProbeDefectsStillReproduced": 4
+  },
+  "isolatedCoreProbe": {
+    "method": "Production functions with temporary SQLite; simulated forge DB effect; no live model or app mutation",
+    "rejectedForge": {
+      "approved": false,
+      "reason": "Agent forge did not produce a new agent",
+      "countCheck": "Agents: 3 -> 3",
+      "persistedForgedRows": 1
+    },
+    "noOpVerification": {
+      "approved": true,
+      "failedCheck": "memory_verified",
+      "verifiedCounts": [0, 0]
+    },
+    "emergencyNeurogenesis": {
+      "triggered": true,
+      "type": "emergency",
+      "forgeStimulusApproved": true,
+      "newForgedRows": 0
+    },
+    "stateBridge": {
+      "actualApprovedRows": 1,
+      "reportedTotal": 1,
+      "reportedApproved": 0
+    },
+    "ctrnnContinuity": {
+      "beforeRestartTick": 1,
+      "afterRestartTick": 0,
+      "snapshotWeightCount": 1000,
+      "requiredWeightCount": 65536,
+      "restoreApiPresent": false
+    },
+    "ctrnnSerialWorker": {
+      "neurons": 64,
+      "maxDifference": 0,
+      "allFinite": true
+    }
+  },
+  "readOnlyBrowserObservation": {
+    "initialUiTick": 13467,
+    "finalUiTick": 13467,
+    "backendTickAfterObservation": 13531,
+    "backendRunning": true,
+    "pageErrors": [],
+    "controlsUsed": false
+  },
+  "nexusContractProbe": {
+    "method": "In-memory SQLite and intercepted provider rejection",
+    "requestMessagesType": "string",
+    "isArray": false,
+    "requestMessagesValue": "http://127.0.0.1:11434",
+    "recommendations": [],
+    "error": "Ollama 400: {\"error\":\"Contract probe: messages must be an array\"}",
+    "itemCount": 1
+  },
+  "liveApiObservation": {
+    "healthOk": true,
+    "advertisedFeatures": 95,
+    "agentMemories": 15,
+    "vertisoMemories": 6,
+    "ouroborosCycles": 0,
+    "stateFossils": 0,
+    "opegApprovedNeurogenesisProposals": 2,
+    "ctrnnNeurons": 256,
+    "ctrnnActiveSynapses": 65536
+  }
+}
