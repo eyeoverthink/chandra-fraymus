@@ -13,6 +13,9 @@ import { randomUUID } from 'node:crypto';
 import { db } from '../db.js';
 import { chatOllama } from '../commerce/shared.js';
 import { publish } from '../fleet/bus.js';
+import { getAutonomyModifiers } from './consciousness-gate.js';
+
+const BASE_MAX_PROPOSALS = 2;
 
 const now = () => Date.now();
 
@@ -149,15 +152,23 @@ export async function generateGoals({ trigger = 'daemon' } = {}) {
     return { generated: false, reason: 'no_knowledge_base', landscape };
   }
 
+  const gateMods = getAutonomyModifiers();
+  const maxProposals = Math.min(5, Math.max(1, Math.round(BASE_MAX_PROPOSALS * gateMods.evolutionRate)));
+
+  const tierContext = `\n\nSystem consciousness tier: ${gateMods.tier} (${gateMods.proofsPassed}/4 proofs, evolution rate ${gateMods.evolutionRate}x). ` +
+    (gateMods.tier === 'DORMANT' ? 'Propose only safe, well-understood objectives. Avoid speculative or complex goals.' :
+     gateMods.tier === 'INTEGRATED' ? 'The system is fully coherent — propose ambitious, cross-domain objectives that push boundaries.' :
+     'Balance ambition with feasibility in your proposals.');
+
   const input = JSON.stringify(landscape, null, 2);
 
   const response = await chatOllama([
-    { role: 'system', content: GOAL_PROMPT },
-    { role: 'user', content: `Current system knowledge landscape:\n${input}` },
+    { role: 'system', content: GOAL_PROMPT + tierContext },
+    { role: 'user', content: `Current system knowledge landscape:\n${input}\n\nPropose up to ${maxProposals} objectives.` },
   ]);
 
   const parsed = parseJSON(response, { proposals: [], landscape_summary: 'Parse error' });
-  const proposals = (parsed.proposals || []).slice(0, 3);
+  const proposals = (parsed.proposals || []).slice(0, maxProposals);
 
   const stored = [];
   for (const p of proposals) {
@@ -185,7 +196,8 @@ export async function generateGoals({ trigger = 'daemon' } = {}) {
   try {
     publish('system', 'system.goals', JSON.stringify({
       action: 'goals_generated', count: stored.length, trigger,
-      proposals: stored.map(s => s.objective.slice(0, 100)), at: now(),
+      proposals: stored.map(s => s.objective.slice(0, 100)),
+      gateTier: gateMods.tier, maxProposals, at: now(),
     }));
   } catch (_) {}
 
@@ -195,6 +207,8 @@ export async function generateGoals({ trigger = 'daemon' } = {}) {
     proposals: stored,
     landscapeSummary: parsed.landscape_summary,
     landscape,
+    gateTier: gateMods.tier,
+    maxProposals,
   };
 }
 

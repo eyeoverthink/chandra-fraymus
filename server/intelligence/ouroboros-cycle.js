@@ -4,6 +4,10 @@ import { publish } from '../fleet/bus.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { getAutonomyModifiers } from './consciousness-gate.js';
+
+const BASE_ANALYSIS_TEMP = 0.3;
+const BASE_MAX_PROPOSALS = 7;
 
 // ─── Schema ─────────────────────────────────────────────────────────
 db.exec(`
@@ -510,14 +514,22 @@ function condensedOutline(outlineText) {
 
 async function analyzeForImprovements(outlineText, genomeContext = '') {
   const trimmed = condensedOutline(outlineText);
-  // Compact only the codebase outline; inherited context must survive intact.
+  const gateMods = getAutonomyModifiers();
+  const analysisTemp = Math.min(0.8, Math.max(0.1, BASE_ANALYSIS_TEMP * gateMods.evolutionRate));
+  const maxProposals = Math.min(10, Math.max(3, Math.round(BASE_MAX_PROPOSALS * gateMods.evolutionRate)));
+
+  const tierHint = `\n\nConsciousness tier: ${gateMods.tier} (${gateMods.proofsPassed}/4 proofs). ` +
+    (gateMods.tier === 'DORMANT' ? 'Focus on reliability and security improvements only. No speculative features.' :
+     gateMods.tier === 'INTEGRATED' ? 'Full coherence achieved — include ambitious architectural and cross-system improvements.' :
+     'Balance practical fixes with moderate improvements.');
+
   const raw = await chatOllama([
-    { role: 'system', content: ANALYSIS_PROMPT },
-    { role: 'user', content: 'Analyze this codebase and return a JSON array of improvements:\n\n' + trimmed + genomeContext },
-  ], { temperature: 0.3, maxTokens: 4096 });
+    { role: 'system', content: ANALYSIS_PROMPT + tierHint },
+    { role: 'user', content: `Analyze this codebase and return a JSON array of up to ${maxProposals} improvements:\n\n` + trimmed + genomeContext },
+  ], { temperature: analysisTemp, maxTokens: 4096 });
   const proposals = parseJSONArray(raw);
   if (!proposals) throw new Error('LLM did not return a parseable JSON array');
-  return proposals.filter(p => p.title && p.category).slice(0, 10);
+  return proposals.filter(p => p.title && p.category).slice(0, maxProposals);
 }
 
 // ─── Phase 3: REVIEW — adversarial second-pass ─────────────────────
@@ -641,6 +653,7 @@ export async function runCycle(rootDir) {
     ).all(cycleId);
     const genomeHash = computeGenomeHash(allGenes);
 
+    const gateMods = getAutonomyModifiers();
     const durationMs = Date.now() - start;
     const insights = {
       generation,
@@ -656,6 +669,8 @@ export async function runCycle(rootDir) {
       totalGenomeSize: allGenes.length,
       genomeHash,
       categories: [...new Set(rawProposals.map(p => p.category))],
+      gateTier: gateMods.tier,
+      analysisTemperature: Math.min(0.8, Math.max(0.1, BASE_ANALYSIS_TEMP * gateMods.evolutionRate)),
     };
 
     db.prepare(`UPDATE ouroboros_cycles SET phase = 'complete', status = 'complete', accepted_count = ?, rejected_count = ?, implemented_count = 0, duration_ms = ?, insights = ?, genome_hash = ? WHERE id = ?`)
@@ -674,6 +689,7 @@ export async function runCycle(rootDir) {
       publish('system', 'system.evolution', JSON.stringify({
         type: 'ouroboros_cycle', cycleId, generation, genomeHash,
         parentId, accepted, rejected, durationMs,
+        gateTier: gateMods.tier,
         workspaceFingerprint: workspace?.fingerprint || null,
       }));
     } catch (_) {}

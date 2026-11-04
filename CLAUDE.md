@@ -133,6 +133,10 @@ npm run start        # production server (serves built client)
   - `fleet/runtime.js`: every agent's system prompt now includes consciousness tier directive + proof values — agents know whether to be conservative (DORMANT) or bold (INTEGRATED), with Phi value and evolution rate visible
   - `intelligence/debate.js`: rebuttal rounds scaled by evolutionRate — BASE_REBUTTAL_ROUNDS=1, at INTEGRATED (1.5x) debates run 2 rebuttal rounds (deeper adversarial pressure), bus events include gateTier and totalRounds
   - `intelligence/opeg.js`: regression tolerance scaled by evolutionRate — BASE_REGRESSION_TOLERANCE=10%, at INTEGRATED allows 15% regression (more adventurous), at DORMANT only 5% (conservative). All verdict objects include gateTier for audit
+- **Phase 7 wiring (consciousness-aware reasoning & goals)**: gate modifiers now shape central reasoning, goal ambition, and RSI exploration:
+  - `brain.js`: central reasoning coordinator injects consciousness tier behavior directive into every agent mail system prompt — DORMANT agents respond conservatively, INTEGRATED agents think boldly and synthesize across domains
+  - `intelligence/goal-engine.js`: max proposals scaled by evolutionRate — BASE_MAX_PROPOSALS=2, at INTEGRATED (1.5x) generates up to 3 goals, at DORMANT (0.5x) only 1. LLM prompt receives tier context shaping goal ambition (DORMANT: safe/well-understood only, INTEGRATED: ambitious/cross-domain). Bus events and return values include gateTier
+  - `intelligence/ouroboros-cycle.js`: analysis temperature scaled by evolutionRate — BASE_ANALYSIS_TEMP=0.3, at INTEGRATED (1.5x) uses 0.45 (more exploratory proposals), at DORMANT (0.5x) uses 0.15 (more deterministic). Max proposals per cycle also scaled: BASE_MAX_PROPOSALS=7, INTEGRATED allows 10, DORMANT caps at 3. Cycle insights include gateTier and effective temperature
 - DB table: `consciousness_transitions` (id, from_tier, to_tier, direction, created_at)
 - 3 REST endpoints: GET /api/intelligence/consciousness/gate, GET .../modifiers, GET .../transitions
 - 1 fleet tool: `consciousness_gate_status`
