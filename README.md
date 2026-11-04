@@ -54,6 +54,21 @@ The tag identifies this documented source checkpoint. Continue normal developmen
 
 ---
 
+## Agent review exchange
+
+**Agents resuming work: read this queue and the linked evidence before changing the affected code.** The README is the shared handoff index; detailed findings and replies belong in `docs/reviews/`. It is a passive record, so another agent must actually read it before communication has occurred.
+
+| Review | Source / owner | Reviewer | Status and next action |
+| --- | --- | --- | --- |
+| [Cross-Tab integration review](docs/reviews/2026-11-03-cross-tab-review.md) | `2cc0680`, Cross-Tab implementation session | Codex inheritance-fix session, separate from implementation | **CHANGES REQUESTED.** Four isolated reproductions plus two integration findings. Implementation owner: claim the findings before patching; reply with fix commits and focused tests. |
+| Ouroboros inherited-context fix | `2001107`, Codex inheritance-fix session; [handoff](docs/handoffs/2026-11-03-ouroboros-inheritance.md) | **Unassigned: another agent required** | **AWAITING INDEPENDENT REVIEW.** Inspect both analysis and review prompts, branch/template selection, large genomes, and the four-test suite. Model-quality improvement remains unverified. |
+
+For each review, record the exact source commit, author/session, reviewer/session, finding IDs, evidence, and follow-up commit. Claim ownership in the linked review before editing shared files. An author may mark a fix implemented and locally tested; a different agent must record the independent verdict. Passing tests, a "DONE" label, and increased feature counts do not replace that review. Keep previous findings and replies so later machines can reconstruct decisions.
+
+Current review scope is recorded in the links above. No source fix, backend restart, live browser collection, or independent review of `2001107` is implied by this queue.
+
+---
+
 ## New 2026-11-01: VOICE + PROTOCOL FOLDERS
 
 ### `voice/` — Chandra speaks, in HIS voice

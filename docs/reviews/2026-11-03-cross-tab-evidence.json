@@ -1,0 +1,37 @@
+{
+  "reviewedCommit": "2cc0680b3b045065b3f53e7f5ad815307433c931",
+  "sourceSha256": "0e73d53cfbdf4321e10dca16b76e1874bebe558561451a3ad142708cfd7afab8",
+  "method": "Production functions; temporary SQLite; intercepted HTTP; no real model or browsing",
+  "observations": [
+    {
+      "id": "CT-01-classification-contract",
+      "requestMessagesType": "string",
+      "isArray": false,
+      "classified": false,
+      "classifyError": "Ollama 400: {\"error\":\"Contract probe: messages must be an array\"}"
+    },
+    {
+      "id": "CT-02-retry",
+      "deduplicated": true,
+      "classified": false,
+      "newModelCalls": 0,
+      "unclassified": 1
+    },
+    {
+      "id": "CT-01-insights-contract",
+      "requestMessagesType": "string",
+      "isArray": false,
+      "error": "Ollama 400: {\"error\":\"Contract probe: messages must be an array\"}"
+    },
+    {
+      "id": "CT-03-model-shape",
+      "storedTopicsType": "string",
+      "consumerError": "JSON.parse(...).map is not a function"
+    },
+    {
+      "id": "CT-04-pagination",
+      "threw": true,
+      "error": "datatype mismatch"
+    }
+  ]
+}
