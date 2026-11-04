@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/agents-33-orange" alt="Agents" />
   <img src="https://img.shields.io/badge/skills-42-blue" alt="Skills" />
   <img src="https://img.shields.io/badge/pipelines-12-red" alt="Pipelines" />
-  <img src="https://img.shields.io/badge/features-78-ff69b4" alt="Features" />
+  <img src="https://img.shields.io/badge/features-79-ff69b4" alt="Features" />
   <img src="https://img.shields.io/badge/license-private-lightgrey" alt="License" />
 </p>
 
@@ -108,7 +108,7 @@ No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your mode
    ║                    CHANDRA-FRAYMUS v3.0.0                       ║
    ║         Autonomous AI Commerce & Intelligence Platform          ║
    ║                                                                  ║
-   ║   33 Agents · 12 Pipelines · 78 Features · 42 Node Types        ║
+   ║   33 Agents · 12 Pipelines · 79 Features · 45 Node Types        ║
    ║   20 Workflow Definitions · 59 Fleet Tools · 26 UI Panels        ║
    ║   Perspective Meta-Cognition · Arena Mode · Lens Toggle          ║
    ║   Kuramoto Phase Sync · Ouroboros RSI · Ed25519 Identity         ║
@@ -145,7 +145,7 @@ No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your mode
   <img src="docs/screenshots/2026-11/agent-fleet-grid.jpg" alt="Agent Fleet — 33 agent selection grid" width="32%" />
 </p>
 
-> **Full system audit:** [docs/SYSTEM-AUDIT.md](docs/SYSTEM-AUDIT.md) — live endpoint data, 78-feature inventory, verified endpoints, security summary, architecture diagram
+> **Full system audit:** [docs/SYSTEM-AUDIT.md](docs/SYSTEM-AUDIT.md) — live endpoint data, 79-feature inventory, verified endpoints, security summary, architecture diagram
 >
 > **Perspective Agent docs:** [docs/PERSPECTIVE-AGENT.md](docs/PERSPECTIVE-AGENT.md) — the meta-cognitive bartender, arena mode, lens toggle, continuity plasmid
 
@@ -193,6 +193,7 @@ The intelligence stack was merged from two proprietary repos (`fraynix-continuit
 | **63–68** | Audience Intelligence, Content Repurposing, Logic Chain (multi-hop reasoning), Autonomous Goal Engine, Intelligence Observatory, Debate Protocol (multi-agent adversarial) |
 | **69** | Adaptive Model Router — LLM-driven model selection across 40+ Ollama models based on task complexity |
 | **70** | Deep Integration Layer — cross-subsystem event wiring, unified bus triggers, 78 features |
+| **71** | Cross-Tab Intelligence — browsing pattern analysis via Ollama classification (10 categories), topic clustering, insight generation, Perspective context injection, 10 REST endpoints, 6 fleet tools, 3 workflow nodes, 79 features |
 | **B** | **FRAYNIX Strength Synthesis** — 15 battle-tested governance patterns ported from FRAYNIX-DREAMER: self-healing watchdog, plasmid disaster recovery, state-seek-on-boot, fossil evolution, anti-invention evidence seals, negative control verification, consciousness falsification, Akashic structured record, hash-chained record, Strix budget laws, salvage-on-crash, replay engine, guard tasks, writ-governed tool execution, clock-honesty tagging |
 | **P** | **Perspective Agent** — Meta-cognitive "bartender" with 6 lenses (Human/Engineer/Creative/Strategic/Meta/Adversarial), 4th-wall instance awareness, arena mode (competitive multi-agent evaluation with playbook learning), Human/Machine lens toggle, Perspective-aware command routing (3s TAG-not-BLOCK), continuity plasmid (full state → DNA-encoded circular plasmid), 13 REST endpoints, 13 fleet tools |
 
@@ -1164,7 +1165,7 @@ Dark-themed React UI with 4 primary views + 22 detail panels (26 nav items total
 
 | Metric | Count |
 |--------|-------|
-| System Features | 78 |
+| System Features | 79 |
 | Agents | 33 (19 default + 14 forged) |
 | Pipelines | 12 (4 commerce + streaming + edit-rebuild + social + analytics + music + calendar + AB + trend) |
 | Intelligence Modules | 10 (Heart, Ledger, Dreamer, Cognition, Consciousness, Memory Bridge, Hermes, Motor, Perspective, Needle) |
@@ -1172,13 +1173,13 @@ Dark-themed React UI with 4 primary views + 22 detail panels (26 nav items total
 | FRAYNIX Governance Patterns | 15 |
 | Hermes Skills | 30 |
 | Workflow Definitions | 20 |
-| Canvas Node Types | 42 |
+| Canvas Node Types | 45 |
 | Entity Schemas | 49 |
-| Fleet Tools | 59+ (memory, web, workflow, delegation, intelligence, bus, agent-memory, evolution, NUDP, image, video, TTS, STT, OCR, Carbon X, Perspective, Arena, Streaming) |
+| Fleet Tools | 65+ (memory, web, workflow, delegation, intelligence, bus, agent-memory, evolution, NUDP, image, video, TTS, STT, OCR, Carbon X, Perspective, Arena, Streaming, Cross-Tab) |
 | API Endpoints | 350+ |
 | Product Types (Apparel) | 24 |
 | Frontend Views | 4 (Command Center, Constellation, Canvas, Library) |
-| Nav Panels | 26 (4 views + 22 detail panels) |
+| Nav Panels | 27 (4 views + 23 detail panels) |
 | FRAYMUS Tools | 42 |
 | MCP Gateway Tools | 18 |
 | Max Vertiso Memories | 10,000 |
@@ -1359,28 +1360,31 @@ A new Nexus view — a unified content feed that aggregates YouTube trending, Re
 - Content bookmarking with Memory Bridge persistence
 - Perspective-aware recommendations ("based on your playbook patterns, this trend matches")
 
-### Phase N+1: Cross-Tab Intelligence
+### Phase N+1: Cross-Tab Intelligence ✅ DONE
 
 > **The system learns from what you browse. You don't change your habits. The system gets smarter.**
 
-A context collector that watches browsing patterns across tabs (via the existing Chrome extension bridge) and feeds insights into Perspective + Memory Bridge. When the user opens Chandra, it already knows what they've been reading, watching, and shopping for — and connects the dots.
+A context collector that watches browsing patterns across tabs (via the existing Chrome extension bridge or manual ingest) and feeds insights into Perspective + Memory Bridge. When the user opens Chandra, it already knows what they've been reading, watching, and shopping for — and connects the dots.
 
-**Planned features:**
-- Chrome extension content extraction (title, summary, key entities)
-- Automatic topic clustering via Ollama embeddings
-- Trend detection across browsing sessions
-- Cross-tab knowledge graph (content X relates to product Y relates to trend Z)
-- Proactive suggestions: "You've been reading about X on Reddit and watching Y on YouTube — want to launch a content pipeline?"
-- Memory Bridge integration for long-term pattern recognition
+**Shipped (`2cc0680`):**
+- ✅ Ollama content classification into 10 categories (tech, news, entertainment, shopping, social, research, finance, creative, education, other)
+- ✅ Topic/entity extraction with sentiment and actionability scoring
+- ✅ Automatic topic clustering with strength scoring
+- ✅ Insight generation (emerging interests, cross-domain connections, suggestions)
+- ✅ Perspective context injection — agents know what you've been browsing
+- ✅ Memory Bridge integration for long-term pattern recognition
+- ✅ 10 REST endpoints, 6 fleet tools, 3 workflow nodes
+- ✅ CrossTab detail panel (5 tabs: Overview, Visits, Insights, Clusters, Ingest)
+- ✅ 5-minute visit dedup, configurable retention pruning
 
 ### Forecast: System Growth Trajectory
 
 | Metric | Current (Nov 2026) | Target (Q1 2027) | Target (Q2 2027) |
 |--------|-------------------|-------------------|-------------------|
-| Features | 78 | 90+ | 100+ |
+| Features | 79 | 90+ | 100+ |
 | Agents | 33 | 40+ | 50+ |
 | Pipelines | 12 | 16+ | 20+ |
-| Nav Panels | 26 | 30+ | 35+ |
+| Nav Panels | 27 | 30+ | 35+ |
 | Playbook Entries | Growing | 500+ patterns | 1000+ patterns |
 | Arena Matches | Growing | 100+ completed | 500+ completed |
 
