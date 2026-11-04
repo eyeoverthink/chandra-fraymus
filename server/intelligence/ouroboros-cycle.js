@@ -68,6 +68,19 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_workspace_cycle ON ouroboros_workspaces(cycle_id);
   CREATE INDEX IF NOT EXISTS idx_workspace_gen ON ouroboros_workspaces(generation);
+
+  CREATE TABLE IF NOT EXISTS ouroboros_templates (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    source_cycle_id TEXT,
+    source_generation INTEGER,
+    genome_snapshot TEXT NOT NULL,
+    workspace_snapshot TEXT,
+    fingerprint TEXT NOT NULL,
+    created_at DATETIME DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_templates_name ON ouroboros_templates(name);
 `);
 
 // Migrate existing cycles that lack generation columns
@@ -929,6 +942,230 @@ export function compareWorkspaces(cycleIdA, cycleIdB) {
   };
 }
 
+// ─── Export / Import / Templates ───────────────────────────────────
+
+const EXPORT_VERSION = '1.0.0';
+
+export function exportWorkspace(cycleId) {
+  const cycle = db.prepare(
+    `SELECT id, phase, status, parent_cycle_id, generation, genome_hash, proposal_count, accepted_count, rejected_count, implemented_count, duration_ms, insights, created_at FROM ouroboros_cycles WHERE id = ?`
+  ).get(cycleId);
+  if (!cycle) return null;
+
+  const proposals = db.prepare(`SELECT id, category, priority, title, description, target_files, rationale, implementation_sketch, status, review_verdict, review_notes FROM ouroboros_proposals WHERE cycle_id = ?`).all(cycleId);
+  for (const p of proposals) {
+    try { p.target_files = JSON.parse(p.target_files); } catch { p.target_files = []; }
+  }
+
+  const genome = db.prepare(
+    `SELECT g.proposal_id, g.gene_type, g.origin_cycle_id, g.generation_acquired, p.title, p.category, p.priority
+     FROM ouroboros_genome g JOIN ouroboros_proposals p ON g.proposal_id = p.id
+     WHERE g.cycle_id = ? AND g.active = 1`
+  ).all(cycleId);
+
+  const ws = getWorkspace(cycleId);
+
+  const bundle = {
+    version: EXPORT_VERSION,
+    exportedAt: new Date().toISOString(),
+    system: 'chandra-fraymus-ouroboros',
+    cycle: { ...cycle, insights: cycle.insights ? JSON.parse(cycle.insights) : null },
+    proposals,
+    genome,
+    workspace: ws ? { snapshot: ws.snapshot, fingerprint: ws.fingerprint, generation: ws.generation } : null,
+  };
+
+  bundle.checksum = createHash('sha256').update(JSON.stringify({ cycle: bundle.cycle, genome: bundle.genome })).digest('hex').slice(0, 16);
+  return bundle;
+}
+
+export function importWorkspace(bundle) {
+  if (!bundle || bundle.system !== 'chandra-fraymus-ouroboros') {
+    throw new Error('Invalid bundle: not a FRAYMUS Ouroboros export');
+  }
+  if (!bundle.cycle || !bundle.checksum) {
+    throw new Error('Invalid bundle: missing cycle data or checksum');
+  }
+
+  const verifyHash = createHash('sha256').update(JSON.stringify({ cycle: bundle.cycle, genome: bundle.genome })).digest('hex').slice(0, 16);
+  if (verifyHash !== bundle.checksum) {
+    throw new Error(`Integrity check failed: expected ${bundle.checksum}, got ${verifyHash}`);
+  }
+
+  const existing = db.prepare(`SELECT id FROM ouroboros_cycles WHERE id = ?`).get(bundle.cycle.id);
+  if (existing) {
+    throw new Error(`Cycle ${bundle.cycle.id} already exists in this system`);
+  }
+
+  const c = bundle.cycle;
+  db.prepare(
+    `INSERT INTO ouroboros_cycles (id, phase, status, parent_cycle_id, generation, genome_hash, proposal_count, accepted_count, rejected_count, implemented_count, duration_ms, insights, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(c.id, c.phase || 'complete', c.status || 'complete', null, c.generation || 1, c.genome_hash, c.proposal_count || 0, c.accepted_count || 0, c.rejected_count || 0, c.implemented_count || 0, c.duration_ms, c.insights ? JSON.stringify(c.insights) : null, c.created_at);
+
+  if (bundle.proposals?.length > 0) {
+    const ins = db.prepare(`INSERT INTO ouroboros_proposals (id, cycle_id, category, priority, title, description, target_files, rationale, implementation_sketch, status, review_verdict, review_notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    for (const p of bundle.proposals) {
+      ins.run(p.id, c.id, p.category, p.priority, p.title, p.description || '', JSON.stringify(p.target_files || []), p.rationale || '', p.implementation_sketch || '', p.status || 'accepted', p.review_verdict || '', p.review_notes || '');
+    }
+  }
+
+  if (bundle.genome?.length > 0) {
+    const gIns = db.prepare(`INSERT INTO ouroboros_genome (id, cycle_id, proposal_id, gene_type, origin_cycle_id, generation_acquired, active) VALUES (?, ?, ?, ?, ?, ?, 1)`);
+    for (const g of bundle.genome) {
+      gIns.run(uid(), c.id, g.proposal_id, g.gene_type || 'imported', g.origin_cycle_id || c.id, g.generation_acquired || c.generation || 1);
+    }
+  }
+
+  if (bundle.workspace) {
+    const ws = bundle.workspace;
+    db.prepare(`INSERT OR REPLACE INTO ouroboros_workspaces (id, cycle_id, generation, snapshot, fingerprint) VALUES (?, ?, ?, ?, ?)`)
+      .run(uid(), c.id, ws.generation || c.generation || 1, JSON.stringify(ws.snapshot), ws.fingerprint || 'imported');
+  }
+
+  return { cycleId: c.id, generation: c.generation, genomeSize: bundle.genome?.length || 0, proposalCount: bundle.proposals?.length || 0, hasWorkspace: !!bundle.workspace };
+}
+
+export function saveTemplate(cycleId, name, description) {
+  const cycle = db.prepare(`SELECT id, generation, genome_hash FROM ouroboros_cycles WHERE id = ?`).get(cycleId);
+  if (!cycle) throw new Error('Cycle not found');
+
+  const genome = db.prepare(
+    `SELECT g.proposal_id, g.gene_type, g.origin_cycle_id, g.generation_acquired, p.title, p.category, p.priority
+     FROM ouroboros_genome g JOIN ouroboros_proposals p ON g.proposal_id = p.id
+     WHERE g.cycle_id = ? AND g.active = 1`
+  ).all(cycleId);
+
+  const ws = getWorkspace(cycleId);
+  const genomeJson = JSON.stringify(genome);
+  const wsJson = ws ? JSON.stringify(ws.snapshot) : null;
+  const fingerprint = createHash('sha256').update(genomeJson + (wsJson || '')).digest('hex').slice(0, 16);
+
+  const id = uid();
+  db.prepare(`INSERT INTO ouroboros_templates (id, name, description, source_cycle_id, source_generation, genome_snapshot, workspace_snapshot, fingerprint) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(id, name, description || '', cycleId, cycle.generation || 1, genomeJson, wsJson, fingerprint);
+
+  return { id, name, description, sourceCycleId: cycleId, sourceGeneration: cycle.generation || 1, genomeSize: genome.length, hasWorkspace: !!ws, fingerprint };
+}
+
+export function listTemplates() {
+  return db.prepare(`SELECT id, name, description, source_cycle_id, source_generation, fingerprint, created_at FROM ouroboros_templates ORDER BY created_at DESC`).all();
+}
+
+export function getTemplate(templateId) {
+  const t = db.prepare(`SELECT * FROM ouroboros_templates WHERE id = ?`).get(templateId);
+  if (!t) return null;
+  t.genome = JSON.parse(t.genome_snapshot);
+  t.workspace = t.workspace_snapshot ? JSON.parse(t.workspace_snapshot) : null;
+  return t;
+}
+
+export function deleteTemplate(templateId) {
+  const t = db.prepare(`SELECT id FROM ouroboros_templates WHERE id = ?`).get(templateId);
+  if (!t) return false;
+  db.prepare(`DELETE FROM ouroboros_templates WHERE id = ?`).run(templateId);
+  return true;
+}
+
+export async function instantiateTemplate(templateId, rootDir) {
+  const template = getTemplate(templateId);
+  if (!template) throw new Error('Template not found');
+
+  const cycleId = uid();
+  const start = Date.now();
+  const generation = (template.source_generation || 1) + 1;
+
+  db.prepare(`INSERT INTO ouroboros_cycles (id, phase, status, parent_cycle_id, generation) VALUES (?, 'absorb', 'running', ?, ?)`)
+    .run(cycleId, template.source_cycle_id, generation);
+
+  try {
+    // Seed genome from template
+    const gIns = db.prepare(`INSERT INTO ouroboros_genome (id, cycle_id, proposal_id, gene_type, origin_cycle_id, generation_acquired, active) VALUES (?, ?, ?, 'inherited', ?, ?, 1)`);
+    for (const g of template.genome) {
+      gIns.run(uid(), cycleId, g.proposal_id, g.origin_cycle_id || template.source_cycle_id, g.generation_acquired || template.source_generation);
+    }
+
+    // Fresh absorb + analyze with template context
+    const outline = absorbCodebase(rootDir || process.cwd());
+    const outlineText = outlineToText(outline);
+    const outlineHash = createHash('sha256').update(outlineText.slice(0, 4000)).digest('hex').slice(0, 16);
+
+    db.prepare(`UPDATE ouroboros_cycles SET phase = 'absorb_done', outline = ?, outline_hash = ? WHERE id = ?`)
+      .run(outlineText, outlineHash, cycleId);
+
+    db.prepare(`UPDATE ouroboros_cycles SET phase = 'analyze' WHERE id = ?`).run(cycleId);
+
+    const templateContext = template.genome.length > 0
+      ? `\n\nThis cycle is seeded from template "${template.name}" (Gen ${template.source_generation}). Template genome carries ${template.genome.length} genes:\n${template.genome.map(g => `- [${g.category}] ${g.title}`).join('\n')}\n\nPropose improvements that BUILD ON these proven patterns. Avoid re-proposing what is already in the genome.`
+      : '';
+
+    const rawProposals = await analyzeForImprovements(outlineText + templateContext);
+
+    const insert = db.prepare(`INSERT INTO ouroboros_proposals (id, cycle_id, category, priority, title, description, target_files, rationale, implementation_sketch) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    for (const p of rawProposals) {
+      insert.run(uid(), cycleId, p.category || 'refactor', p.priority || 'medium', p.title, p.description || '', JSON.stringify(p.targetFiles || []), p.rationale || '', p.implementationSketch || '');
+    }
+
+    db.prepare(`UPDATE ouroboros_cycles SET phase = 'analyze_done', proposal_count = ? WHERE id = ?`).run(rawProposals.length, cycleId);
+
+    // Review
+    db.prepare(`UPDATE ouroboros_cycles SET phase = 'review' WHERE id = ?`).run(cycleId);
+    const storedProposals = db.prepare(`SELECT * FROM ouroboros_proposals WHERE cycle_id = ?`).all(cycleId);
+    const reviews = await reviewProposals(storedProposals, outlineText);
+
+    let accepted = 0, rejected = 0;
+    const updateP = db.prepare(`UPDATE ouroboros_proposals SET status = ?, review_verdict = ?, review_notes = ? WHERE id = ?`);
+    for (const r of reviews) {
+      const prop = storedProposals.find(p => p.id === r.proposalId);
+      if (!prop) continue;
+      const status = r.verdict === 'approve' ? 'accepted' : r.verdict === 'reject' ? 'rejected' : 'needs_revision';
+      updateP.run(status, r.verdict, r.notes || '', prop.id);
+      if (r.verdict === 'approve') accepted++;
+      else if (r.verdict === 'reject') rejected++;
+    }
+    const unreviewed = storedProposals.filter(p => !reviews.find(r => r.proposalId === p.id));
+    for (const p of unreviewed) {
+      updateP.run('accepted', 'approve', 'Auto-accepted (not challenged by reviewer)', p.id);
+      accepted++;
+    }
+
+    addMutations(cycleId, db.prepare(`SELECT id FROM ouroboros_proposals WHERE cycle_id = ? AND status = 'accepted'`).all(cycleId), generation);
+
+    const allGenes = db.prepare(`SELECT proposal_id FROM ouroboros_genome WHERE cycle_id = ? AND active = 1`).all(cycleId);
+    const genomeHash = computeGenomeHash(allGenes);
+
+    const durationMs = Date.now() - start;
+    const insights = {
+      generation, templateId, templateName: template.name,
+      sourceCycleId: template.source_cycle_id, sourceGeneration: template.source_generation,
+      inheritedGenes: template.genome.length,
+      filesScanned: outline.stats.totalFiles, linesAnalyzed: outline.stats.totalLines,
+      proposalsGenerated: rawProposals.length, accepted, rejected,
+      newMutations: db.prepare(`SELECT COUNT(*) as c FROM ouroboros_proposals WHERE cycle_id = ? AND status = 'accepted'`).get(cycleId).c,
+      totalGenomeSize: allGenes.length, genomeHash,
+    };
+
+    db.prepare(`UPDATE ouroboros_cycles SET phase = 'complete', status = 'complete', accepted_count = ?, rejected_count = ?, duration_ms = ?, insights = ?, genome_hash = ? WHERE id = ?`)
+      .run(accepted, rejected, durationMs, JSON.stringify(insights), genomeHash, cycleId);
+
+    let workspace = null;
+    try { workspace = captureWorkspace(cycleId, rootDir || process.cwd()); } catch {}
+
+    try {
+      publish('system', 'system.evolution', JSON.stringify({
+        type: 'ouroboros_template_instantiate', cycleId, generation, genomeHash,
+        templateId, templateName: template.name, accepted, rejected, durationMs,
+        workspaceFingerprint: workspace?.fingerprint || null,
+      }));
+    } catch (_) {}
+
+    return { cycleId, ...insights, durationMs, workspaceFingerprint: workspace?.fingerprint || null };
+  } catch (err) {
+    db.prepare(`UPDATE ouroboros_cycles SET status = 'failed', insights = ? WHERE id = ?`)
+      .run(JSON.stringify({ error: err.message, templateId }), cycleId);
+    throw err;
+  }
+}
+
 // ─── Routes ─────────────────────────────────────────────────────────
 
 export function installOuroborosCycleRoutes(app) {
@@ -1047,6 +1284,63 @@ export function installOuroborosCycleRoutes(app) {
     try {
       const workspaces = db.prepare(`SELECT id, cycle_id, generation, fingerprint, created_at FROM ouroboros_workspaces ORDER BY generation DESC`).all();
       res.json({ workspaces });
+    } catch (e) { next(e); }
+  });
+
+  // ── Export / Import endpoints ──
+
+  app.get('/api/intelligence/ouroboros-cycle/export/:cycleId', (req, res, next) => {
+    try {
+      const bundle = exportWorkspace(req.params.cycleId);
+      if (!bundle) return res.status(404).json({ error: 'Cycle not found' });
+      res.json(bundle);
+    } catch (e) { next(e); }
+  });
+
+  app.post('/api/intelligence/ouroboros-cycle/import', (req, res, next) => {
+    try {
+      const result = importWorkspace(req.body);
+      res.json(result);
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  // ── Template endpoints ──
+
+  app.get('/api/intelligence/ouroboros-cycle/templates', (_req, res, next) => {
+    try { res.json({ templates: listTemplates() }); } catch (e) { next(e); }
+  });
+
+  app.post('/api/intelligence/ouroboros-cycle/templates', (req, res, next) => {
+    try {
+      const { cycleId, name, description } = req.body;
+      if (!cycleId || !name) return res.status(400).json({ error: 'cycleId and name are required' });
+      const result = saveTemplate(cycleId, name, description);
+      res.json(result);
+    } catch (e) { next(e); }
+  });
+
+  app.get('/api/intelligence/ouroboros-cycle/templates/:id', (req, res, next) => {
+    try {
+      const t = getTemplate(req.params.id);
+      if (!t) return res.status(404).json({ error: 'Template not found' });
+      res.json(t);
+    } catch (e) { next(e); }
+  });
+
+  app.delete('/api/intelligence/ouroboros-cycle/templates/:id', (req, res, next) => {
+    try {
+      const ok = deleteTemplate(req.params.id);
+      if (!ok) return res.status(404).json({ error: 'Template not found' });
+      res.json({ deleted: true });
+    } catch (e) { next(e); }
+  });
+
+  app.post('/api/intelligence/ouroboros-cycle/templates/:id/instantiate', async (req, res, next) => {
+    try {
+      const result = await instantiateTemplate(req.params.id, req.body.rootDir || process.cwd());
+      res.json(result);
     } catch (e) { next(e); }
   });
 

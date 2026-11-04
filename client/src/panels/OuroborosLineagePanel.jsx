@@ -367,6 +367,13 @@ export default function OuroborosLineagePanel({ wsEvent }) {
   const [compareData, setCompareData] = useState(null);
   const [compareTarget, setCompareTarget] = useState(null);
   const [forking, setForking] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [templateName, setTemplateName] = useState('');
+  const [templateDesc, setTemplateDesc] = useState('');
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const [instantiating, setInstantiating] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -377,10 +384,18 @@ export default function OuroborosLineagePanel({ wsEvent }) {
     } catch (e) { setError(e.message); }
   }, []);
 
-  useEffect(() => { loadLineage(); }, [loadLineage]);
+  const loadTemplates = useCallback(async () => {
+    try {
+      const res = await fetch('/api/intelligence/ouroboros-cycle/templates');
+      const data = await res.json();
+      setTemplates(data.templates || []);
+    } catch {}
+  }, []);
+
+  useEffect(() => { loadLineage(); loadTemplates(); }, [loadLineage, loadTemplates]);
   useEffect(() => {
-    if (wsEvent?.type === 'ouroboros' || wsEvent?.type === 'evolution') loadLineage();
-  }, [wsEvent, loadLineage]);
+    if (wsEvent?.type === 'ouroboros' || wsEvent?.type === 'evolution') { loadLineage(); loadTemplates(); }
+  }, [wsEvent, loadLineage, loadTemplates]);
 
   const selectCycle = async (id) => {
     setSelectedId(id);
@@ -450,12 +465,90 @@ export default function OuroborosLineagePanel({ wsEvent }) {
     setLoading(false);
   };
 
+  const exportBundle = async (cycleId) => {
+    try {
+      const res = await fetch(`/api/intelligence/ouroboros-cycle/export/${cycleId}`);
+      if (!res.ok) throw new Error((await res.json()).error);
+      const bundle = await res.json();
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ouroboros-gen${bundle.cycle.generation}-${cycleId.slice(0, 8)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) { setError(e.message); }
+  };
+
+  const handleImportFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    setImportResult(null);
+    setError('');
+    try {
+      const text = await file.text();
+      const bundle = JSON.parse(text);
+      const res = await fetch('/api/intelligence/ouroboros-cycle/import', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bundle),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      const result = await res.json();
+      setImportResult(result);
+      await loadLineage();
+      selectCycle(result.cycleId);
+    } catch (e) { setError(e.message); }
+    setImporting(false);
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!selectedId || !templateName.trim()) return;
+    setSavingTemplate(true);
+    setError('');
+    try {
+      const res = await fetch('/api/intelligence/ouroboros-cycle/templates', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycleId: selectedId, name: templateName.trim(), description: templateDesc.trim() }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      await loadTemplates();
+      setTemplateName('');
+      setTemplateDesc('');
+      setTab('templates');
+    } catch (e) { setError(e.message); }
+    setSavingTemplate(false);
+  };
+
+  const handleInstantiate = async (templateId) => {
+    setInstantiating(templateId);
+    setError('');
+    try {
+      const res = await fetch(`/api/intelligence/ouroboros-cycle/templates/${templateId}/instantiate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      const result = await res.json();
+      await loadLineage();
+      selectCycle(result.cycleId);
+      setTab('workspace');
+    } catch (e) { setError(e.message); }
+    setInstantiating(null);
+  };
+
+  const handleDeleteTemplate = async (templateId) => {
+    try {
+      await fetch(`/api/intelligence/ouroboros-cycle/templates/${templateId}`, { method: 'DELETE' });
+      await loadTemplates();
+    } catch (e) { setError(e.message); }
+  };
+
   const tabs = [
     { id: 'graph', label: 'Lineage Graph' },
     { id: 'timeline', label: 'Evolution Timeline' },
     { id: 'genome', label: 'Genome Browser' },
     { id: 'workspace', label: 'Workspace' },
     { id: 'compare', label: 'Compare' },
+    { id: 'templates', label: 'Templates' },
   ];
 
   const cycles = lineage?.cycles || [];
@@ -676,18 +769,26 @@ export default function OuroborosLineagePanel({ wsEvent }) {
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#059669' }}>
                   Workspace — Generation {selectedDetail?.generation || '?'}
                 </span>
-                {!workspace && (
-                  <button onClick={() => captureWorkspace(selectedId)} disabled={loading}
-                    style={{ padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: '#059669', color: '#fff', opacity: loading ? 0.5 : 1 }}>
-                    {loading ? 'Capturing...' : 'Capture Workspace'}
-                  </button>
-                )}
-                {workspace && (
-                  <button onClick={() => captureWorkspace(selectedId)} disabled={loading}
-                    style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid #333', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: 'none', color: '#a0a0b8', opacity: loading ? 0.5 : 1 }}>
-                    {loading ? 'Recapturing...' : 'Recapture'}
-                  </button>
-                )}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {workspace && (
+                    <button onClick={() => exportBundle(selectedId)}
+                      style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid #059669', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: 'none', color: '#059669' }}>
+                      Export
+                    </button>
+                  )}
+                  {!workspace && (
+                    <button onClick={() => captureWorkspace(selectedId)} disabled={loading}
+                      style={{ padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: '#059669', color: '#fff', opacity: loading ? 0.5 : 1 }}>
+                      {loading ? 'Capturing...' : 'Capture Workspace'}
+                    </button>
+                  )}
+                  {workspace && (
+                    <button onClick={() => captureWorkspace(selectedId)} disabled={loading}
+                      style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid #333', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: 'none', color: '#a0a0b8', opacity: loading ? 0.5 : 1 }}>
+                      {loading ? 'Recapturing...' : 'Recapture'}
+                    </button>
+                  )}
+                </div>
               </div>
               {wsDiff && (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
@@ -734,9 +835,94 @@ export default function OuroborosLineagePanel({ wsEvent }) {
                   </div>
                 </div>
               )}
+              {/* Save as Template */}
+              {workspace && (
+                <div style={{ marginTop: 8, padding: 12, background: '#0f0d1a', borderRadius: 8, border: '1px solid #1e1b2e' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#f59e0b', marginBottom: 6 }}>Save as Template</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <input value={templateName} onChange={e => setTemplateName(e.target.value)} placeholder="Template name..."
+                      style={{ flex: 1, minWidth: 140, padding: '5px 10px', borderRadius: 4, border: '1px solid #333', background: '#0a0a0f', color: '#e0e0f0', fontSize: 11 }} />
+                    <input value={templateDesc} onChange={e => setTemplateDesc(e.target.value)} placeholder="Description (optional)..."
+                      style={{ flex: 2, minWidth: 160, padding: '5px 10px', borderRadius: 4, border: '1px solid #333', background: '#0a0a0f', color: '#e0e0f0', fontSize: 11 }} />
+                    <button onClick={handleSaveTemplate} disabled={savingTemplate || !templateName.trim()}
+                      style={{ padding: '5px 14px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: templateName.trim() ? '#f59e0b' : '#333', color: '#fff', opacity: savingTemplate ? 0.5 : 1 }}>
+                      {savingTemplate ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Import */}
+              <div style={{ marginTop: 8, padding: 12, background: '#0f0d1a', borderRadius: 8, border: '1px solid #1e1b2e' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#3b82f6' }}>Import Workspace Bundle</div>
+                    <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2 }}>Load a previously exported generation</div>
+                  </div>
+                  <label style={{ padding: '5px 14px', borderRadius: 6, border: '1px solid #3b82f6', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: '#3b82f6', opacity: importing ? 0.5 : 1 }}>
+                    {importing ? 'Importing...' : 'Choose File'}
+                    <input type="file" accept=".json" onChange={handleImportFile} style={{ display: 'none' }} disabled={importing} />
+                  </label>
+                </div>
+                {importResult && (
+                  <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <Badge text="Imported" color="#22c55e" />
+                    <Badge text={`Gen ${importResult.generation}`} color="#059669" />
+                    <Badge text={`${importResult.genomeSize} genes`} color="#c4b5fd" />
+                    <Badge text={`${importResult.proposalCount} proposals`} color="#f59e0b" />
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </>
+      )}
+
+      {/* Templates Tab */}
+      {tab === 'templates' && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#f59e0b' }}>Workspace Templates</span>
+            <span style={{ fontSize: 11, color: '#6b7280' }}>{templates.length} template{templates.length !== 1 ? 's' : ''}</span>
+          </div>
+
+          {templates.length === 0 ? (
+            <div style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>
+              <div style={{ fontSize: 24, marginBottom: 8 }}>📋</div>
+              <div style={{ fontSize: 13, marginBottom: 4 }}>No templates saved yet</div>
+              <div style={{ fontSize: 11 }}>Select a generation in the Workspace tab and save it as a template to seed future cycles.</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {templates.map(t => (
+                <div key={t.id} style={{ background: '#1a1730', borderRadius: 8, padding: 12, border: '1px solid #2a2740' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#f59e0b' }}>{t.name}</div>
+                      {t.description && <div style={{ fontSize: 11, color: '#a0a0b8', marginTop: 2 }}>{t.description}</div>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => handleInstantiate(t.id)} disabled={instantiating === t.id}
+                        style={{ padding: '4px 12px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                          background: instantiating === t.id ? '#333' : 'linear-gradient(135deg, #f59e0b, #059669)', color: '#fff', opacity: instantiating === t.id ? 0.5 : 1 }}>
+                        {instantiating === t.id ? 'Running...' : 'Instantiate'}
+                      </button>
+                      <button onClick={() => handleDeleteTemplate(t.id)}
+                        style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid #333', background: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 11 }}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <Badge text={`Gen ${t.source_generation}`} color="#059669" />
+                    <Badge text={t.fingerprint?.slice(0, 8)} color="#6366f1" />
+                    <span style={{ fontSize: 10, color: '#4b5563' }}>{t.created_at ? new Date(t.created_at + 'Z').toLocaleString() : ''}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Compare Tab */}
