@@ -21,7 +21,7 @@
 
 <p align="center">
   <a href="#-quick-start">Quick Start</a> · 
-  <a href="#handoff-checkpoint-2026-11-03">Latest Handoff</a> ·
+  <a href="#handoff-checkpoint-2026-11-04">Latest Handoff</a> ·
   <a href="APP-STATUS.md">App Status</a> ·
   <a href="#-intelligence-stack">Intelligence</a> · 
   <a href="#perspective--the-meta-cognitive-bartender">Perspective</a> · 
@@ -34,23 +34,28 @@
 
 ---
 
-## Handoff checkpoint 2026-11-03
+## Handoff checkpoint 2026-11-04
+
+### DB Persistence & Daemon Auto-Start Fix
+
+Three root causes of database corruption and system amnesia identified and fixed:
+
+| Root Cause | Fix | File |
+|-----------|-----|------|
+| **No WAL checkpoint on startup** — a killed process leaves a dirty WAL that corrupts the DB on next open | `db.pragma('wal_checkpoint(TRUNCATE)')` immediately after opening | `server/db.js` |
+| **No safety-net `db.close()`** — graceful shutdown puts `db.close()` inside a callback that may never fire if Windows kills the process | `process.on('exit', () => db.close())` as last-resort handler | `server/db.js` |
+| **Daemon never auto-starts** — the 8-step background loop (dream consolidation, prompt evolution, chain findings, reflection, goal generation, ouroboros RSI, state bridge snapshots, fossil prune) required a manual API call; with 0 daemon cycles, the system had no dreams, no evolved prompts, no state fossils | Import `startDaemon`/`stopDaemon`, auto-start alongside autonomy, stop on shutdown | `server/app.js` |
+
+- **Runtime action:** restart the backend. The daemon starts automatically on boot — no manual `POST /api/daemon/start` needed. WAL recovery runs on every startup.
+- **Machine continuity:** Git carries source. Transfer `data/`, `.env`, and Ollama models separately.
+
+### Previous: 2026-11-03
 
 **Git tag:** [`handoff/ouroboros-inheritance-2026-11-03`](https://github.com/eyeoverthink/chandra-fraymus/tree/handoff/ouroboros-inheritance-2026-11-03)
 
-**Next machine or agent: start with [the checkpoint handoff](docs/handoffs/2026-11-03-ouroboros-inheritance.md).**
-
-- **Fixed in `2001107`:** inherited genome context now reaches both the generator and reviewer in ordinary, forked, and template-based Ouroboros cycles. Outline compaction no longer drops ancestor guidance.
-- **Verified:** all four isolated regression tests pass, plus JavaScript syntax checks. Tests exercise actual cycle functions with a temporary SQLite database and intercepted model requests. Live model quality and the full application suite were not evaluated in this fix.
-- **Included adjacent work:** Cross-Tab Intelligence (`2cc0680`), committed separately by the other agent. Its presence in this checkpoint does not imply it was tested by the inheritance suite.
-- **Runtime action:** restart the backend after updating. The process checked during this handoff still predates the latest source; a browser refresh does not reload backend modules.
-- **Machine continuity:** Git carries source and tests. Transfer the configured data directory, local `.env`, and required Ollama models separately to retain memories, generation history, agent overrides, and identity. Follow the handoff for transfer and verification steps.
-
-```bash
-node --test test/ouroboros-inheritance.test.js
-```
-
-The tag identifies this documented source checkpoint. Continue normal development on `master`; an in-app generation fork is separate from Git branching.
+- **Fixed in `2001107`:** inherited genome context now reaches both the generator and reviewer in ordinary, forked, and template-based Ouroboros cycles.
+- **Included adjacent work:** Cross-Tab Intelligence (`2cc0680`), committed separately by the other agent.
+- **Full details:** [the checkpoint handoff](docs/handoffs/2026-11-03-ouroboros-inheritance.md)
 
 ---
 
@@ -155,7 +160,7 @@ No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your mode
 
 ---
 
-## What's New — Phases 1–53
+## What's New — Phases 1–72
 
 The intelligence stack was merged from two proprietary repos (`fraynix-continuity` and `fraynix-dreamer-120b`) and deeply integrated across every surface of the system:
 
@@ -198,6 +203,7 @@ The intelligence stack was merged from two proprietary repos (`fraynix-continuit
 | **69** | Adaptive Model Router — LLM-driven model selection across 40+ Ollama models based on task complexity |
 | **70** | Deep Integration Layer — cross-subsystem event wiring, unified bus triggers, 78 features |
 | **71** | Cross-Tab Intelligence — browsing pattern analysis via Ollama classification (10 categories), topic clustering, insight generation, Perspective context injection, 10 REST endpoints, 6 fleet tools, 3 workflow nodes, 79 features |
+| **72** | DB Persistence & Daemon Auto-Start — WAL checkpoint on startup, process.on('exit') safety net, daemon engine auto-starts with autonomy (dream consolidation, prompt evolution, state fossils, chain findings, goal generation, ouroboros RSI all now run automatically) |
 | **B** | **FRAYNIX Strength Synthesis** — 15 battle-tested governance patterns ported from FRAYNIX-DREAMER: self-healing watchdog, plasmid disaster recovery, state-seek-on-boot, fossil evolution, anti-invention evidence seals, negative control verification, consciousness falsification, Akashic structured record, hash-chained record, Strix budget laws, salvage-on-crash, replay engine, guard tasks, writ-governed tool execution, clock-honesty tagging |
 | **P** | **Perspective Agent** — Meta-cognitive "bartender" with 6 lenses (Human/Engineer/Creative/Strategic/Meta/Adversarial), 4th-wall instance awareness, arena mode (competitive multi-agent evaluation with playbook learning), Human/Machine lens toggle, Perspective-aware command routing (3s TAG-not-BLOCK), continuity plasmid (full state → DNA-encoded circular plasmid), 13 REST endpoints, 13 fleet tools |
 

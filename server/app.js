@@ -21,6 +21,7 @@ import { DATA_DIR } from './config.js';
 import { handleExtensionWs } from './browser/extension-bridge.js';
 import { getObsBridge } from './streaming/overlay.js';
 import { closeBrowser } from './browser/service.js';
+import { startDaemon, stopDaemon } from './daemon/engine.js';
 import {
   ensureV3Initialized,
   getV3State,
@@ -369,6 +370,7 @@ let syncTimer;
 async function stop() {
   if(stopping)return;stopping=true;ready=false;clearInterval(syncTimer);clearInterval(wsHeartbeat);
   try { stopScheduler(); } catch (e) { console.error('shutdown: scheduler stop failed:', e.message); }
+  try { stopDaemon(); } catch (e) { console.error('shutdown: daemon stop failed:', e.message); }
   try { await closeBrowser(); } catch (e) { console.error('shutdown: browser close failed:', e.message); }
   if(runtime) {
     let closed=await runtime.close();
@@ -399,10 +401,11 @@ listenThenInitialize(server,{host:HOST,port:PORT,initialize:async()=>{
   } catch(e) { console.error(`Scheduler deferred: ${e.message}`); }
   if(process.env.FRAYMUS_AUTONOMY_AUTOSTART !== '0') {
     try { await runtime.autonomy.start(); } catch(e) { console.error(`Autonomy engine deferred: ${e.message}`); }
+    try { startDaemon(); } catch(e) { console.error(`Daemon engine deferred: ${e.message}`); }
   }
   ready=true;
   logEvent('server.start','chandra-fraymus',`listening :${PORT} · autonomy=${runtime.autonomy.running}`);
-  console.log(`Chandra + FRAYMUS on http://${HOST}:${PORT} (ws: /ws) · Autonomy: ${runtime.autonomy.running ? 'ACTIVE' : 'standby'}`);
+  console.log(`Chandra + FRAYMUS on http://${HOST}:${PORT} (ws: /ws) · Autonomy: ${runtime.autonomy.running ? 'ACTIVE' : 'standby'} · Daemon: ACTIVE`);
   doSync();syncTimer=setInterval(doSync,SYNC_MS);
 }}).catch(async error=>{
   if(stopping)return;

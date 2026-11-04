@@ -11,6 +11,15 @@ export const db = new Database(join(dataDir, 'chandra.db'));
 db.pragma('journal_mode = WAL');
 db.pragma('synchronous = FULL');
 
+// Checkpoint any leftover WAL from a previous unclean shutdown.
+// Without this, a stale WAL left by a killed process corrupts on recovery.
+try { db.pragma('wal_checkpoint(TRUNCATE)'); } catch (_) {}
+
+// Last-resort safety net: if the process exits without a graceful stop()
+// call (e.g. Windows kills it, Ctrl+C during init, crash), close the DB
+// so the WAL is checkpointed rather than left dirty on disk.
+process.on('exit', () => { try { db.close(); } catch (_) {} });
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS agents (
   id TEXT PRIMARY KEY,
