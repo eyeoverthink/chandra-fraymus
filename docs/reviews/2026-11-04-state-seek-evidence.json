@@ -1,0 +1,40 @@
+    "pass": true,
+    "detail": "healed: 1"
+  },
+  "manifest:has_name": {
+    "pass": true,
+    "detail": "name: CHANDRA-FRAYMUS"
+  },
+  "manifest:has_artifacts": {
+    "pass": true,
+    "detail": "count: 6"
+  },
+  "manifest:has_boot_seek": {
+    "pass": true,
+    "detail": "boot_seek: {\"intact\":5,\"tampered\":1,\"missing\":0,\"healed\":1}"
+  },
+  "verdict:no_error": {
+    "pass": true,
+    "detail": "verdict: HEALED_1_FILES"
+  },
+  "manifest:readable": {
+    "pass": true,
+    "detail": "readable: true"
+  },
+  "manifest:matches_report": {
+    "pass": true,
+    "detail": "built: 2026-11-04T10:46:43.436Z"
+  },
+  "artifact:has_sha256": {
+    "pass": true,
+    "detail": "first: chandra.db -> da63a52bdf62b3fc..."
+  },
+  "artifact:has_bytes": {
+    "pass": true,
+    "detail": "bytes: 4096"
+  },
+  "perf:under_10s": {
+    "pass": true,
+    "detail": "duration: 69ms"
+  }
+}

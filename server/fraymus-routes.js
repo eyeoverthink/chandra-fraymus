@@ -1,6 +1,7 @@
 import express from 'express';
 import { createFraymusTools, heart, ledger, dreamer, remembered, cognition, needle, needleWorker, motor, hermes, ouroboros, ep3Sensor, canaryArray, streamCanary } from './fraymus-tools.js';
 import { continuitySelftest } from './integrity/continuity-selftest.js';
+import { stateSeekOnBoot, getBootManifest } from './integrity/state-seek.js';
 import { evaluateEp3Sensor } from './fraymus/intelligence/ep3.js';
 import { sanitizeStreamText, detectSecretPrefixes } from './fraymus/intelligence/transcoder4d.js';
 import { getInterceptorStats, resetInterceptorStats } from './fraymus/intelligence/ollama-sanitize.js';
@@ -212,6 +213,17 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
     res.json(continuitySelftest({ dreamer, remembered, ledger, ouroboros }));
   }));
 
+  // ── State Seek (boot-time integrity verification) ──
+  app.get('/api/fraymus/state-seek', route(async (_req, res) => {
+    res.json(stateSeekOnBoot({ broadcast }));
+  }));
+
+  app.get('/api/fraymus/boot-manifest', route(async (_req, res) => {
+    const manifest = getBootManifest();
+    if (!manifest) return res.status(404).json({ error: 'no boot manifest yet' });
+    res.json(manifest);
+  }));
+
   // ── Cognition (two-speed pipeline) ──
   app.post('/api/fraymus/cognition/process', route(async (req, res) => {
     const { text, skipThink } = req.body;
@@ -415,6 +427,7 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
       memoryBridge: memStats,
       hermes: { ...hermesManifest, history: hermes.history.slice(-20) },
       ouroboros: { generation: ouroboros.generation, fitness: ouroboros.fitness },
+      bootManifest: getBootManifest() || { available: false },
     });
   }));
 

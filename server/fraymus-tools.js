@@ -31,6 +31,7 @@ import { isClockTrusted } from './integrity/clock-honesty.js';
 import { Dreamer } from './fraymus/intelligence/dreamer.js';
 import { RememberedVault } from './fraymus/intelligence/remembered.js';
 import { continuitySelftest } from './integrity/continuity-selftest.js';
+import { stateSeekOnBoot, getBootManifest } from './integrity/state-seek.js';
 import { CognitionPipeline } from './fraymus/intelligence/cognition.js';
 import { SCHEMAS, getSchema, entitiesBySource } from './fraymus/entities/schemas.js';
 import { MemoryBridge } from './fraymus/intelligence/memory-bridge.js';
@@ -1174,6 +1175,28 @@ export function createFraymusTools() {
       parameters: object({}),
       execute: async () => {
         return continuitySelftest({ dreamer, remembered, ledger, ouroboros });
+      },
+    },
+
+    // ── State Seek: boot-time integrity verification + manifest ──
+    {
+      name: 'fraymus.state_seek',
+      group: 'fraymus-intelligence',
+      description: 'Run the FRAYNIX state-seek: verify all continuity files, auto-heal from fossils, generate boot manifest. Returns boot report with verdict.',
+      parameters: object({}),
+      execute: async () => {
+        return stateSeekOnBoot();
+      },
+    },
+    {
+      name: 'fraymus.boot_manifest',
+      group: 'fraymus-intelligence',
+      description: 'Read the last boot manifest: SHA-256 checksums of all continuity artifacts generated at last state seek.',
+      parameters: object({}),
+      execute: async () => {
+        const manifest = getBootManifest();
+        if (!manifest) return { error: 'no boot manifest yet — run fraymus.state_seek first' };
+        return manifest;
       },
     },
 

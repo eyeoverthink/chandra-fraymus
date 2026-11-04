@@ -91,6 +91,7 @@ import { installOuroborosCycleRoutes } from './intelligence/ouroboros-cycle.js';
 import { installIntegrityRoutes, startWatchdog, verifyAll, autoTrackCriticalFiles } from './integrity/watchdog.js';
 import { installPlasmidRoutes } from './integrity/plasmid-backup.js';
 import { installGovernanceRoutes } from './integrity/routes.js';
+import { stateSeekOnBoot, installStateSeekRoutes } from './integrity/state-seek.js';
 import { migrateRecordChain } from './intelligence/record-chain.js';
 import { installRecordChainRoutes } from './intelligence/record-chain-routes.js';
 import { migrateReplay } from './intelligence/replay-engine.js';
@@ -245,6 +246,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installIntegrityRoutes(app);
   installPlasmidRoutes(app);
   installGovernanceRoutes(app, { broadcast, dreamer, remembered, ledger, ouroboros });
+  installStateSeekRoutes(app);
   try { migrateRecordChain(); } catch (e) { console.error('[record-chain] migration failed (non-fatal):', e.message); }
   installRecordChainRoutes(app);
   try { migrateReplay(); } catch (e) { console.error('[replay-engine] migration failed (non-fatal):', e.message); }
@@ -276,13 +278,9 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   app.get('/api/observatory', observatoryRouter);
   startReflectionLoop();
   try {
-    autoTrackCriticalFiles();
-    const seekResult = verifyAll();
-    if (seekResult.tampered > 0 || seekResult.missing > 0) {
-      console.warn(`[integrity] State seek found ${seekResult.tampered} tampered + ${seekResult.missing} missing files, healed ${seekResult.healed}`);
-    }
+    stateSeekOnBoot({ broadcast });
     startWatchdog({ broadcast });
-  } catch (e) { console.error('[integrity] watchdog init failed (non-fatal):', e.message); }
+  } catch (e) { console.error('[integrity] state-seek/watchdog init failed (non-fatal):', e.message); }
   installMcpEndpoint(app);
   installOAuthRoutes(app);
   installAccessRoutes(app);
