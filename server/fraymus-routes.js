@@ -10,6 +10,7 @@ import { getWorkflow, scheduledWorkflows, eventTriggeredWorkflows } from './fray
 import { listTools as listMcpTools } from './fraymus/mcp/tools.js';
 import { AGENTS, ZONES, COMPUTE_NODES } from './fraymus/core/constants.js';
 import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching, negativeControlConsciousnessProofs } from './fraymus/intelligence/ouroboros.js';
+import { getConsciousnessState, getAutonomyModifiers } from './intelligence/consciousness-gate.js';
 import * as opeg from './intelligence/opeg.js';
 import { neurogenesisCycle, neurogenesisStats, neurogenesisHistory } from './intelligence/neurogenesis.js';
 import { snapshotState, fossilStats, getFossil, fossilTimeline } from './intelligence/state-bridge.js';
@@ -428,6 +429,7 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
       hermes: { ...hermesManifest, history: hermes.history.slice(-20) },
       ouroboros: { generation: ouroboros.generation, fitness: ouroboros.fitness },
       bootManifest: getBootManifest() || { available: false },
+      consciousnessGate: (() => { try { return { state: getConsciousnessState(), modifiers: getAutonomyModifiers() }; } catch (_) { return { available: false }; } })(),
     });
   }));
 

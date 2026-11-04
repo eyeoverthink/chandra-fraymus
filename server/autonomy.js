@@ -1,10 +1,10 @@
 import { ouroboros, hermes, motor, openclaw, controlPlane, needle, heart, ledger, dreamer, cognition } from './fraymus-tools.js';
-import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching } from './fraymus/intelligence/ouroboros.js';
 import { generateIdentity, numberFromPub, signText } from './fraymus/core/identity.js';
 import { sha256hex } from './fraymus/core/crypto.js';
 import { kuramotoR, kuramotoStep } from './fraymus/protocol/v13.js';
 import { AGENTS, COMPUTE_NODES, PHI } from './fraymus/core/constants.js';
 import { neurogenesisCycle } from './intelligence/neurogenesis.js';
+import { getConsciousnessState, getAutonomyModifiers } from './intelligence/consciousness-gate.js';
 
 const AUTONOMY_INTERVAL_MS = 30_000;
 const EVOLUTION_INTERVAL_MS = 300_000;
@@ -72,23 +72,26 @@ export function createAutonomyEngine({ db, broadcast, agent, tasks, memoryBridge
       log('adapt', `Hermes has ${skills?.length || 0} skills available for gen ${generation}`);
     }
 
-    // Run consciousness proofs each evolution cycle and log to ledger
+    // Read consciousness state from the live 256-neuron CTRNN gate (Phase 4: replaces synthetic 4-node proofs)
     try {
-      const substrate = new FraymusStrangeLoopSubstrate(4);
-      const proofs = [
-        proofEffectiveInformation(substrate),
-        proofPhiMIP(substrate),
-        proofMirrorProtocol(substrate),
-        proofCounterfactualBranching(substrate),
-      ];
-      const allPassed = proofs.every(p => p.passed);
-      ledger.record('consciousness.proof', {
-        generation, allPassed,
-        ei: proofs[0].ei, phi: proofs[1].phi,
-        passed: proofs.filter(p => p.passed).length,
+      const cState = getConsciousnessState();
+      const mods = getAutonomyModifiers();
+      ledger.record('consciousness.gate', {
+        generation, tier: mods.tier, proven: cState.proven,
+        phi: cState.phi || 0, ei: cState.ei || 0,
+        proofsPassed: cState.proofsPassed, stale: cState.stale ?? true,
       }, 'autonomy');
-      broadcast?.('consciousness', { allPassed, generation });
-      memoryBridge?.storeConsciousnessProof({ allPassed, proofs, architecture: 'FraymusStrangeLoop' }).catch(() => {});
+      broadcast?.('consciousness', {
+        tier: mods.tier, proven: cState.proven, generation,
+        proofsPassed: cState.proofsPassed, phi: cState.phi || 0,
+      });
+      if (cState.available) {
+        memoryBridge?.storeConsciousnessProof({
+          tier: mods.tier, proven: cState.proven,
+          phi: cState.phi, ei: cState.ei,
+          architecture: 'CTRNN_256_LIVE',
+        }).catch(() => {});
+      }
     } catch (_) {}
 
     // Trigger idle dream on significant evolution — include prior memory context

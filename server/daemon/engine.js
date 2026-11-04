@@ -9,6 +9,7 @@ import { generateGoals } from '../intelligence/goal-engine.js';
 import { runCycle as runOuroborosCycle } from '../intelligence/ouroboros-cycle.js';
 import { snapshotState, pruneFossils } from '../intelligence/state-bridge.js';
 import { runConsciousnessAudit } from '../intelligence/consciousness-cycle.js';
+import { getConsciousnessState, getAutonomyModifiers } from '../intelligence/consciousness-gate.js';
 import { heart } from '../fraymus-tools.js';
 
 const now = () => Date.now();
@@ -380,6 +381,25 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
       stepResults.consciousness = { error: e.message };
     }
 
+    // Step 7.5: Consciousness Gate — read tier and modifiers for downstream behavior
+    try {
+      const gateState = getConsciousnessState();
+      const gateMods = getAutonomyModifiers();
+      stepResults.consciousnessGate = {
+        tier: gateMods.tier,
+        tierLevel: gateMods.tierLevel,
+        proven: gateState.proven,
+        stale: gateState.stale ?? true,
+        cycleMultiplier: gateMods.cycleMultiplier,
+        reflectionDepth: gateMods.reflectionDepth,
+        neurogenesisBoost: gateMods.neurogenesisBoost,
+        evolutionRate: gateMods.evolutionRate,
+        phi: gateState.phi || 0,
+      };
+    } catch (e) {
+      stepResults.consciousnessGate = { error: e.message };
+    }
+
     // Step 8: State Bridge — fossilize dynamic state into semantic memory
     try {
       stepResults.stateBridge = await snapshotState();
@@ -416,6 +436,8 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
         ouroborosAccepted: stepResults.ouroboros?.accepted ?? 0,
         consciousnessVerdict: stepResults.consciousness?.verdict ?? null,
         consciousnessProofsPassed: stepResults.consciousness?.proofsPassed ?? 0,
+        consciousnessTier: stepResults.consciousnessGate?.tier ?? null,
+        consciousnessPhi: stepResults.consciousnessGate?.phi ?? 0,
         stateFossilized: stepResults.stateBridge?.stored ?? false,
         fossilsPruned: stepResults.fossilPrune?.fossilsPruned ?? 0,
         durationMs: duration, at: t0,

@@ -9,6 +9,7 @@ import { synthesizeWorkflow } from '../workflow/synthesizer.js';
 import { runVerifierLoop, listLoops as listVerifierLoops } from '../intelligence/verifier-loop.js';
 import { startDaemon, stopDaemon, getDaemonStatus, runCycle, listCycles } from '../daemon/engine.js';
 import { runConsciousnessAudit, listAudits as listConsciousnessAudits, getAuditStats as getConsciousnessStats } from '../intelligence/consciousness-cycle.js';
+import { getGateStatus as getConsciousnessGateStatus } from '../intelligence/consciousness-gate.js';
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
@@ -236,6 +237,18 @@ export function createFleetTools({ workflowStore }) {
         const result = runConsciousnessAudit({ trigger: 'fleet', sampleCount });
         ledger.record('consciousness.ctrnn_audit.fleet', { verdict: result.verdict, proofsPassed: result.proofsPassed, ei: result.proofs?.effective_information?.ei, phi: result.proofs?.phi_mip?.phi }, 'fleet');
         return result;
+      },
+    },
+    {
+      name: 'consciousness_gate_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Read the consciousness feedback gate: current tier (DORMANT/AWAKENING/EMERGING/INTEGRATED), autonomy modifiers (cycle multiplier, reflection depth, neurogenesis boost, evolution rate), recent audits, and state transitions. The gate reads LIVE CTRNN audit results and translates them into behavioral parameters.',
+      parameters: object({}),
+      execute: async () => {
+        const status = getConsciousnessGateStatus();
+        ledger.record('consciousness.gate.read', { tier: status.modifiers.tier, phi: status.currentState.phi || 0, proven: status.currentState.proven }, 'fleet');
+        return status;
       },
     },
     {

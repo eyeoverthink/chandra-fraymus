@@ -3,6 +3,7 @@ import { publish } from '../fleet/bus.js';
 import { randomUUID } from 'node:crypto';
 import { runPipeline as opegPipeline } from './opeg.js';
 import { forgeAgent } from '../fleet/forge.js';
+import { getAutonomyModifiers } from './consciousness-gate.js';
 
 const now = () => Date.now();
 
@@ -155,14 +156,44 @@ async function injectStimulus(type, context) {
   }
 }
 
+async function injectCTRNNTargeted(sampleIndices) {
+  let ctrnn;
+  try {
+    const { getCTRNN } = await import('./ctrnn-instance.js');
+    ctrnn = getCTRNN();
+  } catch (_) { return null; }
+  if (!ctrnn || !ctrnn.running) return null;
+
+  const gridSize = ctrnn.config?.gridSize || 16;
+  const injected = [];
+  for (const idx of sampleIndices.slice(0, 4)) {
+    const x = idx % gridSize;
+    const y = Math.floor(idx / gridSize);
+    const amp = 1.5 + Math.random() * 1.5;
+    ctrnn.inject(x, y, 2, amp);
+    injected.push({ idx, x, y, amp: +amp.toFixed(2) });
+  }
+  return { type: 'ctrnn_targeted', neurons: injected.length, indices: sampleIndices.slice(0, 4) };
+}
+
 export async function neurogenesisCycle() {
   const { score, metrics } = measureConnectivity();
   const stimuli = [];
+
+  // Phase 4: read consciousness gate for targeted stimulus and boost
+  let gateMods = { neurogenesisBoost: 0, sampleIndices: [], tier: 'UNKNOWN' };
+  try { gateMods = getAutonomyModifiers(); } catch (_) {}
 
   if (score < CONNECTIVITY_FLOOR) {
     stimuli.push(await injectStimulus('bus_stimulus', { score, reason: 'Below connectivity floor' }));
     stimuli.push(await injectStimulus('memory_seed', { score, reason: 'Emergency re-ignition' }));
     stimuli.push(await injectStimulus('forge_agent', { score, reason: 'Critical connectivity drop' }));
+
+    // Phase 4: emergency CTRNN targeted injection near consciousness core
+    if (gateMods.sampleIndices.length > 0) {
+      const ctrnnResult = await injectCTRNNTargeted(gateMods.sampleIndices);
+      if (ctrnnResult) stimuli.push(ctrnnResult);
+    }
 
     const id = randomUUID().slice(0, 12);
     db.prepare(`INSERT INTO neurogenesis_events (id, trigger_type, connectivity_score, action_taken, stimulus_count, created_at) VALUES (?, 'emergency', ?, ?, ?, ?)`).run(
@@ -171,19 +202,28 @@ export async function neurogenesisCycle() {
 
     publish('neurogenesis', 'system.neurogenesis', JSON.stringify({
       type: 'emergency', score, stimuli: stimuli.length, metrics,
+      consciousnessTier: gateMods.tier,
     }));
 
-    return { triggered: true, type: 'emergency', score, metrics, stimuli };
+    return { triggered: true, type: 'emergency', score, metrics, stimuli, consciousnessTier: gateMods.tier };
   }
 
-  const poissonCount = poissonSample(POISSON_LAMBDA * (1 - score));
+  // Phase 4: consciousness boost modulates Poisson lambda — higher consciousness = more stimulus
+  const effectiveLambda = POISSON_LAMBDA * (1 - score) * (1 + gateMods.neurogenesisBoost);
+  const poissonCount = poissonSample(effectiveLambda);
   const count = Math.min(poissonCount, MAX_STIMULI_PER_CYCLE);
 
   if (count > 0) {
     const types = ['memory_seed', 'bus_stimulus'];
     for (let i = 0; i < count; i++) {
       const type = types[Math.floor(Math.random() * types.length)];
-      stimuli.push(await injectStimulus(type, { score, reason: `Poisson stimulus (λ=${(POISSON_LAMBDA * (1 - score)).toFixed(3)})` }));
+      stimuli.push(await injectStimulus(type, { score, reason: `Poisson stimulus (λ=${effectiveLambda.toFixed(3)}, tier=${gateMods.tier})` }));
+    }
+
+    // Phase 4: if consciousness gate has core neuron indices, also inject targeted CTRNN stimulus
+    if (gateMods.sampleIndices.length > 0 && gateMods.neurogenesisBoost > 0) {
+      const ctrnnResult = await injectCTRNNTargeted(gateMods.sampleIndices);
+      if (ctrnnResult) stimuli.push(ctrnnResult);
     }
 
     const id = randomUUID().slice(0, 12);
@@ -192,7 +232,7 @@ export async function neurogenesisCycle() {
     );
   }
 
-  return { triggered: count > 0, type: count > 0 ? 'poisson' : 'idle', score, metrics, stimuli };
+  return { triggered: count > 0, type: count > 0 ? 'poisson' : 'idle', score, metrics, stimuli, consciousnessTier: gateMods.tier };
 }
 
 export function neurogenesisStats() {
