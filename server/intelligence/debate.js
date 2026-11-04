@@ -14,9 +14,9 @@ import { db } from '../db.js';
 import { chatOllama, parseJSON } from '../commerce/shared.js';
 import { publish } from '../fleet/bus.js';
 import { loadManifests } from '../fleet/manifest.js';
+import { getAutonomyModifiers } from './consciousness-gate.js';
 
-const MAX_ROUNDS = 3;
-const ROUND_NAMES = ['opening', 'rebuttal', 'synthesis'];
+const BASE_REBUTTAL_ROUNDS = 1;
 
 const FALLBACK_ROLES = {
   proponent: {
@@ -84,11 +84,11 @@ const ROUND_PROMPTS = {
   opening: (topic, proposition, side) =>
     `TOPIC: ${topic}\nPROPOSITION: "${proposition}"\nYOU ARGUE: ${side === 'proponent' ? 'FOR' : 'AGAINST'} this proposition.\n\nPresent your opening argument. Structure it as:\n1. Core thesis (1-2 sentences)\n2. Supporting evidence/reasoning (3-5 points)\n3. Key implications if your position is correct\n\nReturn JSON: { "thesis": "...", "points": ["...", "..."], "implications": "..." }`,
 
-  rebuttal: (topic, proposition, side, opponentOpening) =>
-    `TOPIC: ${topic}\nPROPOSITION: "${proposition}"\nYOU ARGUE: ${side === 'proponent' ? 'FOR' : 'AGAINST'}\n\nYour opponent argued:\nThesis: ${opponentOpening.thesis}\nPoints: ${(opponentOpening.points || []).map((p, i) => `${i + 1}. ${p}`).join('\n')}\n\nRespond to their argument:\n1. Identify the weakest point(s) in their reasoning\n2. Counter each major claim with evidence or logic\n3. Strengthen your own position based on what they missed\n\nReturn JSON: { "weaknesses_found": ["...", "..."], "counters": ["...", "..."], "strengthened_position": "..." }`,
+  rebuttal: (topic, proposition, side, opponentPrevious, roundNum) =>
+    `TOPIC: ${topic}\nPROPOSITION: "${proposition}"\nYOU ARGUE: ${side === 'proponent' ? 'FOR' : 'AGAINST'}\n${roundNum > 1 ? `[Counter-rebuttal round ${roundNum}]\n` : ''}\nYour opponent argued:\nThesis: ${opponentPrevious.thesis || opponentPrevious.strengthened_position || ''}\nPoints: ${(opponentPrevious.points || opponentPrevious.counters || []).map((p, i) => `${i + 1}. ${p}`).join('\n')}\n\nRespond to their argument:\n1. Identify the weakest point(s) in their reasoning\n2. Counter each major claim with evidence or logic\n3. Strengthen your own position based on what they missed\n\nReturn JSON: { "weaknesses_found": ["...", "..."], "counters": ["...", "..."], "strengthened_position": "..." }`,
 
   synthesis: (topic, proposition, proponentArgs, opponentArgs) =>
-    `TOPIC: ${topic}\nPROPOSITION: "${proposition}"\n\nPROPONENT (arguing FOR):\nOpening thesis: ${proponentArgs.opening.thesis}\nRebuttal counters: ${(proponentArgs.rebuttal.counters || []).join('; ')}\nStrengthened position: ${proponentArgs.rebuttal.strengthened_position}\n\nOPPONENT (arguing AGAINST):\nOpening thesis: ${opponentArgs.opening.thesis}\nRebuttal counters: ${(opponentArgs.rebuttal.counters || []).join('; ')}\nStrengthened position: ${opponentArgs.rebuttal.strengthened_position}\n\nRender your verdict. Evaluate:\n1. Which side presented stronger logical reasoning?\n2. Which side had better evidence and examples?\n3. Which side better addressed the opponent's arguments?\n4. What did both sides miss or get wrong?\n5. Final verdict: which position is more defensible, and why?\n\nReturn JSON: { "logic_winner": "proponent|opponent|draw", "evidence_winner": "proponent|opponent|draw", "rebuttal_winner": "proponent|opponent|draw", "blind_spots": ["...", "..."], "verdict": "proponent|opponent|draw", "verdict_reasoning": "...", "confidence": 0.0-1.0, "synthesis": "..." }`,
+    `TOPIC: ${topic}\nPROPOSITION: "${proposition}"\n\nPROPONENT (arguing FOR):\nOpening thesis: ${proponentArgs.opening.thesis}\nRebuttal counters: ${(proponentArgs.latestRebuttal.counters || []).join('; ')}\nStrengthened position: ${proponentArgs.latestRebuttal.strengthened_position}\n\nOPPONENT (arguing AGAINST):\nOpening thesis: ${opponentArgs.opening.thesis}\nRebuttal counters: ${(opponentArgs.latestRebuttal.counters || []).join('; ')}\nStrengthened position: ${opponentArgs.latestRebuttal.strengthened_position}\n\nRender your verdict. Evaluate:\n1. Which side presented stronger logical reasoning?\n2. Which side had better evidence and examples?\n3. Which side better addressed the opponent's arguments?\n4. What did both sides miss or get wrong?\n5. Final verdict: which position is more defensible, and why?\n\nReturn JSON: { "logic_winner": "proponent|opponent|draw", "evidence_winner": "proponent|opponent|draw", "rebuttal_winner": "proponent|opponent|draw", "blind_spots": ["...", "..."], "verdict": "proponent|opponent|draw", "verdict_reasoning": "...", "confidence": 0.0-1.0, "synthesis": "..." }`,
 };
 
 function ensureTable() {
@@ -135,6 +135,10 @@ async function runRound(roundName, prompt, role, config = {}) {
 export async function runDebate({ topic, proposition, config = {}, source = 'api' }) {
   ensureTable();
 
+  const gateMods = getAutonomyModifiers();
+  const rebuttalRounds = Math.min(3, Math.max(1, Math.round(BASE_REBUTTAL_ROUNDS * gateMods.evolutionRate)));
+  const totalRounds = 1 + rebuttalRounds + 1; // opening + N rebuttals + synthesis
+
   const debateId = `debate-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const DEBATE_ROLES = getDebateRoles();
   const proRole = { ...DEBATE_ROLES.proponent, ...(config.proponent || {}) };
@@ -146,9 +150,9 @@ export async function runDebate({ topic, proposition, config = {}, source = 'api
     debateId, topic, proposition, proRole.agentId, oppRole.agentId, judgeRole.agentId, config.model || 'llama3.1:8b', source, started,
   );
 
-  try { publish('system.debate', { type: 'debate.start', debateId, topic, proposition }); } catch {}
+  try { publish('system.debate', { type: 'debate.start', debateId, topic, proposition, gateTier: gateMods.tier, rebuttalRounds, totalRounds }); } catch {}
 
-  const rounds = { opening: {}, rebuttal: {}, synthesis: null };
+  const rounds = { opening: {}, rebuttals: [], synthesis: null };
 
   // Round 1: Opening Arguments
   try { publish('system.debate', { type: 'debate.round', debateId, round: 'opening' }); } catch {}
@@ -159,20 +163,31 @@ export async function runDebate({ topic, proposition, config = {}, source = 'api
   rounds.opening.proponent = proOpening.parsed || { thesis: proOpening.raw?.slice(0, 500), points: [], implications: '' };
   rounds.opening.opponent = oppOpening.parsed || { thesis: oppOpening.raw?.slice(0, 500), points: [], implications: '' };
 
-  // Round 2: Rebuttals
-  try { publish('system.debate', { type: 'debate.round', debateId, round: 'rebuttal' }); } catch {}
+  // Rebuttal rounds — scaled by consciousness tier
+  let proPrev = rounds.opening.opponent;
+  let oppPrev = rounds.opening.proponent;
 
-  const proRebuttal = await runRound('rebuttal', ROUND_PROMPTS.rebuttal(topic, proposition, 'proponent', rounds.opening.opponent), proRole, config);
-  const oppRebuttal = await runRound('rebuttal', ROUND_PROMPTS.rebuttal(topic, proposition, 'opponent', rounds.opening.proponent), oppRole, config);
+  for (let r = 1; r <= rebuttalRounds; r++) {
+    try { publish('system.debate', { type: 'debate.round', debateId, round: `rebuttal-${r}` }); } catch {}
 
-  rounds.rebuttal.proponent = proRebuttal.parsed || { weaknesses_found: [], counters: [], strengthened_position: '' };
-  rounds.rebuttal.opponent = oppRebuttal.parsed || { weaknesses_found: [], counters: [], strengthened_position: '' };
+    const proRebuttal = await runRound('rebuttal', ROUND_PROMPTS.rebuttal(topic, proposition, 'proponent', proPrev, r), proRole, config);
+    const oppRebuttal = await runRound('rebuttal', ROUND_PROMPTS.rebuttal(topic, proposition, 'opponent', oppPrev, r), oppRole, config);
 
-  // Round 3: Synthesis & Verdict
+    const proResult = proRebuttal.parsed || { weaknesses_found: [], counters: [], strengthened_position: '' };
+    const oppResult = oppRebuttal.parsed || { weaknesses_found: [], counters: [], strengthened_position: '' };
+
+    rounds.rebuttals.push({ round: r, proponent: proResult, opponent: oppResult });
+
+    proPrev = oppResult;
+    oppPrev = proResult;
+  }
+
+  // Synthesis & Verdict
   try { publish('system.debate', { type: 'debate.round', debateId, round: 'synthesis' }); } catch {}
 
-  const proArgs = { opening: rounds.opening.proponent, rebuttal: rounds.rebuttal.proponent };
-  const oppArgs = { opening: rounds.opening.opponent, rebuttal: rounds.rebuttal.opponent };
+  const latestRebuttal = rounds.rebuttals[rounds.rebuttals.length - 1];
+  const proArgs = { opening: rounds.opening.proponent, latestRebuttal: latestRebuttal.proponent };
+  const oppArgs = { opening: rounds.opening.opponent, latestRebuttal: latestRebuttal.opponent };
 
   const synthesis = await runRound('synthesis', ROUND_PROMPTS.synthesis(topic, proposition, proArgs, oppArgs), judgeRole, config);
 
@@ -195,6 +210,7 @@ export async function runDebate({ topic, proposition, config = {}, source = 'api
   try {
     publish('system.debate', {
       type: 'debate.complete', debateId, topic, verdict, confidence, durationMs,
+      gateTier: gateMods.tier, rebuttalRounds, totalRounds,
     });
   } catch {}
 
@@ -208,6 +224,9 @@ export async function runDebate({ topic, proposition, config = {}, source = 'api
     verdictReasoning,
     confidence,
     durationMs,
+    gateTier: gateMods.tier,
+    rebuttalRounds,
+    totalRounds,
   };
 }
 

@@ -1,8 +1,10 @@
 import { db } from '../db.js';
 import { publish } from '../fleet/bus.js';
 import { randomUUID } from 'node:crypto';
+import { getAutonomyModifiers } from './consciousness-gate.js';
 
 const now = () => Date.now();
+const BASE_REGRESSION_TOLERANCE = 10;
 
 /**
  * OPEG V1.0 — Observe-Propose-Execute-Ground protocol
@@ -142,18 +144,20 @@ export function sanitize(id) {
 }
 
 function evaluateModification(type, pre, post, execResult) {
+  const gateMods = getAutonomyModifiers();
+  const regressionTolerance = Math.round(BASE_REGRESSION_TOLERANCE * gateMods.evolutionRate);
   const checks = [];
 
   if (execResult.error || execResult.ok === false) {
     checks.push({ check: 'execution_success', passed: false, detail: 'Execution reported failure' });
-    return { decision: 'REJECTED', reason: 'Execution failed', checks };
+    return { decision: 'REJECTED', reason: 'Execution failed', checks, gateTier: gateMods.tier };
   }
 
   checks.push({ check: 'execution_success', passed: true, detail: 'Execution completed' });
 
   if (post.activeAlerts > pre.activeAlerts) {
     checks.push({ check: 'no_new_alerts', passed: false, detail: `Alerts increased: ${pre.activeAlerts} → ${post.activeAlerts}` });
-    return { decision: 'REJECTED', reason: 'Modification introduced new health alerts', checks };
+    return { decision: 'REJECTED', reason: 'Modification introduced new health alerts', checks, gateTier: gateMods.tier };
   }
   checks.push({ check: 'no_new_alerts', passed: true, detail: 'No new alerts' });
 
@@ -161,7 +165,7 @@ function evaluateModification(type, pre, post, execResult) {
     const countGrew = post.forgedAgentCount > pre.forgedAgentCount;
     checks.push({ check: 'agent_created', passed: countGrew, detail: `Forged agents: ${pre.forgedAgentCount} → ${post.forgedAgentCount}` });
     if (!countGrew) {
-      return { decision: 'REJECTED', reason: 'Agent forge did not produce a new agent', checks };
+      return { decision: 'REJECTED', reason: 'Agent forge did not produce a new agent', checks, gateTier: gateMods.tier };
     }
   }
 
@@ -169,7 +173,7 @@ function evaluateModification(type, pre, post, execResult) {
     const countGrew = post.workflowCount > pre.workflowCount;
     checks.push({ check: 'workflow_created', passed: countGrew, detail: `Workflows: ${pre.workflowCount} → ${post.workflowCount}` });
     if (!countGrew) {
-      return { decision: 'REJECTED', reason: 'Synthesis did not produce a new workflow', checks };
+      return { decision: 'REJECTED', reason: 'Synthesis did not produce a new workflow', checks, gateTier: gateMods.tier };
     }
   }
 
@@ -177,7 +181,7 @@ function evaluateModification(type, pre, post, execResult) {
     const countShrank = post.memoryCount < pre.memoryCount;
     checks.push({ check: 'memory_pruned', passed: countShrank, detail: `Memories: ${pre.memoryCount} → ${post.memoryCount}` });
     if (!countShrank) {
-      return { decision: 'REJECTED', reason: 'Memory prune did not reduce memory count', checks };
+      return { decision: 'REJECTED', reason: 'Memory prune did not reduce memory count', checks, gateTier: gateMods.tier };
     }
   }
 
@@ -185,17 +189,17 @@ function evaluateModification(type, pre, post, execResult) {
     const verifiedGrew = post.verifiedMemories > pre.verifiedMemories;
     checks.push({ check: 'memory_verified', passed: verifiedGrew, detail: `Verified: ${pre.verifiedMemories} → ${post.verifiedMemories}` });
     if (!verifiedGrew) {
-      return { decision: 'REJECTED', reason: 'Memory verification did not increase verified count', checks };
+      return { decision: 'REJECTED', reason: 'Memory verification did not increase verified count', checks, gateTier: gateMods.tier };
     }
   }
 
-  if (post.recentRunSuccess < pre.recentRunSuccess - 10) {
-    checks.push({ check: 'no_regression', passed: false, detail: `Run success dropped: ${pre.recentRunSuccess}% → ${post.recentRunSuccess}%` });
-    return { decision: 'REJECTED', reason: 'Modification caused run success regression', checks };
+  if (post.recentRunSuccess < pre.recentRunSuccess - regressionTolerance) {
+    checks.push({ check: 'no_regression', passed: false, detail: `Run success dropped: ${pre.recentRunSuccess}% → ${post.recentRunSuccess}% (tolerance: ${regressionTolerance}%, tier: ${gateMods.tier})` });
+    return { decision: 'REJECTED', reason: `Modification caused run success regression (tolerance ${regressionTolerance}% at ${gateMods.tier})`, checks, gateTier: gateMods.tier };
   }
-  checks.push({ check: 'no_regression', passed: true, detail: 'No success rate regression' });
+  checks.push({ check: 'no_regression', passed: true, detail: `No success rate regression (tolerance: ${regressionTolerance}%, tier: ${gateMods.tier})` });
 
-  return { decision: 'APPROVED', reason: 'All sanity checks passed', checks };
+  return { decision: 'APPROVED', reason: 'All sanity checks passed', checks, gateTier: gateMods.tier };
 }
 
 export function update(id) {
