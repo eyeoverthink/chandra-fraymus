@@ -137,6 +137,21 @@ npm run start        # production server (serves built client)
 - DB tables: `health_metrics`, `health_alerts`
 - 6 REST endpoints + HealthPanel.jsx (12th Detail Drawer panel, red theme, stat cards, resource bars, alert list)
 
+### Integrity Subsystem (server/integrity/)
+- `watchdog.js` — SHA-256 file integrity monitoring: tracks immutable files, periodic 60s verify cycle, auto-heal from `.fossil` backups, protected mutable file list (DB, ledger, memories), bus events on tamper detection
+- `continuity-selftest.js` — Unified boot selftest: 14 assertions across signing identity, remembered vault, DNA encoding, ledger integrity; runs at boot and on-demand via `POST /api/integrity/selftest`
+- `state-seek.js` — Proactive boot-time inventory (ported from FRAYNIX `stateSeek()` + `writeDistManifest()`): ensures 6 critical directories exist, discovers continuity files via patterns, registers with watchdog, verify-and-heal, falls back to `state_fossils` DB, generates SHA-256 boot manifest at `data/boot-manifest.json`, publishes health to bus
+- `writ-system.js` — Governance writs framework for continuity policy enforcement
+- Exports: `stateSeekOnBoot()`, `getBootManifest()`, `installStateSeekRoutes(app)`
+- 4 REST endpoints: `GET /api/integrity/state-seek`, `GET /api/integrity/boot-manifest`, `POST /api/integrity/selftest`, `GET /api/integrity/watchdog`
+- Boot manifest also exposed in `GET /api/intelligence/live` response
+- 2 fleet tools: `fraymus.state_seek`, `fraymus.boot_manifest`
+
+### Remembered Vault (server/fraymus/intelligence/remembered.js)
+- Per-agent immutable memory vault: store/recall/list/verify memories with SHA-256 integrity, confidence scores, verification timestamps
+- Protected mutable file (watchdog skips hash-tracking, selftest validates structure)
+- Wired into continuity selftest assertions
+
 ### FRAYMUS Intelligence Stack (server/fraymus/)
 - `entity-store.js` — SQLite-backed Proxy adapter (replaces Base44 cloud store), auto-creates collections
 - `core/identity.js` — Ed25519 sovereign identity, key generation
