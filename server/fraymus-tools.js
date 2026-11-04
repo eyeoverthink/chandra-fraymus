@@ -50,11 +50,7 @@ import { createGenomeSnapshot, restoreFromSnapshot, saveCheckpoint, listCheckpoi
 const string = (maxLength, extra = {}) => ({ type: 'string', maxLength, ...extra });
 const object = (properties, required = []) => ({ type: 'object', properties, required, additionalProperties: false });
 
-let _systemIdentity = null;
-async function getSystemIdentity() {
-  if (!_systemIdentity) _systemIdentity = await generateIdentity();
-  return _systemIdentity;
-}
+import { getSystemIdentity } from './fraymus/core/system-identity.js';
 
 import { entityStore } from './fraymus/entity-store.js';
 import { chatOllama } from './commerce/shared.js';
@@ -84,7 +80,8 @@ const remembered = new RememberedVault(entityStore, null);
 const cognition = new CognitionPipeline({ heart, ledger, dreamer, ouroboros, ollamaChat: chatOllama });
 
 // Lazily inject system identity into dreamer + remembered vault once generated
-getSystemIdentity().then(id => { dreamer.identity = id; remembered.identity = id; }).catch(() => {});
+getSystemIdentity().then(id => { dreamer.identity = id; remembered.identity = id; })
+  .catch(error => console.error('[fraymus] signing identity unavailable:', error.message));
 
 // Immune System Layer — EP3, HyperTranscoder4D, Canary Triangulation, Stream Interceptor
 const ep3Sensor = new Ep3Sensor(1.0);

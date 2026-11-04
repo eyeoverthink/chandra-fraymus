@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, unli
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 
 let directory, db, watchdog, seek, continuity, RememberedVault, generateIdentity, writ;
 const originalDataDir = process.env.CHANDRA_DATA_DIR;
@@ -166,4 +167,32 @@ test('numbering stays append-only beyond 9999 and default vault uses configured 
   assert.equal(vault.stats().total, 3);
   assert.equal(vault.verify(10000).verified, true);
   assert.equal(new RememberedVault(null, null).dir, join(directory, 'remembered'));
+});
+
+test('signing identity and vault authentication survive a fresh process', async () => {
+  const { getSystemIdentity } = await import('../server/fraymus/core/system-identity.js');
+  const firstIdentity = await getSystemIdentity();
+  const vaultPath = join(directory, 'persistent-vault');
+  const firstVault = new RememberedVault(null, firstIdentity, vaultPath);
+  const receipt = await firstVault.remember('survive restart');
+  const script = `
+    const { getSystemIdentity } = await import(${JSON.stringify(new URL('../server/fraymus/core/system-identity.js', import.meta.url).href)});
+    const { RememberedVault } = await import(${JSON.stringify(new URL('../server/fraymus/intelligence/remembered.js', import.meta.url).href)});
+    const identity = await getSystemIdentity();
+    const vault = new RememberedVault(null, identity, ${JSON.stringify(vaultPath)});
+    console.log(JSON.stringify({ pubkey: identity.pubkey, authenticated: vault.verify(${receipt.number}).authenticated }));
+  `;
+  const restored = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+    env: { ...process.env, CHANDRA_DATA_DIR: directory }, encoding: 'utf8', timeout: 10000,
+  }));
+  assert.equal(restored.pubkey, firstIdentity.pubkey);
+  assert.equal(restored.authenticated, true);
+  const file = join(directory, 'fraymus-identity.json');
+  const original = readFileSync(file);
+  try {
+    writeFileSync(file, 'invalid stored key');
+    const invalidRestart = await import('../server/fraymus/core/system-identity.js?invalid-key-fixture');
+    await assert.rejects(invalidRestart.getSystemIdentity(), /existing key preserved/);
+    assert.equal(readFileSync(file, 'utf8'), 'invalid stored key');
+  } finally { writeFileSync(file, original); }
 });
