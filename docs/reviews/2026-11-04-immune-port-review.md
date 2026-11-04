@@ -106,3 +106,7 @@ The next implementation slice should finish **this** boundary: remove plaintext 
 ## Implementation-owner reply
 
 Record the owner, finding IDs, exact fix commit(s), focused test commands/results, and any remaining limitations here. A different session should then rerun the reproductions against the fixed source and record the independent verdict. This review's successful syntax/codec checks are not an approval of security effectiveness, physical sensing, historical invariants, or the rest of the backlog.
+
+### Independent follow-up on caca6bc
+
+The [fix recheck and provider-boundary review](2026-11-04-immune-fix-review.md) independently confirms the focused fixes for IMM-01, IMM-03, IMM-04 and IMM-06. IMM-02 and IMM-05 remain open; ongoing IMM-07 wiring is partial. The follow-up includes credential-body, tool-argument, JSON-structure and EOF reproductions. This preserves the original source-specific report above rather than rewriting its historical evidence.

@@ -1,0 +1,254 @@
+{
+  "capturedAt": "2026-11-04T09:57:47.530Z",
+  "gitHead": "caca6bce6000fc32d4a010a152d06def91d0886c",
+  "platform": "win32",
+  "node": "v24.11.1",
+  "method": "Synthetic NDJSON and mocked provider fetch; deterministic 50ms clock only within this disposable probe process; no DB, app, network, or live model",
+  "sourceSha256": {
+    "server/fraymus/intelligence/ep3.js": "dc4b806e50b3222321a177752026f1ab580438705fc5ceac5bee45d0faa522f5",
+    "server/fraymus/intelligence/transcoder4d.js": "9922a2622b6067446be08b0fbd42bea51cef1634a5a77192598ce469d51113d3",
+    "server/fraymus/intelligence/canary.js": "807430aa0b4904ff01633b002a34275bdb2fac4b72748d4cf987b11334275745",
+    "server/fraymus/intelligence/stream-canary.js": "ddedc8c17ced417e242afc5e0103c0a9785c7308539adc93f4b60a1053c13dba",
+    "server/fraymus-tools.js": "be63588d1628f562e798a2fa0e51b1e6e7acca8ce08acddcde04ca0856075a84",
+    "server/fraymus-routes.js": "bb30d0fb00a15db0dc7bf46a81ec163fb8da55e04ba7782ba4fbee09abcce4ea",
+    "server/commerce/shared.js": "09891c94ffc26340eea193e46b35af5127afdd9b59dd9a7a94d3ff4f05062349",
+    "server/fleet/runtime.js": "73acd28a1bbb7a1b3131c2f50cec4fbff332f3376d7598b6dc017f8410a4edab",
+    "server/agent/provider.js": "41ee4b483244e4db368177ccf55b3e359190ee6c6e40d742cdf7dac047f8379c",
+    "server/creation/shared.js": "a09f6d1928e4cdb1963b85069a6e08f2e8c7e25197e56b3c4ef6f391885d3a82",
+    "server/distribution/shared.js": "1226cb7ef48c0cb7b2ce1a50b90f3fb20a4a8199f9db60af49ea7b9b0c942695",
+    "server/fraymus/intelligence/ollama-sanitize.js": "de4e1cbbdc9f9450862647c9626e8317330d885a0d47f30ed92eb0af381b3006"
+  },
+  "sourcesStableDuringProbe": true,
+  "confirmedCorrections": {
+    "byteChecks": 1024,
+    "plaintextMarkerAbsentFromWholeSanitizerResult": true,
+    "shortPrefixNoLongerThrows": true,
+    "actualComplexRootRelativeResiduals": [
+      2.1175823681357508e-16,
+      0,
+      0
+    ],
+    "quantizer": [
+      {
+        "epsilon": 0,
+        "output": 0
+      },
+      {
+        "epsilon": 1e-12,
+        "output": 0
+      },
+      {
+        "epsilon": 1e-10,
+        "output": 42
+      },
+      {
+        "epsilon": 1e-8,
+        "output": 85
+      },
+      {
+        "epsilon": 0.000001,
+        "output": 128
+      },
+      {
+        "epsilon": 0.0001,
+        "output": 170
+      },
+      {
+        "epsilon": 0.01,
+        "output": 212
+      },
+      {
+        "epsilon": 1,
+        "output": 255
+      }
+    ],
+    "originalSplitAfterSkMarkerRemoved": true
+  },
+  "remainingStreamFailures": {
+    "prefixBoundaryCases": [
+      {
+        "prefix": "ghp_",
+        "redactions": 1,
+        "credentialBodyExposed": true,
+        "output": "[REDACTED:4D(78,84,93,73)]UNIT_TEST_ONLY_0123456789 after"
+      },
+      {
+        "prefix": "github_pat_",
+        "redactions": 1,
+        "credentialBodyExposed": true,
+        "output": "[REDACTED:4D(78,85,97,118)]UNIT_TEST_ONLY_0123456789 after"
+      },
+      {
+        "prefix": "xai-",
+        "redactions": 1,
+        "credentialBodyExposed": true,
+        "output": "[REDACTED:4D(51,93,102,187)]UNIT_TEST_ONLY_0123456789 after"
+      },
+      {
+        "prefix": "xoxb-",
+        "redactions": 1,
+        "credentialBodyExposed": true,
+        "output": "[REDACTED:4D(51,87,85,124)]UNIT_TEST_ONLY_0123456789 after"
+      },
+      {
+        "prefix": "sk-",
+        "redactions": 1,
+        "credentialBodyExposed": true,
+        "output": "[REDACTED:4D(58,83,170,158)]UNIT_TEST_ONLY_0123456789 after"
+      }
+    ],
+    "characterFragments": {
+      "credentialBodyExposed": true,
+      "output": "[REDACTED:4D(58,83,170,158)]UNIT_TEST_ONLY_0123456789"
+    },
+    "benignEof": {
+      "original": "books",
+      "standardContent": "book",
+      "records": [
+        {
+          "message": {
+            "role": "assistant",
+            "content": "book"
+          },
+          "done": false
+        },
+        {
+          "message": {
+            "role": "assistant",
+            "content": ""
+          },
+          "done": true
+        },
+        {
+          "flushed": "s"
+        }
+      ]
+    }
+  },
+  "benignCanaryAtExpectedTiming": [
+    {
+      "tokens": 1,
+      "totalSamples": 2,
+      "triggered": false,
+      "confidence": 0,
+      "dominant": "lexical_entropy",
+      "epsilons": {
+        "alpha": 0,
+        "beta": 2.0780719051126377,
+        "gamma": 0.25
+      }
+    },
+    {
+      "tokens": 2,
+      "totalSamples": 5,
+      "triggered": false,
+      "confidence": 0,
+      "dominant": "lexical_entropy",
+      "epsilons": {
+        "alpha": 0,
+        "beta": 2.0780719051126377,
+        "gamma": 0.27608878275977805
+      }
+    },
+    {
+      "tokens": 3,
+      "totalSamples": 8,
+      "triggered": false,
+      "confidence": 0,
+      "dominant": "lexical_entropy",
+      "epsilons": {
+        "alpha": 0,
+        "beta": 2.0780719051126377,
+        "gamma": 0.30248126133693887
+      }
+    },
+    {
+      "tokens": 4,
+      "totalSamples": 11,
+      "triggered": true,
+      "confidence": 0.7775070881461758,
+      "dominant": "lexical_entropy",
+      "epsilons": {
+        "alpha": 0,
+        "beta": 2.0780719051126377,
+        "gamma": 0.32889885990285134
+      }
+    },
+    {
+      "tokens": 5,
+      "totalSamples": 14,
+      "triggered": true,
+      "confidence": 0.7775070881461758,
+      "dominant": "lexical_entropy",
+      "epsilons": {
+        "alpha": 0,
+        "beta": 2.0780719051126377,
+        "gamma": 0.35509550464356726
+      }
+    },
+    {
+      "tokens": 6,
+      "totalSamples": 17,
+      "triggered": true,
+      "confidence": 0.7775070881461758,
+      "dominant": "lexical_entropy",
+      "epsilons": {
+        "alpha": 0,
+        "beta": 2.0780719051126377,
+        "gamma": 0.38085051387385616
+      }
+    },
+    {
+      "tokens": 7,
+      "totalSamples": 20,
+      "triggered": true,
+      "confidence": 0.7775070881461758,
+      "dominant": "lexical_entropy",
+      "epsilons": {
+        "alpha": 0,
+        "beta": 2.0780719051126377,
+        "gamma": 0.4059642106933384
+      }
+    },
+    {
+      "tokens": 8,
+      "totalSamples": 23,
+      "triggered": true,
+      "confidence": 0.7775070881461758,
+      "dominant": "lexical_entropy",
+      "epsilons": {
+        "alpha": 0,
+        "beta": 2.0780719051126377,
+        "gamma": 0.4302553183131426
+      }
+    }
+  ],
+  "workingTreeOllamaBoundary": {
+    "available": true,
+    "contentMarkerRemoved": true,
+    "toolArgumentMarkerExposed": true,
+    "usagePreserved": {
+      "inputTokens": 3,
+      "outputTokens": 5,
+      "costUsd": 0
+    },
+    "requestedStream": false,
+    "structuredContent": {
+      "original": "{\"token\":\"sk-UNIT_TEST_ONLY_0123456789\",\"ok\":true}",
+      "sanitized": "{\"token\":\"[REDACTED:4D(58,83,170,83)]",
+      "parsesAsJson": false,
+      "parseError": "Unterminated string in JSON at position 37 (line 1 column 38)"
+    },
+    "completedTimingSamplesAfterTwoSanitizations": 0,
+    "helperResults": [
+      {
+        "folder": "commerce",
+        "contentMarkerRemoved": true
+      },
+      {
+        "folder": "creation",
+        "contentMarkerRemoved": true
+      }
+    ]
+  }
+}
