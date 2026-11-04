@@ -74,6 +74,7 @@ import { initTriggers, installTriggerRoutes } from './fleet/bus-triggers.js';
 import { installAgentMemoryRoutes } from './fleet/agent-memory.js';
 import { initHealthMonitor, installHealthRoutes } from './health/monitor.js';
 import { installForgeRoutes } from './fleet/forge.js';
+import { installHarnessRoutes } from './fleet/harness-routes.js';
 import { installSynthesisRoutes } from './workflow/synthesizer.js';
 import { installReflectionRoutes, startReflectionLoop } from './intelligence/reflection.js';
 import { installVerifierRoutes } from './intelligence/verifier-loop.js';
@@ -87,6 +88,10 @@ import { installStrategyRoutes } from './intelligence/strategy.js';
 import { installTrustRoutes } from './intelligence/trust.js';
 import { installSubconsciousRoutes } from './intelligence/subconscious.js';
 import { installOuroborosCycleRoutes } from './intelligence/ouroboros-cycle.js';
+import { installIntegrityRoutes, startWatchdog, verifyAll, autoTrackCriticalFiles } from './integrity/watchdog.js';
+import { installPlasmidRoutes } from './integrity/plasmid-backup.js';
+import { migrateRecordChain } from './intelligence/record-chain.js';
+import { installRecordChainRoutes } from './intelligence/record-chain-routes.js';
 import { installNUDPRoutes } from './fraymus/protocol/nudp-routes.js';
 import { installBridgeRoutes } from './fraymus/protocol/bridge-routes.js';
 import { installImageRoutes } from './media/image-routes.js';
@@ -203,6 +208,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installSynthesisRoutes(app);
   installWorkflowRoutes(app, { broadcast, memoryBridge });
   installFleetRoutes(app);
+  installHarnessRoutes(app);
   initBus({ broadcast });
   initCollab({ runAgent: runAgentAndWait, broadcast });
   installBusRoutes(app);
@@ -224,6 +230,8 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installTrustRoutes(app);
   installSubconsciousRoutes(app);
   installOuroborosCycleRoutes(app);
+  installIntegrityRoutes(app);
+  installPlasmidRoutes(app);
   installNUDPRoutes(app);
   installBridgeRoutes(app);
   installImageRoutes(app);
@@ -245,6 +253,14 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installCollabRoutes(app);
   app.get('/api/observatory', observatoryRouter);
   startReflectionLoop();
+  try {
+    autoTrackCriticalFiles();
+    const seekResult = verifyAll();
+    if (seekResult.tampered > 0 || seekResult.missing > 0) {
+      console.warn(`[integrity] State seek found ${seekResult.tampered} tampered + ${seekResult.missing} missing files, healed ${seekResult.healed}`);
+    }
+    startWatchdog({ broadcast });
+  } catch (e) { console.error('[integrity] watchdog init failed (non-fatal):', e.message); }
   installMcpEndpoint(app);
   installOAuthRoutes(app);
   installAccessRoutes(app);
@@ -302,7 +318,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
       'visual-workflow-engine', '17-agent-fleet', 'mcp-server-gateway', 'mcp-client-bridge', 'cron-automations',
       'puppeteer-headless-browser', 'chrome-extension-bridge', 'vertiso-vector-memory', 'recursive-self-improvement',
       'event-driven-orchestration', 'agent-persistent-memory', 'system-health-monitor',
-      'agent-forge', 'workflow-synthesis', 'reflection-loop', 'nudp-mesh-protocol', 'sharp-image-engine', 'comfyui-bridge', 'ffmpeg-video-pipeline', 'tts-speech-engine', 'stt-transcription-engine', 'windows-media-ocr-pipeline', 'media-hub-panel', 'error-boundary-resilience', 'forge-synthesis-panel', 'system-settings-panel', 'notification-toasts', 'global-search', 'keyboard-shortcuts', 'agent-chat-panel', 'activity-timeline', 'system-metrics', 'agent-profiles', 'memory-browser', 'run-history', 'evolution-log', 'system-pulse', 'agent-leaderboard', 'agent-collaboration', 'edit-rebuild-pipeline', 'carbon-x-biological-encoding', 'social-distribution-engine', 'analytics-feedback-loop', 'ai-music-layer', 'commerce-learning-loop', 'smart-content-calendar', 'ab-testing-engine', 'trend-radar', 'audience-intelligence', 'content-repurposing', 'logic-chain', 'autonomous-goal-engine', 'intelligence-observatory', 'debate-protocol', 'adaptive-model-router', 'deep-integration-layer'] }));
+      'agent-forge', 'workflow-synthesis', 'reflection-loop', 'nudp-mesh-protocol', 'sharp-image-engine', 'comfyui-bridge', 'ffmpeg-video-pipeline', 'tts-speech-engine', 'stt-transcription-engine', 'windows-media-ocr-pipeline', 'media-hub-panel', 'error-boundary-resilience', 'forge-synthesis-panel', 'system-settings-panel', 'notification-toasts', 'global-search', 'keyboard-shortcuts', 'agent-chat-panel', 'activity-timeline', 'system-metrics', 'agent-profiles', 'memory-browser', 'run-history', 'evolution-log', 'system-pulse', 'agent-leaderboard', 'agent-collaboration', 'edit-rebuild-pipeline', 'carbon-x-biological-encoding', 'social-distribution-engine', 'analytics-feedback-loop', 'ai-music-layer', 'commerce-learning-loop', 'smart-content-calendar', 'ab-testing-engine', 'trend-radar', 'audience-intelligence', 'content-repurposing', 'logic-chain', 'autonomous-goal-engine', 'intelligence-observatory', 'debate-protocol', 'adaptive-model-router', 'deep-integration-layer', 'self-healing-watchdog', 'plasmid-disaster-recovery', 'state-seek-on-boot', 'negative-control-verification'] }));
   const clientErrors = [];
   app.post('/api/client-error', express.json(), (req, res) => {
     const { message, stack, component, view, ts } = req.body || {};

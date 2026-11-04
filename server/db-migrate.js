@@ -407,5 +407,28 @@ export function migrateWorkspaces() {
       ended_at INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_chain_stage ON chain_stages(run_id, number);
+
+    CREATE TABLE IF NOT EXISTS harness_salvage (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      agent_id TEXT,
+      payload TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_harness_salvage ON harness_salvage(run_id);
+
+    CREATE TABLE IF NOT EXISTS harness_evidence (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      run_id TEXT NOT NULL,
+      step INTEGER NOT NULL,
+      tool TEXT NOT NULL,
+      args_hash TEXT,
+      result_hash TEXT,
+      evidence_sha TEXT,
+      duration_ms INTEGER,
+      refused TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_harness_evidence ON harness_evidence(run_id, step);
   `);
 }

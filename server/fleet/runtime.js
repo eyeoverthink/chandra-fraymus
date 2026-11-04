@@ -6,6 +6,10 @@ import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
 import { setMemoryBridgeRef } from './tools.js';
 import { buildPromptContext, autoStoreFromCompletion } from './agent-memory.js';
 import { getActiveFraming } from '../intelligence/perspective.js';
+import {
+  sealToolResult, sealRefusal, budgetBands, bandDirective,
+  salvageOnCrash, boundResult, checkPermission, createRunEnvelope, recordStep,
+} from './harness.js';
 
 const MAX_STEPS = 8;
 const MAX_HISTORY = 40;
@@ -215,7 +219,29 @@ function getHistory(threadId, limit = MAX_HISTORY) {
 
 async function executeTool(toolName, args, ctx) {
   const tool = toolRegistry.find(t => t.name === toolName);
-  if (!tool) throw new Error(`Unknown tool: ${toolName}`);
+  if (!tool) {
+    const sealed = sealRefusal(toolName, `Unknown tool: ${toolName}`);
+    persistEvidence(ctx.runId, ctx.step || 0, sealed);
+    return sealed;
+  }
+
+  // Permission check (harness-enforced)
+  if (ctx.agent) {
+    const perm = checkPermission(ctx.agent, toolName);
+    if (!perm.allowed) {
+      const sealed = sealRefusal(toolName, perm.reason);
+      persistEvidence(ctx.runId, ctx.step || 0, sealed);
+      return sealed;
+    }
+  }
+
+  // Budget reserve check — past 85%, only output tools allowed
+  if (ctx.inReserve && tool.group !== 'output' && tool.risk !== 'approval') {
+    const sealed = sealRefusal(toolName, 'REPORT RESERVE (harness): reads refuse past reserve — produce output or finish');
+    persistEvidence(ctx.runId, ctx.step || 0, sealed);
+    return sealed;
+  }
+
   if (tool.risk === 'approval') {
     const approvalId = randomUUID();
     db.prepare(`INSERT INTO approvals (id, run_id, thread_id, user_id, call_id, tool, args, status, created_at)
@@ -223,12 +249,30 @@ async function executeTool(toolName, args, ctx) {
       approvalId, ctx.runId, ctx.threadId, ctx.userId, approvalId, toolName, JSON.stringify(args), now()
     );
     broadcastFn('fleet', { type: 'approval_needed', approvalId, tool: toolName });
-    return { awaiting_approval: true, approvalId };
+    return { result: { awaiting_approval: true, approvalId }, evidence: { executed: false, awaiting_approval: true } };
   }
+
+  const t0 = now();
   const result = tool.execute
     ? await tool.execute({ args }, ctx)
     : (tool.run ? await tool.run(args, ctx) : { error: 'tool has no executor' });
-  return result;
+  const durationMs = now() - t0;
+
+  const sealed = sealToolResult(toolName, args, result, durationMs);
+  persistEvidence(ctx.runId, ctx.step || 0, sealed);
+  return sealed;
+}
+
+function persistEvidence(runId, step, sealed) {
+  try {
+    const ev = sealed.evidence;
+    db.prepare(`INSERT INTO harness_evidence (run_id, step, tool, args_hash, result_hash, evidence_sha, duration_ms, refused, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(runId, step, ev.tool || '', ev.sha8 || null, ev.sha256 || null, ev.evidence_sha || null,
+           ev.duration_ms || null, ev.refused || null, now());
+  } catch (e) {
+    console.error('harness: evidence persist failed:', e.message);
+  }
 }
 
 async function drive(runId, depth = 0) {
@@ -241,8 +285,26 @@ async function drive(runId, depth = 0) {
   const tools = agentTools(agent);
   const userId = run.user_id || 'local';
 
+  // Harness: create run envelope for audit trail
+  const lastUserMsg = db.prepare("SELECT content FROM messages WHERE thread_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1").get(run.thread_id);
+  const envelope = createRunEnvelope(runId, agent.id, lastUserMsg?.content || '');
+
   for (let step = run.steps || 0; step < MAX_STEPS; step++) {
+    // Harness Law 3: Budget bands — fire warnings at 60/75/85%
+    const { firedNow, inReserve, newFired } = budgetBands(step + 1, MAX_STEPS, envelope.budget.fired);
+    envelope.budget.fired = newFired;
+    envelope.budget.inReserve = inReserve;
+
     const hist = getHistory(run.thread_id);
+
+    // Inject budget band directives as system messages
+    for (const band of firedNow) {
+      const directive = bandDirective(band);
+      if (directive) {
+        addMsg(run.thread_id, runId, { role: 'system', content: directive });
+        ledger.record('fleet.budget_band', { agent: agent.id, band, step, runId }, 'fleet');
+      }
+    }
 
     // Intelligence: feel the last user message before each LLM call
     let emotionNote = '';
@@ -259,12 +321,14 @@ async function drive(runId, depth = 0) {
     }
 
     const sysContent = (await systemPrompt(agent, userId)) + emotionNote;
-    const messages = [{ role: 'system', content: sysContent }, ...hist];
+    const messages = [{ role: 'system', content: sysContent }, ...getHistory(run.thread_id)];
 
     let res;
     try {
       res = await chat(messages, tools, agent.model);
     } catch (e) {
+      // Harness Law 2: Salvage on crash — persist partial history before death
+      salvageOnCrash(runId, agent.id, e, step, run.thread_id);
       setRun(runId, { status: 'error', error: e.message });
       return;
     }
@@ -275,7 +339,7 @@ async function drive(runId, depth = 0) {
 
     if (!res.tool_calls.length) {
       setRun(runId, { status: 'done' });
-      broadcastFn('fleet', { type: 'done', runId });
+      broadcastFn('fleet', { type: 'done', runId, harness: { steps: envelope.steps.length, evidence: true } });
       try { autoStoreFromCompletion(agent.id, lastUser?.content, res.content); } catch (_) {}
       return;
     }
@@ -284,6 +348,7 @@ async function drive(runId, depth = 0) {
       const fn = tc.function;
       const ctx = {
         userId, agentId: agent.id, threadId: run.thread_id, runId, depth,
+        step, agent, inReserve,
         delegate: async (agentId, task) => {
           if (depth >= MAX_DEPTH) throw new Error('Delegation depth limit reached');
           return await delegateRun(userId, agentId, task, depth + 1);
@@ -294,16 +359,26 @@ async function drive(runId, depth = 0) {
       try {
         result = await executeTool(fn.name, fn.arguments || {}, ctx);
       } catch (e) {
-        result = { error: e.message };
+        // Harness Law 2: Salvage partial work on tool crash
+        salvageOnCrash(runId, agent.id, e, step, run.thread_id);
+        result = sealRefusal(fn.name, `tool crash: ${e.message}`);
+        persistEvidence(runId, step, result);
       }
 
-      if (result?.awaiting_approval) {
+      // Record step in envelope for audit
+      recordStep(envelope, step, fn.name, fn.arguments || {}, result);
+
+      if (result?.result?.awaiting_approval) {
         setRun(runId, { status: 'awaiting_approval' });
         return;
       }
 
+      // Harness Law 4: Bound oversized results before storing
+      const resultStr = JSON.stringify(result);
+      const bounded = boundResult(resultStr, fn.name);
+
       addMsg(run.thread_id, runId, {
-        role: 'tool', content: JSON.stringify(result).slice(0, 8000),
+        role: 'tool', content: bounded.bounded.slice(0, 8000),
         tool_call_id: tc.id || fn.name, name: fn.name,
       });
     }
