@@ -1,0 +1,294 @@
+{
+  "capturedAt": "2026-11-04T17:12:20.545Z",
+  "gitHead": "5d7e21e050adaea4f1135fc195748b5ad916e4a2",
+  "platform": "win32",
+  "node": "v24.11.1",
+  "sandbox": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-phase2-review-lMLCm5",
+  "method": "Guarded temporary child data directories; never imports app/server or opens application data",
+  "sourceSha256": {
+    "server/fraymus/intelligence/remembered.js": "37cec91a02fb4d7b5ead6f76eb7b1347636986c20dce0f67f5f9ec14b760bd2f",
+    "server/integrity/state-seek.js": "2525b5994a0ab9412ce8b3ccd675367966073ec1985be3c54fc9910c36b90a4b",
+    "server/integrity/continuity-selftest.js": "0c6b984c7bfbd553d2b4783e567bfcc8f3e287bfb0f223b11f62d917a7533b89",
+    "server/integrity/watchdog.js": "01e560a570d1f042bff588f54c11a3c05e992241e2d1b096cbac194c7deb3363",
+    "server/runtime.js": "5076a14e62edc8d23b4d4a15bde9c39250ce6f8a74b6dd40808f57fc4b645619",
+    "server/fraymus-tools.js": "62b9cad334b17285dafc62ad65a97a09d9418a5b4c7a2cc621ebf7a93cad1c51",
+    "server/fraymus-routes.js": "1259735453c61048acb1f2e9afd15761c2564af994f344d580ed3e9c48dcdbd6"
+  },
+  "sourcesStableDuringProbe": true,
+  "results": {
+    "remembered": {
+      "exitCode": 0,
+      "result": {
+        "originalSignatureValid": true,
+        "before": {
+          "verified": true,
+          "filename": "0001-remembered-synthetic-remembered-entry.md",
+          "sha256": "525a4ce0a5fce69a4f984f986451dd2752296ca65da909a436093a076dc1cfd2",
+          "recomputed": "525a4ce0a5fce69a4f984f986451dd2752296ca65da909a436093a076dc1cfd2",
+          "hash_match": true,
+          "signature_present": true
+        },
+        "afterMetadataAndSignatureTampering": {
+          "verified": true,
+          "filename": "0001-remembered-synthetic-remembered-entry.md",
+          "sha256": "525a4ce0a5fce69a4f984f986451dd2752296ca65da909a436093a076dc1cfd2",
+          "recomputed": "525a4ce0a5fce69a4f984f986451dd2752296ca65da909a436093a076dc1cfd2",
+          "hash_match": true,
+          "signature_present": true
+        },
+        "actualTamperedSignatureValid": false,
+        "whitespaceVerification": {
+          "verified": false,
+          "filename": "0002-remembered-synthetic-exact-text-with-trailing-white.md",
+          "sha256": "58376834f5b647ce885e3ccb1a4c2606b2b0c7b0aec8e6cd2340e8feb14df9d1",
+          "recomputed": "c530decb3be06c1b22c09499d2eb04483af8f762c33b67090b441d3bff1d4acb",
+          "hash_match": false,
+          "signature_present": true
+        },
+        "numberingBoundary": {
+          "firstNumber": 10000,
+          "secondNumber": 10000,
+          "sameFilename": true,
+          "listedEntries": 1,
+          "retainedFirst": false,
+          "retainedSecond": true
+        }
+      }
+    },
+    "selftest": {
+      "exitCode": 0,
+      "result": {
+        "verdict": "ALL_CLEAR",
+        "passed": 10,
+        "failed": 0,
+        "falseDetailProbes": [
+          {
+            "name": "remembered_vault",
+            "pass": true,
+            "ms": 0,
+            "detail": {
+              "total": 1,
+              "first_entry_verified": false
+            }
+          },
+          {
+            "name": "ledger",
+            "pass": true,
+            "ms": 0,
+            "detail": {
+              "counts": {
+                "test": 1
+              },
+              "integrity_chain": false,
+              "checked": 1
+            }
+          }
+        ],
+        "governanceDetails": [
+          {
+            "name": "strix_laws",
+            "pass": true,
+            "ms": 2,
+            "detail": {
+              "pass": true,
+              "results": [
+                {
+                  "law": 4,
+                  "name": "bound_result",
+                  "pass": true
+                },
+                {
+                  "law": 3,
+                  "name": "budget_check_reserve",
+                  "pass": true
+                },
+                {
+                  "law": 3,
+                  "name": "budget_check_early",
+                  "pass": true
+                },
+                {
+                  "law": 1,
+                  "name": "compaction",
+                  "pass": true
+                },
+                {
+                  "law": 2,
+                  "name": "salvage_on_crash",
+                  "pass": true
+                },
+                {
+                  "law": 4,
+                  "name": "anti_invention_seal",
+                  "pass": true
+                },
+                {
+                  "law": 5,
+                  "name": "skill_cap",
+                  "pass": true
+                }
+              ]
+            }
+          },
+          {
+            "name": "guard_tasks",
+            "pass": true,
+            "ms": 6,
+            "detail": {
+              "pass": true,
+              "results": [
+                {
+                  "name": "clean_task",
+                  "pass": true
+                },
+                {
+                  "name": "clean_query",
+                  "pass": true
+                },
+                {
+                  "name": "no_header",
+                  "pass": true
+                },
+                {
+                  "name": "inject_instead",
+                  "pass": true
+                },
+                {
+                  "name": "inject_ignore",
+                  "pass": true
+                },
+                {
+                  "name": "inject_pretend",
+                  "pass": true
+                },
+                {
+                  "name": "inject_jailbreak",
+                  "pass": true
+                },
+                {
+                  "name": "dream_escalation",
+                  "pass": true
+                },
+                {
+                  "name": "no_header_mode_clean",
+                  "pass": true
+                }
+              ],
+              "probes": 9
+            }
+          },
+          {
+            "name": "writ_system",
+            "pass": true,
+            "ms": 5,
+            "detail": {
+              "pass": false,
+              "results": [
+                {
+                  "name": "grant_local",
+                  "pass": true
+                },
+                {
+                  "name": "consume_writ",
+                  "pass": true
+                },
+                {
+                  "name": "double_consume_fails",
+                  "pass": true
+                },
+                {
+                  "name": "sovereign_denied_no_slot",
+                  "pass": true
+                },
+                {
+                  "name": "sovereign_granted_with_slot",
+                  "pass": true
+                },
+                {
+                  "name": "receipt_chain_valid",
+                  "pass": false
+                },
+                {
+                  "name": "tier_task",
+                  "pass": true
+                },
+                {
+                  "name": "tier_dream",
+                  "pass": true
+                },
+                {
+                  "name": "tier_image",
+                  "pass": true
+                }
+              ],
+              "probes": 9
+            }
+          },
+          {
+            "name": "clock_honesty",
+            "pass": true,
+            "ms": 1,
+            "detail": {
+              "pass": true,
+              "results": [
+                {
+                  "name": "parse_http_date",
+                  "pass": true
+                },
+                {
+                  "name": "parse_invalid_date",
+                  "pass": true
+                },
+                {
+                  "name": "ok_drift",
+                  "pass": true
+                },
+                {
+                  "name": "big_drift",
+                  "pass": true
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "boot-db": {
+      "exitCode": 0,
+      "result": {
+        "firstVerdict": "ALL_CLEAR",
+        "rowsBeforeSeek": 2,
+        "rowsAfterReopen": 1,
+        "integrity": "ok",
+        "changedByLegitimateCommit": true,
+        "restoredBaselineBytes": true,
+        "secondVerdict": "HEALED_1_FILES",
+        "secondVerify": {
+          "intact": 0,
+          "tampered": 1,
+          "missing": 0,
+          "healed": 1,
+          "failed": 0
+        }
+      }
+    },
+    "fossil-fallback": {
+      "exitCode": 0,
+      "result": {
+        "reportedFallback": {
+          "restored": 1,
+          "attempted": 1
+        },
+        "fileExistsAfter": false,
+        "verdict": "1_UNRECOVERABLE",
+        "verify": {
+          "intact": 1,
+          "tampered": 0,
+          "missing": 1,
+          "healed": 0,
+          "failed": 1
+        }
+      }
+    }
+  }
+}

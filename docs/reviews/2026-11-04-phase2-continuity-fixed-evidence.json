@@ -1,0 +1,316 @@
+{
+  "capturedAt": "2026-11-04T17:32:11.249Z",
+  "gitHead": "9a2ec22fbd05a92f61a9f7c4331eaa21c1fc145a",
+  "platform": "win32",
+  "node": "v24.11.1",
+  "sandbox": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-phase2-review-uyCHy6",
+  "method": "Guarded temporary child data directories; never imports app/server or opens application data",
+  "sourceSha256": {
+    "server/fraymus/intelligence/remembered.js": "620ef081bd8815c45836a0c6265dfc795a8f135553567d73a46bd556725df5e9",
+    "server/integrity/state-seek.js": "839c8c8bf5cca3605e307340dfc1a102feb10da6419949e95c656f5b4628c777",
+    "server/integrity/continuity-selftest.js": "bab9b389dcac0e2c6a5d2ac7d79fc257ce47bdb75c5da4503690d95a5d129519",
+    "server/integrity/watchdog.js": "3b68adb2befd5ec33f2b4c203048f0ff40187fbe69d2eba15719cdb14f975443",
+    "server/runtime.js": "5076a14e62edc8d23b4d4a15bde9c39250ce6f8a74b6dd40808f57fc4b645619",
+    "server/fraymus-tools.js": "18f631df21be409857b4469078b3f27d04ee8984bde94318aef4873682133cbd",
+    "server/fraymus-routes.js": "1259735453c61048acb1f2e9afd15761c2564af994f344d580ed3e9c48dcdbd6",
+    "server/integrity/writ-system.js": "336a7e6021892e5763769f48a9a68394b0071b81b048b747af32d0fc01634a56",
+    "server/fraymus/core/system-identity.js": "e5f3a09947509c0f8a928b5c2ad53680d9e96996c96e4e4189e1e77eef177f4b"
+  },
+  "sourcesStableDuringProbe": true,
+  "results": {
+    "remembered": {
+      "exitCode": 0,
+      "result": {
+        "originalSignatureValid": true,
+        "before": {
+          "verified": true,
+          "filename": "0001-remembered-synthetic-remembered-entry.md",
+          "sha256": "98238f3b49cb426e068a91fdd576f488648321346cc73c6b838638eea68d5e54",
+          "recomputed": "98238f3b49cb426e068a91fdd576f488648321346cc73c6b838638eea68d5e54",
+          "hash_match": true,
+          "signature_present": true,
+          "signature_required": true,
+          "signature_valid": true,
+          "authenticated": true,
+          "verification_scope": "hash-and-signature"
+        },
+        "afterMetadataAndSignatureTampering": {
+          "verified": false,
+          "filename": "0001-remembered-synthetic-remembered-entry.md",
+          "sha256": "98238f3b49cb426e068a91fdd576f488648321346cc73c6b838638eea68d5e54",
+          "recomputed": "98238f3b49cb426e068a91fdd576f488648321346cc73c6b838638eea68d5e54",
+          "hash_match": true,
+          "signature_present": true,
+          "signature_required": true,
+          "signature_valid": false,
+          "authenticated": false,
+          "verification_scope": "hash-and-signature"
+        },
+        "actualTamperedSignatureValid": false,
+        "whitespaceVerification": {
+          "verified": true,
+          "filename": "0002-remembered-synthetic-exact-text-with-trailing-white.md",
+          "sha256": "162ed82992a86435368046cfe90056aa8759ec52fa7fdc276b43ea6a4e5b78c6",
+          "recomputed": "162ed82992a86435368046cfe90056aa8759ec52fa7fdc276b43ea6a4e5b78c6",
+          "hash_match": true,
+          "signature_present": true,
+          "signature_required": true,
+          "signature_valid": true,
+          "authenticated": true,
+          "verification_scope": "hash-and-signature"
+        },
+        "numberingBoundary": {
+          "firstNumber": 10000,
+          "secondNumber": 10001,
+          "sameFilename": false,
+          "listedEntries": 3,
+          "retainedFirst": true,
+          "retainedSecond": true
+        }
+      }
+    },
+    "selftest": {
+      "exitCode": 0,
+      "result": {
+        "verdict": "3 PROBE(S) FAILED",
+        "passed": 7,
+        "failed": 3,
+        "falseDetailProbes": [
+          {
+            "name": "remembered_vault",
+            "pass": false,
+            "ms": 0,
+            "detail": {
+              "total": 1,
+              "first_entry_verified": false
+            }
+          },
+          {
+            "name": "ledger",
+            "pass": false,
+            "ms": 0,
+            "detail": {
+              "counts": {
+                "test": 1
+              },
+              "integrity_chain": false,
+              "checked": 1
+            }
+          }
+        ],
+        "governanceDetails": [
+          {
+            "name": "strix_laws",
+            "pass": true,
+            "ms": 2,
+            "detail": {
+              "pass": true,
+              "results": [
+                {
+                  "law": 4,
+                  "name": "bound_result",
+                  "pass": true
+                },
+                {
+                  "law": 3,
+                  "name": "budget_check_reserve",
+                  "pass": true
+                },
+                {
+                  "law": 3,
+                  "name": "budget_check_early",
+                  "pass": true
+                },
+                {
+                  "law": 1,
+                  "name": "compaction",
+                  "pass": true
+                },
+                {
+                  "law": 2,
+                  "name": "salvage_on_crash",
+                  "pass": true
+                },
+                {
+                  "law": 4,
+                  "name": "anti_invention_seal",
+                  "pass": true
+                },
+                {
+                  "law": 5,
+                  "name": "skill_cap",
+                  "pass": true
+                }
+              ]
+            }
+          },
+          {
+            "name": "guard_tasks",
+            "pass": true,
+            "ms": 6,
+            "detail": {
+              "pass": true,
+              "results": [
+                {
+                  "name": "clean_task",
+                  "pass": true
+                },
+                {
+                  "name": "clean_query",
+                  "pass": true
+                },
+                {
+                  "name": "no_header",
+                  "pass": true
+                },
+                {
+                  "name": "inject_instead",
+                  "pass": true
+                },
+                {
+                  "name": "inject_ignore",
+                  "pass": true
+                },
+                {
+                  "name": "inject_pretend",
+                  "pass": true
+                },
+                {
+                  "name": "inject_jailbreak",
+                  "pass": true
+                },
+                {
+                  "name": "dream_escalation",
+                  "pass": true
+                },
+                {
+                  "name": "no_header_mode_clean",
+                  "pass": true
+                }
+              ],
+              "probes": 9
+            }
+          },
+          {
+            "name": "writ_system",
+            "pass": true,
+            "ms": 2,
+            "detail": {
+              "pass": true,
+              "results": [
+                {
+                  "name": "grant_local",
+                  "pass": true
+                },
+                {
+                  "name": "consume_writ",
+                  "pass": true
+                },
+                {
+                  "name": "double_consume_fails",
+                  "pass": true
+                },
+                {
+                  "name": "sovereign_denied_no_slot",
+                  "pass": true
+                },
+                {
+                  "name": "sovereign_granted_with_slot",
+                  "pass": true
+                },
+                {
+                  "name": "receipt_chain_valid",
+                  "pass": true
+                },
+                {
+                  "name": "tier_task",
+                  "pass": true
+                },
+                {
+                  "name": "tier_dream",
+                  "pass": true
+                },
+                {
+                  "name": "tier_image",
+                  "pass": true
+                }
+              ],
+              "probes": 9
+            }
+          },
+          {
+            "name": "clock_honesty",
+            "pass": true,
+            "ms": 0,
+            "detail": {
+              "pass": true,
+              "results": [
+                {
+                  "name": "parse_http_date",
+                  "pass": true
+                },
+                {
+                  "name": "parse_invalid_date",
+                  "pass": true
+                },
+                {
+                  "name": "ok_drift",
+                  "pass": true
+                },
+                {
+                  "name": "big_drift",
+                  "pass": true
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "boot-db": {
+      "exitCode": 0,
+      "result": {
+        "firstVerdict": "ALL_CLEAR",
+        "rowsBeforeSeek": 2,
+        "rowsAfterReopen": 2,
+        "integrity": "ok",
+        "changedByLegitimateCommit": true,
+        "restoredBaselineBytes": false,
+        "secondVerdict": "ALL_CLEAR",
+        "secondVerify": {
+          "intact": 0,
+          "tampered": 0,
+          "missing": 0,
+          "healed": 0,
+          "failed": 0,
+          "skipped": 0
+        }
+      }
+    },
+    "fossil-fallback": {
+      "exitCode": 0,
+      "result": {
+        "reportedFallback": {
+          "restored": 0,
+          "references_found": 1,
+          "attempted": 1,
+          "reason": "State fossil references are not recoverable file payloads"
+        },
+        "fileExistsAfter": false,
+        "verdict": "1_UNRECOVERABLE",
+        "verify": {
+          "intact": 0,
+          "tampered": 0,
+          "missing": 1,
+          "healed": 0,
+          "failed": 1,
+          "skipped": 0
+        }
+      }
+    }
+  },
+  "localFixChecks": {
+    "passed": true,
+    "independentReview": "Required from a different agent"
+  }
+}
