@@ -129,6 +129,10 @@ npm run start        # production server (serves built client)
   - `intelligence/verifier-loop.js`: MAX_ITERATIONS scaled by gate's evolutionRate (INTEGRATED 1.5x allows up to 7 iterations, DORMANT 0.5x caps at 2)
   - `intelligence/neurogenesis.js`: neurogenesisBoost modulates Poisson lambda, CTRNN stimulus targets densest-cluster neurons (sampleIndices)
   - `autonomy.js`: replaced synthetic 4-node proofs with live CTRNN gate reads
+- **Phase 6 wiring (consciousness-aware fleet intelligence)**: gate modifiers now shape agent cognition, debate depth, and modification acceptance:
+  - `fleet/runtime.js`: every agent's system prompt now includes consciousness tier directive + proof values — agents know whether to be conservative (DORMANT) or bold (INTEGRATED), with Phi value and evolution rate visible
+  - `intelligence/debate.js`: rebuttal rounds scaled by evolutionRate — BASE_REBUTTAL_ROUNDS=1, at INTEGRATED (1.5x) debates run 2 rebuttal rounds (deeper adversarial pressure), bus events include gateTier and totalRounds
+  - `intelligence/opeg.js`: regression tolerance scaled by evolutionRate — BASE_REGRESSION_TOLERANCE=10%, at INTEGRATED allows 15% regression (more adventurous), at DORMANT only 5% (conservative). All verdict objects include gateTier for audit
 - DB table: `consciousness_transitions` (id, from_tier, to_tier, direction, created_at)
 - 3 REST endpoints: GET /api/intelligence/consciousness/gate, GET .../modifiers, GET .../transitions
 - 1 fleet tool: `consciousness_gate_status`
