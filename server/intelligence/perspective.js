@@ -513,6 +513,24 @@ export function installPerspectiveRoutes(app) {
   app.get('/api/perspective/arena-stats', route((_req, res) => {
     res.json(getArenaStats());
   }));
+
+  // ─── Continuity plasmid endpoints ───
+  app.post('/api/perspective/plasmid/pack', route(async (_req, res) => {
+    const result = await packContinuityPlasmid();
+    res.json(result);
+  }));
+
+  app.post('/api/perspective/plasmid/restore', route(async (req, res) => {
+    const { path: filepath } = req.body || {};
+    if (!filepath) return res.status(400).json({ error: 'path is required' });
+    const result = await restoreContinuityPlasmid(filepath);
+    if (result.error) return res.status(400).json(result);
+    res.json(result);
+  }));
+
+  app.get('/api/perspective/plasmid/list', route((_req, res) => {
+    res.json({ plasmids: listContinuityPlasmids() });
+  }));
 }
 
 // ─── Arena Mode ─────────────────────────────────────────────
@@ -753,4 +771,180 @@ function parseJSON(text, fallback) {
     if (start === -1 || end === -1) return fallback;
     return JSON.parse(cleaned.slice(start, end + 1));
   } catch { return fallback; }
+}
+
+// ─── Continuity Plasmid ─────────────────────────────────────
+// Packs the perspective playbook, recent sessions, lens mode, and
+// arena history into a FRAYMUS DNA-encoded plasmid for disaster recovery.
+// Uses the real encoding stack: codon.js (ATG/TAA framing, FNV-1a checksums)
+// + plasmid.js (circular DNA with ori, promoters, restriction sites).
+
+import { writeFileSync, readFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+
+let _forgePlasmid, _digestPlasmid, _plasmidToFasta;
+
+async function loadPlasmidEncoders() {
+  if (!_forgePlasmid) {
+    const mod = await import('../fraymus/encoding/plasmid.js');
+    _forgePlasmid = mod.forgePlasmid;
+    _digestPlasmid = mod.digestPlasmid;
+    _plasmidToFasta = mod.plasmidToFasta;
+  }
+}
+
+function getPlasmidDir() {
+  const DATA_DIR = process.env.CHANDRA_DATA_DIR || './data';
+  const dir = join(DATA_DIR, 'perspective-plasmids');
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+export async function packContinuityPlasmid() {
+  ensureTables();
+  ensureArenaTables();
+  await loadPlasmidEncoders();
+
+  // Gather all continuity data
+  const playbook = db.prepare('SELECT * FROM perspective_playbook ORDER BY success_count DESC').all()
+    .map(p => ({ ...p, perspectives_used: JSON.parse(p.perspectives_used || '[]') }));
+
+  const recentSessions = db.prepare(
+    'SELECT id, instance_id, active_perspectives, outcome_summary, continuity_notes, started_at, ended_at FROM perspective_sessions ORDER BY started_at DESC LIMIT 20'
+  ).all().map(s => ({ ...s, active_perspectives: JSON.parse(s.active_perspectives || '[]') }));
+
+  const recentShifts = db.prepare(
+    'SELECT session_id, from_perspective, to_perspective, trigger, reasoning, timestamp FROM perspective_shifts ORDER BY timestamp DESC LIMIT 50'
+  ).all();
+
+  const arenaHistory = db.prepare(
+    'SELECT id, task, pattern_match, winner_agent, winner_perspective, duration_ms, created_at FROM arena_sessions ORDER BY created_at DESC LIMIT 20'
+  ).all();
+
+  const payload = {
+    magic: 'PERSPECTIVE-CONTINUITY',
+    version: 1,
+    packed_at: now(),
+    instance_id: instanceId,
+    lens_mode: lensMode,
+    playbook,
+    sessions: recentSessions,
+    shifts: recentShifts,
+    arena_history: arenaHistory,
+    stats: {
+      playbook_entries: playbook.length,
+      total_sessions: db.prepare('SELECT COUNT(*) as c FROM perspective_sessions').get().c,
+      total_shifts: db.prepare('SELECT COUNT(*) as c FROM perspective_shifts').get().c,
+      total_arenas: db.prepare('SELECT COUNT(*) as c FROM arena_sessions').get().c,
+    },
+  };
+
+  const payloadJson = JSON.stringify(payload);
+  const plasmid = _forgePlasmid(payloadJson, {
+    name: 'perspective-continuity',
+    type: 'vector',
+    source: `instance-${instanceId}`,
+    marker: 'kanR',
+  });
+
+  // Save to disk
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const filename = `perspective-${timestamp}.continuity.dna`;
+  const filepath = join(getPlasmidDir(), filename);
+  writeFileSync(filepath, plasmid.dna);
+
+  // Also write FASTA export for readability
+  const fasta = _plasmidToFasta(plasmid);
+  writeFileSync(filepath.replace('.dna', '.fasta'), fasta);
+
+  return {
+    file: filepath,
+    filename,
+    fasta_file: filepath.replace('.dna', '.fasta'),
+    plasmid_size: plasmid.size,
+    gc_content: plasmid.gcContent,
+    integrity: plasmid.integrity,
+    topology: plasmid.topology,
+    payload_summary: {
+      playbook_entries: playbook.length,
+      sessions: recentSessions.length,
+      shifts: recentShifts.length,
+      arenas: arenaHistory.length,
+      lens_mode: lensMode,
+    },
+  };
+}
+
+export async function restoreContinuityPlasmid(filepath) {
+  ensureTables();
+  ensureArenaTables();
+  await loadPlasmidEncoders();
+
+  if (!existsSync(filepath)) return { error: 'Plasmid file not found' };
+
+  const dna = readFileSync(filepath, 'utf-8');
+  const digested = _digestPlasmid(dna);
+
+  let payload;
+  try {
+    payload = JSON.parse(digested.payloadText);
+  } catch (e) {
+    return { error: 'Failed to parse plasmid payload: ' + e.message };
+  }
+
+  if (payload.magic !== 'PERSPECTIVE-CONTINUITY') {
+    return { error: 'Not a perspective continuity plasmid: ' + (payload.magic || 'no magic') };
+  }
+
+  // Restore playbook entries (merge, don't overwrite — keep higher counts)
+  let restored = 0;
+  let merged = 0;
+  for (const entry of (payload.playbook || [])) {
+    const existing = db.prepare('SELECT id, success_count, fail_count FROM perspective_playbook WHERE pattern = ?').get(entry.pattern);
+    if (existing) {
+      if ((entry.success_count + entry.fail_count) > (existing.success_count + existing.fail_count)) {
+        db.prepare('UPDATE perspective_playbook SET recommended_approach = ?, perspectives_used = ?, success_count = ?, fail_count = ?, last_validated = ? WHERE id = ?').run(
+          entry.recommended_approach, JSON.stringify(entry.perspectives_used || []),
+          entry.success_count, entry.fail_count, entry.last_validated || now(), existing.id,
+        );
+        merged++;
+      }
+    } else {
+      db.prepare('INSERT INTO perspective_playbook (id, pattern, recommended_approach, perspectives_used, success_count, fail_count, last_validated, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
+        randomUUID(), entry.pattern, entry.recommended_approach,
+        JSON.stringify(entry.perspectives_used || []),
+        entry.success_count || 0, entry.fail_count || 0,
+        entry.last_validated || now(), entry.created_at || now(),
+      );
+      restored++;
+    }
+  }
+
+  // Restore lens mode if it was non-default
+  if (payload.lens_mode && payload.lens_mode !== 'auto' && LENS_MODES[payload.lens_mode]) {
+    lensMode = payload.lens_mode;
+  }
+
+  return {
+    verified: digested.verified,
+    plasmid_version: payload.version,
+    packed_at: payload.packed_at,
+    source_instance: payload.instance_id,
+    playbook_restored: restored,
+    playbook_merged: merged,
+    lens_mode_restored: payload.lens_mode !== 'auto' ? payload.lens_mode : null,
+    payload_stats: payload.stats,
+  };
+}
+
+export function listContinuityPlasmids() {
+  const dir = getPlasmidDir();
+  try {
+    const files = readdirSync(dir).filter(f => f.endsWith('.continuity.dna')).sort().reverse();
+    return files.map(f => {
+      const full = join(dir, f);
+      const stat = statSync(full);
+      return { file: f, path: full, size: stat.size, modified: stat.mtimeMs };
+    });
+  } catch (_) { return []; }
 }

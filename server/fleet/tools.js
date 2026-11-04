@@ -11,7 +11,7 @@ import { startDaemon, stopDaemon, getDaemonStatus, runCycle, listCycles } from '
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
-import { assessSituation, shiftPerspective, recordOutcome, briefNextInstance, getStats as perspectiveStats, arenaChallenge, getArenaSession, listArenas, getArenaStats, getLensMode, setLensMode } from '../intelligence/perspective.js';
+import { assessSituation, shiftPerspective, recordOutcome, briefNextInstance, getStats as perspectiveStats, arenaChallenge, getArenaSession, listArenas, getArenaStats, getLensMode, setLensMode, packContinuityPlasmid, restoreContinuityPlasmid, listContinuityPlasmids } from '../intelligence/perspective.js';
 import { initiateSwarm, getSwarmSession, listSwarms, getSwarmStats } from '../intelligence/swarm.js';
 import { analyzeTask, executeStrategy, listStrategies, getStrategyStats } from '../intelligence/strategy.js';
 import { recordEvent as recordTrustEvent, getAgentTrust, getLeaderboard, recommendAgents, getTrustStats } from '../intelligence/trust.js';
@@ -1225,6 +1225,32 @@ export function createFleetTools({ workflowStore }) {
         mode: { type: 'string', enum: ['auto', 'human', 'machine'], description: 'Lens mode to set. Omit to just read current mode.' },
       }),
       execute: async ({ args }) => args.mode ? setLensMode(args.mode) : getLensMode(),
+    },
+    {
+      name: 'perspective_plasmid_pack',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Pack the perspective playbook, sessions, arena history, and lens mode into a FRAYMUS DNA-encoded continuity plasmid for disaster recovery. Uses real codon/plasmid encoding (ATG/TAA framing, circular DNA, restriction sites).',
+      parameters: object({}),
+      execute: async () => packContinuityPlasmid(),
+    },
+    {
+      name: 'perspective_plasmid_restore',
+      group: 'intelligence',
+      risk: 'medium',
+      description: 'Restore perspective continuity from a DNA-encoded plasmid. Merges playbook entries (keeps higher counts) and restores lens mode.',
+      parameters: object({
+        path: string(500, { description: 'Path to the .continuity.dna plasmid file' }),
+      }, ['path']),
+      execute: async ({ args }) => restoreContinuityPlasmid(args.path),
+    },
+    {
+      name: 'perspective_plasmid_list',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'List available perspective continuity plasmids.',
+      parameters: object({}),
+      execute: async () => ({ plasmids: listContinuityPlasmids() }),
     },
     {
       name: 'arena_challenge',
