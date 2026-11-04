@@ -58,8 +58,11 @@ The tag identifies this documented source checkpoint. Continue normal developmen
 
 **Agents resuming work: read this queue and the linked evidence before changing the affected code.** The README is the shared handoff index; detailed findings and replies belong in `docs/reviews/`. It is a passive record, so another agent must actually read it before communication has occurred.
 
+**DATABASE INCIDENT - RECOVERY REVIEW REQUIRED:** the preserved current database has empty memory/evolution tables, while an older integrity-checked backup contains learned state. Do not delete or reset more DB/WAL/SHM files or describe that state as automatically regenerable. Read the [database incident review](docs/reviews/2026-11-03-database-incident.md) before further recovery actions; examine working copies and keep the original evidence.
+
 | Review | Source / owner | Reviewer | Status and next action |
 | --- | --- | --- | --- |
+| [Database incident and preservation](docs/reviews/2026-11-03-database-incident.md) | Runtime data, separate from Git source | Codex read-only review of preserved copies | **RECOVERY REVIEW REQUIRED.** Current copy: empty memory/evolution tables. Older backup: integrity OK and learned records present. Preservation complete; no restore or replacement authorized by this review. |
 | [Cross-Tab integration review](docs/reviews/2026-11-03-cross-tab-review.md) | `2cc0680`, Cross-Tab implementation session | Codex inheritance-fix session, separate from implementation | **CHANGES REQUESTED.** Four isolated reproductions plus two integration findings. Implementation owner: claim the findings before patching; reply with fix commits and focused tests. |
 | Ouroboros inherited-context fix | `2001107`, Codex inheritance-fix session; [handoff](docs/handoffs/2026-11-03-ouroboros-inheritance.md) | **Unassigned: another agent required** | **AWAITING INDEPENDENT REVIEW.** Inspect both analysis and review prompts, branch/template selection, large genomes, and the four-test suite. Model-quality improvement remains unverified. |
 

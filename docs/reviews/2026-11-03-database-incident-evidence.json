@@ -1,0 +1,69 @@
+{
+  "examinedAtUtc": "2026-11-04T03:16:43.951Z",
+  "evidenceDir": "F:/Codex-brain/evidence/chandra-db-2026-11-03-3d00b5aa",
+  "method": "Read-only SQLite connections on private analysis copies. Original source files and preserved evidence copies were not opened by SQLite.",
+  "databases": [
+    {
+      "name": "chandra.db",
+      "sqliteVersion": "3.53.2",
+      "integrityCheck": [
+        "ok"
+      ],
+      "tableCount": 104,
+      "counts": {
+        "agent_memories": 0,
+        "vertiso_memories": 0,
+        "ouroboros_cycles": 0,
+        "ouroboros_genome": 0,
+        "ouroboros_workspaces": 0,
+        "bus_messages": 0,
+        "forged_agents": 0,
+        "synthesized_workflows": 0,
+        "perspective_sessions": 0,
+        "perspective_playbook": 0,
+        "fraymus_entities": 0,
+        "streaming_artifacts": {
+          "absent": true
+        }
+      }
+    },
+    {
+      "name": "chandra_corrupt_backup.db",
+      "openError": "database disk image is malformed"
+    },
+    {
+      "name": "chandra.pre-provenance.db",
+      "sqliteVersion": "3.53.2",
+      "integrityCheck": [
+        "ok"
+      ],
+      "tableCount": 72,
+      "counts": {
+        "agent_memories": 12,
+        "vertiso_memories": 6,
+        "ouroboros_cycles": {
+          "absent": true
+        },
+        "ouroboros_genome": {
+          "absent": true
+        },
+        "ouroboros_workspaces": {
+          "absent": true
+        },
+        "bus_messages": 29,
+        "forged_agents": 7,
+        "synthesized_workflows": 2,
+        "perspective_sessions": {
+          "absent": true
+        },
+        "perspective_playbook": {
+          "absent": true
+        },
+        "fraymus_entities": 780,
+        "streaming_artifacts": {
+          "absent": true
+        }
+      }
+    }
+  ]
+}
