@@ -269,14 +269,11 @@ async function evolvePrompts() {
 
   if (patterns.length === 0) return { evolved: false, reason: 'no_parseable_fossils' };
 
-  // Check which agents have the forge/verify tools — they benefit from knowing proven patterns
+  // Inject proven patterns into ALL agents — verified fossils and chain insights are general knowledge
   const manifests = loadManifests();
   let evolvedCount = 0;
 
   for (const [agentId, manifest] of manifests) {
-    if (manifest.source !== 'override') continue; // only evolve forged agents, not defaults
-    const hasEvolutionTools = manifest.tools === '*' || (Array.isArray(manifest.tools) && manifest.tools.some(t => ['verify_loop', 'agent_forge', 'workflow_synthesize'].includes(t)));
-    if (!hasEvolutionTools) continue;
 
     // Check if this agent already has the fossil context
     const promptLower = (manifest.systemPrompt || '').toLowerCase();
