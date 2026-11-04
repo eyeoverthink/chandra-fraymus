@@ -160,6 +160,9 @@ function nodeKind(type) {
   if (type === 'cross_tab_ingest') return 'cross_tab_ingest';
   if (type === 'cross_tab_analyze') return 'cross_tab_analyze';
   if (type === 'cross_tab_context') return 'cross_tab_context';
+  if (type === 'nexus_ingest') return 'nexus_ingest';
+  if (type === 'nexus_recommend') return 'nexus_recommend';
+  if (type === 'nexus_act') return 'nexus_act';
   return 'unknown';
 }
 
@@ -1053,6 +1056,30 @@ export async function runPipeline(nodes, edges, opts = {}) {
         r.data = { context, active: !!context };
         r.text = context || 'No cross-tab context available';
         texts[id] = context || '';
+
+      } else if (k === 'nexus_ingest') {
+        const resp = await fetch('http://127.0.0.1:8787/api/nexus/ingest', { method: 'POST', signal: AbortSignal.timeout(15_000) });
+        const data = await resp.json();
+        r.data = data;
+        r.text = `Ingested ${data.total || 0} items from ${Object.keys(data.counts || {}).length} sources`;
+        texts[id] = r.text;
+
+      } else if (k === 'nexus_recommend') {
+        const limit = node.data?.config?.limit || prevText(node) || 5;
+        const resp = await fetch(`http://127.0.0.1:8787/api/nexus/recommendations?limit=${limit}`, { signal: AbortSignal.timeout(30_000) });
+        const data = await resp.json();
+        r.data = data;
+        r.text = (data.recommendations || []).map(rec => `${rec.title}: ${rec.action}`).join('; ') || 'No recommendations';
+        texts[id] = r.text;
+
+      } else if (k === 'nexus_act') {
+        const itemId = node.data?.config?.itemId || prevText(node);
+        const actionType = node.data?.config?.actionType || 'creation';
+        const resp = await fetch(`http://127.0.0.1:8787/api/nexus/act/${itemId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actionType }), signal: AbortSignal.timeout(15_000) });
+        const data = await resp.json();
+        r.data = data;
+        r.text = data.ok ? `Acted on item ${itemId}: ${actionType}` : (data.error || 'Failed');
+        texts[id] = r.text;
 
       } else {
         throw new Error(`Unknown node type: ${node.type}`);

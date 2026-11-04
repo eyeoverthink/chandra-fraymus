@@ -41,6 +41,7 @@ const NAV_BUTTONS = [
   { panel: 'ouroboros-lineage', title: 'Ouroboros Lineage', icon: '🧬', label: 'Lineage', color: '#10b981' },
   { panel: 'integrity', title: 'System Integrity', icon: '🔒', label: 'Integrity', color: '#ef4444' },
   { panel: 'cross-tab', title: 'Cross-Tab Intelligence', icon: '🌐', label: 'CrossTab', color: '#06b6d4' },
+  { panel: 'content-nexus', title: 'Content Nexus', icon: '📡', label: 'Nexus', color: '#8b5cf6' },
 ];
 
 function NavButton({ btn, openDrawer }) {

@@ -1738,5 +1738,78 @@ export function createFleetTools({ workflowStore }) {
       parameters: object({}),
       execute: async () => ({ context: getPerspectiveContext() }),
     },
+
+    // ── Content Nexus tools ──
+    {
+      name: 'nexus_ingest',
+      group: 'nexus',
+      risk: 'low',
+      description: 'Ingest items from all sources (YouTube, web, trends, browsing, calendar) into the Content Nexus feed.',
+      parameters: object({}),
+      execute: async () => {
+        const r = await fetch('http://127.0.0.1:8787/api/nexus/ingest', { method: 'POST', signal: AbortSignal.timeout(15_000) });
+        return r.json();
+      },
+    },
+    {
+      name: 'nexus_feed',
+      group: 'nexus',
+      risk: 'low',
+      description: 'Get the unified Content Nexus feed. Filter by source (youtube, web, trends, browsing, calendar), acted status, or min relevance score.',
+      parameters: object({
+        source: { type: 'string', description: 'Filter by source' },
+        limit: { type: 'number', description: 'Max items (default 50)' },
+        minScore: { type: 'number', description: 'Minimum relevance score 0-1' },
+        acted: { type: 'boolean', description: 'Filter by acted-on status' },
+      }),
+      execute: async ({ args }) => {
+        const params = new URLSearchParams();
+        if (args.source) params.set('source', args.source);
+        if (args.limit) params.set('limit', String(args.limit));
+        if (args.minScore) params.set('minScore', String(args.minScore));
+        if (args.acted !== undefined) params.set('acted', String(args.acted));
+        const r = await fetch(`http://127.0.0.1:8787/api/nexus/feed?${params}`, { signal: AbortSignal.timeout(15_000) });
+        return r.json();
+      },
+    },
+    {
+      name: 'nexus_stats',
+      group: 'nexus',
+      risk: 'low',
+      description: 'Get Content Nexus statistics — total items, acted count, breakdown by source and type.',
+      parameters: object({}),
+      execute: async () => {
+        const r = await fetch('http://127.0.0.1:8787/api/nexus/stats', { signal: AbortSignal.timeout(15_000) });
+        return r.json();
+      },
+    },
+    {
+      name: 'nexus_act',
+      group: 'nexus',
+      risk: 'low',
+      description: 'Mark a Content Nexus item as acted-on with the specified action type (commerce, creation, distribution, repurpose).',
+      parameters: object({
+        id: { type: 'number', description: 'Nexus item ID' },
+        actionType: { type: 'string', description: 'Action taken (commerce, creation, distribution, repurpose)' },
+        runId: { type: 'string', description: 'Optional pipeline run ID' },
+      }),
+      execute: async ({ args }) => {
+        const r = await fetch(`http://127.0.0.1:8787/api/nexus/act/${args.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actionType: args.actionType, runId: args.runId }), signal: AbortSignal.timeout(15_000) });
+        return r.json();
+      },
+    },
+    {
+      name: 'nexus_recommend',
+      group: 'nexus',
+      risk: 'low',
+      description: 'Get AI-powered recommendations on which Content Nexus items to act on next.',
+      parameters: object({
+        limit: { type: 'number', description: 'Number of recommendations (default 5)' },
+      }),
+      execute: async ({ args }) => {
+        const r = await fetch(`http://127.0.0.1:8787/api/nexus/recommendations?limit=${args.limit || 5}`, { signal: AbortSignal.timeout(30_000) });
+        return r.json();
+      },
+    },
   ];
 }

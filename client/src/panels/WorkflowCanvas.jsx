@@ -76,6 +76,11 @@ const NODE_CATEGORIES = [
     { type: 'cross_tab_analyze', label: 'CT Analyze', color: '#0891b2', icon: '🔍' },
     { type: 'cross_tab_context', label: 'CT Context', color: '#0e7490', icon: '🧠' },
   ]},
+  { id: 'nexus', label: 'Content Nexus', color: '#8b5cf6', types: [
+    { type: 'nexus_ingest', label: 'Nexus Ingest', color: '#8b5cf6', icon: '📡' },
+    { type: 'nexus_recommend', label: 'Nexus Recommend', color: '#7c3aed', icon: '💡' },
+    { type: 'nexus_act', label: 'Nexus Act', color: '#6d28d9', icon: '🎯' },
+  ]},
 ];
 
 const NODE_TYPES = NODE_CATEGORIES.flatMap(c => c.types);
