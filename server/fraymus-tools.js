@@ -32,6 +32,10 @@ import { Dreamer } from './fraymus/intelligence/dreamer.js';
 import { CognitionPipeline } from './fraymus/intelligence/cognition.js';
 import { SCHEMAS, getSchema, entitiesBySource } from './fraymus/entities/schemas.js';
 import { MemoryBridge } from './fraymus/intelligence/memory-bridge.js';
+import { evaluateEp3Sensor, Ep3Sensor, amplificationFactor } from './fraymus/intelligence/ep3.js';
+import { sanitizeStreamText, verifyBijectiveRoundTrip, detectSecretPrefixes } from './fraymus/intelligence/transcoder4d.js';
+import { TriangulatedHoneypotArray, CANARY_TYPES } from './fraymus/intelligence/canary.js';
+import { StreamCanaryInterceptor } from './fraymus/intelligence/stream-canary.js';
 import { getWorkflow, scheduledWorkflows, eventTriggeredWorkflows } from './fraymus/workflows/definitions.js';
 import { MCP_TOOLS, getToolDefinition, listTools as listMcpTools } from './fraymus/mcp/tools.js';
 import { AGENTS, ZONES, COMPUTE_NODES, PHI } from './fraymus/core/constants.js';
@@ -76,6 +80,11 @@ const cognition = new CognitionPipeline({ heart, ledger, dreamer, ouroboros, oll
 
 // Lazily inject system identity into dreamer once generated
 getSystemIdentity().then(id => { dreamer.identity = id; }).catch(() => {});
+
+// Immune System Layer — EP3, HyperTranscoder4D, Canary Triangulation, Stream Interceptor
+const ep3Sensor = new Ep3Sensor(1.0);
+const canaryArray = new TriangulatedHoneypotArray(48, 1.0);
+const streamCanary = new StreamCanaryInterceptor(canaryArray);
 
 function buildHermesExecutors() {
   return {
@@ -640,7 +649,7 @@ function buildHermesExecutors() {
   };
 }
 
-export { ouroboros, hermes, motor, openclaw, controlPlane, needle, needleWorker, heart, ledger, dreamer, cognition, MemoryBridge };
+export { ouroboros, hermes, motor, openclaw, controlPlane, needle, needleWorker, heart, ledger, dreamer, cognition, MemoryBridge, ep3Sensor, canaryArray, streamCanary };
 export { encodeCodon, decodeCodon, codonStats, forgePlasmid, digestPlasmid, plasmidToFasta, createGenomeSnapshot, restoreFromSnapshot, saveCheckpoint, listCheckpoints, CARBON_VERSION };
 
 export function createFraymusTools() {
@@ -1172,6 +1181,77 @@ export function createFraymusTools() {
           recommendation: 'All subsystems nominal. Full autonomy available.',
         };
       },
+    },
+
+    // ── EP3 Sensor Tools ──
+    {
+      name: 'fraymus.ep3.evaluate',
+      group: 'fraymus-immune',
+      description: 'Evaluate the EP3 third-order exceptional point sensor. Returns Puiseux cube-root amplification factor, eigenvalue splits, and 8-bit quantization for a given coupling g and perturbation epsilon.',
+      parameters: object({
+        g: { type: 'number', description: 'Coupling constant (default 1.0)' },
+        epsilon: { type: 'number', description: 'Perturbation residual to amplify' },
+      }, ['epsilon']),
+      execute: async ({ g, epsilon }) => evaluateEp3Sensor(g || 1.0, epsilon),
+    },
+    {
+      name: 'fraymus.ep3.status',
+      group: 'fraymus-immune',
+      description: 'Get the current EP3 sensor accumulator state — drift, sample count, and last evaluation.',
+      parameters: object({}),
+      execute: async () => ({ ...ep3Sensor.toJSON(), evaluation: ep3Sensor.evaluate() }),
+    },
+
+    // ── HyperTranscoder4D Tools ──
+    {
+      name: 'fraymus.transcoder4d.sanitize',
+      group: 'fraymus-immune',
+      description: 'Scan text for secret credential prefixes (ghp_, github_pat_, xai-, xoxb-, sk-) and transmute them into 4D spectral coordinates. Returns sanitized text and redaction count.',
+      parameters: object({
+        text: string(10000, { description: 'Text to scan for secrets' }),
+      }, ['text']),
+      execute: async ({ text }) => sanitizeStreamText(text),
+    },
+    {
+      name: 'fraymus.transcoder4d.detect',
+      group: 'fraymus-immune',
+      description: 'Detect secret credential prefixes in text without redacting. Returns locations and matched tokens.',
+      parameters: object({
+        text: string(10000, { description: 'Text to scan' }),
+      }, ['text']),
+      execute: async ({ text }) => ({ found: detectSecretPrefixes(text) }),
+    },
+
+    // ── Canary Triangulation Tools ──
+    {
+      name: 'fraymus.canary.triangulate',
+      group: 'fraymus-immune',
+      description: 'Triangulate the current fault location using all 3 canaries (timing, entropy, phase). Returns barycentric coordinates, confidence, and dominant anomaly type.',
+      parameters: object({}),
+      execute: async () => canaryArray.triangulateFault(),
+    },
+    {
+      name: 'fraymus.canary.status',
+      group: 'fraymus-immune',
+      description: 'Get the status of all 3 honeypot canaries — sample counts, residual epsilons, and Puiseux splits.',
+      parameters: object({}),
+      execute: async () => canaryArray.toJSON(),
+    },
+
+    // ── Stream Canary Interceptor Tools ──
+    {
+      name: 'fraymus.stream_canary.stats',
+      group: 'fraymus-immune',
+      description: 'Get stream canary interceptor statistics — token count, total redactions, alert count, and current triangulation.',
+      parameters: object({}),
+      execute: async () => streamCanary.getStats(),
+    },
+    {
+      name: 'fraymus.stream_canary.reset',
+      group: 'fraymus-immune',
+      description: 'Reset all stream canary accumulators and alerts.',
+      parameters: object({}),
+      execute: async () => { streamCanary.reset(); return { reset: true }; },
     },
   ];
 }

@@ -1,5 +1,7 @@
 import express from 'express';
-import { createFraymusTools, heart, ledger, dreamer, cognition, needle, needleWorker, motor, hermes, ouroboros } from './fraymus-tools.js';
+import { createFraymusTools, heart, ledger, dreamer, cognition, needle, needleWorker, motor, hermes, ouroboros, ep3Sensor, canaryArray, streamCanary } from './fraymus-tools.js';
+import { evaluateEp3Sensor } from './fraymus/intelligence/ep3.js';
+import { sanitizeStreamText, detectSecretPrefixes } from './fraymus/intelligence/transcoder4d.js';
 import { SCHEMAS, getSchema } from './fraymus/entities/schemas.js';
 import { getWorkflow, scheduledWorkflows, eventTriggeredWorkflows } from './fraymus/workflows/definitions.js';
 import { listTools as listMcpTools } from './fraymus/mcp/tools.js';
@@ -532,5 +534,69 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
     const parallel = req.body?.parallel === true;
     const result = await ctrnn.step(parallel);
     res.json(result);
+  }));
+
+  // ── EP3 Sensor (Third-Order Exceptional Point) ──
+  app.get('/api/fraymus/ep3/status', route((_req, res) => {
+    res.json({ ...ep3Sensor.toJSON(), evaluation: ep3Sensor.evaluate() });
+  }));
+
+  app.post('/api/fraymus/ep3/evaluate', route((req, res) => {
+    const g = parseFloat(req.body.g) || 1.0;
+    const epsilon = parseFloat(req.body.epsilon);
+    if (isNaN(epsilon)) return res.status(400).json({ error: 'epsilon required (number)' });
+    const result = evaluateEp3Sensor(g, epsilon);
+    broadcast('ep3', { type: 'evaluated', ...result });
+    res.json(result);
+  }));
+
+  app.post('/api/fraymus/ep3/observe', route((req, res) => {
+    const expected = parseFloat(req.body.expected);
+    const actual = parseFloat(req.body.actual);
+    if (isNaN(expected) || isNaN(actual)) return res.status(400).json({ error: 'expected and actual required' });
+    ep3Sensor.observe(expected, actual);
+    res.json({ observed: true, ...ep3Sensor.toJSON() });
+  }));
+
+  app.post('/api/fraymus/ep3/reset', route((_req, res) => {
+    ep3Sensor.reset();
+    res.json({ reset: true });
+  }));
+
+  // ── HyperTranscoder4D (Secret Redaction) ──
+  app.post('/api/fraymus/transcoder4d/sanitize', route((req, res) => {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ error: 'text required' });
+    res.json(sanitizeStreamText(text));
+  }));
+
+  app.post('/api/fraymus/transcoder4d/detect', route((req, res) => {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ error: 'text required' });
+    res.json({ found: detectSecretPrefixes(text) });
+  }));
+
+  // ── Honeypot Canary Triangulation ──
+  app.get('/api/fraymus/canary/status', route((_req, res) => {
+    res.json(canaryArray.toJSON());
+  }));
+
+  app.get('/api/fraymus/canary/triangulate', route((_req, res) => {
+    res.json(canaryArray.triangulateFault());
+  }));
+
+  app.post('/api/fraymus/canary/reset', route((_req, res) => {
+    canaryArray.reset();
+    res.json({ reset: true });
+  }));
+
+  // ── Stream Canary Interceptor ──
+  app.get('/api/fraymus/stream-canary/stats', route((_req, res) => {
+    res.json(streamCanary.getStats());
+  }));
+
+  app.post('/api/fraymus/stream-canary/reset', route((_req, res) => {
+    streamCanary.reset();
+    res.json({ reset: true });
   }));
 }
