@@ -11,6 +11,7 @@ import { initClockHonesty, checkClock, getLastVerdict, isClockTrusted, isClockSu
   getClockStats, startMonitor, stopMonitor, selftest as clockSelftest } from './clock-honesty.js';
 import { installIntegrityRoutes as installWatchdogRoutes } from './watchdog.js';
 import { installPlasmidRoutes } from './plasmid-backup.js';
+import { installSelftestRoutes } from './continuity-selftest.js';
 
 export function installGovernanceRoutes(app, opts = {}) {
   const broadcast = opts.broadcast || (() => {});
@@ -174,6 +175,8 @@ export function installGovernanceRoutes(app, opts = {}) {
     });
   });
 
-  console.log('[integrity] Governance routes installed (strix + guard + writ + clock)');
+  installSelftestRoutes(app, opts);
+
+  console.log('[integrity] Governance routes installed (strix + guard + writ + clock + continuity selftest)');
 }
 

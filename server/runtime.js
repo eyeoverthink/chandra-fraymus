@@ -19,7 +19,7 @@ import {createLocalVisionProvider} from './vision/local.js';
 import {createVisionTools} from './vision/tools.js';
 import {createLocalOcrProvider} from './ocr/local.js';
 import {createOcrTools} from './ocr/tools.js';
-import { createFraymusTools, MemoryBridge, heart, ledger } from './fraymus-tools.js';
+import { createFraymusTools, MemoryBridge, heart, ledger, dreamer, remembered, ouroboros } from './fraymus-tools.js';
 import { createAutonomyEngine } from './autonomy.js';
 import { installFraymusRoutes } from './fraymus-routes.js';
 import { createWorkflowStore, installWorkflowRoutes } from './workflow/routes.js';
@@ -244,7 +244,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installOuroborosCycleRoutes(app);
   installIntegrityRoutes(app);
   installPlasmidRoutes(app);
-  installGovernanceRoutes(app, { broadcast });
+  installGovernanceRoutes(app, { broadcast, dreamer, remembered, ledger, ouroboros });
   try { migrateRecordChain(); } catch (e) { console.error('[record-chain] migration failed (non-fatal):', e.message); }
   installRecordChainRoutes(app);
   try { migrateReplay(); } catch (e) { console.error('[replay-engine] migration failed (non-fatal):', e.message); }

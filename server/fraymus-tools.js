@@ -29,6 +29,8 @@ import { Heart, analyze as heartAnalyze } from './fraymus/intelligence/heart.js'
 import { Ledger, setClockTrustedFn } from './fraymus/intelligence/ledger.js';
 import { isClockTrusted } from './integrity/clock-honesty.js';
 import { Dreamer } from './fraymus/intelligence/dreamer.js';
+import { RememberedVault } from './fraymus/intelligence/remembered.js';
+import { continuitySelftest } from './integrity/continuity-selftest.js';
 import { CognitionPipeline } from './fraymus/intelligence/cognition.js';
 import { SCHEMAS, getSchema, entitiesBySource } from './fraymus/entities/schemas.js';
 import { MemoryBridge } from './fraymus/intelligence/memory-bridge.js';
@@ -77,10 +79,11 @@ const heart = new Heart(entityStore);
 const ledger = new Ledger(entityStore);
 setClockTrustedFn(isClockTrusted);
 const dreamer = new Dreamer(entityStore, null); // identity injected lazily below
+const remembered = new RememberedVault(entityStore, null);
 const cognition = new CognitionPipeline({ heart, ledger, dreamer, ouroboros, ollamaChat: chatOllama });
 
-// Lazily inject system identity into dreamer once generated
-getSystemIdentity().then(id => { dreamer.identity = id; }).catch(() => {});
+// Lazily inject system identity into dreamer + remembered vault once generated
+getSystemIdentity().then(id => { dreamer.identity = id; remembered.identity = id; }).catch(() => {});
 
 // Immune System Layer — EP3, HyperTranscoder4D, Canary Triangulation, Stream Interceptor
 const ep3Sensor = new Ep3Sensor(1.0);
@@ -650,7 +653,7 @@ function buildHermesExecutors() {
   };
 }
 
-export { ouroboros, hermes, motor, openclaw, controlPlane, needle, needleWorker, heart, ledger, dreamer, cognition, MemoryBridge, ep3Sensor, canaryArray, streamCanary };
+export { ouroboros, hermes, motor, openclaw, controlPlane, needle, needleWorker, heart, ledger, dreamer, remembered, cognition, MemoryBridge, ep3Sensor, canaryArray, streamCanary };
 export { encodeCodon, decodeCodon, codonStats, forgePlasmid, digestPlasmid, plasmidToFasta, createGenomeSnapshot, restoreFromSnapshot, saveCheckpoint, listCheckpoints, CARBON_VERSION };
 
 export function createFraymusTools() {
@@ -1108,6 +1111,69 @@ export function createFraymusTools() {
       parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 100 } }),
       execute: async ({ args }) => {
         return { dreams: dreamer.list(args.limit || 20) };
+      },
+    },
+
+    // ── Intelligence: Remembered Vault (the forever lane) ──
+    {
+      name: 'fraymus.remembered.feed',
+      group: 'fraymus-intelligence',
+      description: 'Feed the Remembered Vault — the forever lane. Human-supplied text is kept with SHA-256 integrity receipts, signed, and indexed. Nothing is generated; everything is kept.',
+      parameters: object({
+        text: string(10000, { description: 'The text to remember forever' }),
+        source: string(200, { description: 'Who or what supplied this (default: VAUGHN)' }),
+      }, ['text']),
+      execute: async ({ args }) => {
+        return remembered.remember(args.text, args.source || 'VAUGHN');
+      },
+    },
+    {
+      name: 'fraymus.remembered.read',
+      group: 'fraymus-intelligence',
+      description: 'Read a specific entry from the Remembered Vault by its number.',
+      parameters: object({ number: { type: 'integer', minimum: 1 } }, ['number']),
+      execute: async ({ args }) => {
+        const entry = remembered.read(args.number);
+        if (!entry) return { error: `Entry ${args.number} not found` };
+        return entry;
+      },
+    },
+    {
+      name: 'fraymus.remembered.list',
+      group: 'fraymus-intelligence',
+      description: 'List entries in the Remembered Vault.',
+      parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 200 } }),
+      execute: async ({ args }) => {
+        return { entries: remembered.list(args.limit || 50) };
+      },
+    },
+    {
+      name: 'fraymus.remembered.verify',
+      group: 'fraymus-intelligence',
+      description: 'Verify the SHA-256 integrity of a Remembered Vault entry.',
+      parameters: object({ number: { type: 'integer', minimum: 1 } }, ['number']),
+      execute: async ({ args }) => {
+        return remembered.verify(args.number);
+      },
+    },
+    {
+      name: 'fraymus.remembered.stats',
+      group: 'fraymus-intelligence',
+      description: 'Get statistics about the Remembered Vault.',
+      parameters: object({}),
+      execute: async () => {
+        return remembered.stats();
+      },
+    },
+
+    // ── Unified Continuity Selftest (DNA + codon + governance + intelligence) ──
+    {
+      name: 'fraymus.selftest',
+      group: 'fraymus-intelligence',
+      description: 'Run the unified continuity selftest: DNA round-trip, codon round-trip, watchdog, all 4 governance selftests, plus dreamer/remembered/ledger/ouroboros probes.',
+      parameters: object({}),
+      execute: async () => {
+        return continuitySelftest({ dreamer, remembered, ledger, ouroboros });
       },
     },
 

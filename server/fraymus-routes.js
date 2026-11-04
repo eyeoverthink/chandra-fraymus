@@ -1,5 +1,6 @@
 import express from 'express';
-import { createFraymusTools, heart, ledger, dreamer, cognition, needle, needleWorker, motor, hermes, ouroboros, ep3Sensor, canaryArray, streamCanary } from './fraymus-tools.js';
+import { createFraymusTools, heart, ledger, dreamer, remembered, cognition, needle, needleWorker, motor, hermes, ouroboros, ep3Sensor, canaryArray, streamCanary } from './fraymus-tools.js';
+import { continuitySelftest } from './integrity/continuity-selftest.js';
 import { evaluateEp3Sensor } from './fraymus/intelligence/ep3.js';
 import { sanitizeStreamText, detectSecretPrefixes } from './fraymus/intelligence/transcoder4d.js';
 import { getInterceptorStats, resetInterceptorStats } from './fraymus/intelligence/ollama-sanitize.js';
@@ -171,6 +172,44 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
     const dream = dreamer.readDream(num);
     if (!dream) return res.status(404).json({ error: `Dream ${num} not found` });
     res.json(dream);
+  }));
+
+  // ── Remembered Vault (the forever lane) ──
+  app.post('/api/fraymus/remembered/feed', route(async (req, res) => {
+    const { text, source } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: 'text required' });
+    const result = await remembered.remember(text, source || 'VAUGHN');
+    if (result.error) return res.status(400).json(result);
+    broadcast('remembered', { action: 'feed', number: result.number, sha256: result.sha256 });
+    res.json(result);
+  }));
+
+  app.get('/api/fraymus/remembered/list', route(async (req, res) => {
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    res.json({ entries: remembered.list(limit) });
+  }));
+
+  app.get('/api/fraymus/remembered/read/:number', route(async (req, res) => {
+    const num = parseInt(req.params.number);
+    if (!num) return res.status(400).json({ error: 'invalid entry number' });
+    const entry = remembered.read(num);
+    if (!entry) return res.status(404).json({ error: `Entry ${num} not found` });
+    res.json(entry);
+  }));
+
+  app.get('/api/fraymus/remembered/verify/:number', route(async (req, res) => {
+    const num = parseInt(req.params.number);
+    if (!num) return res.status(400).json({ error: 'invalid entry number' });
+    res.json(remembered.verify(num));
+  }));
+
+  app.get('/api/fraymus/remembered/stats', route(async (_req, res) => {
+    res.json(remembered.stats());
+  }));
+
+  // ── Unified Continuity Selftest ──
+  app.get('/api/fraymus/selftest', route(async (_req, res) => {
+    res.json(continuitySelftest({ dreamer, remembered, ledger, ouroboros }));
   }));
 
   // ── Cognition (two-speed pipeline) ──
@@ -368,6 +407,7 @@ export function installFraymusRoutes(app, { autonomy, broadcast, memoryBridge })
       ts: Date.now(),
       heart: { mood: mood.mood, primary: mood.primary, intensity: mood.intensity, dimensions: mood.dimensions, sarcasm: mood.sarcasm, recentCount: mood.recentCount },
       dreamer: { state: dreamerState, dreams: dreams.slice(0, 5), dreamCount: dreamerState.dreamCount },
+      remembered: remembered.stats(),
       cognition: { ...cogStatus, modules: Object.keys(cogStatus.modules || {}) },
       ledger: ledgerStats,
       needle: { worker: needleStatus, queue: { pending, running, completed, failed, total: needleJobs.length } },
