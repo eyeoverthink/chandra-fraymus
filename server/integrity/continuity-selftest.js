@@ -94,7 +94,7 @@ export function continuitySelftest({ dreamer, remembered, ledger, ouroboros } = 
     results.push(timedProbe('ledger', () => {
       const counts = ledger.countByKind();
       const integrity = ledger.verify(20);
-      return { counts, integrity_chain: integrity.verified, checked: integrity.checked };
+      return { counts, integrity_chain: integrity.valid, checked: integrity.checked };
     }, result => result.integrity_chain === true));
   }
 
