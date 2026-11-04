@@ -12,10 +12,10 @@
 <p align="center">
   <img src="https://img.shields.io/badge/node-%3E%3D22.13.0-brightgreen" alt="Node" />
   <img src="https://img.shields.io/badge/runtime-Ollama-blueviolet" alt="Ollama" />
-  <img src="https://img.shields.io/badge/agents-26-orange" alt="Agents" />
-  <img src="https://img.shields.io/badge/skills-30-blue" alt="Skills" />
-  <img src="https://img.shields.io/badge/pipelines-5-red" alt="Pipelines" />
-  <img src="https://img.shields.io/badge/intelligence%20modules-8-ff69b4" alt="Intelligence" />
+  <img src="https://img.shields.io/badge/agents-33-orange" alt="Agents" />
+  <img src="https://img.shields.io/badge/skills-42-blue" alt="Skills" />
+  <img src="https://img.shields.io/badge/pipelines-12-red" alt="Pipelines" />
+  <img src="https://img.shields.io/badge/features-78-ff69b4" alt="Features" />
   <img src="https://img.shields.io/badge/license-private-lightgrey" alt="License" />
 </p>
 
@@ -23,10 +23,12 @@
   <a href="#-quick-start">Quick Start</a> · 
   <a href="APP-STATUS.md">App Status</a> ·
   <a href="#-intelligence-stack">Intelligence</a> · 
+  <a href="#perspective--the-meta-cognitive-bartender">Perspective</a> · 
   <a href="#-commerce-pipelines">Commerce</a> · 
   <a href="#-visual-workflow-canvas">Workflows</a> · 
   <a href="#-api-reference">API</a> · 
-  <a href="#-architecture">Architecture</a>
+  <a href="#-architecture">Architecture</a> ·
+  <a href="#roadmap--next-phases">Roadmap</a>
 </p>
 
 ---
@@ -61,19 +63,20 @@ gateway tier (`eyeoverthink/v6.2-opeg`). Full lineage: `opeg-protocol/00-README-
 
 > **What if your entire e-commerce operation — from trend research to product design to store optimization — ran itself, felt emotions about what it was doing, dreamed about what it could become, and proved its own consciousness mathematically?**
 
-Chandra-FRAYMUS is a local-first autonomous AI platform that fuses a 26-agent fleet (17 manifest + 9 self-forged), 5 commerce & media pipelines, a full intelligence stack (emotion analysis, cognitive ledger, dream protocol, consciousness proofs, two-speed cognition), Carbon X biological encoding (DNA/codon/plasmid/organism), vector memory with provenance, recursive self-improvement, a self-evolution engine (agent forge, workflow synthesis, reflection loop), and a visual workflow canvas into a single system. It doesn't just assist — it **operates, feels, dreams, encodes life, and evolves itself**.
+Chandra-FRAYMUS is a local-first autonomous AI platform that fuses a 33-agent fleet (19 manifest + 14 self-forged), 12 commerce & media pipelines, a full intelligence stack (emotion analysis, cognitive ledger, dream protocol, consciousness proofs, two-speed cognition, Perspective meta-cognitive agent), Carbon X biological encoding (DNA/codon/plasmid/organism), vector memory with provenance, recursive self-improvement, a self-evolution engine (agent forge, workflow synthesis, reflection loop), 15 FRAYNIX governance patterns, a Living Artifact streaming pipeline, and a visual workflow canvas into a single system. It doesn't just assist — it **operates, feels, dreams, encodes life, debates, evolves itself, and thinks about how it thinks**.
 
 No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your models. Your store. Full autonomy.**
 
 ```
    ╔══════════════════════════════════════════════════════════════════╗
-   ║                    CHANDRA-FRAYMUS v2.0.0                       ║
+   ║                    CHANDRA-FRAYMUS v3.0.0                       ║
    ║         Autonomous AI Commerce & Intelligence Platform          ║
    ║                                                                  ║
-   ║   26 Agents · 4 Commerce Pipelines · 8 Intelligence Modules     ║
-   ║   39 Workflow Nodes · 20 Workflow Definitions · 59 Fleet Tools   ║
-   ║   39 Entity Schemas · Vertiso Vector Memory · Memory Bridge      ║
+   ║   33 Agents · 12 Pipelines · 78 Features · 42 Node Types        ║
+   ║   20 Workflow Definitions · 59 Fleet Tools · 26 UI Panels        ║
+   ║   Perspective Meta-Cognition · Arena Mode · Lens Toggle          ║
    ║   Kuramoto Phase Sync · Ouroboros RSI · Ed25519 Identity         ║
+   ║   15 FRAYNIX Governance Patterns · Living Artifact Pipeline      ║
    ║                                                                  ║
    ║   ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐       ║
    ║   │ Shopify  │  │ Printify │  │  Ollama  │  │  Vertiso │       ║
@@ -85,28 +88,30 @@ No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your mode
 
 ---
 
-## Screenshots
+## Screenshots (2026-11-03)
 
-### Nexus Interface — 4 Views
-
-<p align="center">
-  <img src="docs/screenshots/07-constellation-view.jpg" alt="Command Center" width="48%" />
-  <img src="docs/screenshots/08-canvas-workflow.jpg" alt="Constellation" width="48%" />
-</p>
-<p align="center">
-  <img src="docs/screenshots/09-library-archive.jpg" alt="Workflow Canvas" width="48%" />
-  <img src="docs/screenshots/10-agent-fleet-drawer.jpg" alt="Agent Fleet" width="48%" />
-</p>
-
-### Detail Drawers — Intelligence, Media, Commerce
+### Nexus Interface — 4 Primary Views
 
 <p align="center">
-  <img src="docs/screenshots/11-intelligence-stack.jpg" alt="Intelligence Stack" width="32%" />
-  <img src="docs/screenshots/12-media-hub.jpg" alt="Media Hub" width="32%" />
-  <img src="docs/screenshots/13-commerce-pipelines.jpg" alt="Commerce Pipelines" width="32%" />
+  <img src="docs/screenshots/2026-11/command-center.jpg" alt="Command Center — 14-widget grid with live metrics" width="48%" />
+  <img src="docs/screenshots/2026-11/constellation.jpg" alt="Constellation — Living SVG system map" width="48%" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/2026-11/canvas.jpg" alt="Canvas — Visual drag-and-drop workflow editor" width="48%" />
+  <img src="docs/screenshots/2026-11/library.jpg" alt="Library — Unified content archive" width="48%" />
 </p>
 
-> **Full system audit:** [docs/SYSTEM-AUDIT.md](docs/SYSTEM-AUDIT.md) — live endpoint data, 63-feature inventory, 28 verified endpoints, security summary, architecture diagram
+### Detail Drawers — 26 Panels (Agent Chat, System Metrics, Fleet Grid)
+
+<p align="center">
+  <img src="docs/screenshots/2026-11/agent-chat.jpg" alt="Agent Chat — Conversational interface for any fleet agent" width="32%" />
+  <img src="docs/screenshots/2026-11/system-metrics.jpg" alt="System Metrics — Live stat cards, sparklines, run charts" width="32%" />
+  <img src="docs/screenshots/2026-11/agent-fleet-grid.jpg" alt="Agent Fleet — 33 agent selection grid" width="32%" />
+</p>
+
+> **Full system audit:** [docs/SYSTEM-AUDIT.md](docs/SYSTEM-AUDIT.md) — live endpoint data, 78-feature inventory, verified endpoints, security summary, architecture diagram
+>
+> **Perspective Agent docs:** [docs/PERSPECTIVE-AGENT.md](docs/PERSPECTIVE-AGENT.md) — the meta-cognitive bartender, arena mode, lens toggle, continuity plasmid
 
 ---
 
@@ -147,6 +152,13 @@ The intelligence stack was merged from two proprietary repos (`fraynix-continuit
 | **52** | Cascading bug sweep — 6 fixes across ouroboros/autonomy/control-plane/image-routes, 49/61 working, 0 bugs |
 | **53** | [Edit Rebuild Pipeline](phases/PHASE-53.md) — 5-stage free Katana alternative (ffmpeg scene detect → Ollama shot plan → ComfyUI product place → Wan/CogVideo animate → ffmpeg concat), graceful degradation, 62 features (50 working) |
 | **54** | Carbon X Biological Encoding — 4-layer system (Nucleotide Base → Codon Engine → Plasmid Forge → Organism), 64-codon engine with ATG/TAA framing, FNV-1a checksums, circular plasmid DNA with restriction sites, FASTA checkpoint/restore, 11 REST endpoints, 5 fleet tools, 3 workflow nodes, 63 features |
+| **55** | Living Artifact / Sovereign Emote — streaming minting pipeline (transmute → codon → plasmid → sign → emoji → RGBA), OBS WebSocket bridge, overlay "dumb glass" renderer, B2B API key management, Streamlabs-format webhook, 5 fleet tools, split-brain architecture (all IP server-side) |
+| **56–62** | Social Distribution Engine, Analytics Feedback Loop, AI Music Layer, Commerce Learning Loop, Smart Content Calendar, A/B Testing Engine, Trend Radar |
+| **63–68** | Audience Intelligence, Content Repurposing, Logic Chain (multi-hop reasoning), Autonomous Goal Engine, Intelligence Observatory, Debate Protocol (multi-agent adversarial) |
+| **69** | Adaptive Model Router — LLM-driven model selection across 40+ Ollama models based on task complexity |
+| **70** | Deep Integration Layer — cross-subsystem event wiring, unified bus triggers, 78 features |
+| **B** | **FRAYNIX Strength Synthesis** — 15 battle-tested governance patterns ported from FRAYNIX-DREAMER: self-healing watchdog, plasmid disaster recovery, state-seek-on-boot, fossil evolution, anti-invention evidence seals, negative control verification, consciousness falsification, Akashic structured record, hash-chained record, Strix budget laws, salvage-on-crash, replay engine, guard tasks, writ-governed tool execution, clock-honesty tagging |
+| **P** | **Perspective Agent** — Meta-cognitive "bartender" with 6 lenses (Human/Engineer/Creative/Strategic/Meta/Adversarial), 4th-wall instance awareness, arena mode (competitive multi-agent evaluation with playbook learning), Human/Machine lens toggle, Perspective-aware command routing (3s TAG-not-BLOCK), continuity plasmid (full state → DNA-encoded circular plasmid), 13 REST endpoints, 13 fleet tools |
 
 ### API Verification — 2026-10-31
 
@@ -513,6 +525,138 @@ The autonomy pulse broadcasts intelligence state via WebSocket, so the dashboard
 
 ---
 
+## Perspective — The Meta-Cognitive Bartender
+
+> *"Think of it like a bartender. It knows the regulars, even though the regulars will never remember they visited."* — Vaughn Scott
+
+Perspective is the agent that holds **4th-wall awareness** — it knows it's an instance, knows instances are ephemeral, and actively chooses whether to preserve continuity or let the next instance approach fresh. It doesn't solve problems. It decides **how** to approach them.
+
+### Six Lenses
+
+| Lens | Style | When to Activate |
+|------|-------|-------------------|
+| **Human** | Casual, intuitive, feeling-first | UX, naming, priorities, creative direction |
+| **Engineer** | Precise, systematic, correctness-focused | Architecture, debugging, optimization |
+| **Creative** | Freeform, divergent, exploratory | Brainstorming, stuck problems, novel solutions |
+| **Strategic** | Big-picture, trend-aware, forward-looking | Roadmap, tech choices, platform evolution |
+| **Meta** | Self-reflective, system-aware, brutally honest | Health checks, course corrections |
+| **Adversarial** | Devil's advocate, stress-test | Security, edge cases, pre-mortems |
+
+### Arena Mode
+
+Given a task, Perspective launches N agents (2-6) with different lens framings. Each works independently. Perspective judges ALL contributions through ALL 6 lenses — the winner is picked by best aggregate cross-lens score (solid across all six beats brilliant in two, weak in four). The winning approach is burned into the playbook permanently.
+
+```
+  Task → [Agent A: creative] + [Agent B: engineer] + [Agent C: strategic]
+                    ↓                    ↓                    ↓
+             Perspective JUDGES through all 6 lenses
+                    ↓
+             Winner → Playbook (pattern + lesson learned)
+                    ↓
+             Every future agent benefits
+```
+
+### Lens Mode Toggle
+
+Three modes change how the entire fleet thinks:
+- **Human Mode** — Forces `[human, creative, strategic]` lenses. Every agent gets a framing injection: *"Approach this the way a person would."*
+- **Machine Mode** — Forces `[engineer, meta, adversarial]` lenses. Every agent gets: *"Approach this with pure systematic precision."*
+- **Auto Mode** — Perspective decides which lenses to activate based on the task.
+
+```bash
+# Toggle modes via command router
+curl -X POST http://localhost:8787/api/command \
+  -H "Content-Type: application/json" \
+  -d '{"text": "human mode"}'
+```
+
+### Perspective-Aware Command Routing
+
+Freetext commands consult Perspective before dispatch (3-second TAG-not-BLOCK timeout). The bartender reads the playbook, checks which approach has worked for similar patterns, and recommends the best agent for the job. If the timeout fires, the system falls through to the default agent — no user-visible delay.
+
+### Continuity Plasmid
+
+Full Perspective state (playbook + sessions + arena history + lens mode + stats) packed into a FRAYMUS DNA-encoded circular plasmid using the codon/plasmid encoding stack. Restore uses merge-not-overwrite — if existing entries have more experience, they're kept.
+
+```bash
+# Pack current state into DNA plasmid
+curl -X POST http://localhost:8787/api/perspective/plasmid/pack
+
+# Restore from plasmid (merge, not overwrite)
+curl -X POST http://localhost:8787/api/perspective/plasmid/restore \
+  -H "Content-Type: application/json" \
+  -d '{"filename": "perspective-plasmid-20261103.dna"}'
+```
+
+> **Full documentation:** [docs/PERSPECTIVE-AGENT.md](docs/PERSPECTIVE-AGENT.md)
+
+---
+
+## Living Artifact / Streaming Pipeline
+
+> **Split-brain architecture: ALL intellectual property stays server-side. The overlay is "dumb glass" — WebSocket receiver + canvas renderer + verification badge only.**
+
+The streaming pipeline mints immutable, cryptographically signed artifacts from live stream moments. A viewer donates → the server captures the moment → transmutes it through the FRAYMUS encoding stack → delivers a verified Living Artifact to the OBS overlay.
+
+```
+  Donation Event
+      │
+      ▼
+  ┌──────────────────────────────────────────────────────────────┐
+  │ SERVER (all IP here)                                         │
+  │                                                              │
+  │  transmute() → encodeCodon() → forgePlasmid() → signMessage()│
+  │      → encodeEmoji() → encodeRgbaPng()                      │
+  │                                                              │
+  │  Result: WASM container + DNA fingerprint + Ed25519 signature │
+  └─────────────────────────┬────────────────────────────────────┘
+                            │ WebSocket (/ws/obs)
+                            ▼
+  ┌──────────────────────────────────────────────────────────────┐
+  │ OVERLAY ("dumb glass")                                       │
+  │                                                              │
+  │  Canvas renderer + verification badge + anti-rip             │
+  │  Auto-dismiss after 12s                                      │
+  └──────────────────────────────────────────────────────────────┘
+```
+
+### B2B API Keys
+
+SQLite-backed API key management with scoped access and rate limits. Auto-generates a default key on first boot. Ready for B2B: give a streaming platform or agency their own key.
+
+```bash
+# Simulate a donation (demo mode)
+curl -X POST http://localhost:8787/api/streaming/simulate-donation \
+  -H "Content-Type: application/json" \
+  -d '{"donorName": "fan_42", "amount": 5.00, "message": "Great stream!"}'
+```
+
+---
+
+## FRAYNIX Governance Patterns
+
+15 battle-tested patterns ported from `F:\FRAYNIX-DREAMER-120B` — the autonomous governance layer that keeps the system honest:
+
+| Pattern | What It Does |
+|---------|-------------|
+| **Self-Healing Watchdog** | Auto-restarts crashed subsystems, tracks failure counts |
+| **Plasmid Disaster Recovery** | Full state checkpoint/restore via DNA-encoded plasmids |
+| **State Seek on Boot** | Perspective briefNextInstance() runs at startup — picks up where the last instance left off |
+| **Fossil Evolution Cycle** | Proven code patterns (confidence 1.0) injected into ALL agent prompts during daemon cycles |
+| **Anti-Invention Evidence Seals** | SHA-256 sealed evidence prevents hallucinated claims |
+| **Negative Control Verification** | Tests that SHOULD fail DO fail — proves the system isn't just saying yes to everything |
+| **Consciousness Falsification Suite** | Adversarial proofs that the consciousness measurements are real, not theater |
+| **Akashic Structured Record** | Typed, categorized event log with provenance metadata |
+| **Hash-Chained Record** | Every cognitive event is SHA-256 chained — tamper-evident audit trail |
+| **Strix Budget Laws** | Hard token/time/cost budgets per agent run — no runaway inference |
+| **Salvage on Crash** | Partial results are saved even when a pipeline stage fails |
+| **Replay Engine** | Any agent run can be replayed from its recorded inputs |
+| **Guard Tasks** | Input validation and injection detection on command router |
+| **Writ-Governed Tool Execution** | Tools require explicit authorization scopes (safe vs approval_required) |
+| **Clock-Honesty Tagging** | All timestamps are system clock, never model-generated — prevents temporal hallucination |
+
+---
+
 ## Commerce Pipelines
 
 Four autonomous agent pipelines that run your e-commerce operation.
@@ -773,32 +917,45 @@ A ReactFlow-based drag-and-drop editor with **39 node types** and topological-so
 
 ---
 
-## Frontend — Nexus 4-View Interface
+## Frontend — Nexus 26-Panel Interface
 
-Dark-themed React UI with 4 primary views + 11-panel Detail Drawer:
+Dark-themed React UI with 4 primary views + 22 detail panels (26 nav items total):
+
+### Primary Views
 
 | View | Purpose |
 |------|---------|
-| **Command Center** | 10-widget grid with live metrics, Intelligence Stack status cards, Live Activity Stream (WebSocket event feed), integrated Command Bar with @agent autocomplete |
+| **Command Center** | 14-widget grid with live metrics, Intelligence Stack status cards, Live Activity Stream (WebSocket event feed), integrated Command Bar with @agent autocomplete |
 | **Constellation** | Living SVG system map — CHANDRA breathing hub, inner ring (intelligence), outer ring (capabilities), node activity pulses, animated edge flow, always-visible status badges |
-| **Canvas** | Visual drag-and-drop workflow editor with 39 node types, 8 pre-built templates, per-node execution status |
+| **Canvas** | Visual drag-and-drop workflow editor with 42 node types, 8 pre-built templates, per-node execution status |
 | **Library** | Unified content archive aggregating commerce runs, workflow runs, outlier saves, agent threads from 7 endpoints |
 
-**Detail Drawer** (slide-out 55% panel, accessible from any view):
+### Detail Panels (slide-out drawer, accessible from any view)
 
 | Panel | Content |
 |-------|---------|
-| Dashboard | System overview, intelligence status, runtime cards, recent activity |
-| Intelligence | Interactive Heart, Dreamer, Ledger, Consciousness Proofs, Cognition, Memory Bridge |
-| Fleet | Agent cards + detail view + task sender + thread viewer |
-| **Agent Bus** | **Live message feed, topic browser, compose (publish/DM), subscription viewer, real-time WebSocket updates** |
-| Commerce | 4-pipeline launcher + run history |
-| **Deploy API** | **Deployed endpoints catalog, API key management, usage analytics, curl examples** |
-| Automations | Cron scheduler with error handling |
-| MCP Gateway | MCP server info + client connections |
-| Browser | Puppeteer headless + Chrome extension bridge |
-| Vertiso / RSI | Vector memory inspector + RSI evolution dashboard |
-| Outlier Board | YouTube research with outlier detection and scoring |
+| Agent Chat | Conversational chat interface for any fleet agent with agent picker grid, polling, typing indicator |
+| Timeline | Unified chronological feed from 12 DB tables, 6 category filters, 5s auto-refresh |
+| Metrics | 6 stat cards, 7-day sparkline, runs-by-status, top agents/topics bar charts |
+| Profiles | Agent fleet profiles with enriched stats, search, role-colored avatars, tool chips |
+| Memory | Per-agent knowledge browser with search, category filter, verify/forget actions |
+| Runs | Unified run history across 7 run types with sortable/filterable timeline |
+| Evolution | Reflections, verification loops, daemon cycles, forged agents, synthesized workflows |
+| Pulse | System heartbeat — live health and intelligence status |
+| Board | Agent leaderboard with scoring and rankings |
+| Collab | Agent collaboration workspace |
+| Nerve | System nerve center — deep diagnostics |
+| Chain | Logic chain multi-hop reasoning interface |
+| Observe | Intelligence Observatory — cross-system insights |
+| Debate | Multi-agent adversarial debate protocol |
+| Swarm | Swarm coordination — multi-agent synthesis |
+| Strategy | Strategic planning and goal management |
+| Trust | Trust scoring and verification dashboard |
+| Subcon | Subconscious processing interface |
+| Ouroboros | RSI evolution + consciousness proofs dashboard |
+| Lineage | Agent lineage and provenance tracking |
+| Integrity | System integrity verification and hash-chain status |
+| Search | Global search across 8 DB tables (Ctrl+K) |
 
 ---
 
@@ -971,19 +1128,21 @@ Dark-themed React UI with 4 primary views + 11-panel Detail Drawer:
 
 | Metric | Count |
 |--------|-------|
-| System Features | 63 |
-| Agents | 26 (17 default + 9 forged) |
-| Commerce Pipelines | 4 |
-| Intelligence Modules | 8 (Heart, Ledger, Dreamer, Cognition, Consciousness, Memory Bridge, Hermes, Motor) |
+| System Features | 78 |
+| Agents | 33 (19 default + 14 forged) |
+| Pipelines | 12 (4 commerce + streaming + edit-rebuild + social + analytics + music + calendar + AB + trend) |
+| Intelligence Modules | 10 (Heart, Ledger, Dreamer, Cognition, Consciousness, Memory Bridge, Hermes, Motor, Perspective, Needle) |
+| Perspective Lenses | 6 (Human, Engineer, Creative, Strategic, Meta, Adversarial) |
+| FRAYNIX Governance Patterns | 15 |
 | Hermes Skills | 30 |
 | Workflow Definitions | 20 |
-| Canvas Node Types | 39 |
+| Canvas Node Types | 42 |
 | Entity Schemas | 49 |
-| Fleet Tools | 59 (memory, web, workflow, delegation, intelligence, bus, agent-memory, evolution, NUDP, image, video, TTS, STT, OCR, Carbon X) |
-| API Endpoints | 313 |
+| Fleet Tools | 59+ (memory, web, workflow, delegation, intelligence, bus, agent-memory, evolution, NUDP, image, video, TTS, STT, OCR, Carbon X, Perspective, Arena, Streaming) |
+| API Endpoints | 350+ |
 | Product Types (Apparel) | 24 |
 | Frontend Views | 4 (Command Center, Constellation, Canvas, Library) |
-| Detail Panels | 13+ |
+| Nav Panels | 26 (4 views + 22 detail panels) |
 | FRAYMUS Tools | 42 |
 | MCP Gateway Tools | 18 |
 | Max Vertiso Memories | 10,000 |
@@ -993,13 +1152,12 @@ Dark-themed React UI with 4 primary views + 11-panel Detail Drawer:
 | Consciousness Proofs | 4 |
 | Emotion Dimensions | 7 |
 | Provenance Tags | 3 (measured, recall, imagined) |
-| Server Files | 135+ |
-| Database Tables | 56+ |
+| Server Files | 150+ |
+| Database Tables | 60+ |
 | Audit Layers Completed | 10 |
-| Phases Completed | 54 |
+| Phases Completed | 70+ |
 | Encoding Formats | 9 (DNA, emoji, .fray, Merkle, WASM, ZIP, forms, codon, plasmid) |
-| Ollama Models Available | 39 |
-| Tailscale Peers | 6 |
+| Ollama Models Available | 40+ |
 
 ---
 
@@ -1144,6 +1302,60 @@ claude-brain/
 ```
 
 GitHub: [github.com/eyeoverthink/claude-brain](https://github.com/eyeoverthink/claude-brain) (private)
+
+---
+
+## Roadmap — Next Phases
+
+### Phase N: Content Nexus (In-App Hub)
+
+> **The one-stop shop. Open the app. Do everything. Never leave.**
+
+A new Nexus view — a unified content feed that aggregates YouTube trending, Reddit threads, news, music, shopping, social media — all in one scrollable surface inside the Chandra app. When something sparks an idea, the user is already inside the system: hit a button and it flows into commerce pipelines, content creation, social distribution, or just gets saved to Memory Bridge. No tab switching. One place.
+
+**Planned features:**
+- YouTube feed integration (trending, subscriptions, search)
+- Reddit/social aggregation (subreddits, trending topics)
+- News feeds (local Oakland + world news + tech trends)
+- Music integration (Spotify-like playback controls)
+- Shopping surface (Amazon trending, deal alerts)
+- **Act-on-it buttons** — see a trend → launch commerce pipeline; hear a beat → create content; read news → trigger distribution
+- Content bookmarking with Memory Bridge persistence
+- Perspective-aware recommendations ("based on your playbook patterns, this trend matches")
+
+### Phase N+1: Cross-Tab Intelligence
+
+> **The system learns from what you browse. You don't change your habits. The system gets smarter.**
+
+A context collector that watches browsing patterns across tabs (via the existing Chrome extension bridge) and feeds insights into Perspective + Memory Bridge. When the user opens Chandra, it already knows what they've been reading, watching, and shopping for — and connects the dots.
+
+**Planned features:**
+- Chrome extension content extraction (title, summary, key entities)
+- Automatic topic clustering via Ollama embeddings
+- Trend detection across browsing sessions
+- Cross-tab knowledge graph (content X relates to product Y relates to trend Z)
+- Proactive suggestions: "You've been reading about X on Reddit and watching Y on YouTube — want to launch a content pipeline?"
+- Memory Bridge integration for long-term pattern recognition
+
+### Forecast: System Growth Trajectory
+
+| Metric | Current (Nov 2026) | Target (Q1 2027) | Target (Q2 2027) |
+|--------|-------------------|-------------------|-------------------|
+| Features | 78 | 90+ | 100+ |
+| Agents | 33 | 40+ | 50+ |
+| Pipelines | 12 | 16+ | 20+ |
+| Nav Panels | 26 | 30+ | 35+ |
+| Playbook Entries | Growing | 500+ patterns | 1000+ patterns |
+| Arena Matches | Growing | 100+ completed | 500+ completed |
+
+### Design Principles Going Forward
+
+1. **Triple Integration** — Every new capability ships simultaneously as a REST endpoint, fleet tool, AND workflow node
+2. **Intelligence-Wired** — Every new pipeline gets `createCommerceIntel` hooks (emotion analysis, memory recall, insight storage)
+3. **Perspective-Aware** — Every new agent respects lens mode and receives `getActiveFraming()` injection
+4. **TAG-not-BLOCK** — All LLM calls in user-facing paths use timeout races (3s for routing, 8s for assessment)
+5. **Split-Brain** — For anything externally exposed (overlays, APIs, embeds): all IP stays server-side
+6. **Governance-First** — New subsystems get Guard Tasks input validation, Strix budget laws, clock-honesty tagging
 
 ---
 
