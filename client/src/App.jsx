@@ -38,6 +38,7 @@ const NAV_BUTTONS = [
   { panel: 'trust', title: 'Trust Engine', icon: '🛡', label: 'Trust', color: '#dc2626' },
   { panel: 'subconscious', title: 'Subconscious Engine', icon: '🧠', label: 'Subcon', color: '#7c3aed' },
   { panel: 'ouroboros-cycle', title: 'Ouroboros RSI', icon: '🐍', label: 'Ouroboros', color: '#059669' },
+  { panel: 'ouroboros-lineage', title: 'Ouroboros Lineage', icon: '🧬', label: 'Lineage', color: '#10b981' },
 ];
 
 function NavButton({ btn, openDrawer }) {
@@ -124,6 +125,7 @@ export default function App() {
     if (action === 'trust') { setDrawer({ panel: 'trust', title: 'Trust Engine' }); return; }
     if (action === 'subconscious') { setDrawer({ panel: 'subconscious', title: 'Subconscious Engine' }); return; }
     if (action === 'ouroboros-cycle') { setDrawer({ panel: 'ouroboros-cycle', title: 'Ouroboros RSI' }); return; }
+    if (action === 'ouroboros-lineage') { setDrawer({ panel: 'ouroboros-lineage', title: 'Ouroboros Lineage' }); return; }
     if (action.startsWith('view:')) {
       setView(action.slice(5));
       setDrawer(null);

@@ -6,6 +6,7 @@ import { loadManifests, writeOverride } from '../fleet/manifest.js';
 import { reloadManifests } from '../fleet/runtime.js';
 import { reflect } from '../intelligence/reflection.js';
 import { generateGoals } from '../intelligence/goal-engine.js';
+import { runCycle as runOuroborosCycle } from '../intelligence/ouroboros-cycle.js';
 
 const now = () => Date.now();
 const DEFAULT_CYCLE_MS = 30 * 60 * 1000;
@@ -356,6 +357,13 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
       stepResults.goalGeneration = { error: e.message };
     }
 
+    // Step 6: Ouroboros RSI cycle (autonomous codebase evolution)
+    try {
+      stepResults.ouroboros = await runOuroborosCycle();
+    } catch (e) {
+      stepResults.ouroboros = { error: e.message };
+    }
+
     const duration = now() - t0;
 
     db.prepare(
@@ -374,6 +382,8 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
         reflectionActions: stepResults.reflection?.actionsCount ?? 0,
         goalsGenerated: stepResults.goalGeneration?.count ?? 0,
         perspectiveInsights: stepResults.consolidation?.perspectiveInsights ?? 0,
+        ouroborosGeneration: stepResults.ouroboros?.generation ?? null,
+        ouroborosAccepted: stepResults.ouroboros?.accepted ?? 0,
         durationMs: duration, at: t0,
       }));
     } catch (_) {}

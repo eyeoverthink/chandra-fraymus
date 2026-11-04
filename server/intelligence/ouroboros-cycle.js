@@ -1,7 +1,9 @@
 import { db } from '../db.js';
 import { chatOllama, parseJSON } from '../commerce/shared.js';
+import { publish } from '../fleet/bus.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 
 // ─── Schema ─────────────────────────────────────────────────────────
 db.exec(`
@@ -9,6 +11,9 @@ db.exec(`
     id TEXT PRIMARY KEY,
     phase TEXT NOT NULL DEFAULT 'absorb',
     status TEXT NOT NULL DEFAULT 'running',
+    parent_cycle_id TEXT,
+    generation INTEGER DEFAULT 1,
+    genome_hash TEXT,
     outline TEXT,
     outline_hash TEXT,
     proposal_count INTEGER DEFAULT 0,
@@ -35,9 +40,79 @@ db.exec(`
     created_at DATETIME DEFAULT (datetime('now')),
     FOREIGN KEY (cycle_id) REFERENCES ouroboros_cycles(id)
   );
+  CREATE TABLE IF NOT EXISTS ouroboros_genome (
+    id TEXT PRIMARY KEY,
+    cycle_id TEXT NOT NULL,
+    proposal_id TEXT NOT NULL,
+    gene_type TEXT NOT NULL DEFAULT 'mutation',
+    origin_cycle_id TEXT NOT NULL,
+    generation_acquired INTEGER DEFAULT 1,
+    active INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT (datetime('now')),
+    FOREIGN KEY (cycle_id) REFERENCES ouroboros_cycles(id),
+    FOREIGN KEY (proposal_id) REFERENCES ouroboros_proposals(id)
+  );
   CREATE INDEX IF NOT EXISTS idx_proposals_cycle ON ouroboros_proposals(cycle_id);
   CREATE INDEX IF NOT EXISTS idx_proposals_status ON ouroboros_proposals(status);
+  CREATE INDEX IF NOT EXISTS idx_genome_cycle ON ouroboros_genome(cycle_id);
+  CREATE INDEX IF NOT EXISTS idx_genome_active ON ouroboros_genome(active);
 `);
+
+// Migrate existing cycles that lack generation columns
+try {
+  db.exec(`ALTER TABLE ouroboros_cycles ADD COLUMN parent_cycle_id TEXT`);
+} catch (_) {}
+try {
+  db.exec(`ALTER TABLE ouroboros_cycles ADD COLUMN generation INTEGER DEFAULT 1`);
+} catch (_) {}
+try {
+  db.exec(`ALTER TABLE ouroboros_cycles ADD COLUMN genome_hash TEXT`);
+} catch (_) {}
+
+// ─── Genome Helpers ─────────────────────────────────────────────────
+
+function computeGenomeHash(genes) {
+  const sorted = genes.map(g => g.proposal_id).sort().join(':');
+  return createHash('sha256').update(sorted).digest('hex').slice(0, 16);
+}
+
+function getLatestCompletedCycle() {
+  return db.prepare(
+    `SELECT id, generation, genome_hash FROM ouroboros_cycles WHERE status = 'complete' ORDER BY created_at DESC LIMIT 1`
+  ).get() || null;
+}
+
+function inheritGenome(parentCycleId, newCycleId, newGeneration) {
+  const parentGenes = db.prepare(
+    `SELECT proposal_id, origin_cycle_id, generation_acquired FROM ouroboros_genome WHERE cycle_id = ? AND active = 1`
+  ).all(parentCycleId);
+  const insert = db.prepare(
+    `INSERT INTO ouroboros_genome (id, cycle_id, proposal_id, gene_type, origin_cycle_id, generation_acquired, active) VALUES (?, ?, ?, 'inherited', ?, ?, 1)`
+  );
+  for (const g of parentGenes) {
+    insert.run(uid(), newCycleId, g.proposal_id, g.origin_cycle_id, g.generation_acquired);
+  }
+  return parentGenes.length;
+}
+
+function addMutations(cycleId, proposals, generation) {
+  const insert = db.prepare(
+    `INSERT INTO ouroboros_genome (id, cycle_id, proposal_id, gene_type, origin_cycle_id, generation_acquired, active) VALUES (?, ?, ?, 'mutation', ?, ?, 1)`
+  );
+  for (const p of proposals) {
+    insert.run(uid(), cycleId, p.id, cycleId, generation);
+  }
+}
+
+function getGenome(cycleId) {
+  return db.prepare(
+    `SELECT g.*, p.title, p.category, p.priority, p.status as proposal_status
+     FROM ouroboros_genome g
+     JOIN ouroboros_proposals p ON g.proposal_id = p.id
+     WHERE g.cycle_id = ? AND g.active = 1
+     ORDER BY g.generation_acquired ASC`
+  ).all(cycleId);
+}
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
@@ -301,13 +376,25 @@ export async function runCycle(rootDir) {
   const cycleId = uid();
   const start = Date.now();
 
-  db.prepare(`INSERT INTO ouroboros_cycles (id, phase, status) VALUES (?, 'absorb', 'running')`).run(cycleId);
+  // Determine parent and generation
+  const parent = getLatestCompletedCycle();
+  const parentId = parent?.id || null;
+  const generation = parent ? (parent.generation || 1) + 1 : 1;
+
+  db.prepare(`INSERT INTO ouroboros_cycles (id, phase, status, parent_cycle_id, generation) VALUES (?, 'absorb', 'running', ?, ?)`)
+    .run(cycleId, parentId, generation);
 
   try {
+    // Inherit genome from parent
+    let inheritedGenes = 0;
+    if (parentId) {
+      inheritedGenes = inheritGenome(parentId, cycleId, generation);
+    }
+
     // Phase 1: ABSORB
     const outline = absorbCodebase(rootDir || process.cwd());
     const outlineText = outlineToText(outline);
-    const outlineHash = Buffer.from(outlineText.slice(0, 1000)).toString('base64').slice(0, 32);
+    const outlineHash = createHash('sha256').update(outlineText.slice(0, 4000)).digest('hex').slice(0, 16);
 
     db.prepare(`UPDATE ouroboros_cycles SET phase = 'absorb_done', outline = ?, outline_hash = ? WHERE id = ?`)
       .run(outlineText, outlineHash, cycleId);
@@ -353,19 +440,45 @@ export async function runCycle(rootDir) {
       accepted++;
     }
 
+    // Add accepted proposals as new mutations in the genome
+    const acceptedProposals = db.prepare(
+      `SELECT id FROM ouroboros_proposals WHERE cycle_id = ? AND status = 'accepted'`
+    ).all(cycleId);
+    addMutations(cycleId, acceptedProposals, generation);
+
+    // Compute genome hash from all active genes
+    const allGenes = db.prepare(
+      `SELECT proposal_id FROM ouroboros_genome WHERE cycle_id = ? AND active = 1`
+    ).all(cycleId);
+    const genomeHash = computeGenomeHash(allGenes);
+
     const durationMs = Date.now() - start;
     const insights = {
+      generation,
+      parentCycleId: parentId,
+      inheritedGenes,
       filesScanned: outline.stats.totalFiles,
       linesAnalyzed: outline.stats.totalLines,
       tablesFound: outline.stats.dbTableCount,
       proposalsGenerated: rawProposals.length,
       accepted, rejected,
       revised: rawProposals.length - accepted - rejected,
+      newMutations: acceptedProposals.length,
+      totalGenomeSize: allGenes.length,
+      genomeHash,
       categories: [...new Set(rawProposals.map(p => p.category))],
     };
 
-    db.prepare(`UPDATE ouroboros_cycles SET phase = 'complete', status = 'complete', accepted_count = ?, rejected_count = ?, duration_ms = ?, insights = ? WHERE id = ?`)
-      .run(accepted, rejected, durationMs, JSON.stringify(insights), cycleId);
+    db.prepare(`UPDATE ouroboros_cycles SET phase = 'complete', status = 'complete', accepted_count = ?, rejected_count = ?, implemented_count = 0, duration_ms = ?, insights = ?, genome_hash = ? WHERE id = ?`)
+      .run(accepted, rejected, durationMs, JSON.stringify(insights), genomeHash, cycleId);
+
+    // Broadcast evolution event
+    try {
+      publish('system', 'system.evolution', JSON.stringify({
+        type: 'ouroboros_cycle', cycleId, generation, genomeHash,
+        parentId, accepted, rejected, durationMs,
+      }));
+    } catch (_) {}
 
     return { cycleId, ...insights, durationMs };
 
@@ -414,6 +527,91 @@ export function getStats() {
 export function getOutline(cycleId) {
   const row = db.prepare(`SELECT outline FROM ouroboros_cycles WHERE id = ?`).get(cycleId);
   return row?.outline || null;
+}
+
+// ─── Lineage Queries ──────────────────────────────────────────────
+
+export function getLineage(cycleId, maxDepth = 50) {
+  const chain = [];
+  let current = cycleId;
+  let depth = 0;
+  while (current && depth < maxDepth) {
+    const row = db.prepare(
+      `SELECT id, parent_cycle_id, generation, genome_hash, status, proposal_count, accepted_count, rejected_count, duration_ms, created_at FROM ouroboros_cycles WHERE id = ?`
+    ).get(current);
+    if (!row) break;
+    chain.push(row);
+    current = row.parent_cycle_id;
+    depth++;
+  }
+  return chain;
+}
+
+export function getFullLineageTree() {
+  const cycles = db.prepare(
+    `SELECT id, parent_cycle_id, generation, genome_hash, status, phase, proposal_count, accepted_count, rejected_count, implemented_count, duration_ms, insights, created_at FROM ouroboros_cycles ORDER BY created_at ASC`
+  ).all();
+
+  for (const c of cycles) {
+    try { c.insights = c.insights ? JSON.parse(c.insights) : null; } catch { c.insights = null; }
+    const genes = db.prepare(
+      `SELECT g.gene_type, g.generation_acquired, g.origin_cycle_id, p.title, p.category, p.status as proposal_status
+       FROM ouroboros_genome g JOIN ouroboros_proposals p ON g.proposal_id = p.id
+       WHERE g.cycle_id = ? AND g.active = 1`
+    ).all(c.id);
+    c.genome = genes;
+    c.genomeSize = genes.length;
+    c.mutations = genes.filter(g => g.gene_type === 'mutation').length;
+    c.inherited = genes.filter(g => g.gene_type === 'inherited').length;
+  }
+
+  // Build adjacency: parent → children
+  const children = {};
+  for (const c of cycles) {
+    if (c.parent_cycle_id) {
+      if (!children[c.parent_cycle_id]) children[c.parent_cycle_id] = [];
+      children[c.parent_cycle_id].push(c.id);
+    }
+  }
+
+  // Compute cumulative genome drift: how much the genome changed from parent
+  for (const c of cycles) {
+    if (c.parent_cycle_id) {
+      const parent = cycles.find(p => p.id === c.parent_cycle_id);
+      if (parent) {
+        c.genomeDrift = c.genomeSize - parent.genomeSize;
+        c.parentGeneration = parent.generation;
+      }
+    }
+  }
+
+  return { cycles, children, totalGenerations: cycles.length > 0 ? Math.max(...cycles.map(c => c.generation || 1)) : 0 };
+}
+
+export function getGenomeForCycle(cycleId) {
+  return getGenome(cycleId);
+}
+
+export function getGenomeDiff(cycleA, cycleB) {
+  const genesA = new Set(db.prepare(`SELECT proposal_id FROM ouroboros_genome WHERE cycle_id = ? AND active = 1`).all(cycleA).map(g => g.proposal_id));
+  const genesB = new Set(db.prepare(`SELECT proposal_id FROM ouroboros_genome WHERE cycle_id = ? AND active = 1`).all(cycleB).map(g => g.proposal_id));
+
+  const added = [...genesB].filter(g => !genesA.has(g));
+  const removed = [...genesA].filter(g => !genesB.has(g));
+  const shared = [...genesA].filter(g => genesB.has(g));
+
+  const getProposalDetails = (ids) => ids.length > 0 ? db.prepare(
+    `SELECT id, title, category, priority, status FROM ouroboros_proposals WHERE id IN (${ids.map(() => '?').join(',')})`
+  ).all(...ids) : [];
+
+  return {
+    added: getProposalDetails(added),
+    removed: getProposalDetails(removed),
+    shared: shared.length,
+    totalA: genesA.size,
+    totalB: genesB.size,
+    similarity: genesA.size + genesB.size > 0 ? (shared.length * 2) / (genesA.size + genesB.size) : 1,
+  };
 }
 
 // ─── Routes ─────────────────────────────────────────────────────────
@@ -470,6 +668,35 @@ export function installOuroborosCycleRoutes(app) {
       const p = updateProposalStatus(req.params.id, status);
       if (!p) return res.status(404).json({ error: 'Proposal not found' });
       res.json(p);
+    } catch (e) { next(e); }
+  });
+
+  // ── Lineage endpoints ──
+
+  app.get('/api/intelligence/ouroboros-cycle/lineage', (_req, res, next) => {
+    try { res.json(getFullLineageTree()); } catch (e) { next(e); }
+  });
+
+  app.get('/api/intelligence/ouroboros-cycle/lineage/:id', (req, res, next) => {
+    try {
+      const depth = Math.min(100, Math.max(1, parseInt(req.query.depth) || 50));
+      res.json({ ancestry: getLineage(req.params.id, depth) });
+    } catch (e) { next(e); }
+  });
+
+  app.get('/api/intelligence/ouroboros-cycle/genome/:id', (req, res, next) => {
+    try {
+      const genome = getGenomeForCycle(req.params.id);
+      if (!genome) return res.status(404).json({ error: 'Cycle not found' });
+      res.json({ genes: genome, total: genome.length });
+    } catch (e) { next(e); }
+  });
+
+  app.get('/api/intelligence/ouroboros-cycle/genome-diff', (req, res, next) => {
+    try {
+      const { a, b } = req.query;
+      if (!a || !b) return res.status(400).json({ error: 'Provide ?a=cycleId&b=cycleId' });
+      res.json(getGenomeDiff(a, b));
     } catch (e) { next(e); }
   });
 }
