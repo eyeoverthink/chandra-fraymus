@@ -364,6 +364,9 @@ export default function OuroborosLineagePanel({ wsEvent }) {
   const [genome, setGenome] = useState(null);
   const [workspace, setWorkspace] = useState(null);
   const [wsDiff, setWsDiff] = useState(null);
+  const [compareData, setCompareData] = useState(null);
+  const [compareTarget, setCompareTarget] = useState(null);
+  const [forking, setForking] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -422,11 +425,37 @@ export default function OuroborosLineagePanel({ wsEvent }) {
     setLoading(false);
   };
 
+  const forkFromCycle = async (cycleId) => {
+    setForking(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/intelligence/ouroboros-cycle/fork/${cycleId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      if (!res.ok) throw new Error((await res.json()).error);
+      const result = await res.json();
+      await loadLineage();
+      selectCycle(result.cycleId);
+      setTab('workspace');
+    } catch (e) { setError(e.message); }
+    setForking(false);
+  };
+
+  const runCompare = async (idA, idB) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/intelligence/ouroboros-cycle/compare?a=${idA}&b=${idB}`);
+      if (!res.ok) throw new Error((await res.json()).error);
+      setCompareData(await res.json());
+      setTab('compare');
+    } catch (e) { setError(e.message); }
+    setLoading(false);
+  };
+
   const tabs = [
     { id: 'graph', label: 'Lineage Graph' },
     { id: 'timeline', label: 'Evolution Timeline' },
     { id: 'genome', label: 'Genome Browser' },
     { id: 'workspace', label: 'Workspace' },
+    { id: 'compare', label: 'Compare' },
   ];
 
   const cycles = lineage?.cycles || [];
@@ -675,6 +704,144 @@ export default function OuroborosLineagePanel({ wsEvent }) {
                 </div>
               )}
               <WorkspaceViewer workspace={workspace} diffData={wsDiff} />
+
+              {/* Fork action */}
+              <div style={{ marginTop: 12, padding: 12, background: '#0f0d1a', borderRadius: 8, border: '1px solid #1e1b2e' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#c4b5fd' }}>Fork from this Generation</div>
+                    <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2 }}>Create a new cycle seeded from this generation's genome</div>
+                  </div>
+                  <button onClick={() => forkFromCycle(selectedId)} disabled={forking}
+                    style={{ padding: '6px 16px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                      background: forking ? '#333' : 'linear-gradient(135deg, #7c3aed, #059669)', color: '#fff', opacity: forking ? 0.5 : 1 }}>
+                    {forking ? 'Forking...' : 'Fork'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Compare launcher */}
+              {cycles.length > 1 && (
+                <div style={{ marginTop: 8, padding: 12, background: '#0f0d1a', borderRadius: 8, border: '1px solid #1e1b2e' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#60a5fa', marginBottom: 6 }}>Compare with another generation</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {cycles.filter(c => c.id !== selectedId).slice(0, 6).map(c => (
+                      <button key={c.id} onClick={() => runCompare(selectedId, c.id)}
+                        style={{ padding: '3px 10px', borderRadius: 4, border: '1px solid #333', background: 'none', color: '#a0a0b8', fontSize: 10, cursor: 'pointer' }}>
+                        Gen {c.generation || 1} ({c.id.slice(0, 6)})
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Compare Tab */}
+      {tab === 'compare' && (
+        <>
+          {!compareData ? (
+            <div style={{ padding: 20, textAlign: 'center', color: '#6b7280' }}>
+              Select a generation in the Workspace tab and click a comparison target.
+            </div>
+          ) : (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#60a5fa' }}>Workspace Comparison</span>
+                <button onClick={() => { setCompareData(null); setTab('workspace'); }}
+                  style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #333', background: 'none', color: '#a0a0b8', fontSize: 11, cursor: 'pointer' }}>
+                  Back
+                </button>
+              </div>
+
+              {/* Summary */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                <Badge text={`Gen ${compareData.cycleA.generation} vs Gen ${compareData.cycleB.generation}`} color="#60a5fa" />
+                <Badge text={compareData.summary.identical ? 'Identical' : 'Diverged'} color={compareData.summary.identical ? '#22c55e' : '#f59e0b'} />
+                <Badge text={`${Math.round(compareData.summary.genomeSimilarity * 100)}% genome similarity`} color="#c4b5fd" />
+                {compareData.summary.genesAdded > 0 && <Badge text={`+${compareData.summary.genesAdded} genes`} color="#22c55e" />}
+                {compareData.summary.genesRemoved > 0 && <Badge text={`-${compareData.summary.genesRemoved} genes`} color="#ef4444" />}
+              </div>
+
+              {/* Side by side stats */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+                {[compareData.cycleA, compareData.cycleB].map((c, i) => (
+                  <div key={c.id} style={{ background: '#1a1730', borderRadius: 8, padding: 10, border: `1px solid ${i === 0 ? '#6366f133' : '#05966933'}` }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: i === 0 ? '#6366f1' : '#059669', marginBottom: 4 }}>
+                      Gen {c.generation} {i === 0 ? '(A)' : '(B)'}
+                    </div>
+                    <div style={{ fontSize: 9, color: '#4b5563', fontFamily: 'monospace', marginBottom: 6 }}>{c.id}</div>
+                    <div style={{ fontSize: 10, color: '#a0a0b8' }}>
+                      <div>Status: <span style={{ color: c.status === 'complete' ? '#22c55e' : '#ef4444' }}>{c.status}</span></div>
+                      <div>Genome: <span style={{ fontFamily: 'monospace', color: '#c4b5fd' }}>{c.genome_hash?.slice(0, 8) || '—'}</span></div>
+                      {c.duration_ms && <div>Duration: {(c.duration_ms / 1000).toFixed(1)}s</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Genome changes */}
+              {(compareData.genome.added.length > 0 || compareData.genome.removed.length > 0) && (
+                <div style={{ background: '#1a1730', borderRadius: 8, padding: 10, border: '1px solid #2a2740', marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#c4b5fd', marginBottom: 6 }}>Genome Changes</div>
+                  {compareData.genome.added.map(g => (
+                    <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+                      <span style={{ color: '#22c55e', fontSize: 10, fontWeight: 700 }}>+</span>
+                      <Badge text={g.category} color={GENE_COLORS[g.category] || '#888'} />
+                      <span style={{ fontSize: 11, color: '#e0e0f0' }}>{g.title}</span>
+                    </div>
+                  ))}
+                  {compareData.genome.removed.map(g => (
+                    <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+                      <span style={{ color: '#ef4444', fontSize: 10, fontWeight: 700 }}>-</span>
+                      <Badge text={g.category} color={GENE_COLORS[g.category] || '#888'} />
+                      <span style={{ fontSize: 11, color: '#a0a0b8', textDecoration: 'line-through' }}>{g.title}</span>
+                    </div>
+                  ))}
+                  <div style={{ fontSize: 10, color: '#6b7280', marginTop: 4 }}>
+                    Shared genes: {compareData.genome.shared} | Total A: {compareData.genome.totalA} | Total B: {compareData.genome.totalB}
+                  </div>
+                </div>
+              )}
+
+              {/* Workspace diff details */}
+              {compareData.workspace && !compareData.workspace.identical && (
+                <div style={{ background: '#1a1730', borderRadius: 8, padding: 10, border: '1px solid #2a2740' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#f59e0b', marginBottom: 6 }}>Workspace Drift</div>
+                  {compareData.workspace.fleet && (
+                    <div style={{ marginBottom: 6 }}>
+                      <span style={{ fontSize: 10, color: '#a0a0b8' }}>Fleet: </span>
+                      <span style={{ fontSize: 11, color: compareData.workspace.fleet.countDelta > 0 ? '#22c55e' : compareData.workspace.fleet.countDelta < 0 ? '#ef4444' : '#a0a0b8' }}>
+                        {compareData.workspace.fleet.countDelta > 0 ? '+' : ''}{compareData.workspace.fleet.countDelta} agents
+                      </span>
+                      {compareData.workspace.fleet.added?.length > 0 && (
+                        <span style={{ fontSize: 10, color: '#22c55e', marginLeft: 6 }}>({compareData.workspace.fleet.added.join(', ')})</span>
+                      )}
+                    </div>
+                  )}
+                  {compareData.workspace.codebase && (
+                    <div style={{ marginBottom: 6 }}>
+                      <span style={{ fontSize: 10, color: '#a0a0b8' }}>Codebase: </span>
+                      <span style={{ fontSize: 11, color: '#e0e0f0' }}>
+                        {compareData.workspace.codebase.filesDelta > 0 ? '+' : ''}{compareData.workspace.codebase.filesDelta} files,{' '}
+                        {compareData.workspace.codebase.linesDelta > 0 ? '+' : ''}{compareData.workspace.codebase.linesDelta} lines,{' '}
+                        {compareData.workspace.codebase.routesDelta > 0 ? '+' : ''}{compareData.workspace.codebase.routesDelta} routes
+                      </span>
+                    </div>
+                  )}
+                  {compareData.workspace.bus?.topicsDelta !== 0 && (
+                    <div style={{ marginBottom: 6 }}>
+                      <span style={{ fontSize: 10, color: '#a0a0b8' }}>Bus: </span>
+                      <span style={{ fontSize: 11, color: '#e0e0f0' }}>
+                        {compareData.workspace.bus.topicsDelta > 0 ? '+' : ''}{compareData.workspace.bus.topicsDelta} topics,{' '}
+                        {compareData.workspace.bus.messagesDelta > 0 ? '+' : ''}{compareData.workspace.bus.messagesDelta} messages
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </>

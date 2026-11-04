@@ -794,6 +794,141 @@ export function getGenomeDiff(cycleA, cycleB) {
   };
 }
 
+// ─── Fork & Restore ────────────────────────────────────────────────
+
+export async function forkCycle(ancestorCycleId, rootDir) {
+  const ancestor = db.prepare(
+    `SELECT id, generation, genome_hash FROM ouroboros_cycles WHERE id = ?`
+  ).get(ancestorCycleId);
+  if (!ancestor) throw new Error('Ancestor cycle not found');
+
+  const cycleId = uid();
+  const start = Date.now();
+  const generation = (ancestor.generation || 1) + 1;
+
+  db.prepare(`INSERT INTO ouroboros_cycles (id, phase, status, parent_cycle_id, generation) VALUES (?, 'absorb', 'running', ?, ?)`)
+    .run(cycleId, ancestorCycleId, generation);
+
+  try {
+    const inheritedGenes = inheritGenome(ancestorCycleId, cycleId, generation);
+
+    // Phase 1: ABSORB (fresh scan)
+    const outline = absorbCodebase(rootDir || process.cwd());
+    const outlineText = outlineToText(outline);
+    const outlineHash = createHash('sha256').update(outlineText.slice(0, 4000)).digest('hex').slice(0, 16);
+
+    db.prepare(`UPDATE ouroboros_cycles SET phase = 'absorb_done', outline = ?, outline_hash = ? WHERE id = ?`)
+      .run(outlineText, outlineHash, cycleId);
+
+    // Phase 2: ANALYZE — with ancestor context
+    db.prepare(`UPDATE ouroboros_cycles SET phase = 'analyze' WHERE id = ?`).run(cycleId);
+
+    const ancestorGenome = getGenome(ancestorCycleId);
+    const ancestorContext = ancestorGenome.length > 0
+      ? `\n\nThis cycle is forked from generation ${ancestor.generation} (${ancestorCycleId}). Its genome carries ${inheritedGenes} inherited genes:\n${ancestorGenome.map(g => `- [${g.category}] ${g.title}`).join('\n')}\n\nPropose improvements that BUILD ON these proven patterns. Avoid re-proposing what is already in the genome.`
+      : '';
+
+    const rawProposals = await analyzeForImprovements(outlineText + ancestorContext);
+
+    const insert = db.prepare(`INSERT INTO ouroboros_proposals (id, cycle_id, category, priority, title, description, target_files, rationale, implementation_sketch) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    for (const p of rawProposals) {
+      insert.run(
+        uid(), cycleId, p.category || 'refactor', p.priority || 'medium',
+        p.title, p.description || '',
+        JSON.stringify(p.targetFiles || []),
+        p.rationale || '',
+        p.implementationSketch || '',
+      );
+    }
+
+    db.prepare(`UPDATE ouroboros_cycles SET phase = 'analyze_done', proposal_count = ? WHERE id = ?`)
+      .run(rawProposals.length, cycleId);
+
+    // Phase 3: REVIEW
+    db.prepare(`UPDATE ouroboros_cycles SET phase = 'review' WHERE id = ?`).run(cycleId);
+    const storedProposals = db.prepare(`SELECT * FROM ouroboros_proposals WHERE cycle_id = ?`).all(cycleId);
+    const reviews = await reviewProposals(storedProposals, outlineText);
+
+    let accepted = 0, rejected = 0;
+    const updateP = db.prepare(`UPDATE ouroboros_proposals SET status = ?, review_verdict = ?, review_notes = ? WHERE id = ?`);
+    for (const r of reviews) {
+      const prop = storedProposals.find(p => p.id === r.proposalId);
+      if (!prop) continue;
+      const status = r.verdict === 'approve' ? 'accepted' : r.verdict === 'reject' ? 'rejected' : 'needs_revision';
+      updateP.run(status, r.verdict, r.notes || '', prop.id);
+      if (r.verdict === 'approve') accepted++;
+      else if (r.verdict === 'reject') rejected++;
+    }
+    const unreviewed = storedProposals.filter(p => !reviews.find(r => r.proposalId === p.id));
+    for (const p of unreviewed) {
+      updateP.run('accepted', 'approve', 'Auto-accepted (not challenged by reviewer)', p.id);
+      accepted++;
+    }
+
+    addMutations(cycleId, db.prepare(`SELECT id FROM ouroboros_proposals WHERE cycle_id = ? AND status = 'accepted'`).all(cycleId), generation);
+
+    const allGenes = db.prepare(`SELECT proposal_id FROM ouroboros_genome WHERE cycle_id = ? AND active = 1`).all(cycleId);
+    const genomeHash = computeGenomeHash(allGenes);
+
+    const durationMs = Date.now() - start;
+    const insights = {
+      generation, forkedFrom: ancestorCycleId, forkedFromGeneration: ancestor.generation,
+      parentCycleId: ancestorCycleId, inheritedGenes,
+      filesScanned: outline.stats.totalFiles, linesAnalyzed: outline.stats.totalLines,
+      tablesFound: outline.stats.dbTableCount,
+      proposalsGenerated: rawProposals.length, accepted, rejected,
+      revised: rawProposals.length - accepted - rejected,
+      newMutations: db.prepare(`SELECT COUNT(*) as c FROM ouroboros_proposals WHERE cycle_id = ? AND status = 'accepted'`).get(cycleId).c,
+      totalGenomeSize: allGenes.length, genomeHash,
+      categories: [...new Set(rawProposals.map(p => p.category))],
+    };
+
+    db.prepare(`UPDATE ouroboros_cycles SET phase = 'complete', status = 'complete', accepted_count = ?, rejected_count = ?, implemented_count = 0, duration_ms = ?, insights = ?, genome_hash = ? WHERE id = ?`)
+      .run(accepted, rejected, durationMs, JSON.stringify(insights), genomeHash, cycleId);
+
+    let workspace = null;
+    try { workspace = captureWorkspace(cycleId, rootDir || process.cwd()); } catch {}
+
+    try {
+      publish('system', 'system.evolution', JSON.stringify({
+        type: 'ouroboros_fork', cycleId, generation, genomeHash,
+        forkedFrom: ancestorCycleId, accepted, rejected, durationMs,
+        workspaceFingerprint: workspace?.fingerprint || null,
+      }));
+    } catch (_) {}
+
+    return { cycleId, ...insights, durationMs, workspaceFingerprint: workspace?.fingerprint || null };
+  } catch (err) {
+    db.prepare(`UPDATE ouroboros_cycles SET status = 'failed', insights = ? WHERE id = ?`)
+      .run(JSON.stringify({ error: err.message, forkedFrom: ancestorCycleId }), cycleId);
+    throw err;
+  }
+}
+
+export function compareWorkspaces(cycleIdA, cycleIdB) {
+  const diff = diffWorkspaces(cycleIdA, cycleIdB);
+  if (!diff) return null;
+
+  const genomeDiff = getGenomeDiff(cycleIdA, cycleIdB);
+  const cycleA = db.prepare(`SELECT generation, genome_hash, status, created_at, duration_ms FROM ouroboros_cycles WHERE id = ?`).get(cycleIdA);
+  const cycleB = db.prepare(`SELECT generation, genome_hash, status, created_at, duration_ms FROM ouroboros_cycles WHERE id = ?`).get(cycleIdB);
+
+  return {
+    cycleA: { id: cycleIdA, ...cycleA },
+    cycleB: { id: cycleIdB, ...cycleB },
+    workspace: diff,
+    genome: genomeDiff,
+    summary: {
+      generationGap: Math.abs((cycleB?.generation || 1) - (cycleA?.generation || 1)),
+      sameGenome: cycleA?.genome_hash === cycleB?.genome_hash,
+      identical: diff.identical,
+      genesAdded: genomeDiff.added.length,
+      genesRemoved: genomeDiff.removed.length,
+      genomeSimilarity: genomeDiff.similarity,
+    },
+  };
+}
+
 // ─── Routes ─────────────────────────────────────────────────────────
 
 export function installOuroborosCycleRoutes(app) {
@@ -912,6 +1047,25 @@ export function installOuroborosCycleRoutes(app) {
     try {
       const workspaces = db.prepare(`SELECT id, cycle_id, generation, fingerprint, created_at FROM ouroboros_workspaces ORDER BY generation DESC`).all();
       res.json({ workspaces });
+    } catch (e) { next(e); }
+  });
+
+  // ── Fork & Compare endpoints ──
+
+  app.post('/api/intelligence/ouroboros-cycle/fork/:cycleId', async (req, res, next) => {
+    try {
+      const result = await forkCycle(req.params.cycleId, req.body.rootDir || process.cwd());
+      res.json(result);
+    } catch (e) { next(e); }
+  });
+
+  app.get('/api/intelligence/ouroboros-cycle/compare', (req, res, next) => {
+    try {
+      const { a, b } = req.query;
+      if (!a || !b) return res.status(400).json({ error: 'Provide ?a=cycleId&b=cycleId' });
+      const result = compareWorkspaces(a, b);
+      if (!result) return res.status(404).json({ error: 'Could not compare — workspace missing for one or both cycles' });
+      res.json(result);
     } catch (e) { next(e); }
   });
 }
