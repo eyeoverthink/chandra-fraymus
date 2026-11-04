@@ -104,8 +104,11 @@ export default function ConstellationView({ wsEvent, onOpenDrawer, onNavigate })
 
   useEffect(() => { loadStatus(); }, [loadStatus]);
 
+  const lastStatusRef = useRef(0);
   useEffect(() => {
-    if (!wsEvent?.type || wsEvent.type === 'hello') return;
+    if (!wsEvent?.type || wsEvent.type === 'hello' || wsEvent.type === 'ctrnn') return;
+    if (Date.now() - lastStatusRef.current < 5000) return;
+    lastStatusRef.current = Date.now();
     loadStatus();
     const nodes = eventToNodes(wsEvent);
     if (nodes.length > 0) {

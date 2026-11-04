@@ -129,13 +129,20 @@ function formatEvent(ev) {
   return typeof ev.type === 'string' ? ev.type : 'System event';
 }
 
+const HIGH_FREQ_EVENTS = new Set(['ctrnn', 'hello']);
+const LOAD_THROTTLE_MS = 5000;
+
 export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigate }) {
   const [data, setData] = useState({});
   const [liveEvents, setLiveEvents] = useState([]);
   const [newPulse, setNewPulse] = useState(false);
   const eventIdRef = useRef(0);
+  const lastLoadRef = useRef(0);
 
   const load = () => {
+    const now = Date.now();
+    if (now - lastLoadRef.current < LOAD_THROTTLE_MS) return;
+    lastLoadRef.current = now;
     fetch('/api/fleet/agents').then(r => r.json()).then(d => setData(p => ({ ...p, fleet: d.agents || [] }))).catch(() => {});
     fetch('/api/workflows').then(r => r.json()).then(d => setData(p => ({ ...p, workflows: d.workflows || [] }))).catch(() => {});
     fetch('/api/mcp/servers').then(r => r.json()).then(d => setData(p => ({ ...p, mcp: d.servers || d || [] }))).catch(() => {});
@@ -148,6 +155,7 @@ export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigat
   };
 
   useEffect(() => {
+    lastLoadRef.current = 0;
     load();
     fetch('/api/events?limit=20').then(r => r.json()).then(d => {
       const initial = (Array.isArray(d) ? d : []).map(ev => ({
@@ -158,7 +166,7 @@ export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigat
   }, []);
 
   useEffect(() => {
-    if (!wsEvent?.type || wsEvent.type === 'hello') return;
+    if (!wsEvent?.type || HIGH_FREQ_EVENTS.has(wsEvent.type)) return;
     load();
     const newEv = {
       type: wsEvent.type,
