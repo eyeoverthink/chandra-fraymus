@@ -93,6 +93,10 @@ import { installPlasmidRoutes } from './integrity/plasmid-backup.js';
 import { installGovernanceRoutes } from './integrity/routes.js';
 import { migrateRecordChain } from './intelligence/record-chain.js';
 import { installRecordChainRoutes } from './intelligence/record-chain-routes.js';
+import { migrateReplay } from './intelligence/replay-engine.js';
+import { installReplayRoutes } from './intelligence/replay-routes.js';
+import { migrateAkashic } from './intelligence/akashic.js';
+import { installAkashicRoutes } from './intelligence/akashic-routes.js';
 import { installNUDPRoutes } from './fraymus/protocol/nudp-routes.js';
 import { installBridgeRoutes } from './fraymus/protocol/bridge-routes.js';
 import { installImageRoutes } from './media/image-routes.js';
@@ -236,6 +240,10 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installGovernanceRoutes(app, { broadcast });
   try { migrateRecordChain(); } catch (e) { console.error('[record-chain] migration failed (non-fatal):', e.message); }
   installRecordChainRoutes(app);
+  try { migrateReplay(); } catch (e) { console.error('[replay-engine] migration failed (non-fatal):', e.message); }
+  installReplayRoutes(app);
+  try { migrateAkashic(); } catch (e) { console.error('[akashic] migration failed (non-fatal):', e.message); }
+  installAkashicRoutes(app);
   installNUDPRoutes(app);
   installBridgeRoutes(app);
   installImageRoutes(app);

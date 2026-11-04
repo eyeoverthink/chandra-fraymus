@@ -2,6 +2,7 @@ import {
   publish, directMessage, subscribe, unsubscribe,
   listSubscriptions, inbox, history, topics, busStats,
 } from './bus.js';
+import { guardBusMessage } from '../integrity/guard-tasks.js';
 
 const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
 
@@ -11,6 +12,8 @@ export function installBusRoutes(app) {
   app.post('/api/fleet/bus/publish', route((req, res) => {
     const { from, topic, payload } = req.body;
     if (!from || !topic) return res.status(400).json({ error: 'from and topic required' });
+    const guard = guardBusMessage(topic, typeof payload === 'string' ? payload : JSON.stringify(payload || {}));
+    if (!guard.pass) return res.status(403).json({ type: 'guard_rejected', error: guard.reason, verdict: guard.verdict });
     const msg = publish(from, topic, payload || {});
     res.status(201).json(msg);
   }));

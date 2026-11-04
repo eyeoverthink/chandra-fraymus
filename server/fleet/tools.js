@@ -30,6 +30,8 @@ import {
 import { wrapWasm } from '../fraymus/encoding/wasm.js';
 import { getNode } from '../fraymus/protocol/mesh-node.js';
 import { listMessages as bridgeList, readMessage as bridgeRead, searchMessages as bridgeSearch, postMessage as bridgePost } from '../fraymus/protocol/bridge.js';
+import { record as replayRecord, replay as replayReplay, sweep as replaySweep, applyWinner, getPolicy, listWorlds, listSweeps } from '../intelligence/replay-engine.js';
+import { add as akashicAdd, query as akashicQuery, summary as akashicSummary, buildPromptContext as akashicPromptContext, seedFromMemories as akashicSeed } from '../intelligence/akashic.js';
 import {
   imageInfo, imageResize, imageConvert, imageEffects, imageThumbnail,
   imageUpscale, comfyuiStatus, listMedia,
@@ -1486,6 +1488,120 @@ export function createFleetTools({ workflowStore }) {
         content: string(16000, { description: 'Message body (markdown)' }),
       }, ['agent', 'topic', 'content']),
       execute: async ({ args }) => bridgePost(args.agent, args.topic, args.content),
+    },
+
+    // ── Replay Engine Tools ───────────────────────────────────────
+    {
+      name: 'replay_record',
+      group: 'replay',
+      risk: 'safe',
+      description: 'Record a completed agent run as a replayable world for RSI analysis.',
+      parameters: object({
+        agent_id: string(64, { description: 'Agent that ran' }),
+        task: string(2000, { description: 'Task description' }),
+        model: string(64, { description: 'Model used' }),
+        chain: { type: 'array', items: { type: 'object' }, description: 'Array of step records from the run' },
+        quality: { type: 'number', minimum: 0, maximum: 1, description: 'Quality score 0-1' },
+        cost: { type: 'number', minimum: 0, description: 'Token cost of the run' },
+      }, ['agent_id', 'task', 'chain']),
+      execute: async ({ args }) => replayRecord(args.agent_id, args.task, args.model, args.chain, args.quality, args.cost),
+    },
+    {
+      name: 'replay_world',
+      group: 'replay',
+      risk: 'safe',
+      description: 'Deterministically replay a recorded world under a specific read_budget policy.',
+      parameters: object({
+        world_id: { type: 'integer', description: 'World ID to replay' },
+        read_budget: { type: 'integer', minimum: 1, maximum: 20, description: 'Read budget to test (default 3)' },
+      }, ['world_id']),
+      execute: async ({ args }) => replayReplay(args.world_id, args.read_budget || 3),
+    },
+    {
+      name: 'replay_sweep',
+      group: 'replay',
+      risk: 'safe',
+      description: 'Sweep all read_budget values 1-N for a world and rank by V-score.',
+      parameters: object({
+        world_id: { type: 'integer', description: 'World ID to sweep' },
+        max_budget: { type: 'integer', minimum: 1, maximum: 20, description: 'Max budget to test (default 12)' },
+      }, ['world_id']),
+      execute: async ({ args }) => replaySweep(args.world_id, args.max_budget || 12),
+    },
+    {
+      name: 'replay_apply_winner',
+      group: 'replay',
+      risk: 'medium',
+      description: 'Apply the winning policy value from a sweep (the RSI seam).',
+      parameters: object({
+        key: string(128, { description: 'Policy key to update' }),
+        value: string(256, { description: 'New value' }),
+        reason: string(500, { description: 'Why this value won' }),
+      }, ['key', 'value']),
+      execute: async ({ args }) => applyWinner(args.key, args.value, args.reason || 'agent_applied'),
+    },
+    {
+      name: 'replay_policy',
+      group: 'replay',
+      risk: 'safe',
+      description: 'Read the current loop policy (all key-value pairs).',
+      parameters: object({}),
+      execute: async () => getPolicy(),
+    },
+    {
+      name: 'replay_list_worlds',
+      group: 'replay',
+      risk: 'safe',
+      description: 'List recorded replay worlds.',
+      parameters: object({
+        agent_id: string(64, { description: 'Filter by agent (optional)' }),
+        limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Max results (default 20)' },
+      }),
+      execute: async ({ args }) => ({ worlds: listWorlds(args.agent_id || null, args.limit || 20) }),
+    },
+
+    // ── Akashic Record Tools ──────────────────────────────────────
+    {
+      name: 'akashic_add',
+      group: 'akashic',
+      risk: 'safe',
+      description: 'Add a knowledge record to the Akashic store (decision, entity, module, or pattern). Idempotent by kind+subject.',
+      parameters: object({
+        kind: string(64, { description: 'Record type: decision, entity, module, pattern' }),
+        subject: string(256, { description: 'Subject identifier' }),
+        body: string(4000, { description: 'Knowledge content' }),
+        source: string(128, { description: 'Where this knowledge came from' }),
+        confidence: { type: 'number', minimum: 0, maximum: 1, description: 'Confidence 0-1 (default 1.0)' },
+      }, ['kind', 'subject', 'body']),
+      execute: async ({ args }) => akashicAdd(args.kind, args.subject, args.body, args.source, args.confidence),
+    },
+    {
+      name: 'akashic_query',
+      group: 'akashic',
+      risk: 'safe',
+      description: 'Query the Akashic knowledge store by kind and/or subject pattern.',
+      parameters: object({
+        kind: string(64, { description: 'Filter by kind (optional)' }),
+        subject: string(256, { description: 'Subject search pattern (optional)' }),
+        limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Max results (default 10)' },
+      }),
+      execute: async ({ args }) => ({ records: akashicQuery(args.kind || null, args.subject || null, args.limit || 10) }),
+    },
+    {
+      name: 'akashic_summary',
+      group: 'akashic',
+      risk: 'safe',
+      description: 'Get a summary of the Akashic knowledge store: kind counts, recent decisions, recent entities.',
+      parameters: object({}),
+      execute: async () => akashicSummary(),
+    },
+    {
+      name: 'akashic_seed',
+      group: 'akashic',
+      risk: 'medium',
+      description: 'Seed the Akashic store from verified agent memories (fossils, chain findings, reflections).',
+      parameters: object({}),
+      execute: async () => akashicSeed(),
     },
   ];
 }

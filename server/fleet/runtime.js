@@ -11,6 +11,9 @@ import {
   salvageOnCrash, boundResult, checkPermission, createRunEnvelope, recordStep,
 } from './harness.js';
 import { append as chainAppend } from '../intelligence/record-chain.js';
+import { compactHistory } from '../integrity/strix-laws.js';
+import { buildPromptContext as akashicPromptContext } from '../intelligence/akashic.js';
+import { record as replayRecord } from '../intelligence/replay-engine.js';
 
 const MAX_STEPS = 8;
 const MAX_HISTORY = 40;
@@ -150,6 +153,12 @@ async function systemPrompt(agent, userId) {
     agentMemBlock = buildPromptContext(agent.id);
   } catch (_) {}
 
+  // Akashic Record — cross-agent structured knowledge (decisions, entities, verified modules)
+  let akashicBlock = '';
+  try {
+    akashicBlock = akashicPromptContext(1200);
+  } catch (_) {}
+
   // Perspective — meta-cognitive framing from the active perspective session
   let perspectiveBlock = '';
   try {
@@ -159,7 +168,7 @@ async function systemPrompt(agent, userId) {
     }
   } catch (_) {}
 
-  return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}${intelligenceBlock}${bridgeBlock}${agentMemBlock}${perspectiveBlock}`;
+  return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}${intelligenceBlock}${bridgeBlock}${agentMemBlock}${akashicBlock}${perspectiveBlock}`;
 }
 
 async function chat(messages, tools, model) {
@@ -206,7 +215,7 @@ function setRun(runId, updates) {
 }
 
 function getHistory(threadId, limit = MAX_HISTORY) {
-  return db.prepare('SELECT role, content, tool_calls, tool_call_id, name FROM messages WHERE thread_id = ? ORDER BY id DESC LIMIT ?')
+  const raw = db.prepare('SELECT role, content, tool_calls, tool_call_id, name FROM messages WHERE thread_id = ? ORDER BY id DESC LIMIT ?')
     .all(threadId, limit)
     .reverse()
     .map(m => ({
@@ -216,6 +225,8 @@ function getHistory(threadId, limit = MAX_HISTORY) {
       ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
       ...(m.name ? { name: m.name } : {}),
     }));
+  if (raw.length > 20) return compactHistory(raw);
+  return raw;
 }
 
 async function executeTool(toolName, args, ctx) {
@@ -342,6 +353,7 @@ async function drive(runId, depth = 0) {
       setRun(runId, { status: 'done' });
       broadcastFn('fleet', { type: 'done', runId, harness: { steps: envelope.steps.length, evidence: true } });
       try { autoStoreFromCompletion(agent.id, lastUser?.content, res.content); } catch (_) {}
+      try { replayRecord(agent.id, lastUser?.content || '', agent.model, envelope.steps, 0.5, step + 1); } catch (_) {}
       return;
     }
 
@@ -395,6 +407,7 @@ async function drive(runId, depth = 0) {
   }
 
   setRun(runId, { status: 'done' });
+  try { replayRecord(agent.id, 'max_steps_reached', agent.model, envelope.steps, 0.3, MAX_STEPS); } catch (_) {}
 }
 
 export function startRun(userId, agentId, message, threadId) {

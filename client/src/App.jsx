@@ -39,6 +39,7 @@ const NAV_BUTTONS = [
   { panel: 'subconscious', title: 'Subconscious Engine', icon: '🧠', label: 'Subcon', color: '#7c3aed' },
   { panel: 'ouroboros-cycle', title: 'Ouroboros RSI', icon: '🐍', label: 'Ouroboros', color: '#059669' },
   { panel: 'ouroboros-lineage', title: 'Ouroboros Lineage', icon: '🧬', label: 'Lineage', color: '#10b981' },
+  { panel: 'integrity', title: 'System Integrity', icon: '🔒', label: 'Integrity', color: '#ef4444' },
 ];
 
 function NavButton({ btn, openDrawer }) {

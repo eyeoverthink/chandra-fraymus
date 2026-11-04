@@ -47,6 +47,7 @@ import TrustPanel from '../panels/TrustPanel.jsx';
 import SubconsciousPanel from '../panels/SubconsciousPanel.jsx';
 import OuroborosCyclePanel from '../panels/OuroborosCyclePanel.jsx';
 import OuroborosLineagePanel from '../panels/OuroborosLineagePanel.jsx';
+import IntegrityPanel from '../panels/IntegrityPanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -96,6 +97,7 @@ const PANELS = {
   subconscious: { component: SubconsciousPanel, label: 'Subconscious Engine' },
   'ouroboros-cycle': { component: OuroborosCyclePanel, label: 'Ouroboros RSI' },
   'ouroboros-lineage': { component: OuroborosLineagePanel, label: 'Ouroboros Lineage' },
+  integrity: { component: IntegrityPanel, label: 'System Integrity' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {
