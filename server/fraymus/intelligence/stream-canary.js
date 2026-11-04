@@ -11,7 +11,7 @@
 //        const clean = interceptor.processToken(rawToken, tokenIndex);
 
 import { TriangulatedHoneypotArray } from './canary.js';
-import { sanitizeStreamText, SECRET_PREFIXES } from './transcoder4d.js';
+import { sanitizeStreamText, SECRET_PREFIXES, findCredentialEnd } from './transcoder4d.js';
 
 function tailPrefixOverlap(text) {
   let maxOverlap = 0;
@@ -52,6 +52,8 @@ export class StreamCanaryInterceptor {
     this.phaseBaseline = 0.5;
     this.alerts = [];
     this.prefixBuffer = '';
+    this.insideCredential = false;
+    this.lastResponseShape = null;
   }
 
   processToken(rawToken, tokenIndex = null, flush = false) {
@@ -72,11 +74,28 @@ export class StreamCanaryInterceptor {
     const normalizedLen = Math.min(1.0, rawToken.length / 20);
     this.canaryArray.observePhase(phaseSignal, normalizedLen);
 
-    const combined = this.prefixBuffer + rawToken;
+    let combined = this.prefixBuffer + rawToken;
     this.prefixBuffer = '';
 
-    const { sanitized, redactionCount } = sanitizeStreamText(combined, this.xorKey, this.stepAdd);
+    if (this.insideCredential) {
+      const termIdx = findCredentialEnd(combined, 0);
+      if (termIdx === -1) {
+        this.totalRedactions++;
+        if (flush) { this.insideCredential = false; return ''; }
+        return '';
+      }
+      combined = combined.substring(termIdx);
+      this.insideCredential = false;
+      this.totalRedactions++;
+      if (!combined) return '';
+    }
+
+    const { sanitized, redactionCount, unterminated } = sanitizeStreamText(combined, this.xorKey, this.stepAdd);
     this.totalRedactions += redactionCount;
+
+    if (unterminated && !flush) {
+      this.insideCredential = true;
+    }
 
     if (redactionCount > 0) {
       this.alerts.push({
@@ -98,11 +117,22 @@ export class StreamCanaryInterceptor {
   processNdjsonLine(line) {
     try {
       const parsed = JSON.parse(line);
-      if (parsed.response) {
+      if (parsed.response !== undefined) {
+        this.lastResponseShape = 'generate';
         parsed.response = this.processToken(parsed.response);
       }
-      if (parsed.message?.content) {
+      if (parsed.message?.content !== undefined) {
+        this.lastResponseShape = 'chat';
         parsed.message.content = this.processToken(parsed.message.content);
+      }
+      if (parsed.done === true && this.prefixBuffer) {
+        const tail = this.prefixBuffer;
+        this.prefixBuffer = '';
+        if (this.lastResponseShape === 'chat' && parsed.message) {
+          parsed.message.content = (parsed.message.content || '') + tail;
+        } else if (parsed.response !== undefined) {
+          parsed.response += tail;
+        }
       }
       return parsed;
     } catch {
@@ -132,7 +162,11 @@ export class StreamCanaryInterceptor {
     if (this.prefixBuffer) {
       const tail = this.prefixBuffer;
       this.prefixBuffer = '';
-      yield { flushed: tail };
+      if (this.lastResponseShape === 'chat') {
+        yield { message: { role: 'assistant', content: tail } };
+      } else {
+        yield { response: tail };
+      }
     }
   }
 
@@ -156,6 +190,8 @@ export class StreamCanaryInterceptor {
     this.lastTimestamp = null;
     this.alerts = [];
     this.prefixBuffer = '';
+    this.insideCredential = false;
+    this.lastResponseShape = null;
     this.canaryArray.reset();
   }
 

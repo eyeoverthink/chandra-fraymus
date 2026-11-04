@@ -1,7 +1,7 @@
 import { AgentError, fail } from './schema.js';
 import {normalizeThinking,thinkingControls,requireThinking,attachPrivateThinking} from './thinking.js';
 import { PRODUCTION } from '../config.js';
-import { sanitizeOllamaContent } from '../fraymus/intelligence/ollama-sanitize.js';
+import { sanitizeOllamaContent, sanitizeDeep } from '../fraymus/intelligence/ollama-sanitize.js';
 
 export const cloudModelName = model => typeof model === 'string' && /(?:^|[:/@._-])cloud(?:$|[:/@._-])/i.test(model);
 export function remoteModelMetadata(data, depth = 0) {
@@ -118,7 +118,7 @@ export function createOllamaProvider({ url, fetchImpl = fetch }) {
       if (data.done !== true) fail('provider_incomplete', 'Ollama response was incomplete');
       if (![data.prompt_eval_count, data.eval_count].every(n => Number.isSafeInteger(n) && n >= 0)) fail('usage_unavailable', 'Ollama did not return actual token usage; run stopped');
       const result={
-        message: { role: 'assistant', content: sanitizeOllamaContent(data.message.content), ...(data.message.tool_calls ? { tool_calls: data.message.tool_calls } : {}) },
+        message: { role: 'assistant', content: sanitizeOllamaContent(data.message.content), ...(data.message.tool_calls ? { tool_calls: sanitizeDeep(data.message.tool_calls) } : {}) },
         usage: { inputTokens: data.prompt_eval_count, outputTokens: data.eval_count, costUsd: 0 },
         finishReason: data.done_reason || 'stop',
       };

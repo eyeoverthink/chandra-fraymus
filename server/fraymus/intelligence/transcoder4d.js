@@ -28,12 +28,24 @@ export function reconstructSecret(coord4D, xorKey, stepAdd) {
   return secret;
 }
 
+function isCredentialChar(ch) {
+  const c = ch.charCodeAt(0);
+  return (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || c === 45;
+}
+
+export function findCredentialEnd(text, startIdx) {
+  for (let i = startIdx; i < text.length; i++) {
+    if (!isCredentialChar(text[i])) return i;
+  }
+  return -1;
+}
+
 export function detectSecretPrefixes(text) {
   const found = [];
   for (const prefix of SECRET_PREFIXES) {
     let idx = 0;
     while ((idx = text.indexOf(prefix, idx)) !== -1) {
-      const end = text.indexOf(' ', idx);
+      const end = findCredentialEnd(text, idx + prefix.length);
       const tokenLen = (end === -1 ? text.length : end) - idx;
       found.push({ prefix, index: idx, length: tokenLen });
       idx += prefix.length;
@@ -45,12 +57,14 @@ export function detectSecretPrefixes(text) {
 export function sanitizeStreamText(rawText, xorKey = 0x5A, stepAdd = 0x11) {
   let sanitized = rawText;
   const redactions = [];
+  let unterminated = false;
 
   for (const prefix of SECRET_PREFIXES) {
     let idx = 0;
     while ((idx = sanitized.indexOf(prefix, idx)) !== -1) {
-      const end = sanitized.indexOf(' ', idx);
+      const end = findCredentialEnd(sanitized, idx + prefix.length);
       const secretToken = sanitized.substring(idx, end === -1 ? sanitized.length : end);
+      if (end === -1) unterminated = true;
       const bytes = new Uint8Array(4);
       for (let i = 0; i < Math.min(secretToken.length, 4); i++) {
         bytes[i] = secretToken.charCodeAt(i) & 0xFF;
@@ -69,7 +83,7 @@ export function sanitizeStreamText(rawText, xorKey = 0x5A, stepAdd = 0x11) {
     }
   }
 
-  return { sanitized, redactions, redactionCount: redactions.length };
+  return { sanitized, redactions, redactionCount: redactions.length, unterminated };
 }
 
 export function verifyBijectiveRoundTrip(secret4Bytes, xorKey = 0x5A, stepAdd = 0x11) {

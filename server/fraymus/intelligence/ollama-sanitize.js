@@ -48,4 +48,15 @@ export function resetInterceptorStats() {
   sharedCanary.reset();
 }
 
-export default { sanitizeOllamaContent, getInterceptorStats, resetInterceptorStats };
+export function sanitizeDeep(value) {
+  if (typeof value === 'string') return sanitizeOllamaContent(value);
+  if (Array.isArray(value)) return value.map(sanitizeDeep);
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) out[k] = sanitizeDeep(v);
+    return out;
+  }
+  return value;
+}
+
+export default { sanitizeOllamaContent, sanitizeDeep, getInterceptorStats, resetInterceptorStats };

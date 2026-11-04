@@ -136,7 +136,12 @@ export class TriangulatedHoneypotArray {
 
     const maxEps = Math.max(epsAlpha, epsBeta, epsGamma);
     const totalSamples = this.alpha.sampleCount + this.beta.sampleCount + this.gamma.sampleCount;
-    const confidence = totalSamples >= this.minSamples
+    const minPerChannel = Math.max(4, Math.ceil(this.minSamples / 3));
+    const enoughSamples = totalSamples >= this.minSamples
+      && this.alpha.sampleCount >= minPerChannel
+      && this.beta.sampleCount >= minPerChannel
+      && this.gamma.sampleCount >= minPerChannel;
+    const confidence = enoughSamples
       ? Math.tanh(maxEps / this.sensitivityThreshold)
       : 0;
 
@@ -157,7 +162,7 @@ export class TriangulatedHoneypotArray {
       },
       epsilons: { alpha: epsAlpha, beta: epsBeta, gamma: epsGamma },
       totalSamples,
-      triggered: totalSamples >= this.minSamples && confidence > 0.5,
+      triggered: enoughSamples && confidence > 0.5,
     };
   }
 
