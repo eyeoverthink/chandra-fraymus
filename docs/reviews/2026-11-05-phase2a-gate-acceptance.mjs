@@ -7,21 +7,40 @@
  * 3. re.build_gate_lookup returns relevant gates for keywords
  * 4. 18 build-gate memories at confidence 0.9
  * 5. Existing Tycho rea_analyst still functions
- * 6. RE Analyst taskable via fleet API
+ * 6. RE Analyst taskable via fleet API (manifest loadable + tools registered)
+ *
+ * DATABASE ISOLATION: This test creates a disposable database in a temp
+ * directory via CHANDRA_DATA_DIR. The live data/chandra.db is never touched.
  *
  * Usage: node docs/reviews/2026-11-05-phase2a-gate-acceptance.mjs [--output PATH]
- *
- * This test uses vm.Script to extract and test functions in isolation,
- * similar to the Phase 1 recheck methodology.
  */
 
-import { createRequire } from 'node:module';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '../..');
+
+// ─── Database Isolation ─────────────────────────────────────────
+// Redirect CHANDRA_DATA_DIR to a disposable directory BEFORE any
+// server module imports, since db.js reads DATA_DIR at import time.
+
+const DISPOSABLE_DIR = join(ROOT, `.test-2a-${randomBytes(4).toString('hex')}`);
+mkdirSync(DISPOSABLE_DIR, { recursive: true });
+process.env.CHANDRA_DATA_DIR = DISPOSABLE_DIR;
+
+function cleanup() {
+  try { rmSync(DISPOSABLE_DIR, { recursive: true, force: true }); } catch (_) {}
+}
+process.on('exit', cleanup);
+
+console.log(`\nDatabase isolation: ${DISPOSABLE_DIR}`);
+
+// Run schema migration so the disposable DB has the agent_memories table
+const { migrateWorkspaces } = await import(pathToFileURL(resolve(ROOT, 'server/db-migrate.js')).href);
+migrateWorkspaces();
 
 // ─── Test Framework ──────────────────────────────────────────────
 
@@ -48,7 +67,7 @@ try {
   const text = readFileSync(manifestPath, 'utf8');
 
   // Parse frontmatter the same way manifest.js does
-  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text.replace(/^﻿/, ''));
+  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text.replace(/^\uFEFF/, ''));
   if (!m) throw new Error('No frontmatter found in manifest');
 
   const front = {};
@@ -87,10 +106,8 @@ try {
 console.log('\n═══ Gate 2A-2: re.verify_chain ═══');
 
 try {
-  // Import hive-bridge directly to test verify_chain
   const { verifyHiveChain, ensureHiveBridgeTable } = await import(pathToFileURL(resolve(ROOT, 'server/intelligence/hive-bridge.js')).href);
 
-  // Ensure the table exists
   ensureHiveBridgeTable();
 
   // Test with raw receipts (if available)
@@ -125,9 +142,15 @@ console.log('\n═══ Gate 2A-3: Build Gate Lookup ═══');
 try {
   const { seedBuildGates, createRETools } = await import(pathToFileURL(resolve(ROOT, 'server/fleet/re-tools.js')).href);
 
-  // Seed the gates first
+  // Seed into disposable DB
   const seedResult = seedBuildGates();
   if (seedResult.total !== 18) throw new Error(`Expected 18 gates, got ${seedResult.total}`);
+  if (seedResult.seeded !== 18) throw new Error(`Expected 18 seeded (fresh DB), got ${seedResult.seeded} seeded, ${seedResult.skipped} skipped`);
+
+  // Verify reseed is non-destructive: calling again should skip all 18
+  const reseedResult = seedBuildGates();
+  if (reseedResult.skipped !== 18) throw new Error(`Reseed should skip all 18, got ${reseedResult.seeded} seeded, ${reseedResult.skipped} skipped`);
+  gate('RE-P2A-G3-reseed', 'PASS', 'Reseed is non-destructive: 18 skipped, 0 seeded on second call');
 
   const tools = createRETools();
   const lookupTool = tools.find(t => t.name === 're.build_gate_lookup');
@@ -140,8 +163,8 @@ try {
     if (!result.gates || result.gates.length === 0) {
       throw new Error(`No gates found for keyword "${kw}"`);
     }
-    const gateNums = result.gates.map(g => g.gate).join(', ');
-    gate(`RE-P2A-G3-${kw}`, 'PASS', `Keyword "${kw}" → ${result.matches} gate(s): [${gateNums}]`);
+    const gateIds = result.gates.map(g => g.localId).join(', ');
+    gate(`RE-P2A-G3-${kw}`, 'PASS', `Keyword "${kw}" → ${result.matches} gate(s): [${gateIds}]`);
   }
 } catch (e) {
   gate('RE-P2A-G3', 'FAIL', e.message);
@@ -167,7 +190,14 @@ try {
     throw new Error(`${at1_0.length} memories incorrectly at confidence 1.0 — not reproduced on this machine`);
   }
 
-  gate('RE-P2A-G4', 'PASS', `18 build_gate memories stored, all at confidence 0.9 (not 1.0)`);
+  // Verify keys use localId format, not upstream gate numbers
+  const hasLocalIdKeys = memories.every(m => /^build_gate_L\d+$/.test(m.key));
+  if (!hasLocalIdKeys) {
+    const badKeys = memories.filter(m => !/^build_gate_L\d+$/.test(m.key)).map(m => m.key);
+    throw new Error(`Keys should use localId format (build_gate_L1..L18), found: ${badKeys.join(', ')}`);
+  }
+
+  gate('RE-P2A-G4', 'PASS', `18 build_gate memories stored, all at confidence 0.9, localId keys (L1..L18)`);
 } catch (e) {
   gate('RE-P2A-G4', 'FAIL', e.message);
 }
@@ -181,7 +211,7 @@ try {
   if (!existsSync(tychoPath)) throw new Error('agents/rea_analyst.md has been deleted or renamed');
 
   const text = readFileSync(tychoPath, 'utf8');
-  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text.replace(/^﻿/, ''));
+  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text.replace(/^\uFEFF/, ''));
   if (!m) throw new Error('Tycho manifest has no frontmatter');
 
   const front = {};
@@ -206,9 +236,9 @@ try {
   gate('RE-P2A-G5', 'FAIL', e.message);
 }
 
-// ─── Gate 2A-6: RE Analyst tool registration ────────────────────
+// ─── Gate 2A-6: RE Analyst tool registration + taskability ──────
 
-console.log('\n═══ Gate 2A-6: Tool Registration ═══');
+console.log('\n═══ Gate 2A-6: Tool Registration + Taskability ═══');
 
 try {
   const { createRETools } = await import(pathToFileURL(resolve(ROOT, 'server/fleet/re-tools.js')).href);
@@ -243,7 +273,18 @@ try {
     }
   }
 
-  gate('RE-P2A-G6', 'PASS', `6 RE tools registered: 2 Gate-2A working, 4 Gate-2B stubs correctly require Phase 3`);
+  gate('RE-P2A-G6a', 'PASS', '6 RE tools registered: 2 Gate-2A working, 4 Gate-2B stubs correctly require Phase 3');
+
+  // Taskability: verify the manifest loader can discover re-analyst
+  const { loadManifests } = await import(pathToFileURL(resolve(ROOT, 'server/fleet/manifest.js')).href);
+  const manifests = loadManifests();
+  const reAgent = manifests.get('re-analyst');
+  if (!reAgent) throw new Error('loadManifests() does not discover re-analyst (Map has ' + manifests.size + ' entries: [' + [...manifests.keys()].join(', ') + '])');
+  if (!Array.isArray(reAgent.tools) || reAgent.tools.length !== 10) {
+    throw new Error(`Fleet loader parsed ${Array.isArray(reAgent.tools) ? reAgent.tools.length : 'wildcard'} tools, expected 10`);
+  }
+
+  gate('RE-P2A-G6b', 'PASS', `Fleet manifest loader discovers re-analyst with ${reAgent.tools.length} tools — agent is taskable`);
 } catch (e) {
   gate('RE-P2A-G6', 'FAIL', e.message);
 }
@@ -252,14 +293,22 @@ try {
 
 console.log('\n═══════════════════════════════════════════');
 console.log(`  Phase 2A Gate Results: ${passed} PASS, ${failed} FAIL`);
+console.log(`  Database: disposable (${DISPOSABLE_DIR})`);
 console.log('═══════════════════════════════════════════\n');
 
 const evidence = {
   phase: '2A',
   title: 'RE Agent Manifest + Fleet Tools — Gate Acceptance',
   timestamp: new Date().toISOString(),
+  databaseIsolation: true,
+  disposableDir: DISPOSABLE_DIR,
   gates: results,
   summary: { passed, failed, total: results.length },
+  limitations: [
+    'G2a: raw receipt file not present on this machine (PASS_ISOLATED)',
+    'G6b: fleet taskability verified via manifest loader, not full POST /api/fleet/runs (no server boot)',
+    'Build gate local IDs (L1-L18) are reconstructed from context, not verified against upstream BUILD-GATES.md numbering',
+  ],
 };
 
 // Write output if --output specified
