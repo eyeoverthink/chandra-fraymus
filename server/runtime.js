@@ -101,6 +101,7 @@ import { installAdaptiveStrategyRoutes } from './intelligence/adaptive-strategy.
 import { installSelfModelRoutes } from './intelligence/self-model.js';
 import { installResourceEnvelopeRoutes } from './intelligence/resource-envelope.js';
 import { installPredictiveRoutes } from './intelligence/predictive-processing.js';
+import { installActiveInferenceRoutes } from './intelligence/active-inference.js';
 import { installIntegrityRoutes, startWatchdog, verifyAll, autoTrackCriticalFiles } from './integrity/watchdog.js';
 import { installPlasmidRoutes } from './integrity/plasmid-backup.js';
 import { installGovernanceRoutes } from './integrity/routes.js';
@@ -269,6 +270,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installSelfModelRoutes(app);
   installResourceEnvelopeRoutes(app);
   installPredictiveRoutes(app);
+  installActiveInferenceRoutes(app);
   installIntegrityRoutes(app);
   installPlasmidRoutes(app);
   installGovernanceRoutes(app, { broadcast, dreamer, remembered, ledger, ouroboros });

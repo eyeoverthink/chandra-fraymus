@@ -22,6 +22,7 @@ import { neurogenesisCycle } from '../intelligence/neurogenesis.js';
 import { selfModelSnapshot, getSelfModelStatus, resetSelfModel, setSelfModelCTRNN } from '../intelligence/self-model.js';
 import { startResourceEnvelope, stopResourceEnvelope, getResourceEnvelopeStatus, resetResourceEnvelope, setEnvelopeCTRNN, isResourceConstrained } from '../intelligence/resource-envelope.js';
 import { getPredictiveStatus, resetPredictions } from '../intelligence/predictive-processing.js';
+import { getActiveInferenceStatus, resetActiveInference } from '../intelligence/active-inference.js';
 import { heart } from '../fraymus-tools.js';
 
 const now = () => Date.now();
@@ -626,6 +627,8 @@ export function stopDaemon() {
   try { resetResourceEnvelope(); } catch (_) {}
   // Phase 19: Reset predictive processing with daemon
   try { resetPredictions(); } catch (_) {}
+  // Phase 20: Reset active inference with daemon
+  try { resetActiveInference(); } catch (_) {}
   daemonState.running = false;
   daemonState.nextCycleAt = 0;
   return { stopped: true };
@@ -655,6 +658,7 @@ export function getDaemonStatus() {
     selfModel: getSelfModelStatus(),
     resourceEnvelope: getResourceEnvelopeStatus(),
     predictiveProcessing: getPredictiveStatus(),
+    activeInference: getActiveInferenceStatus(),
   };
 }
 

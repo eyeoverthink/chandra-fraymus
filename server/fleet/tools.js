@@ -21,6 +21,7 @@ import { getAdaptiveStatus, getAdaptiveModifiers, isActionSuppressed, isActionPr
 import { getSelfModelStatus, getSystemMap, lookupSubsystem, buildSpatialContext, buildSubsystemContext } from '../intelligence/self-model.js';
 import { getResourceEnvelopeStatus, getResourcePressure, isResourceConstrained, triggerEnvelopeCycle } from '../intelligence/resource-envelope.js';
 import { getPredictiveStatus, getPredictiveHistory } from '../intelligence/predictive-processing.js';
+import { getActiveInferenceStatus, getActiveInferenceHistory } from '../intelligence/active-inference.js';
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
@@ -486,6 +487,27 @@ export function createFleetTools({ workflowStore }) {
         }
         const status = getPredictiveStatus();
         ledger.record('predictive.read', { surprise: status.surprise, confidence: status.confidence, tier: status.gateTier }, 'fleet');
+        return status;
+      },
+    },
+    {
+      name: 'active_inference_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Read the active inference engine (Phase 20): motor biases driven by prediction error, inference drive, strongest surprise channel, closed-loop effectiveness tracking, INFERENCE_MAP (sensory→motor mappings), CTRNN Row 5 injection state. Use "history" mode for recent inference events.',
+      parameters: object({
+        mode: { type: 'string', description: 'Optional: "history" returns recent active inference events' },
+        limit: { type: 'number', description: 'For history mode: max events (default 20)' },
+      }),
+      execute: async (params) => {
+        if (params.mode === 'history') {
+          const limit = Math.min(200, Math.max(1, params.limit || 20));
+          const events = getActiveInferenceHistory({ limit });
+          ledger.record('active-inference.history', { count: events.length }, 'fleet');
+          return { events };
+        }
+        const status = getActiveInferenceStatus();
+        ledger.record('active-inference.read', { drive: status.lastInferenceDrive, effectiveness: status.effectiveness, tier: status.gateTier }, 'fleet');
         return status;
       },
     },
