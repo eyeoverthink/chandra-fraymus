@@ -99,6 +99,7 @@ import { installWorkingMemoryRoutes } from './intelligence/working-memory.js';
 import { installMetacognitiveRoutes } from './intelligence/metacognitive-monitor.js';
 import { installAdaptiveStrategyRoutes } from './intelligence/adaptive-strategy.js';
 import { installSelfModelRoutes } from './intelligence/self-model.js';
+import { installResourceEnvelopeRoutes } from './intelligence/resource-envelope.js';
 import { installIntegrityRoutes, startWatchdog, verifyAll, autoTrackCriticalFiles } from './integrity/watchdog.js';
 import { installPlasmidRoutes } from './integrity/plasmid-backup.js';
 import { installGovernanceRoutes } from './integrity/routes.js';
@@ -265,6 +266,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installMetacognitiveRoutes(app);
   installAdaptiveStrategyRoutes(app);
   installSelfModelRoutes(app);
+  installResourceEnvelopeRoutes(app);
   installIntegrityRoutes(app);
   installPlasmidRoutes(app);
   installGovernanceRoutes(app, { broadcast, dreamer, remembered, ledger, ouroboros });

@@ -7,6 +7,7 @@ import { runPipeline as opegPipeline } from './opeg.js';
 import { runDebate } from './debate.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
 import { getAdaptiveModifiers, isActionSuppressed } from './adaptive-strategy.js';
+import { isResourceConstrained } from './resource-envelope.js';
 import { heart } from '../fraymus-tools.js';
 
 const now = () => Date.now();
@@ -257,6 +258,9 @@ export async function reflect({ trigger = 'manual' } = {}) {
   let maxActions = gateMods.reflectionDepth || BASE_MAX_ACTIONS;
   if (adaptiveMods.reflectionCap !== null && adaptiveMods.reflectionCap < maxActions) {
     maxActions = adaptiveMods.reflectionCap;
+  }
+  if (isResourceConstrained()) {
+    maxActions = Math.min(maxActions, 2);
   }
   const gateTier = gateMods.tier || 'AWAKENING';
 

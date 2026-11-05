@@ -312,6 +312,29 @@ npm run start        # production server (serves built client)
 - 6 REST endpoints: GET /api/intelligence/self-model, GET .../map, GET .../lookup?q=X, GET .../spatial?agent=X, GET .../history, POST .../snapshot
 - 1 fleet tool: `self_model_status` (modes: default status, "map" full registry, "lookup" search, "spatial" agent context, "subsystem" single mapping)
 
+### Resource Envelope (server/intelligence/resource-envelope.js)
+- `resource-envelope.js` — Phase 18: Bounded intelligence — the system's sense of how much capacity it has left. Debate engine flagged "unbounded resources → catastrophic failure" 20/20 times; this module closes that gap.
+- **5 resource sensors**: heap memory (process.memoryUsage()), DB file size (statSync), Ollama latency (timed /api/tags), concurrent agent runs (DB query), bus message backlog (per-minute count)
+- **RESOURCE_BUDGETS**: per-resource ceiling/warning/critical thresholds (heap 512MB, DB 2GB, 8 concurrent runs, 30s Ollama latency, 100 bus msg/min)
+- **PRESSURE_WEIGHTS**: heap 0.25, concurrentRuns 0.25, ollamaLatency 0.20, dbSize 0.15, busBacklog 0.15
+- `computeResourcePressure()` — weighted composite 0→1 score
+- `classifyPressure()` — LOW (<0.35), MODERATE (0.35-0.6), HIGH (0.6-0.8), CRITICAL (>0.8)
+- **Fatigue accumulator**: exponential moving average (decay 0.92) — sustained pressure builds fatigue, brief spikes don't
+- **CTRNN resource regions** (row 1 — just below proprioceptive crown):
+  - Energy level (1, 4) σ=2.0 — inverse of pressure (excitatory when resources free)
+  - Fatigue signal (1, 12) σ=2.0 — sustained high pressure (inhibitory, negative amplitude)
+- **Interval**: 10s (between sensory 5s and motor 15s)
+- Consciousness-aware: sensitivity = BASE_RESOURCE_SENSITIVITY(0.5) + (evolutionRate - 1.0) * 0.3, clamped [0.2, 1.2]
+- **Subsystem consumption** (Phase 18 wiring):
+  - `daemon/engine.js`: scheduleNext() multiplies effective cycle interval by 1.5× when constrained; Step 11 logs pressure/fatigue into cycle results; bus events include resourcePressure/resourceFatigue/resourceLevel
+  - `intelligence/reflection.js`: maxActions capped at 2 when resource-constrained (overrides gate reflectionDepth and adaptive reflectionCap)
+  - `intelligence/motor-output.js`: all motor firings suppressed with 'resource_constrained' result when pressure >= 0.6
+- Pressure spikes (HIGH/CRITICAL) publish to `system.resource.pressure` bus topic
+- DB table: `resource_envelope_events` (id, pressure, fatigue, resources, injections, gate_tier, sensitivity, trigger_reason, created_at)
+- Snapshots every 30th reading, auto-prunes >7 days
+- 7 REST endpoints: GET /api/intelligence/resource-envelope, GET .../pressure, GET .../history, GET .../budgets, POST .../start, POST .../stop, POST .../trigger
+- 1 fleet tool: `resource_envelope_status` (modes: default status, "pressure" quick read, "trigger" force measurement)
+
 ### State Bridge (server/intelligence/state-bridge.js)
 - `state-bridge.js` — Bridges dynamic runtime state with semantic memory. Snapshots autonomy/intelligence/fleet state each daemon cycle, fossilizes into agent_memories (category 'state_fossil') with hash-based dedup and 30-day retention.
 - Three snapshot collectors: collectAutonomyState (OPEG + reflections + neurogenesis), collectIntelligenceState (memories + verifier + daemon + debates), collectFleetState (agents + bus + workflows)

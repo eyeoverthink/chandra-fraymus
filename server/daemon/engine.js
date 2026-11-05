@@ -20,6 +20,7 @@ import { startMetacognitiveMonitor, stopMetacognitiveMonitor, getMetacognitiveSt
 import { getAdaptiveStatus, getAdaptiveModifiers, resetAdaptiveStrategy } from '../intelligence/adaptive-strategy.js';
 import { neurogenesisCycle } from '../intelligence/neurogenesis.js';
 import { selfModelSnapshot, getSelfModelStatus, resetSelfModel, setSelfModelCTRNN } from '../intelligence/self-model.js';
+import { startResourceEnvelope, stopResourceEnvelope, getResourceEnvelopeStatus, resetResourceEnvelope, setEnvelopeCTRNN, isResourceConstrained } from '../intelligence/resource-envelope.js';
 import { heart } from '../fraymus-tools.js';
 
 const now = () => Date.now();
@@ -434,6 +435,14 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
       stepResults.selfModel = { error: e.message };
     }
 
+    // Step 11: Resource Envelope — log pressure/fatigue into cycle results
+    try {
+      const envStatus = getResourceEnvelopeStatus();
+      stepResults.resourceEnvelope = { pressure: envStatus.lastPressure, fatigue: envStatus.fatigueLevel, level: envStatus.pressureLevel, spikes: envStatus.pressureSpikes };
+    } catch (e) {
+      stepResults.resourceEnvelope = { error: e.message };
+    }
+
     const duration = now() - t0;
 
     db.prepare(
@@ -462,6 +471,9 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
         cycleMultiplier: stepResults.consciousnessGate?.cycleMultiplier ?? 1.0,
         stateFossilized: stepResults.stateBridge?.stored ?? false,
         fossilsPruned: stepResults.fossilPrune?.fossilsPruned ?? 0,
+        resourcePressure: stepResults.resourceEnvelope?.pressure ?? 0,
+        resourceFatigue: stepResults.resourceEnvelope?.fatigue ?? 0,
+        resourceLevel: stepResults.resourceEnvelope?.level ?? 'LOW',
         durationMs: duration, at: t0,
       }));
     } catch (_) {}
@@ -532,9 +544,17 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
   try {
     import('../intelligence/ctrnn-instance.js').then(({ getCTRNN }) => {
       setSelfModelCTRNN(getCTRNN());
+      setEnvelopeCTRNN(getCTRNN());
     }).catch(() => {});
   } catch (e) {
     console.error('self-model CTRNN wiring error:', e.message);
+  }
+
+  // Phase 18: Start resource envelope (10s cycle — energy/fatigue sensing)
+  try {
+    startResourceEnvelope();
+  } catch (e) {
+    console.error('resource envelope start error:', e.message);
   }
 
   // Phase 11: Wire attention gate sources (motor intentions + emotion → sensory gain)
@@ -559,7 +579,8 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     if (!daemonState.running) return;
     const mods = getAutonomyModifiers();
     const adaptMods = getAdaptiveModifiers();
-    const effective = Math.max(MIN_CYCLE_MS, Math.round(baseCycleMs * mods.cycleMultiplier * (adaptMods.cycleMultiplier || 1.0)));
+    const resourceMultiplier = isResourceConstrained() ? 1.5 : 1.0;
+    const effective = Math.max(MIN_CYCLE_MS, Math.round(baseCycleMs * mods.cycleMultiplier * (adaptMods.cycleMultiplier || 1.0) * resourceMultiplier));
     daemonState.effectiveCycleMs = effective;
     daemonState.nextCycleAt = now() + effective;
     daemonState.lastGateTier = mods.tier;
@@ -599,6 +620,9 @@ export function stopDaemon() {
   try { resetAdaptiveStrategy(); } catch (_) {}
   // Phase 17: Reset self-model with daemon
   try { resetSelfModel(); } catch (_) {}
+  // Phase 18: Stop resource envelope with daemon
+  try { stopResourceEnvelope(); } catch (_) {}
+  try { resetResourceEnvelope(); } catch (_) {}
   daemonState.running = false;
   daemonState.nextCycleAt = 0;
   return { stopped: true };
@@ -626,6 +650,7 @@ export function getDaemonStatus() {
     metacognitive: getMetacognitiveStatus(),
     adaptiveStrategy: getAdaptiveStatus(),
     selfModel: getSelfModelStatus(),
+    resourceEnvelope: getResourceEnvelopeStatus(),
   };
 }
 

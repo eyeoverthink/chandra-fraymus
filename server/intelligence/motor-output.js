@@ -29,6 +29,7 @@ import { db } from '../db.js';
 import { getCTRNN } from './ctrnn-instance.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
 import { isActionSuppressed, isActionPreferred } from './adaptive-strategy.js';
+import { isResourceConstrained } from './resource-envelope.js';
 import { publish } from '../fleet/bus.js';
 import { randomUUID } from 'node:crypto';
 
@@ -208,10 +209,10 @@ async function motorCycle() {
     const sustained = prevActivation >= effectiveThreshold && activation >= effectiveThreshold;
 
     if (sustained && !isOnCooldown(key, cooldownMs)) {
-      if (isActionSuppressed(key)) {
+      if (isActionSuppressed(key) || isResourceConstrained()) {
         firings.push({
           region: key, label: region.label, activation: readings[key],
-          action: region.action, result: 'suppressed',
+          action: region.action, result: isResourceConstrained() ? 'resource_constrained' : 'suppressed',
         });
         continue;
       }

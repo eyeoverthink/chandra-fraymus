@@ -19,6 +19,7 @@ import { getWorkingMemoryStatus, queryWorkingMemory } from '../intelligence/work
 import { getMetacognitiveStatus, getStrategyRecommendation } from '../intelligence/metacognitive-monitor.js';
 import { getAdaptiveStatus, getAdaptiveModifiers, isActionSuppressed, isActionPreferred } from '../intelligence/adaptive-strategy.js';
 import { getSelfModelStatus, getSystemMap, lookupSubsystem, buildSpatialContext, buildSubsystemContext } from '../intelligence/self-model.js';
+import { getResourceEnvelopeStatus, getResourcePressure, isResourceConstrained, triggerEnvelopeCycle } from '../intelligence/resource-envelope.js';
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
@@ -439,6 +440,30 @@ export function createFleetTools({ workflowStore }) {
         }
         const status = getSelfModelStatus();
         ledger.record('selfModel.read', { subsystemCount: status.subsystemCount, activeCount: status.activeCount, tier: status.gateTier }, 'fleet');
+        return status;
+      },
+    },
+    {
+      name: 'resource_envelope_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Read the system resource envelope: bounded intelligence awareness of heap memory, DB size, Ollama latency, concurrent runs, bus backlog. Returns pressure (0-1), fatigue (0-1), resource budgets, and CTRNN injection state. Use "pressure" mode for just the pressure/fatigue reading, or "trigger" mode to force an immediate resource measurement cycle.',
+      parameters: object({
+        mode: { type: 'string', description: 'Optional: "pressure" returns just pressure/fatigue, "trigger" forces immediate measurement' },
+      }),
+      execute: async (params) => {
+        if (params.mode === 'trigger') {
+          const result = await triggerEnvelopeCycle();
+          ledger.record('resourceEnvelope.trigger', { pressure: result.pressure, fatigue: result.fatigue, level: result.level }, 'fleet');
+          return result;
+        }
+        if (params.mode === 'pressure') {
+          const p = getResourcePressure();
+          ledger.record('resourceEnvelope.pressure', { pressure: p.pressure, fatigue: p.fatigue, level: p.level }, 'fleet');
+          return p;
+        }
+        const status = getResourceEnvelopeStatus();
+        ledger.record('resourceEnvelope.read', { pressure: status.lastPressure, fatigue: status.fatigueLevel, level: status.pressureLevel, tier: status.gateTier }, 'fleet');
         return status;
       },
     },
