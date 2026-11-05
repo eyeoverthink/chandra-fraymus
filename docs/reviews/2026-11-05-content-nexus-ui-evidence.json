@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-05T21:10:48.207Z",
+  "generatedAt": "2026-11-05T21:12:54.766Z",
   "safety": "in-memory database, fixture model, ephemeral local HTTP only",
   "checks": [
     "opening the panel auto-syncs eight real-schema fixture items",

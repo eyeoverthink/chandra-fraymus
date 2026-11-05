@@ -295,6 +295,7 @@ export default function ContentNexusPanel({ wsEvent, onOpenPanel }) {
           {SOURCES.filter(item => item.id !== 'all').map(s => {
             const detail = sourceDetails.find(item => item.source === s.id);
             const setup = SOURCE_SETUP[s.id];
+            const syncResult = lastSync?.results?.find(result => result.source === s.id);
             const count = detail?.inFeed ?? stats.bySource?.find(item => item.source === s.id)?.c ?? 0;
             return (
               <div key={s.id} style={cardStyle}>
@@ -303,6 +304,9 @@ export default function ContentNexusPanel({ wsEvent, onOpenPanel }) {
                   <span style={{ fontSize: 12, color: '#bbb' }}>{detail ? detail.available ? `${detail.saved} saved · ` : 'Not ready · ' : ''}{count} in feed</span>
                 </div>
                 <div style={{ color: '#aaa', fontSize: 12, marginBottom: 10 }}>{setup.help}</div>
+                {syncResult && <div style={{ color: ['error', 'unavailable', 'partial_failure'].includes(syncResult.status) ? '#fbbf24' : '#aaa', fontSize: 12, marginBottom: 10 }}>
+                  Last sync: {syncResult.status.replaceAll('_', ' ')} · {syncResult.ingested} synced{syncResult.skipped > 0 ? ` · ${syncResult.skipped} skipped` : ''}
+                </div>}
                 {detail?.message && <div style={{ color: '#fbbf24', fontSize: 12, marginBottom: 10 }}>{detail.message}</div>}
                 {onOpenPanel && <button onClick={() => onOpenPanel(setup.panel, setup.title)} style={{ background: '#242037', color: '#ddd', border: '1px solid #4b4264', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}>{setup.action}</button>}
               </div>

@@ -1,6 +1,6 @@
 # Content Nexus: live agent insights and source diagnostics
 
-Owner: Vaughn Scott. Implementation and validation: Codex Content Nexus session, 2026-11-05. Status: **implemented and locally tested; independent review and normal backend restart pending**. A concurrent session committed the initial shared-tree implementation as `eb60df0`; the following handoff completes recency handling and records the actual scope. The shared Git identity does not distinguish session authorship.
+Owner: Vaughn Scott. Implementation and validation: Codex Content Nexus session, 2026-11-05. Status: **implemented and locally tested; independent review and normal backend restart pending**. A concurrent session committed the initial shared-tree implementation as `eb60df0` and the recency/README handoff as `837f679`; this final handoff adds per-source sync outcomes and records the actual scope. The shared Git identity does not distinguish session authorship.
 
 ## Problem observed
 
@@ -48,7 +48,7 @@ The live backend still had its earlier process and API loaded at the final check
 
 ## Apply and review on the next machine
 
-Use a normal graceful shutdown in the terminal that owns the backend, wait for it to exit, then run `npm run server` with the existing data directory. Vite can deliver the client changes through HMR, or use the normal production build/start flow. **Do not launch a second server against the same live data directory.** No approval was withheld; the remaining application step requires control of the owning terminal.
+Use a normal graceful shutdown in the terminal that owns the backend, wait for it to exit, then run `npm run server` with the existing data directory. Vite can deliver the client changes through HMR, or use the normal production build/start flow. **Do not launch a second server against the same live data directory.** The remaining application step requires control of the owning terminal.
 
 After restart, open Content Nexus. The panel should sync local source material and show Agent insights without requiring a fixed topic list. Check Sources for unavailable inputs. In Recommendations, enter `AI, local models, Fraynix development` as optional guidance if desired, or leave focus blank to follow the agents' evolving discussions. Generate recommendations once the local model is responsive.
 
