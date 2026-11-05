@@ -126,7 +126,6 @@ export function updateActiveInference(predictiveResult) {
   );
 
   const errors = predictiveResult?.errors || {};
-  const ep3 = predictiveResult?.ep3Surprise || {};
 
   // Closed-loop effectiveness: did previous motor biases reduce prediction error?
   let errorReduction = 0;
@@ -158,7 +157,7 @@ export function updateActiveInference(predictiveResult) {
   let strongestSurprise = 0;
 
   for (const [channel, mapping] of Object.entries(INFERENCE_MAP)) {
-    const surprise = Math.abs(ep3[channel] || 0);
+    const surprise = Math.abs(errors[channel] || 0);
     if (surprise < INFERENCE_THRESHOLD) continue;
 
     if (surprise > strongestSurprise) {

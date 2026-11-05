@@ -1,0 +1,546 @@
+{
+  "generatedAt": "2026-11-05T20:28:08.513Z",
+  "headBefore": "284075d2693c421dd3b804c79ac070b500078567",
+  "headAfter": "284075d2693c421dd3b804c79ac070b500078567",
+  "dirtyBefore": "?? docs/reviews/2026-11-05-intelligence-claims-probe.mjs",
+  "safety": {
+    "applicationImports": false,
+    "sqliteOpened": false,
+    "realNetwork": false,
+    "realTimers": false,
+    "liveActions": false
+  },
+  "method": "Complete source modules evaluated in isolated VM contexts with injected dependencies. Only imports and export keywords removed. No production functions patched.",
+  "sources": {
+    "server/intelligence/working-memory.js": "95861e57eecfb9269b1a2ab0ef8e1bffbf5fc0a525d93a6f27c8011f8b47993c",
+    "server/intelligence/predictive-processing.js": "cc32d81d12047bd6261f802d40547da6b4a929ac3b0fe79c77bdfea4db517eb5",
+    "server/intelligence/active-inference.js": "819cd7ca4b1f791d395b451f1622e695805fcca94f9fedd8089c43deb34ae4a8",
+    "server/intelligence/resource-envelope.js": "566f36bdd3554aa399143b7491bd60a5234a23b11201b391c8afed37113f269a",
+    "server/intelligence/motor-output.js": "650c00f89edf10ba5d4085af059f1457d3fad65ac27d04fe426c24d253e41b1e",
+    "server/intelligence/adaptive-strategy.js": "0d1479df436bd283296da0f950c250c34379c448ea71bb819cf77befda977408"
+  },
+  "checks": [
+    "real predictor detects bus perturbation",
+    "producer omits field consumed by active inference",
+    "unmodified module handoff produces zero motor bias",
+    "explicit field adapter positive control produces motor bias",
+    "effectiveness responds to error trend",
+    "direct motor bias is identical for different effectiveness",
+    "twice heap ceiling remains LOW and unconstrained",
+    "costly motor handlers execute above heap ceiling",
+    "twice concurrent-run ceiling remains unconstrained",
+    "Ollama unavailable alone does not suppress motor handlers",
+    "conserve suppresses goal_seek but not motor key goalSeek",
+    "real motor still executes goal handler under conserve",
+    "positive control: matching neurogenesis name is suppressed",
+    "synthetic handler error was caught",
+    "failed handler reported as ok",
+    "failed handler recorded as executed in efference copy",
+    "motor reached deferred handler before stop",
+    "stopped status is visible",
+    "new handlers are dispatched after stop returned",
+    "positive control: aggregate constraint skips all handlers",
+    "suppressed attempts still increment firings and publish fired"
+  ],
+  "assertionCount": 21,
+  "predictionContract": {
+    "producerKeys": [
+      "predictions",
+      "errors",
+      "surprise",
+      "confidence",
+      "anticipatory",
+      "injections",
+      "sensitivity",
+      "tier"
+    ],
+    "errors": {
+      "bus": 1,
+      "memory": 0,
+      "emotion": 0,
+      "consciousness": 0,
+      "agent": 0,
+      "health": 0,
+      "workflow": 0,
+      "goals": 0
+    },
+    "naturalInference": {
+      "motorBiases": {},
+      "inferenceDrive": 0,
+      "strongestChannel": null,
+      "effectiveness": 0.5,
+      "biasInjections": 0,
+      "sensitivity": 0.5,
+      "tier": "INTEGRATED"
+    },
+    "positiveControl": {
+      "motorBiases": {
+        "communicate": 0.3,
+        "reflect": 0.15
+      },
+      "inferenceDrive": 0.15,
+      "strongestChannel": "bus",
+      "effectiveness": 0.5,
+      "biasInjections": 2,
+      "sensitivity": 0.5,
+      "tier": "INTEGRATED"
+    }
+  },
+  "effectiveness": {
+    "improved": {
+      "motorBiases": {
+        "communicate": 0.15,
+        "reflect": 0.075
+      },
+      "inferenceDrive": 0.075,
+      "strongestChannel": "bus",
+      "effectiveness": 0.54,
+      "biasInjections": 2,
+      "sensitivity": 0.5,
+      "tier": "INTEGRATED"
+    },
+    "worsened": {
+      "motorBiases": {
+        "communicate": 0.15,
+        "reflect": 0.075
+      },
+      "inferenceDrive": 0.075,
+      "strongestChannel": "bus",
+      "effectiveness": 0.46,
+      "biasInjections": 2,
+      "sensitivity": 0.5,
+      "tier": "INTEGRATED"
+    }
+  },
+  "resourceLimits": {
+    "heapExhausted": {
+      "measurement": {
+        "pressure": 0.25,
+        "fatigue": 0.02,
+        "level": "LOW",
+        "resources": {
+          "heapMB": 1024,
+          "dbSizeMB": 0,
+          "concurrentRuns": 0,
+          "ollamaLatencyMs": 0,
+          "ollamaAvailable": true,
+          "busMessagesPerMin": 0
+        },
+        "ctrnn": null
+      },
+      "constrained": false,
+      "handlerCalls": [
+        "reflect",
+        "neurogenesis",
+        "consciousness",
+        "goals"
+      ],
+      "firings": [
+        {
+          "region": "reflect",
+          "label": "Reflect",
+          "activation": 0.762,
+          "action": "reflect",
+          "result": "ok",
+          "preferred": false
+        },
+        {
+          "region": "neurogenesis",
+          "label": "Neurogenesis",
+          "activation": 0.762,
+          "action": "neurogenesis",
+          "result": "ok",
+          "preferred": false
+        },
+        {
+          "region": "dream",
+          "label": "Dream",
+          "activation": 0.762,
+          "action": "dream",
+          "result": "ok",
+          "preferred": false
+        },
+        {
+          "region": "selfAudit",
+          "label": "Self-audit",
+          "activation": 0.762,
+          "action": "consciousness",
+          "result": "ok",
+          "preferred": false
+        },
+        {
+          "region": "communicate",
+          "label": "Communicate",
+          "activation": 0.762,
+          "action": "bus_impulse",
+          "result": "ok",
+          "preferred": false
+        },
+        {
+          "region": "goalSeek",
+          "label": "Goal-seek",
+          "activation": 0.762,
+          "action": "goals",
+          "result": "ok",
+          "preferred": false
+        }
+      ]
+    },
+    "runsExhausted": {
+      "measurement": {
+        "pressure": 0.25,
+        "fatigue": 0.02,
+        "level": "LOW",
+        "resources": {
+          "heapMB": 0,
+          "dbSizeMB": 0,
+          "concurrentRuns": 16,
+          "ollamaLatencyMs": 0,
+          "ollamaAvailable": true,
+          "busMessagesPerMin": 0
+        },
+        "ctrnn": null
+      },
+      "constrained": false,
+      "handlerCalls": [
+        "reflect",
+        "neurogenesis",
+        "consciousness",
+        "goals"
+      ],
+      "firings": [
+        {
+          "region": "reflect",
+          "label": "Reflect",
+          "activation": 0.762,
+          "action": "reflect",
+          "result": "ok",
+          "preferred": false
+        },
+        {
+          "region": "neurogenesis",
+          "label": "Neurogenesis",
+          "activation": 0.762,
+          "action": "neurogenesis",
+          "result": "ok",
+          "preferred": false
+        },
+        {
+          "region": "dream",
+          "label": "Dream",
+          "activation": 0.762,
+          "action": "dream",
+          "result": "ok",
+          "preferred": false
+        },
+        {
+          "region": "selfAudit",
+          "label": "Self-audit",
+          "activation": 0.762,
+          "action": "consciousness",
+          "result": "ok",
+          "preferred": false
+        },
+        {
+          "region": "communicate",
+          "label": "Communicate",
+          "activation": 0.762,
+          "action": "bus_impulse",
+          "result": "ok",
+          "preferred": false
+        },
+        {
+          "region": "goalSeek",
+          "label": "Goal-seek",
+          "activation": 0.762,
+          "action": "goals",
+          "result": "ok",
+          "preferred": false
+        }
+      ]
+    },
+    "ollamaOffline": {
+      "measurement": {
+        "pressure": 0.2,
+        "fatigue": 0.016,
+        "level": "LOW",
+        "resources": {
+          "heapMB": 0,
+          "dbSizeMB": 0,
+          "concurrentRuns": 0,
+          "ollamaLatencyMs": 30000,
+          "ollamaAvailable": false,
+          "busMessagesPerMin": 0
+        },
+        "ctrnn": null
+      },
+      "constrained": false,
+      "handlerCalls": [
+        "reflect",
+        "neurogenesis",
+        "consciousness",
+        "goals"
+      ],
+      "firings": [
+        {
+          "region": "reflect",
+          "label": "Reflect",
+          "activation": 0.762,
+          "action": "reflect",
+          "result": "ok",
+          "preferred": false
+        },
+        {
+          "region": "neurogenesis",
+          "label": "Neurogenesis",
+          "activation": 0.762,
+          "action": "neurogenesis",
+          "result": "ok",
+          "preferred": false
+        },
+        {
+          "region": "dream",
+          "label": "Dream",
+          "activation": 0.762,
+          "action": "dream",
+          "result": "ok",
+          "preferred": false
+        },
+        {
+          "region": "selfAudit",
+          "label": "Self-audit",
+          "activation": 0.762,
+          "action": "consciousness",
+          "result": "ok",
+          "preferred": false
+        },
+        {
+          "region": "communicate",
+          "label": "Communicate",
+          "activation": 0.762,
+          "action": "bus_impulse",
+          "result": "ok",
+          "preferred": false
+        },
+        {
+          "region": "goalSeek",
+          "label": "Goal-seek",
+          "activation": 0.762,
+          "action": "goals",
+          "result": "ok",
+          "preferred": false
+        }
+      ]
+    }
+  },
+  "strategyNames": {
+    "modifiers": {
+      "strategy": "conserve",
+      "cycleMultiplier": 1.5,
+      "reflectionCap": 3,
+      "opegToleranceScale": 0.7,
+      "preferredActions": [
+        "reflect"
+      ],
+      "suppressedActions": [
+        "forge",
+        "neurogenesis",
+        "goal_seek"
+      ],
+      "neurogenesisFloorAdjust": 0.05,
+      "description": "Low effectiveness — slow down, reflect more, suppress expensive actions, tighten gates",
+      "assessmentsInCurrentStrategy": 1,
+      "flickerGuardActive": false
+    },
+    "calls": [
+      "reflect",
+      "consciousness",
+      "goals"
+    ],
+    "firings": [
+      {
+        "region": "reflect",
+        "label": "Reflect",
+        "activation": 0.762,
+        "action": "reflect",
+        "result": "ok",
+        "preferred": true
+      },
+      {
+        "region": "neurogenesis",
+        "label": "Neurogenesis",
+        "activation": 0.762,
+        "action": "neurogenesis",
+        "result": "suppressed"
+      },
+      {
+        "region": "dream",
+        "label": "Dream",
+        "activation": 0.762,
+        "action": "dream",
+        "result": "ok",
+        "preferred": false
+      },
+      {
+        "region": "selfAudit",
+        "label": "Self-audit",
+        "activation": 0.762,
+        "action": "consciousness",
+        "result": "ok",
+        "preferred": false
+      },
+      {
+        "region": "communicate",
+        "label": "Communicate",
+        "activation": 0.762,
+        "action": "bus_impulse",
+        "result": "ok",
+        "preferred": false
+      },
+      {
+        "region": "goalSeek",
+        "label": "Goal-seek",
+        "activation": 0.762,
+        "action": "goals",
+        "result": "ok",
+        "preferred": false
+      }
+    ]
+  },
+  "failedMotor": {
+    "firings": [
+      {
+        "region": "reflect",
+        "label": "Reflect",
+        "activation": 0.762,
+        "action": "reflect",
+        "result": "ok",
+        "preferred": false
+      },
+      {
+        "region": "neurogenesis",
+        "label": "Neurogenesis",
+        "activation": 0.762,
+        "action": "neurogenesis",
+        "result": "ok",
+        "preferred": false
+      },
+      {
+        "region": "dream",
+        "label": "Dream",
+        "activation": 0.762,
+        "action": "dream",
+        "result": "ok",
+        "preferred": false
+      },
+      {
+        "region": "selfAudit",
+        "label": "Self-audit",
+        "activation": 0.762,
+        "action": "consciousness",
+        "result": "ok",
+        "preferred": false
+      },
+      {
+        "region": "communicate",
+        "label": "Communicate",
+        "activation": 0.762,
+        "action": "bus_impulse",
+        "result": "ok",
+        "preferred": false
+      },
+      {
+        "region": "goalSeek",
+        "label": "Goal-seek",
+        "activation": 0.762,
+        "action": "goals",
+        "result": "ok",
+        "preferred": false
+      }
+    ],
+    "efference": [
+      "reflect",
+      "neurogenesis",
+      "dream",
+      "selfAudit",
+      "communicate",
+      "goalSeek"
+    ],
+    "errors": [
+      "Motor fire error [reflect]: synthetic failure"
+    ]
+  },
+  "stopRace": {
+    "receipt": {
+      "stopped": true,
+      "totalReadings": 1,
+      "totalFirings": 0
+    },
+    "calls": [
+      {
+        "action": "reflect",
+        "afterStop": false
+      },
+      {
+        "action": "neurogenesis",
+        "afterStop": true
+      },
+      {
+        "action": "consciousness",
+        "afterStop": true
+      },
+      {
+        "action": "goals",
+        "afterStop": true
+      }
+    ]
+  },
+  "suppressedTelemetry": {
+    "handlerCalls": 0,
+    "countedFirings": 6,
+    "results": [
+      {
+        "region": "reflect",
+        "label": "Reflect",
+        "activation": 0.762,
+        "action": "reflect",
+        "result": "resource_constrained"
+      },
+      {
+        "region": "neurogenesis",
+        "label": "Neurogenesis",
+        "activation": 0.762,
+        "action": "neurogenesis",
+        "result": "resource_constrained"
+      },
+      {
+        "region": "dream",
+        "label": "Dream",
+        "activation": 0.762,
+        "action": "dream",
+        "result": "resource_constrained"
+      },
+      {
+        "region": "selfAudit",
+        "label": "Self-audit",
+        "activation": 0.762,
+        "action": "consciousness",
+        "result": "resource_constrained"
+      },
+      {
+        "region": "communicate",
+        "label": "Communicate",
+        "activation": 0.762,
+        "action": "bus_impulse",
+        "result": "resource_constrained"
+      },
+      {
+        "region": "goalSeek",
+        "label": "Goal-seek",
+        "activation": 0.762,
+        "action": "goals",
+        "result": "resource_constrained"
+      }
+    ]
+  }
+}
