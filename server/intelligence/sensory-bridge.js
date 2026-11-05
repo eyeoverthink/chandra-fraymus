@@ -28,6 +28,7 @@ import { getAutonomyModifiers } from './consciousness-gate.js';
 import { computeAttentionWeights } from './attention-gate.js';
 import { computeNoveltyFactors } from './habituation.js';
 import { updateWorkingMemory } from './working-memory.js';
+import { updatePredictions } from './predictive-processing.js';
 import { randomUUID } from 'node:crypto';
 
 const now = () => Date.now();
@@ -195,6 +196,11 @@ function injectSensorySignals() {
     workingMemoryResult = updateWorkingMemory({ signals, amplitudes, attentionWeights, noveltyFactors });
   } catch (_) {}
 
+  let predictiveResult = {};
+  try {
+    predictiveResult = updatePredictions(signals);
+  } catch (_) {}
+
   bridgeState.injections++;
   bridgeState.lastSignals = signals;
   bridgeState.lastAmplitudes = amplitudes;
@@ -220,7 +226,7 @@ function injectSensorySignals() {
     } catch (_) {}
   }
 
-  return { signals, amplitudes, attentionWeights, noveltyFactors, workingMemory: workingMemoryResult, sensitivity, tier: gateMods.tier, tick: ctrnn.tick };
+  return { signals, amplitudes, attentionWeights, noveltyFactors, workingMemory: workingMemoryResult, predictive: predictiveResult, sensitivity, tier: gateMods.tier, tick: ctrnn.tick };
 }
 
 export function startSensoryBridge() {

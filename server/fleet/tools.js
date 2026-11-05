@@ -20,6 +20,7 @@ import { getMetacognitiveStatus, getStrategyRecommendation } from '../intelligen
 import { getAdaptiveStatus, getAdaptiveModifiers, isActionSuppressed, isActionPreferred } from '../intelligence/adaptive-strategy.js';
 import { getSelfModelStatus, getSystemMap, lookupSubsystem, buildSpatialContext, buildSubsystemContext } from '../intelligence/self-model.js';
 import { getResourceEnvelopeStatus, getResourcePressure, isResourceConstrained, triggerEnvelopeCycle } from '../intelligence/resource-envelope.js';
+import { getPredictiveStatus, getPredictiveHistory } from '../intelligence/predictive-processing.js';
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
@@ -464,6 +465,27 @@ export function createFleetTools({ workflowStore }) {
         }
         const status = getResourceEnvelopeStatus();
         ledger.record('resourceEnvelope.read', { pressure: status.lastPressure, fatigue: status.fatigueLevel, level: status.pressureLevel, tier: status.gateTier }, 'fleet');
+        return status;
+      },
+    },
+    {
+      name: 'predictive_processing_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Read the predictive processing engine: forward model predictions, per-channel prediction errors (EP3 cube-root compressed), aggregate surprise, rolling confidence, anticipatory signal, efference copy state, and CTRNN Row 3 injection amplitudes. Use "history" mode for recent prediction events.',
+      parameters: object({
+        mode: { type: 'string', description: 'Optional: "history" returns recent prediction events' },
+        limit: { type: 'number', description: 'For history mode: max events (default 20)' },
+      }),
+      execute: async (params) => {
+        if (params.mode === 'history') {
+          const limit = Math.min(200, Math.max(1, params.limit || 20));
+          const events = getPredictiveHistory({ limit });
+          ledger.record('predictive.history', { count: events.length }, 'fleet');
+          return { events };
+        }
+        const status = getPredictiveStatus();
+        ledger.record('predictive.read', { surprise: status.surprise, confidence: status.confidence, tier: status.gateTier }, 'fleet');
         return status;
       },
     },

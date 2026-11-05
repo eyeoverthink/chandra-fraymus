@@ -30,6 +30,7 @@ import { getCTRNN } from './ctrnn-instance.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
 import { isActionSuppressed, isActionPreferred } from './adaptive-strategy.js';
 import { isResourceConstrained } from './resource-envelope.js';
+import { recordEfferenceCopy } from './predictive-processing.js';
 import { publish } from '../fleet/bus.js';
 import { randomUUID } from 'node:crypto';
 
@@ -217,6 +218,9 @@ async function motorCycle() {
         continue;
       }
       const result = await fireAction(key, activation, gateMods);
+      if (result) {
+        try { recordEfferenceCopy(key); } catch (_) {}
+      }
       firings.push({
         region: key,
         label: region.label,
