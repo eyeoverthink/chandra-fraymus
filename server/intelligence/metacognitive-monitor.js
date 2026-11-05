@@ -114,14 +114,16 @@ function assessEffectiveness() {
       `SELECT actions_taken FROM reflections WHERE created_at > ? ORDER BY created_at DESC LIMIT 5`
     ).all(windowStart);
     if (reflections.length > 0) {
-      let totalActions = 0;
+      let succeededActions = 0;
       for (const r of reflections) {
         try {
           const actions = JSON.parse(r.actions_taken || '[]');
-          totalActions += Array.isArray(actions) ? actions.length : 0;
+          if (Array.isArray(actions)) {
+            succeededActions += actions.filter(a => a.result && a.result.ok === true).length;
+          }
         } catch (_) {}
       }
-      metrics.reflectionDensity = clamp(totalActions / (reflections.length * 5), 0, 1);
+      metrics.reflectionDensity = clamp(succeededActions / (reflections.length * 5), 0, 1);
     } else {
       metrics.reflectionDensity = 0;
     }

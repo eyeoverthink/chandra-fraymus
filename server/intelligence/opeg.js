@@ -147,7 +147,7 @@ export function sanitize(id) {
 function evaluateModification(type, pre, post, execResult) {
   const gateMods = getAutonomyModifiers();
   const adaptiveMods = getAdaptiveModifiers();
-  const regressionTolerance = Math.round(BASE_REGRESSION_TOLERANCE * gateMods.evolutionRate * (adaptiveMods.opegToleranceScale || 1.0));
+  const regressionTolerance = Math.min(15, Math.round(BASE_REGRESSION_TOLERANCE * gateMods.evolutionRate * (adaptiveMods.opegToleranceScale || 1.0)));
   const checks = [];
 
   if (execResult.error || execResult.ok === false) {

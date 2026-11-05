@@ -308,10 +308,21 @@ export async function runShopifyPublish(ceoOutput, opts = {}) {
     }
   }
 
-  db.prepare('UPDATE commerce_pipeline_runs SET status = ?, shopify_result = ? WHERE id = ?')
-    .run('published_draft', JSON.stringify(results), runId);
+  const hasProductErrors = results.products.some(p => p.error);
+  const hasBlogErrors = results.blogs.some(b => b.error);
+  const hasProductSuccess = results.products.some(p => !p.error);
+  const hasBlogSuccess = results.blogs.some(b => !b.error);
+  const anySuccess = hasProductSuccess || hasBlogSuccess;
+  const anyError = hasProductErrors || hasBlogErrors;
 
-  return { stage: 'shopify', status: 'published_draft', results, runId };
+  const publishStatus = !anySuccess && anyError ? 'failed'
+    : anyError ? 'partial_failure'
+    : 'published_draft';
+
+  db.prepare('UPDATE commerce_pipeline_runs SET status = ?, shopify_result = ? WHERE id = ?')
+    .run(publishStatus, JSON.stringify(results), runId);
+
+  return { stage: 'shopify', status: publishStatus, results, runId };
 }
 
 // ── Full Pipeline Orchestrator ──────────────────────────────────────
@@ -357,7 +368,8 @@ export async function runContentCommercePipeline(input, opts = {}) {
     if (logged.approved && opts.autoPublish !== false) {
       const t4 = Date.now();
       const published = await runShopifyPublish(logged, opts);
-      stages.shopify = { status: 'ok', data: published, durationMs: Date.now() - t4 };
+      const shopifyOk = published.status === 'published_draft';
+      stages.shopify = { status: shopifyOk ? 'ok' : published.status, data: published, durationMs: Date.now() - t4 };
     }
 
     // Store pipeline result as intelligence insight
@@ -373,8 +385,13 @@ export async function runContentCommercePipeline(input, opts = {}) {
       });
     }
 
+    const shopifyFailed = stages.shopify && stages.shopify.status !== 'ok';
+    const pipelineStatus = !logged.approved ? 'needs_revision'
+      : shopifyFailed ? 'partial_failure'
+      : 'success';
+
     return {
-      status: logged.approved ? 'success' : 'needs_revision',
+      status: pipelineStatus,
       stages,
       totalDurationMs: Date.now() - t0,
       runId: logged.runId,
