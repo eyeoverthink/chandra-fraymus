@@ -1,13 +1,13 @@
 # RE Agent integration progress
 
-Updated: 2026-11-05. Latest independently reviewed Phase 2A fix: `e8410f30c7344cd291014e01cb3c971725d65dcf`; scoped fixes confirmed, changes still requested. Prior Phase 2A implementation: `dcb0658`. Latest reviewed Phase 1 fix: `4ba2c433681bc6fecac6acc9b0c1c18c232b1592`; acceptance claim reviewed at `3b901f7`. Prior implementation: `8b52ac9`; prior spec correction: `5e23e01`. Initial baseline: `1eabcde`; spec introduced in `837f679`. Upstream reviewed: `2f75cee7f54a4aa6bae219ec9241fc44f980c36b`.
+Updated: 2026-11-05. Latest independently reviewed Phase 2A fix: `b999ed7e74b1b7db441131e4227ae3dc57e44e59`; authentic-source and verified-preservation fixes confirmed, functional acceptance still open. Prior Phase 2A fixes: `e8410f3`; implementation: `dcb0658`. Latest reviewed Phase 1 fix: `4ba2c433681bc6fecac6acc9b0c1c18c232b1592`; acceptance claim reviewed at `3b901f7`. Prior implementation: `8b52ac9`; prior spec correction: `5e23e01`. Initial baseline: `1eabcde`; spec introduced in `837f679`. Upstream reviewed: `2f75cee7f54a4aa6bae219ec9241fc44f980c36b`.
 
-**Phase 1 code and Phase 2A registration/tools are present; Phase 2B is deferred. Independently accepted: 0/7 phases. Phase 2A: 1 scoped pass, 1 failure, 3 partial criteria and 1 unverified criterion. Phase 1: 6 scoped passes, 3 failed gates and 1 partial gate.** The [Phase 2A fix recheck](reviews/2026-11-05-phase2a-fix-review.md) reproduces eleven author subchecks and confirms same-category verified-memory preservation and default DB isolation. Authentic source import, legacy provenance migration, cross-category preservation and functional fleet testing remain incomplete. The exact [upstream source fixture](reviews/fixtures/re-build-gates-2f75cee7.md) is available in Git. The [Phase 1 fix review](reviews/2026-11-05-hive-phase1-fix-review.md) remains unchanged. The estimate remains 8 new files, 14 existing modifications and 0 deletions; 56 criteria include six in 2A and four in 2B. Sixteen phase criteria have scoped dispositions; the other 40 remain unexercised.
+**Phase 1 code and Phase 2A registration/tools are present; Phase 2B is deferred. Independently accepted: 0/7 phases. Phase 2A: 2 scoped passes, 3 partial criteria and 1 unverified criterion. Phase 1: 6 scoped passes, 3 failed gates and 1 partial gate.** The [authentic-source/migration recheck](reviews/2026-11-05-phase2a-migration-review.md) confirms all eighteen source identities/provenance, actual 36-to-18 legacy migration, and verified preservation across categories. Fourteen author subchecks reproduce, including the 142-tool registry. Registry membership still does not close the task/response gate; new RE2A-05 concerns migration of unverified non-seed local notes. The [Phase 1 review](reviews/2026-11-05-hive-phase1-fix-review.md) is unchanged. The estimate remains 8 new files, 14 existing modifications and 0 deletions; there are 56 criteria. Sixteen criteria have scoped dispositions; 40 remain unexercised.
 
 | Phase | Declared dependency | Independent gates passed | Current status | Required next evidence |
 | --- | --- | --- | --- | --- |
 | 1 — Hive Bus Bridge | Raw receipt transport/format agreement | 6 PASS_ISOLATED, 3 FAIL, 1 PARTIAL | IMPLEMENTED at `4ba2c43`; CHANGES REQUESTED | HIVE-01–05 need notification-after-commit, consistent invalid-input admission, enforced numeric domain, corrected-input promotion and legacy identity migration. HIVE-06: author recheck is not this reviewer's acceptance. |
-| 2 — RE manifest + tools | Phase 1; dossier tools need Phase 3 | 2A: 1 PASS_ISOLATED, 1 FAIL, 3 PARTIAL, 1 UNVERIFIED; 2B: 0/4 | Fixes at `e8410f3` partly verified; CHANGES REQUESTED; 2B deferred | RE2A-03 default isolation confirmed; RE2A-02 same-category preservation confirmed. RE2A-01 source/upgrade, RE2A-02 recategorized-key preservation, and RE2A-04 task/response evidence remain open. |
+| 2 — RE manifest + tools | Phase 1; dossier tools need Phase 3 | 2A: 2 PASS_ISOLATED, 3 PARTIAL, 1 UNVERIFIED; 2B: 0/4 | Source/preservation fixes confirmed at `b999ed7`; acceptance OPEN | RE2A-01/02 scoped fixes confirmed; RE2A-03 DB isolation retained. RE2A-04 task/response and new RE2A-05 migration ownership remain open. |
 | 3 — Dossier engine | Phase 2A (standalone tools) | 0/6 | NOT IMPLEMENTED; storage contract incomplete | REF-04: propagate not-measured compilation and tri-state seal evidence through storage/events/API, with per-fact provenance. |
 | 4 — Binary debate bridge | Phase 3 | 0/5 | NOT IMPLEMENTED | Execute the actual rounds, gate scaling, events and confidence policy. |
 | 5 — CTRNN sensory channel | Declared Phases 1–4 | 0/10 | NOT IMPLEMENTED; spec scope correction verified | Missing modules and stale-data gates are now planned. Actual arrays, novelty, predictions and action mapping still need implementation and tests. |
@@ -61,6 +61,7 @@ Author correction claim: `5e23e01` states all eight findings were addressed. The
 | 2026-11-05 — independent Phase 2A review | 18 diagnostic assertions; actual loader/fleet GET API and positive wrapper fixtures checked. Source catalog mismatch, verified-memory overwrite and unsafe default test persistence reproduced. Verdict: 1 scoped pass, 1 failure, 3 partial, 1 unverified; 2B remains deferred. | [Report](reviews/2026-11-05-phase2a-independent-review.md), [pinned-source probe](reviews/2026-11-05-phase2a-independent-probe.mjs), [evidence including safe author rerun](reviews/2026-11-05-phase2a-independent-evidence.json) |
 | 2026-11-05 — Phase 2A author fix claim at `e8410f3` | Author reports all four findings addressed and 11/11 successful subchecks. Commit changes the seeder and acceptance script only; claimed tracker update is absent. Local IDs, insert-skip logic and built-in disposable DB setup are added. | [Fix script](reviews/2026-11-05-phase2a-gate-acceptance.mjs); author result reproduced in the independent fix evidence below. |
 | 2026-11-05 — independent Phase 2A fix recheck | 13 diagnostic assertions. Same-category verified rows survive unchanged; test isolation works. Upgrade yields 36 rows and retains 18 false source labels; recategorized keys are still overwritten; G6b proves discovery only. Acceptance remains unchanged. | [Report](reviews/2026-11-05-phase2a-fix-review.md), [probe](reviews/2026-11-05-phase2a-fix-probe.mjs), [evidence](reviews/2026-11-05-phase2a-fix-evidence.json) |
+| 2026-11-05 — independent `b999ed7` source/migration recheck | 13 diagnostic assertions; author 14/14 reproduced in an archived source copy. Authentic numbered summaries, returned source, known legacy upgrade and verified cross-category/history preservation pass. Actual registry contains 142 tools. G6 task/response still unverified; new RE2A-05 demonstrates non-seed unverified local-note deletion/overwrite. | [Report](reviews/2026-11-05-phase2a-migration-review.md), [probe](reviews/2026-11-05-phase2a-migration-recheck.mjs), [committed evidence including full author rerun](reviews/2026-11-05-phase2a-migration-evidence.json) |
 
 ## Phase 1 independent gate ledger
 
@@ -89,9 +90,9 @@ The [source inventory snapshot](reviews/2026-11-05-hive-phase1-progress.json) de
 
 ## Phase 2A independent gate ledger
 
-Implementation: `dcb0658`; fixes: `e8410f3`, latest: pending commit (upstream import + identity fix). Reviewer: Codex session `01a1a46f-ddc2-70c0-abde-3eaec155a571`. Upstream `docs/BUILD-GATES.md` at `2f75cee7` is pinned by blob `43377715d18c7d892fa71c3dab3167da070f6936` and retained as an [exact source fixture](reviews/fixtures/re-build-gates-2f75cee7.md). The [original evidence](reviews/2026-11-05-phase2a-independent-evidence.json), [fix evidence](reviews/2026-11-05-phase2a-fix-evidence.json), and [v3 evidence](reviews/2026-11-05-phase2a-gate-evidence-v3.json) preserve all baseline and changed behavior. No live DB or model was used.
+Implementation: `dcb0658`; fixes: `e8410f3`, latest independently reviewed: `b999ed7`. Reviewer: Codex session `01a1a46f-ddc2-70c0-abde-3eaec155a571`. Upstream source at `2f75cee7` is pinned by blob `43377715d18c7d892fa71c3dab3167da070f6936` and retained as an [exact fixture](reviews/fixtures/re-build-gates-2f75cee7.md). [Original](reviews/2026-11-05-phase2a-independent-evidence.json), [first fix](reviews/2026-11-05-phase2a-fix-evidence.json), and [migration evidence](reviews/2026-11-05-phase2a-migration-evidence.json) retain the baselines and current complete author rerun. The author's `2026-11-05-phase2a-gate-evidence-v3.json` was untracked, so it is not a portable evidence link. No live DB or model was used by this reviewer.
 
-### Author gate results (14/14 PASS, v3)
+### Author subcheck results (14/14 reproduced; not independent phase acceptance)
 
 | Gate | Author result | Observation |
 | --- | --- | --- |
@@ -110,23 +111,23 @@ Implementation: `dcb0658`; fixes: `e8410f3`, latest: pending commit (upstream im
 | RE-P2A-G6a | PASS | 6 RE tools: 2 working, 4 Phase-2B stubs correctly require Phase 3. |
 | RE-P2A-G6b | PASS | Fleet manifest discovers re-analyst (10 tools); all 6 RE tools present in fleet registry (142 total). |
 
-### Independent gate ledger (from reviewer, pre-v3 — awaiting re-review)
+### Current independent gate ledger (`b999ed7`)
 
 | Gate | Independent result | Observation |
 | --- | --- | --- |
 | RE-P2A-G1 | PARTIAL | Actual loader and `/api/fleet/agents` show ten tools; declared `/api/agents` is a host-node registry. |
 | RE-P2A-G2 | PASS_ISOLATED | Actual wrapper verifies the 13 known receipts and rejects projection verification; Phase 1 findings remain open. |
-| RE-P2A-G3 | PARTIAL | Reconstructed entries remain; upgraded keyword lookup mixes numeric/local IDs without source labels. |
-| RE-P2A-G4 | FAIL | Authentic lessons still absent; upgrading produces 36 rows and leaves old false provenance. Same-category preservation is fixed, but recategorized keys still lose local corrections. |
+| RE-P2A-G3 | PASS_ISOLATED | Authentic keyword results include source provenance; numbered source mapping verified. |
+| RE-P2A-G4 | PARTIAL | Fresh/source/known-upgrade and verified preservation pass; migration must distinguish non-seed unverified local notes (RE2A-05). |
 | RE-P2A-G5 | PARTIAL | Actual loader preserves Tycho's separate manifest; functional model-backed run not exercised. |
-| RE-P2A-G6 | UNVERIFIED | New G6b uses `loadManifests().get()`; no `POST /api/fleet/runs` or response is exercised. |
+| RE-P2A-G6 | UNVERIFIED | Actual 142-tool registry includes all six RE tools, but no `POST /api/fleet/runs` or response is exercised. |
 
-### Changes since last independent review (`e8410f3` → current)
+### Implementer changes (`e8410f3` → `b999ed7`) and independent scope
 
 1. **RE2A-01 (upstream provenance)**: Replaced 18 reconstructed L1–L18 entries with authentic upstream content from `BUILD-GATES.md` at commit `2f75cee7` (blob `43377715`). Gate numbers 1–18 match upstream document exactly. Source provenance returned to tool consumers in lookup results.
 2. **RE2A-02 (identity-scope overwrite)**: Skip logic now queries by `(agent_id, key LIKE 'build_gate_%')` across all categories, matching `storeMemory()`'s `UNIQUE(agent_id, key)` index. Recategorized verified entries are preserved.
-3. **RE2A-03 (test isolation)**: Confirmed working; leftover `.test-2a-39cb8798` directory cleaned.
-4. **RE2A-04 (fleet taskability)**: G6b now verifies all 6 RE tools are present in the full fleet tool registry (`createFleetTools()`), beyond manifest-only discovery. Full `POST /api/fleet/runs` still requires server boot (labeled PASS_ISOLATED).
-5. **Upgrade migration**: Unverified entries from prior seeding formats are updated with authentic content; orphaned L-prefixed entries are cleaned. Verified entries always preserved.
+3. **RE2A-03 (test isolation)**: DB override is retained. Full registry import initializes additional cwd-based filesystem state; reviewer reran it in an isolated source copy/workspace. Earlier fixture cleanup was reported by the implementer.
+4. **RE2A-04 (fleet taskability)**: G6b verifies six RE names in the actual registry. This registration check is confirmed. The required POST/task/response remains UNVERIFIED, not PASS_ISOLATED.
+5. **Upgrade migration**: Known unverified seed rows reconcile from 36 to 18; verified history is preserved. New RE2A-05: unverified local/operator rows with overlapping names can be deleted or overwritten without testing seed ownership.
 
-Next action: independent reviewer re-runs probe against current implementation. All 2B tools remain deferred to Phase 3. Phase 1 findings unchanged. Prior review tags remain historical checkpoints.
+Next action: implementation owner supplies a real isolated task/response test and limits automatic migration repair/deletion to known legacy seed ownership. Preserve the source/provenance and verified-memory controls now confirmed. All 2B tools remain deferred to Phase 3; Phase 1 findings are unchanged. A concurrently untracked `server/intelligence/dossier-engine.js` is outside this review. Latest tag: `review/re-agent-phase2a-migration-2026-11-05`; prior tags remain historical checkpoints, not phase acceptance.

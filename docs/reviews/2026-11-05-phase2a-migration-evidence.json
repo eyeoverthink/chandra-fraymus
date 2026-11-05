@@ -1,0 +1,549 @@
+{
+  "generatedAt": "2026-11-05T23:32:37.888Z",
+  "implementationRef": "b999ed7e74b1b7db441131e4227ae3dc57e44e59",
+  "sourceHashes": {
+    "b999ed7e74b1b7db441131e4227ae3dc57e44e59:server/db-migrate.js": "6a3eb642bbd64c564d83232bdfc0c0f8caa30293c3ef098a87d335d47d79950c",
+    "b999ed7e74b1b7db441131e4227ae3dc57e44e59:docs/reviews/fixtures/re-build-gates-2f75cee7.md": "fec3f84b70a7969c9f66a4db77a964f47414169b90b3ec6173c0e0ac9b235626",
+    "b999ed7e74b1b7db441131e4227ae3dc57e44e59:server/fleet/agent-memory.js": "ca722a684e44d1cde6d46ac2dd6c8953fb0d4298361221744a7b258640aa72d0",
+    "b999ed7e74b1b7db441131e4227ae3dc57e44e59:server/fleet/re-tools.js": "d9fe06233c416e3142b5a283502f283fe3fe001db9f9f2708538668a7599f629",
+    "dcb065868448978ac5f8b963b7e326ca64a7b374:server/fleet/re-tools.js": "34337b6989518f9ceb9a98aefd211c63771c35db11fd3a0f0c10181678e8a44d",
+    "e8410f30c7344cd291014e01cb3c971725d65dcf:server/fleet/re-tools.js": "ada516d2d14d2f091ee2989435c476f1e47762a444eab5bca14ff46dafba2673",
+    "b999ed7e74b1b7db441131e4227ae3dc57e44e59:docs/reviews/2026-11-05-phase2a-gate-acceptance.mjs": "a918fb27a6e66a0b71253ff6aee1ce905f411c8c23d8ced2ac99de388f2d11f4"
+  },
+  "upstreamBuildGateBlob": "43377715d18c7d892fa71c3dab3167da070f6936",
+  "safety": "No live database or live app imported. Pinned seeder/memory code runs in-memory. Exact author suite runs in an archived server/agents/package source copy, with installed dependencies reused through a junction, cwd/workspace under a fresh temp directory, and its own disposable DB. No fleet task, model invocation, or live server restart. No fixture deletion attempted.",
+  "retainedTemporaryDirectory": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-2a-migration-review-aJA0KT",
+  "checks": [
+    "clean catalog has eighteen distinct numbered source entries at confidence 0.9",
+    "all eighteen source identities have the expected independent source anchors",
+    "unchanged authentic entries are idempotent with no row mutation",
+    "source provenance reaches keyword lookup consumers",
+    "verified recategorized row survives unchanged across authentic seeding",
+    "actual two-version upgrade reconciles thirty-six seed rows to eighteen authentic rows",
+    "known unverified legacy false source labels are replaced",
+    "verified historical local-ID correction is retained",
+    "migration deletes an unverified local note that no prior seeder created",
+    "migration overwrites an unrelated unverified local note without testing source ownership",
+    "author suite reproduces fourteen successful subchecks in isolated archived source",
+    "G6b now constructs the real registry but still does not run an agent task",
+    "prior default-isolation fix remains ordered before DB imports"
+  ],
+  "diagnosticAssertionCount": 13,
+  "catalog": {
+    "seed": {
+      "seeded": 18,
+      "skipped": 0,
+      "updated": 0,
+      "cleaned": 0,
+      "total": 18
+    },
+    "repeat": {
+      "seeded": 0,
+      "skipped": 18,
+      "updated": 0,
+      "cleaned": 0,
+      "total": 18
+    },
+    "entries": [
+      {
+        "gate": 1,
+        "keyword": "sudo",
+        "title": "r2 sys/install.sh — sudo hang",
+        "fix": "./configure --prefix=$HOME/fraymus-re/tools/r2 && make install — user-owned prefix, zero elevation.",
+        "upstreamTitle": "r2 sys/install.sh → sudo hang."
+      },
+      {
+        "gate": 2,
+        "keyword": "dylib",
+        "title": "r2 dylib path decay",
+        "fix": "export DYLD_FALLBACK_LIBRARY_PATH=$HOME/fraymus-re/tools/r2/lib (saved to tools/r2/r2env.sh).",
+        "upstreamTitle": "r2 dylib path decay."
+      },
+      {
+        "gate": 3,
+        "keyword": "JDK",
+        "title": "Ghidra JDK 21 daemon crash",
+        "fix": "brew install openjdk@25, JAVA_HOME=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home.",
+        "upstreamTitle": "Ghidra JDK 21 daemon crash."
+      },
+      {
+        "gate": 4,
+        "keyword": "flatRepo",
+        "title": "Ghidra build #3 — missing flat repo",
+        "fix": "./gradlew -I gradle/support/fetchDependencies.gradle init before buildGhidra.",
+        "upstreamTitle": "Ghidra build #3 → missing flat repo (16s)."
+      },
+      {
+        "gate": 5,
+        "keyword": "npm",
+        "title": "rea engine gate (EBADENGINE)",
+        "fix": "--engine-strict=false for install, but see gate 6 for genuine runtime incompatibility.",
+        "upstreamTitle": "rea engine gate."
+      },
+      {
+        "gate": 6,
+        "keyword": "runtime",
+        "title": "rea genuine runtime incompat",
+        "fix": "brew install node@24 side-by-side, PATH-prefix /opt/homebrew/opt/node@24/bin for rea builds only.",
+        "upstreamTitle": "rea genuine runtime incompat."
+      },
+      {
+        "gate": 7,
+        "keyword": "install-scripts",
+        "title": "npm 11 install-scripts block",
+        "fix": "npm install-scripts approve esbuild fsevents then reinstall/build.",
+        "upstreamTitle": "npm 11 install-scripts block."
+      },
+      {
+        "gate": 8,
+        "keyword": "git",
+        "title": "rea prepare.mjs needs .git",
+        "fix": "git init + snapshot commit in rea-main.",
+        "upstreamTitle": "rea prepare.mjs needs .git."
+      },
+      {
+        "gate": 9,
+        "keyword": "entrypoint",
+        "title": "rea entrypoint law",
+        "fix": "Run node scripts/rea.mjs --version; runtime self-diagnoses missing build — npm ci && npm run build:cached.",
+        "upstreamTitle": "rea entrypoint law."
+      },
+      {
+        "gate": 10,
+        "keyword": "TTY",
+        "title": "Ghidra JDK prompt with no TTY",
+        "fix": "java -cp support/LaunchSupport.jar LaunchSupport $GH -jdk_home -save with JAVA_HOME set.",
+        "upstreamTitle": "Ghidra JDK prompt with no TTY."
+      },
+      {
+        "gate": 11,
+        "keyword": "analyzeHeadless",
+        "title": "Bad argument: /bin/ls",
+        "fix": "-import /bin/ls (flag is mandatory for analyzeHeadless).",
+        "upstreamTitle": "Bad argument: /bin/ls."
+      },
+      {
+        "gate": 12,
+        "keyword": "ghidra-projects",
+        "title": "Directory not found (ghidra-projects)",
+        "fix": "mkdir -p ~/fraymus-re/ghidra-projects first.",
+        "upstreamTitle": "Directory not found (ghidra-projects)."
+      },
+      {
+        "gate": 13,
+        "keyword": "PyGhidra",
+        "title": "Ghidra 12 headless python = gone",
+        "fix": "Java GhidraScript (decompile_all.java) + -process ls -noanalysis -scriptPath -postScript. Result: 136 functions, 5152 lines of C.",
+        "upstreamTitle": "Ghidra 12 headless python = gone."
+      },
+      {
+        "gate": 14,
+        "keyword": "brew",
+        "title": "Node runtime heals itself via brew",
+        "fix": "brew upgrade node — v26.13.0 (>= their pin), simdjson decay gone.",
+        "upstreamTitle": "Node runtime heals itself via brew."
+      },
+      {
+        "gate": 15,
+        "keyword": "gradle",
+        "title": "ReVa gradle root confusion",
+        "fix": "Build at repo ROOT with Gradle 9.1+ via gradle directly (not ./gradlew), with GHIDRA_INSTALL_DIR + JAVA_HOME set.",
+        "upstreamTitle": "ReVa gradle root confusion."
+      },
+      {
+        "gate": 16,
+        "keyword": "setuptools",
+        "title": "setuptools-scm needs git metadata",
+        "fix": "git init + snapshot commit, then pip install -e . — mcp-reva --help.",
+        "upstreamTitle": "setuptools-scm needs git metadata (again)."
+      },
+      {
+        "gate": 17,
+        "keyword": "regex",
+        "title": "FRA score v1 verified nothing — regex fault",
+        "fix": "Proper column parse for rabin2 -i + per-model token budgets. Verified result: 3/78 (printf, putchar, strlen).",
+        "upstreamTitle": "FRA score v1 verified nothing — my regex's fault."
+      },
+      {
+        "gate": 18,
+        "keyword": "r2ai",
+        "title": "r2ai build gates",
+        "fix": "Pass R2USRPLUGDIR/R2BINDIR/R2MANDIR explicitly, bypass r2check with make -o r2check, set PKG_CONFIG_PATH, rename dylib, use positional args not -q.",
+        "upstreamTitle": "r2ai build gates."
+      }
+    ],
+    "keywordResults": [
+      {
+        "keyword": "JDK",
+        "matches": 2,
+        "gates": [
+          {
+            "gate": 10,
+            "keyword": "TTY",
+            "title": "Ghidra JDK prompt with no TTY",
+            "fix": "java -cp support/LaunchSupport.jar LaunchSupport $GH -jdk_home -save with JAVA_HOME set.",
+            "confidence": 0.9,
+            "verified": false,
+            "source": "BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)"
+          },
+          {
+            "gate": 3,
+            "keyword": "JDK",
+            "title": "Ghidra JDK 21 daemon crash",
+            "fix": "brew install openjdk@25, JAVA_HOME=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home.",
+            "confidence": 0.9,
+            "verified": false,
+            "source": "BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)"
+          }
+        ]
+      },
+      {
+        "keyword": "dylib",
+        "matches": 2,
+        "gates": [
+          {
+            "gate": 18,
+            "keyword": "r2ai",
+            "title": "r2ai build gates",
+            "fix": "Pass R2USRPLUGDIR/R2BINDIR/R2MANDIR explicitly, bypass r2check with make -o r2check, set PKG_CONFIG_PATH, rename dylib, use positional args not -q.",
+            "confidence": 0.9,
+            "verified": false,
+            "source": "BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)"
+          },
+          {
+            "gate": 2,
+            "keyword": "dylib",
+            "title": "r2 dylib path decay",
+            "fix": "export DYLD_FALLBACK_LIBRARY_PATH=$HOME/fraymus-re/tools/r2/lib (saved to tools/r2/r2env.sh).",
+            "confidence": 0.9,
+            "verified": false,
+            "source": "BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)"
+          }
+        ]
+      },
+      {
+        "keyword": "npm",
+        "matches": 3,
+        "gates": [
+          {
+            "gate": 5,
+            "keyword": "npm",
+            "title": "rea engine gate (EBADENGINE)",
+            "fix": "--engine-strict=false for install, but see gate 6 for genuine runtime incompatibility.",
+            "confidence": 0.9,
+            "verified": false,
+            "source": "BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)"
+          },
+          {
+            "gate": 7,
+            "keyword": "install-scripts",
+            "title": "npm 11 install-scripts block",
+            "fix": "npm install-scripts approve esbuild fsevents then reinstall/build.",
+            "confidence": 0.9,
+            "verified": false,
+            "source": "BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)"
+          },
+          {
+            "gate": 9,
+            "keyword": "entrypoint",
+            "title": "rea entrypoint law",
+            "fix": "Run node scripts/rea.mjs --version; runtime self-diagnoses missing build — npm ci && npm run build:cached.",
+            "confidence": 0.9,
+            "verified": false,
+            "source": "BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)"
+          }
+        ]
+      }
+    ]
+  },
+  "preservation": {
+    "before": {
+      "id": 3,
+      "agent_id": "re-analyst",
+      "category": "local_fix",
+      "key": "build_gate_3",
+      "value": "VERIFIED_LOCAL_FIX",
+      "confidence": 1,
+      "source": "local reproduction fixture",
+      "access_count": 2,
+      "verified_at": 1793921554570,
+      "created_at": 1793921554567,
+      "updated_at": 1793921554570
+    },
+    "seeded": {
+      "seeded": 0,
+      "skipped": 18,
+      "updated": 0,
+      "cleaned": 0,
+      "total": 18
+    },
+    "after": {
+      "id": 3,
+      "agent_id": "re-analyst",
+      "category": "local_fix",
+      "key": "build_gate_3",
+      "value": "VERIFIED_LOCAL_FIX",
+      "confidence": 1,
+      "source": "local reproduction fixture",
+      "access_count": 2,
+      "verified_at": 1793921554570,
+      "created_at": 1793921554567,
+      "updated_at": 1793921554570
+    }
+  },
+  "upgrade": {
+    "beforeRows": 36,
+    "result": {
+      "seeded": 0,
+      "skipped": 0,
+      "updated": 18,
+      "cleaned": 18,
+      "total": 18
+    },
+    "afterRows": 18,
+    "sources": [
+      "BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)"
+    ]
+  },
+  "historical": {
+    "before": {
+      "id": 1,
+      "agent_id": "re-analyst",
+      "category": "local_fix",
+      "key": "build_gate_L1",
+      "value": "VERIFIED_HISTORICAL_LOCAL_FIX",
+      "confidence": 1,
+      "source": "local reproduction fixture",
+      "access_count": 1,
+      "verified_at": 1793921554643,
+      "created_at": 1793921554642,
+      "updated_at": 1793921554642
+    },
+    "seeded": {
+      "seeded": 18,
+      "skipped": 0,
+      "updated": 0,
+      "cleaned": 17,
+      "total": 18
+    },
+    "after": {
+      "id": 1,
+      "agent_id": "re-analyst",
+      "category": "local_fix",
+      "key": "build_gate_L1",
+      "value": "VERIFIED_HISTORICAL_LOCAL_FIX",
+      "confidence": 1,
+      "source": "local reproduction fixture",
+      "access_count": 1,
+      "verified_at": 1793921554643,
+      "created_at": 1793921554642,
+      "updated_at": 1793921554642
+    },
+    "totalRows": 19
+  },
+  "unrelated": {
+    "before": [
+      {
+        "id": 1,
+        "agent_id": "re-analyst",
+        "category": "local_fix",
+        "key": "build_gate_L77",
+        "value": "OPERATOR_WORK_IN_PROGRESS",
+        "confidence": 0.8,
+        "source": "operator notes fixture; never seeded",
+        "access_count": 0,
+        "verified_at": null,
+        "created_at": 1793921554646,
+        "updated_at": 1793921554646
+      },
+      {
+        "id": 2,
+        "agent_id": "re-analyst",
+        "category": "local_fix",
+        "key": "build_gate_3",
+        "value": "LOCAL_PENDING_CORRECTION",
+        "confidence": 0.8,
+        "source": "operator notes fixture; never seeded",
+        "access_count": 0,
+        "verified_at": null,
+        "created_at": 1793921554646,
+        "updated_at": 1793921554646
+      }
+    ],
+    "result": {
+      "seeded": 17,
+      "skipped": 0,
+      "updated": 1,
+      "cleaned": 1,
+      "total": 18
+    },
+    "localL77Deleted": true,
+    "numeric3After": {
+      "id": 2,
+      "agent_id": "re-analyst",
+      "category": "build_gate",
+      "key": "build_gate_3",
+      "value": "{\"gate\":3,\"keyword\":\"JDK\",\"title\":\"Ghidra JDK 21 daemon crash\",\"fix\":\"brew install openjdk@25, JAVA_HOME=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home.\"}",
+      "confidence": 0.9,
+      "source": "BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)",
+      "access_count": 1,
+      "verified_at": null,
+      "created_at": 1793921554646,
+      "updated_at": 1793921554646
+    }
+  },
+  "authorRerun": {
+    "status": 0,
+    "stdout": "\nDatabase isolation: C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-2a-migration-review-aJA0KT\\source\\.test-2a-47ed741c\n\n═══ Gate 2A-1: Manifest Discovery ═══\n  ✓ RE-P2A-G1: PASS — Manifest has id=\"re-analyst\" with exactly 10 tools: [re.ingest_dossier, re.verify_chain, re.query_dossier, re.build_gate_lookup, re.compile_rate_measure, re.compile_rate_predict, bus_publish, bus_read, agent_remember, agent_recall]\n\n═══ Gate 2A-2: re.verify_chain ═══\n  ✓ RE-P2A-G2a: PASS_ISOLATED — Raw receipt file not present on this machine — tool function verified via import\n  ✓ RE-P2A-G2b: PASS — Projection correctly unverifiable: \"Chain verification impossible for projection format — chain fields (prev, self) are absent\"\n\n═══ Gate 2A-3: Build Gate Lookup ═══\n  ✓ RE-P2A-G3-reseed: PASS — Reseed is non-destructive: 18 skipped, 0 seeded on second call\n  ✓ RE-P2A-G3-JDK: PASS — Keyword \"JDK\" → 2 gate(s): [10, 3], source=\"BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)\"\n  ✓ RE-P2A-G3-dylib: PASS — Keyword \"dylib\" → 2 gate(s): [18, 2], source=\"BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)\"\n  ✓ RE-P2A-G3-npm: PASS — Keyword \"npm\" → 3 gate(s): [9, 7, 5], source=\"BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)\"\n\n═══ Gate 2A-4: Build Gate Memories ═══\n  ✓ RE-P2A-G4a: PASS — 18 build_gate memories stored, all at confidence 0.9, upstream keys (1..18), source pinned to 2f75cee7\n  ✓ RE-P2A-G4b: PASS — Verified entry preserved byte-for-byte on reseed\n  ✓ RE-P2A-G4c: PASS — Recategorized verified entry preserved across seed — identity scope correct\n  ✓ RE-P2A-G4d: PASS — Unverified L-prefixed orphans cleaned up on seed\n\n═══ Gate 2A-5: Tycho rea_analyst Preserved ═══\n  ✓ RE-P2A-G5: PASS — Tycho rea_analyst preserved: id=\"rea_analyst\", name=\"Tycho\", separate from re-analyst\n\n═══ Gate 2A-6: Tool Registration + Taskability ═══\n  ✓ RE-P2A-G6a: PASS — 6 RE tools registered: 2 Gate-2A working, 4 Gate-2B stubs correctly require Phase 3\n  ✓ RE-P2A-G6b: PASS — Fleet manifest discovers re-analyst with 10 tools; all 6 RE tools present in fleet registry (142 total tools)\n\n═══════════════════════════════════════════\n  Phase 2A Gate Results: 14 PASS, 0 FAIL\n  Database: disposable (C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-2a-migration-review-aJA0KT\\source\\.test-2a-47ed741c)\n═══════════════════════════════════════════\n\nEvidence written to: C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-2a-migration-review-aJA0KT\\author-evidence.json\n",
+    "stderr": "",
+    "evidence": {
+      "phase": "2A",
+      "title": "RE Agent Manifest + Fleet Tools — Gate Acceptance",
+      "timestamp": "2026-11-05T23:32:37.842Z",
+      "databaseIsolation": true,
+      "disposableDir": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-2a-migration-review-aJA0KT\\source\\.test-2a-47ed741c",
+      "gates": [
+        {
+          "id": "RE-P2A-G1",
+          "status": "PASS",
+          "detail": "Manifest has id=\"re-analyst\" with exactly 10 tools: [re.ingest_dossier, re.verify_chain, re.query_dossier, re.build_gate_lookup, re.compile_rate_measure, re.compile_rate_predict, bus_publish, bus_read, agent_remember, agent_recall]",
+          "timestamp": "2026-11-05T23:32:36.614Z"
+        },
+        {
+          "id": "RE-P2A-G2a",
+          "status": "PASS_ISOLATED",
+          "detail": "Raw receipt file not present on this machine — tool function verified via import",
+          "timestamp": "2026-11-05T23:32:36.619Z"
+        },
+        {
+          "id": "RE-P2A-G2b",
+          "status": "PASS",
+          "detail": "Projection correctly unverifiable: \"Chain verification impossible for projection format — chain fields (prev, self) are absent\"",
+          "timestamp": "2026-11-05T23:32:36.620Z"
+        },
+        {
+          "id": "RE-P2A-G3-reseed",
+          "status": "PASS",
+          "detail": "Reseed is non-destructive: 18 skipped, 0 seeded on second call",
+          "timestamp": "2026-11-05T23:32:36.794Z"
+        },
+        {
+          "id": "RE-P2A-G3-JDK",
+          "status": "PASS",
+          "detail": "Keyword \"JDK\" → 2 gate(s): [10, 3], source=\"BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)\"",
+          "timestamp": "2026-11-05T23:32:36.795Z"
+        },
+        {
+          "id": "RE-P2A-G3-dylib",
+          "status": "PASS",
+          "detail": "Keyword \"dylib\" → 2 gate(s): [18, 2], source=\"BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)\"",
+          "timestamp": "2026-11-05T23:32:36.797Z"
+        },
+        {
+          "id": "RE-P2A-G3-npm",
+          "status": "PASS",
+          "detail": "Keyword \"npm\" → 3 gate(s): [9, 7, 5], source=\"BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)\"",
+          "timestamp": "2026-11-05T23:32:36.798Z"
+        },
+        {
+          "id": "RE-P2A-G4a",
+          "status": "PASS",
+          "detail": "18 build_gate memories stored, all at confidence 0.9, upstream keys (1..18), source pinned to 2f75cee7",
+          "timestamp": "2026-11-05T23:32:36.807Z"
+        },
+        {
+          "id": "RE-P2A-G4b",
+          "status": "PASS",
+          "detail": "Verified entry preserved byte-for-byte on reseed",
+          "timestamp": "2026-11-05T23:32:36.809Z"
+        },
+        {
+          "id": "RE-P2A-G4c",
+          "status": "PASS",
+          "detail": "Recategorized verified entry preserved across seed — identity scope correct",
+          "timestamp": "2026-11-05T23:32:36.810Z"
+        },
+        {
+          "id": "RE-P2A-G4d",
+          "status": "PASS",
+          "detail": "Unverified L-prefixed orphans cleaned up on seed",
+          "timestamp": "2026-11-05T23:32:36.812Z"
+        },
+        {
+          "id": "RE-P2A-G5",
+          "status": "PASS",
+          "detail": "Tycho rea_analyst preserved: id=\"rea_analyst\", name=\"Tycho\", separate from re-analyst",
+          "timestamp": "2026-11-05T23:32:36.813Z"
+        },
+        {
+          "id": "RE-P2A-G6a",
+          "status": "PASS",
+          "detail": "6 RE tools registered: 2 Gate-2A working, 4 Gate-2B stubs correctly require Phase 3",
+          "timestamp": "2026-11-05T23:32:36.814Z"
+        },
+        {
+          "id": "RE-P2A-G6b",
+          "status": "PASS",
+          "detail": "Fleet manifest discovers re-analyst with 10 tools; all 6 RE tools present in fleet registry (142 total tools)",
+          "timestamp": "2026-11-05T23:32:37.841Z"
+        }
+      ],
+      "summary": {
+        "passed": 14,
+        "failed": 0,
+        "total": 14
+      },
+      "limitations": [
+        "G2a/b: raw receipt files not present on this machine (PASS_ISOLATED)",
+        "G6b: fleet taskability verified via manifest loader + tool registry, not full POST /api/fleet/runs (no server boot)"
+      ]
+    },
+    "registryResult": {
+      "id": "RE-P2A-G6b",
+      "status": "PASS",
+      "detail": "Fleet manifest discovers re-analyst with 10 tools; all 6 RE tools present in fleet registry (142 total tools)",
+      "timestamp": "2026-11-05T23:32:37.841Z"
+    },
+    "sourceCopy": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-2a-migration-review-aJA0KT\\source"
+  },
+  "findingDisposition": {
+    "RE2A-01": "SCOPED_FIX_CONFIRMED: authentic numbered summaries, source lookup, known legacy migration",
+    "RE2A-02": "SCOPED_FIX_CONFIRMED: verified rows preserved across categories and local-ID history",
+    "RE2A-03": "DB_ISOLATION_CONFIRMED: full registry import additionally requires cwd isolation for a fully disposable runtime",
+    "RE2A-04": "OPEN: registry construction is not task/response evidence",
+    "RE2A-05": "NEW: migration mutates/deletes unverified non-seed notes without checking source ownership"
+  },
+  "gateResults": [
+    {
+      "id": "RE-P2A-G1",
+      "status": "PARTIAL"
+    },
+    {
+      "id": "RE-P2A-G2",
+      "status": "PASS_ISOLATED"
+    },
+    {
+      "id": "RE-P2A-G3",
+      "status": "PASS_ISOLATED"
+    },
+    {
+      "id": "RE-P2A-G4",
+      "status": "PARTIAL"
+    },
+    {
+      "id": "RE-P2A-G5",
+      "status": "PARTIAL"
+    },
+    {
+      "id": "RE-P2A-G6",
+      "status": "UNVERIFIED"
+    }
+  ],
+  "summary": {
+    "scopedPasses": 2,
+    "partial": 3,
+    "unverified": 1,
+    "failures": 0,
+    "independentlyAcceptedPhases": 0
+  }
+}

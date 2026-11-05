@@ -18,6 +18,8 @@
 
 > **Phase 2A fix recheck of `e8410f3` — 2026-11-05:** [Scoped improvements; changes still requested](reviews/2026-11-05-phase2a-fix-review.md). Same-category memory preservation and default test isolation are confirmed; eleven author subchecks reproduce. Local-ID relabeling does not import the authentic source, upgrading leaves 36 rows with old false attributions, recategorized keys can still be overwritten, and G6b is discovery rather than a task/response test. The [exact upstream source](reviews/fixtures/re-build-gates-2f75cee7.md) is now retained with its verified blob. Criterion and phase acceptance counts are unchanged.
 
+> **Phase 2A authentic-source/migration recheck of `b999ed7` — 2026-11-05:** [Source and preservation fixes confirmed; acceptance still open](reviews/2026-11-05-phase2a-migration-review.md). All eighteen source identities/provenance, actual legacy 36-to-18 migration, verified cross-category/history preservation and the 142-tool registry are confirmed. Fourteen author subchecks reproduce. Registry construction still does not exercise the declared task/response gate; new RE2A-05 requires ownership checks before mutating/deleting non-seed local notes. Current 2A: 2 scoped passes, 3 partial, 1 unverified; 0/7 phases accepted.
+
 ---
 
 ## Table of Contents
