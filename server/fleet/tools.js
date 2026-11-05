@@ -13,6 +13,7 @@ import { getGateStatus as getConsciousnessGateStatus } from '../intelligence/con
 import { getSensoryStatus, triggerInjection } from '../intelligence/sensory-bridge.js';
 import { getEmotionalFeedbackStatus, triggerEmotionalFeedback } from '../intelligence/emotional-feedback.js';
 import { getMotorOutputStatus, triggerMotorCycle } from '../intelligence/motor-output.js';
+import { getAttentionGateStatus, computeAttentionWeights } from '../intelligence/attention-gate.js';
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
@@ -305,6 +306,23 @@ export function createFleetTools({ workflowStore }) {
         }
         const status = getMotorOutputStatus();
         ledger.record('motor.output.read', { running: status.running, firings: status.firings, tier: status.gateTier }, 'fleet');
+        return status;
+      },
+    },
+    {
+      name: 'attention_gate_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Read the attention gate: top-down selective amplification of sensory inputs. Motor intentions and emotional state compute per-region gain weights [0.5-3.0] that the sensory bridge multiplies into each signal. Shows which sensory channels are amplified or suppressed, and why (which motor regions and emotional dimensions drive it). Optionally compute fresh weights.',
+      parameters: object({ compute: { type: 'boolean', default: false, description: 'If true, compute fresh attention weights and return them' } }),
+      execute: async ({ args }) => {
+        if (args.compute) {
+          const weights = computeAttentionWeights();
+          ledger.record('attention.gate.compute', { weights }, 'fleet');
+          return { weights };
+        }
+        const status = getAttentionGateStatus();
+        ledger.record('attention.gate.read', { computations: status.computations, tier: status.gateTier }, 'fleet');
         return status;
       },
     },

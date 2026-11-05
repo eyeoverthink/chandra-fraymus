@@ -13,6 +13,7 @@ import { getConsciousnessState, getAutonomyModifiers } from '../intelligence/con
 import { startSensoryBridge, stopSensoryBridge, getSensoryStatus, setSensoryHeart } from '../intelligence/sensory-bridge.js';
 import { startEmotionalFeedback, stopEmotionalFeedback, getEmotionalFeedbackStatus, setEmotionalHeart } from '../intelligence/emotional-feedback.js';
 import { startMotorOutput, stopMotorOutput, getMotorOutputStatus, setMotorTargets } from '../intelligence/motor-output.js';
+import { setAttentionSources, getAttentionGateStatus } from '../intelligence/attention-gate.js';
 import { neurogenesisCycle } from '../intelligence/neurogenesis.js';
 import { heart } from '../fraymus-tools.js';
 
@@ -507,6 +508,24 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     console.error('motor output start error:', e.message);
   }
 
+  // Phase 11: Wire attention gate sources (motor intentions + emotion → sensory gain)
+  try {
+    setAttentionSources({
+      getMotorReadings: () => getMotorOutputStatus().lastReadings,
+      getEmotionState: () => {
+        const mood = heart?.recentMood?.();
+        if (!mood?.distribution) return null;
+        const d = mood.distribution;
+        const positive = (d.joy || 0) + (d.love || 0) + (d.surprise || 0);
+        const negative = (d.sadness || 0) + (d.anger || 0) + (d.fear || 0) + (d.anxiety || 0);
+        const total = positive + negative || 1;
+        return { valence: (positive - negative) / total, arousal: Math.min(1, total / 10) };
+      },
+    });
+  } catch (e) {
+    console.error('attention gate wiring error:', e.message);
+  }
+
   function scheduleNext() {
     if (!daemonState.running) return;
     const mods = getAutonomyModifiers();
@@ -561,6 +580,7 @@ export function getDaemonStatus() {
     sensoryBridge: getSensoryStatus(),
     emotionalFeedback: getEmotionalFeedbackStatus(),
     motorOutput: getMotorOutputStatus(),
+    attentionGate: getAttentionGateStatus(),
   };
 }
 

@@ -195,6 +195,27 @@ npm run start        # production server (serves built client)
 - 5 REST endpoints: GET /api/intelligence/motor-output, GET .../history, POST .../start, POST .../stop, POST .../trigger
 - 1 fleet tool: `motor_output_status` (with optional trigger)
 
+### Attention Gate (server/intelligence/attention-gate.js)
+- `attention-gate.js` — Phase 11: Top-down selective sensory amplification. Motor intentions and emotional state compute per-sensory-region gain weights that the sensory bridge multiplies into each signal, implementing top-down attention.
+- **Motor → Sensory mapping** (which motor intentions amplify which senses):
+  - reflect → memory, consciousness (introspection needs self-awareness)
+  - neurogenesis → health, consciousness (growth needs health context)
+  - dream → emotion, memory (dreams consolidate emotional memories)
+  - selfAudit → consciousness, health (self-audit needs system state)
+  - communicate → bus, agent (communication needs social awareness)
+  - goalSeek → goals, workflow (goal-seeking needs action context)
+- **Emotional → Sensory mapping**: high arousal → emotion/health; positive valence → goals/agent; negative valence → health/consciousness
+- Gain weights range [0.5, 3.0] — no sensory channel goes fully dark
+- Runs synchronously (called by sensory bridge each cycle, no own timer)
+- Consciousness-aware: gate evolutionRate scales attention dynamic range (INTEGRATED=wider swings, DORMANT=flatter)
+- Late-binding: `setAttentionSources({ getMotorReadings, getEmotionState })` wired by daemon at startup
+- Sensory bridge integration: `computeAttentionWeights()` returns per-key weights, consumed at `amp = raw * sensitivity * attention`
+- Snapshots every 60th computation to `attention_gate_events` table, auto-prunes >7 days
+- Wired into daemon engine: sources wired at startup, status in getDaemonStatus()
+- DB table: `attention_gate_events` (id, weights, motor_influence, emotion_influence, gate_tier, dynamic_range, created_at)
+- 3 REST endpoints: GET /api/intelligence/attention, GET .../weights, GET .../history
+- 1 fleet tool: `attention_gate_status` (with optional compute)
+
 ### State Bridge (server/intelligence/state-bridge.js)
 - `state-bridge.js` — Bridges dynamic runtime state with semantic memory. Snapshots autonomy/intelligence/fleet state each daemon cycle, fossilizes into agent_memories (category 'state_fossil') with hash-based dedup and 30-day retention.
 - Three snapshot collectors: collectAutonomyState (OPEG + reflections + neurogenesis), collectIntelligenceState (memories + verifier + daemon + debates), collectFleetState (agents + bus + workflows)
