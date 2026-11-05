@@ -26,6 +26,7 @@ import { db } from '../db.js';
 import { getCTRNN } from './ctrnn-instance.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
 import { publish } from '../fleet/bus.js';
+import { updateAdaptiveStrategy } from './adaptive-strategy.js';
 import { randomUUID } from 'node:crypto';
 
 const now = () => Date.now();
@@ -361,7 +362,12 @@ function runAssessment() {
     } catch (_) {}
   }
 
-  return { effectiveness, stuckScore, confidence, injections, strategy: strategyResult, metrics, tier: gateMods.tier };
+  const result = { effectiveness, stuckScore, confidence, injections, strategy: strategyResult, metrics, tier: gateMods.tier };
+
+  // Phase 15: Feed assessment into adaptive strategy engine
+  try { updateAdaptiveStrategy(result); } catch (_) {}
+
+  return result;
 }
 
 export function startMetacognitiveMonitor() {

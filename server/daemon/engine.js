@@ -17,6 +17,7 @@ import { setAttentionSources, getAttentionGateStatus } from '../intelligence/att
 import { getHabituationStatus, resetHabituation } from '../intelligence/habituation.js';
 import { getWorkingMemoryStatus, resetWorkingMemory } from '../intelligence/working-memory.js';
 import { startMetacognitiveMonitor, stopMetacognitiveMonitor, getMetacognitiveStatus } from '../intelligence/metacognitive-monitor.js';
+import { getAdaptiveStatus, resetAdaptiveStrategy } from '../intelligence/adaptive-strategy.js';
 import { neurogenesisCycle } from '../intelligence/neurogenesis.js';
 import { heart } from '../fraymus-tools.js';
 
@@ -575,6 +576,8 @@ export function stopDaemon() {
   try { resetWorkingMemory(); } catch (_) {}
   // Phase 14: Stop metacognitive monitor with daemon
   try { stopMetacognitiveMonitor(); } catch (_) {}
+  // Phase 15: Reset adaptive strategy with daemon
+  try { resetAdaptiveStrategy(); } catch (_) {}
   daemonState.running = false;
   daemonState.nextCycleAt = 0;
   return { stopped: true };
@@ -600,6 +603,7 @@ export function getDaemonStatus() {
     habituation: getHabituationStatus(),
     workingMemory: getWorkingMemoryStatus(),
     metacognitive: getMetacognitiveStatus(),
+    adaptiveStrategy: getAdaptiveStatus(),
   };
 }
 

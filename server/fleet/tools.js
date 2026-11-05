@@ -17,6 +17,7 @@ import { getAttentionGateStatus, computeAttentionWeights } from '../intelligence
 import { getHabituationStatus } from '../intelligence/habituation.js';
 import { getWorkingMemoryStatus, queryWorkingMemory } from '../intelligence/working-memory.js';
 import { getMetacognitiveStatus, getStrategyRecommendation } from '../intelligence/metacognitive-monitor.js';
+import { getAdaptiveStatus, getAdaptiveModifiers, isActionSuppressed, isActionPreferred } from '../intelligence/adaptive-strategy.js';
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
@@ -376,6 +377,31 @@ export function createFleetTools({ workflowStore }) {
         }
         const status = getMetacognitiveStatus();
         ledger.record('metacognitive.read', { effectiveness: status.lastEffectiveness, stuck: status.lastStuckScore, confidence: status.lastConfidence, strategy: status.lastStrategy, tier: status.gateTier }, 'fleet');
+        return status;
+      },
+    },
+    {
+      name: 'adaptive_strategy_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Read the adaptive strategy engine: translates metacognitive assessments into concrete behavioral parameters. Returns active strategy (nominal/diversify/conserve/calibrate), current modifiers (cycleMultiplier, reflectionCap, opegToleranceScale, preferred/suppressed actions, neurogenesis floor adjust), switch count, anti-flicker guard state, and CTRNN injection history. Use "check" mode with an action name to see if it is currently suppressed or preferred.',
+      parameters: object({
+        mode: { type: 'string', description: 'Optional: "check" with action param returns suppression/preference for a specific action' },
+        action: { type: 'string', description: 'Action type to check (used with mode "check")' },
+      }),
+      execute: async (params) => {
+        if (params.mode === 'check' && params.action) {
+          const result = {
+            action: params.action,
+            suppressed: isActionSuppressed(params.action),
+            preferred: isActionPreferred(params.action),
+            strategy: getAdaptiveModifiers().strategy,
+          };
+          ledger.record('adaptive.check', result, 'fleet');
+          return result;
+        }
+        const status = getAdaptiveStatus();
+        ledger.record('adaptive.read', { strategy: status.activeStrategy, switchCount: status.switchCount, tier: status.gateTier }, 'fleet');
         return status;
       },
     },

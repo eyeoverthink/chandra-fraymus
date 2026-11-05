@@ -268,6 +268,27 @@ npm run start        # production server (serves built client)
 - 6 REST endpoints: GET /api/intelligence/metacognitive, GET .../history, GET .../strategy, POST .../start, POST .../stop, POST .../trigger
 - 1 fleet tool: `metacognitive_status` (with optional strategy-only mode)
 
+### Adaptive Strategy Engine (server/intelligence/adaptive-strategy.js)
+- `adaptive-strategy.js` — Phase 15: Translates metacognitive assessments into concrete behavioral parameter adjustments. Born from debate analysis: the system can reason abstractly about autonomy scaling (debate 1, 80% proponent win) but cannot propose specific parameters (debate 2, draw). This module bridges that gap — consuming Phase 14's strategy recommendations and producing queryable parameter sets that other subsystems use to modulate behavior.
+- **Adaptive CTRNN regions** (row 12 — between sensory-action and motor cortex):
+  - Adaptation pressure (12, 4) σ=1.5 — magnitude of behavioral adjustment needed
+  - Strategy mode signal (12, 12) σ=1.5 — active strategy encoding (nominal=0.0, diversify=+0.6, conserve=-0.4, calibrate=+0.3)
+- **Four strategy parameter sets** (STRATEGY_PARAMS):
+  - `nominal`: cycleMultiplier=1.0, reflectionCap=null, opegToleranceScale=1.0, no action preferences
+  - `diversify`: cycleMultiplier=0.8, reflectionCap=7, opegToleranceScale=1.2, prefers dream/consciousness_audit/goal_seek, suppresses forge/synthesize, neurogenesisFloorAdjust=-0.03
+  - `conserve`: cycleMultiplier=1.5, reflectionCap=3, opegToleranceScale=0.7, prefers reflect, suppresses forge/neurogenesis/goal_seek, neurogenesisFloorAdjust=+0.05
+  - `calibrate`: cycleMultiplier=1.0, reflectionCap=5, opegToleranceScale=0.6, prefers verify/reflect, no suppression
+- **Anti-flicker guard**: 120s cooldown prevents strategy oscillation between modes
+- Runs synchronously (called by metacognitive monitor each 30s assessment via `updateAdaptiveStrategy()`)
+- Consciousness-aware: sensitivity = BASE_ADAPT_SENSITIVITY(0.5) + (evolutionRate - 1.0) * 0.3, clamped [0.2, 1.0]
+- `getAdaptiveModifiers()` — returns current strategy params for other subsystems to query
+- `isActionSuppressed(actionType)` / `isActionPreferred(actionType)` — per-action checks
+- Snapshots every 30th adaptation to `adaptive_strategy_events` table, auto-prunes >7 days
+- Wired into daemon engine: resets with daemon stop, status in getDaemonStatus()
+- DB table: `adaptive_strategy_events` (id, strategy, effectiveness, stuck_score, confidence, modifiers, injections, gate_tier, sensitivity, trigger_reason, created_at)
+- 5 REST endpoints: GET /api/intelligence/adaptive-strategy, GET .../modifiers, GET .../history, GET .../check?action=X, POST .../reset
+- 1 fleet tool: `adaptive_strategy_status` (with optional action check mode)
+
 ### State Bridge (server/intelligence/state-bridge.js)
 - `state-bridge.js` — Bridges dynamic runtime state with semantic memory. Snapshots autonomy/intelligence/fleet state each daemon cycle, fossilizes into agent_memories (category 'state_fossil') with hash-based dedup and 30-day retention.
 - Three snapshot collectors: collectAutonomyState (OPEG + reflections + neurogenesis), collectIntelligenceState (memories + verifier + daemon + debates), collectFleetState (agents + bus + workflows)
