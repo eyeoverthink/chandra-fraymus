@@ -23,7 +23,7 @@
 
 <p align="center">
   <a href="#-quick-start">Quick Start</a> · 
-  <a href="#handoff-checkpoint-2026-11-04">Latest Handoff</a> ·
+  <a href="#independent-recheck-2026-11-05">Latest Handoff</a> ·
   <a href="APP-STATUS.md">App Status</a> ·
   <a href="#-intelligence-stack">Intelligence</a> · 
   <a href="#perspective--the-meta-cognitive-bartender">Perspective</a> · 
@@ -35,6 +35,10 @@
 </p>
 
 ---
+
+## Independent recheck 2026-11-05
+
+**Recent intelligence work requires corrections before the next phase.** The [independent review](docs/reviews/2026-11-05-intelligence-claims-review.md) checks baseline `284075d` and verifies the Phase 20 prediction-to-motor contract fix in `3c9cd83`. Six controller/claim findings remain: dispatch after Stop, advisory resource ceilings, false motor success telemetry, strategy-name mismatch, verifier-status scoring, and uncalibrated effectiveness feedback. The existing regression suite is currently **12/13**, with a stale ledger mock; the committed claims probe also needs repair. Exact source hashes, isolated reproductions, closure criteria, and next-machine instructions are linked in the review. Tag: `review/fraynix-intelligence-2026-11-05`.
 
 ## Handoff checkpoint 2026-11-04
 
@@ -71,6 +75,7 @@ The historical corruption cause remains unresolved. The [shutdown/WAL review](do
 
 | Review | Source / owner | Reviewer | Status and next action |
 | --- | --- | --- | --- |
+| [Recent intelligence additions and claims](docs/reviews/2026-11-05-intelligence-claims-review.md) | Baseline `284075d`; handoff fix `3c9cd83`; concurrent implementation session | Codex independent recheck | **CHANGES REQUESTED.** INT-01 verified fixed; INT-02–07 reproduced and open. 25 diagnostic assertions include defect reproductions; they are not 25 product acceptance passes. 40 JS files parse; existing suite is 12/13 due to stale ledger mock. Repair the committed probe's undefined `positiveControl`. Claim findings and add focused acceptance tests before Phase 21. |
 | [Phase 2 continuity hardening and handoff](docs/reviews/2026-11-04-phase2-continuity-review.md) | Reviewed `3167e38` / `5d7e21e`; fixes `be2cbde` through `9a2ec22`, Codex author | **Different agent required** | **IMPLEMENTED + LOCALLY TESTED; AWAITING INDEPENDENT REVIEW.** Reproduced committed-row rollback in disposable DBs, then protected databases/journals from file healing. Self-tests now honor failures; vault signatures, exact bytes and numbering are checked; signing identity survives restart. 13 tests + isolated 27-case probe pass. Source changes require a normal backend restart. |
 | [Immune round 4: independent closure check](docs/reviews/2026-11-04-immune-round4-independent-review.md) | `2d61f0d` | Codex independent recheck | **SCOPED FIXES VERIFIED.** IMM-08, IMM-10 and IMM-11 pass independent fleet/main, schema, depth and completion checks; author's probe is 22/22. IMM-05 stays deferred/advisory. Phase 2 planning can proceed; no Phase 2 implementation has been reviewed yet. |
 | [Immune round 3: two fix commits rechecked](docs/reviews/2026-11-04-immune-round3-review.md) | `e17722e` and `8e9ccd9` | Codex independent recheck | **CHANGES REQUESTED.** Prior fixtures improve and all ten text paths reference the sanitizer. Fleet tool arguments still leak credentials; the recursive walker changes prototypes and lacks bounds. Canary calibration remains deferred; metadata-only completion still drops held text. Focused reproductions and completion criteria are linked. |

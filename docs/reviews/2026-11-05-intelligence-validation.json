@@ -1,0 +1,225 @@
+{
+  "generatedAt": "2026-11-05T20:31:22.872Z",
+  "headBefore": "3c9cd8358d20d6b0d4fc1a76c147983208485c48",
+  "headAfter": "3c9cd8358d20d6b0d4fc1a76c147983208485c48",
+  "syntax": [
+    {
+      "file": "server/automations/scheduler.js",
+      "ok": true,
+      "sha256": "89eadc795930873e9abacc8fad92fb36851edd45ddb9f8b0ddf19c9b0c1f7eef"
+    },
+    {
+      "file": "server/autonomy.js",
+      "ok": true,
+      "sha256": "6be46cee4a2b66b866f200078c5ac62d00b74fc8d6f5911c07e137f166ec3d7e"
+    },
+    {
+      "file": "server/brain.js",
+      "ok": true,
+      "sha256": "88e3c4338ff2c39e8c97f6c2f1120be335c2520e7fd0df4128a2e73fe9c8ff0b"
+    },
+    {
+      "file": "server/chain/engine.js",
+      "ok": true,
+      "sha256": "c5ac06b65f1d5a5cda3b898bbbbcc17b833a74acd98c6463a4c40bd00ac3eeba"
+    },
+    {
+      "file": "server/commerce/pipeline.js",
+      "ok": true,
+      "sha256": "444de4bc0f813d5f92103435e1e56e6914e4d85225a206c9df612b8143601d36"
+    },
+    {
+      "file": "server/creation/pipeline.js",
+      "ok": true,
+      "sha256": "035f48ea69d8bf52cc9568ed96e7bc7a348ae0330019fc171daf97da60f192d9"
+    },
+    {
+      "file": "server/daemon/engine.js",
+      "ok": true,
+      "sha256": "89eac078911e855acbad7842ad0ac74e1ebce9b85b701b229f18dde67f7cfbae"
+    },
+    {
+      "file": "server/fleet/collab.js",
+      "ok": true,
+      "sha256": "418676fbd0fe585db8060ea528b9a662b0895a916b3b6a7981c0840fbdc66e28"
+    },
+    {
+      "file": "server/fleet/runtime.js",
+      "ok": true,
+      "sha256": "269ec71288801a656b76b13e8bedfad182ebb00fafd6522fd27eae631b310594"
+    },
+    {
+      "file": "server/fleet/tools.js",
+      "ok": true,
+      "sha256": "d98e2a735ecb198818573e8315bd41bade064e6db20429669060b017c7cd99f7"
+    },
+    {
+      "file": "server/fraymus-routes.js",
+      "ok": true,
+      "sha256": "30f20567a41d0f887a8b67c51b359cc5d1684949dfca1bb3ecd4137c88e351e6"
+    },
+    {
+      "file": "server/fraymus/intelligence/ouroboros.js",
+      "ok": true,
+      "sha256": "bf576b2961836db505caebe480e718b762c46aaa428d15175ce58609a8e18295"
+    },
+    {
+      "file": "server/integrity/continuity-selftest.js",
+      "ok": true,
+      "sha256": "cb18cac6bddaa53d5dcaf5ea59e9aa8ce88cbd39c5d83c85c36c07f7367b7785"
+    },
+    {
+      "file": "server/intelligence/active-inference.js",
+      "ok": true,
+      "sha256": "55060f207cb67793bdfb103bfdee6c7736c5188843a7dd2a07cb3125fd90c2db"
+    },
+    {
+      "file": "server/intelligence/adaptive-strategy.js",
+      "ok": true,
+      "sha256": "0d1479df436bd283296da0f950c250c34379c448ea71bb819cf77befda977408"
+    },
+    {
+      "file": "server/intelligence/attention-gate.js",
+      "ok": true,
+      "sha256": "3db2bf6a97612ec0b8ace6c3fedfea39fe7f177738f251acd7dddb08dba085b2"
+    },
+    {
+      "file": "server/intelligence/consciousness-cycle.js",
+      "ok": true,
+      "sha256": "9638a12f7a7049121c8481e2f3f6077f73effe8a1af1a8509c8d1694bded6212"
+    },
+    {
+      "file": "server/intelligence/consciousness-gate.js",
+      "ok": true,
+      "sha256": "07e9f3fde2081c0e54d53cd15b6f260b2a11cdeb24b62f02d80e8d3786c2536d"
+    },
+    {
+      "file": "server/intelligence/ctrnn-instance.js",
+      "ok": true,
+      "sha256": "cf1dac435d8eec77acc6f3d77e4dddf4f4f5750a78baa42b182261f60c4d0ab7"
+    },
+    {
+      "file": "server/intelligence/ctrnn-substrate.js",
+      "ok": true,
+      "sha256": "99d1dca7b3d89f018eceae48d4371233835bf1e4fa26fdc97bf8023bc0e340cc"
+    },
+    {
+      "file": "server/intelligence/ctrnn.js",
+      "ok": true,
+      "sha256": "ebfbb5bc05167423878e8c1856117d2e9f8aa581edac5944037400d51ec0d5e1"
+    },
+    {
+      "file": "server/intelligence/debate.js",
+      "ok": true,
+      "sha256": "947d0e640ce7f5ee0ca3d013d55712e45b9f809762cebfeff47ed449f8695fbc"
+    },
+    {
+      "file": "server/intelligence/emotional-feedback.js",
+      "ok": true,
+      "sha256": "39a74bd6e9c261eb29a693db37313591730b8b74ecd81346e4c3d83a516013ea"
+    },
+    {
+      "file": "server/intelligence/goal-engine.js",
+      "ok": true,
+      "sha256": "5a51f0639b9e0c8f07f046dbc7ff1441d5aca5bd5990954af59968c74b98085e"
+    },
+    {
+      "file": "server/intelligence/habituation.js",
+      "ok": true,
+      "sha256": "007489c5da3da39ac394d7771cb27f2ba24b764fe85000d47acafe97f609e948"
+    },
+    {
+      "file": "server/intelligence/metacognitive-monitor.js",
+      "ok": true,
+      "sha256": "3b340f7cfe9cc1216bd19a3186eb656543032f07b0b90ff8e11abd0a2b86c585"
+    },
+    {
+      "file": "server/intelligence/motor-output.js",
+      "ok": true,
+      "sha256": "650c00f89edf10ba5d4085af059f1457d3fad65ac27d04fe426c24d253e41b1e"
+    },
+    {
+      "file": "server/intelligence/neurogenesis.js",
+      "ok": true,
+      "sha256": "7189d7415d68b98a8d5d1c696c05db36ba552f4a0f72da16202e26650ce249e7"
+    },
+    {
+      "file": "server/intelligence/opeg.js",
+      "ok": true,
+      "sha256": "65d6d52355674c6f7ac027dd612a0fac6e0f00c7c02b218ca0d3ba2c9ec63ee0"
+    },
+    {
+      "file": "server/intelligence/ouroboros-cycle.js",
+      "ok": true,
+      "sha256": "74210b61a6ac4ec839d70b67d10994970a7ddfd1493f95d8ad0f467c3e030bdd"
+    },
+    {
+      "file": "server/intelligence/predictive-processing.js",
+      "ok": true,
+      "sha256": "cc32d81d12047bd6261f802d40547da6b4a929ac3b0fe79c77bdfea4db517eb5"
+    },
+    {
+      "file": "server/intelligence/reflection.js",
+      "ok": true,
+      "sha256": "c20572a1cad899e7fd55e9600333b0b0cb668a14b6c71b893df285c1cc685fff"
+    },
+    {
+      "file": "server/intelligence/resource-envelope.js",
+      "ok": true,
+      "sha256": "566f36bdd3554aa399143b7491bd60a5234a23b11201b391c8afed37113f269a"
+    },
+    {
+      "file": "server/intelligence/self-model.js",
+      "ok": true,
+      "sha256": "b4ef0c8eb489d69516e738ae8759e64f9557a992880843372a836d49a72e094a"
+    },
+    {
+      "file": "server/intelligence/sensory-bridge.js",
+      "ok": true,
+      "sha256": "4f9d2fd0940002c3bab02c835d7f2dc9cb334880fdc8a55cff69b8e3a1228f5e"
+    },
+    {
+      "file": "server/intelligence/verifier-loop.js",
+      "ok": true,
+      "sha256": "14ca8f25128a73ad425ed68aeab08dd7176e7fd90798dedb440e4b787e43661f"
+    },
+    {
+      "file": "server/intelligence/working-memory.js",
+      "ok": true,
+      "sha256": "95861e57eecfb9269b1a2ab0ef8e1bffbf5fc0a525d93a6f27c8011f8b47993c"
+    },
+    {
+      "file": "server/repurpose/repurpose-engine.js",
+      "ok": true,
+      "sha256": "07018ad8928b1e585ead1f5f37bd13c9ae6e88089ce25c73b9c2c41490df6eab"
+    },
+    {
+      "file": "server/runtime.js",
+      "ok": true,
+      "sha256": "bddc91b829598289b74f2371239eb263c7b93523f13895f262cadb77de9462db"
+    },
+    {
+      "file": "server/workflow/routes.js",
+      "ok": true,
+      "sha256": "04e4f75b081ed62ecfa2fc21c4a49da3804efe54c1f03ee1137a565e44ff147d"
+    }
+  ],
+  "regressions": {
+    "args": [
+      "--test",
+      "test/continuity-hardening.test.js",
+      "test/ouroboros-inheritance.test.js"
+    ],
+    "exitCode": 1,
+    "stdout": "[state-seek] ✅ Boot: ALL_CLEAR | 1 files | 7ms\n[state-seek] ✅ Boot: ALL_CLEAR | 2 files | 7ms\n[state-seek] Found state fossil reference for C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-continuity-hardening-176M1b\\remembered\\0001-remembered-recovery.md\n[state-seek] ⚠️ Boot: 1_UNRECOVERABLE | 2 files | 12ms\n✔ an unperformed watchdog check cannot produce an all-clear continuity verdict (91.9689ms)\n✔ state seeking ignores legacy SQLite fossils and preserves checkpointed commits (22.2476ms)\n✔ append-only ledger updates survive legacy file-watchdog tracking (11.8857ms)\n✔ immutable file healing still works and reference-only fossils are not reported restored (33.4645ms)\n✔ writ receipt links follow append order when clock readings tie or move backwards (2.8361ms)\n✖ continuity verdict reflects failed integrity probes without changing owner permission (20.1447ms)\n✔ vault verifies exact feed bytes and rejects forged signatures or altered attribution (49.5616ms)\n✔ numbering stays append-only beyond 9999 and default vault uses configured data directory (6.2137ms)\n✔ signing identity and vault authentication survive a fresh process (92.3297ms)\n✔ a first generation still analyzes and reviews without inherited context (384.7007ms)\n✔ fork analysis and review receive the selected ancestor beyond outline compaction (246.2826ms)\n✔ template cycles pass the saved genome to both model stages after the source changes (231.9573ms)\n✔ ordinary generations also use the latest parent genome in analysis and review (230.674ms)\nℹ tests 13\nℹ suites 0\nℹ pass 12\nℹ fail 1\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 1210.6682\n\n✖ failing tests:\n\ntest at test\\continuity-hardening.test.js:117:1\n✖ continuity verdict reflects failed integrity probes without changing owner permission (20.1447ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  false !== true\n  \n      at TestContext.<anonymous> (file:///F:/Fraymus-Skill-Lab/chandra-fraymus/test/continuity-hardening.test.js:135:10)\n      at Test.runInAsyncScope (node:async_hooks:214:14)\n      at Test.run (node:internal/test_runner/test:1106:25)\n      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: false,\n    expected: true,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n",
+    "stderr": ""
+  },
+  "committedProbe": {
+    "args": [
+      "docs/reviews/2026-11-05-intelligence-claims-probe.mjs"
+    ],
+    "exitCode": 1,
+    "stdout": "",
+    "stderr": "file:///F:/Fraymus-Skill-Lab/chandra-fraymus/docs/reviews/2026-11-05-intelligence-claims-probe.mjs:193\r\n  predictionContract: { producerKeys: Object.keys(prediction), errors: prediction.errors, naturalInference, positiveControl },\r\n                                                                                                            ^\r\n\r\nReferenceError: positiveControl is not defined\r\n    at file:///F:/Fraymus-Skill-Lab/chandra-fraymus/docs/reviews/2026-11-05-intelligence-claims-probe.mjs:193:109\r\n\r\nNode.js v24.11.1\r\n"
+  }
+}
