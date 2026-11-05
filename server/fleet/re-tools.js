@@ -1,6 +1,7 @@
 import { verifyHiveChain } from '../intelligence/hive-bridge.js';
 import { recallMemories, storeMemory } from './agent-memory.js';
 import { db } from '../db.js';
+import { processDossier, getDossier, getDossierFunctions, getDossierFunction, parseDossier } from '../intelligence/dossier-engine.js';
 
 const RE_AGENT_ID = 're-analyst';
 
@@ -148,7 +149,9 @@ export function createRETools() {
         dossierPath: string(1000, { description: 'Path to the dossier directory.' }),
       }, ['dossierPath']),
       execute: async ({ args }) => {
-        throw new Error('re.ingest_dossier requires the Phase 3 dossier engine (server/intelligence/dossier-engine.js). Not yet implemented.');
+        const path = String(args.dossierPath || '').trim();
+        if (!path) throw new Error('dossierPath required');
+        return processDossier(path);
       },
     },
     {
@@ -162,7 +165,25 @@ export function createRETools() {
         query: string(500, { description: 'Free text search across dossier memories.' }),
       }),
       execute: async ({ args }) => {
-        throw new Error('re.query_dossier requires the Phase 3 dossier engine (server/intelligence/dossier-engine.js). Not yet implemented.');
+        const sha = String(args.binarySha || '').trim();
+        const fnName = String(args.functionName || '').trim();
+        const query = String(args.query || '').trim();
+
+        if (sha && fnName) {
+          const fn = getDossierFunction(sha, fnName);
+          if (!fn) return { error: 'Function not found in dossier', binarySha: sha, functionName: fnName };
+          return fn;
+        }
+        if (sha) {
+          const dossier = getDossier(sha);
+          if (!dossier) return { error: 'Dossier not found', binarySha: sha };
+          return dossier;
+        }
+        if (query) {
+          const memories = recallMemories(RE_AGENT_ID, { category: 'binary_dossier', query, limit: 20 });
+          return { query, matches: memories.length, results: memories };
+        }
+        throw new Error('At least one of binarySha, functionName, or query required');
       },
     },
     {
@@ -174,7 +195,42 @@ export function createRETools() {
         dossierPath: string(1000, { description: 'Path to the dossier directory containing decompiled.c.' }),
       }, ['dossierPath']),
       execute: async ({ args }) => {
-        throw new Error('re.compile_rate_measure requires the Phase 3 dossier engine (server/intelligence/dossier-engine.js). Not yet implemented.');
+        const path = String(args.dossierPath || '').trim();
+        if (!path) throw new Error('dossierPath required');
+        const parsed = parseDossier(path);
+        const { execSync } = await import('node:child_process');
+        const { writeFileSync, unlinkSync } = await import('node:fs');
+        const { join } = await import('node:path');
+
+        let compiled = 0;
+        let failed = 0;
+        const errors = [];
+
+        for (const fn of parsed.functions) {
+          const tmpFile = join(path, `_compile_test_${fn.name}.c`);
+          try {
+            writeFileSync(tmpFile, fn.body);
+            execSync(`clang -fsyntax-only -w "${tmpFile}"`, { timeout: 10_000, stdio: 'pipe' });
+            compiled++;
+          } catch (e) {
+            failed++;
+            errors.push({ name: fn.name, address: fn.address, error: e.stderr?.toString().slice(0, 200) || e.message });
+          } finally {
+            try { unlinkSync(tmpFile); } catch (_) {}
+          }
+        }
+
+        const total = parsed.functions.length;
+        const rate = total > 0 ? Math.round((compiled / total) * 10000) / 100 : 0;
+
+        return {
+          binary: parsed.binary,
+          total,
+          compiled,
+          failed,
+          compileRate: rate,
+          sampleErrors: errors.slice(0, 5),
+        };
       },
     },
     {
@@ -186,7 +242,46 @@ export function createRETools() {
         dossierPath: string(1000, { description: 'Path to the dossier directory containing decompiled.c.' }),
       }, ['dossierPath']),
       execute: async ({ args }) => {
-        throw new Error('re.compile_rate_predict requires the Phase 3 dossier engine (server/intelligence/dossier-engine.js). Not yet implemented.');
+        const path = String(args.dossierPath || '').trim();
+        if (!path) throw new Error('dossierPath required');
+        const parsed = parseDossier(path);
+
+        const sample = parsed.functions.slice(0, 5).map(fn => ({
+          name: fn.name,
+          address: fn.address,
+          lines: fn.lines,
+          snippet: fn.body.slice(0, 300),
+        }));
+
+        const { chatOllama } = await import('../commerce/shared.js');
+        const prompt = `You are a compiler diagnostics expert. Given these decompiled C function samples from Ghidra/radare2, estimate what percentage would pass \`clang -fsyntax-only\`. Consider: missing includes, undefined types, Ghidra-specific pseudo-types, calling conventions, assembly inlines.
+
+Binary: ${parsed.binary}
+Total functions: ${parsed.functions.length}
+Import count: ${parsed.imports.length}
+
+Sample functions:
+${sample.map(s => `--- ${s.name} @ ${s.address} (${s.lines} lines) ---\n${s.snippet}`).join('\n\n')}
+
+Respond with JSON only: {"predictedRate": <number 0-100>, "confidence": <"low"|"medium"|"high">, "reasoning": "<one sentence>"}`;
+
+        const response = await chatOllama([{ role: 'user', content: prompt }], { temperature: 0.2 });
+        let prediction;
+        try {
+          const jsonMatch = response.match(/\{[\s\S]*\}/);
+          prediction = jsonMatch ? JSON.parse(jsonMatch[0]) : { predictedRate: null, confidence: 'low', reasoning: 'Could not parse LLM response' };
+        } catch (_) {
+          prediction = { predictedRate: null, confidence: 'low', reasoning: 'LLM response was not valid JSON' };
+        }
+
+        return {
+          binary: parsed.binary,
+          totalFunctions: parsed.functions.length,
+          importCount: parsed.imports.length,
+          sampleSize: sample.length,
+          prediction,
+          note: 'This is an LLM opinion, NOT a compiler measurement. Use re.compile_rate_measure for ground truth.',
+        };
       },
     },
   ];

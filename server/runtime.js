@@ -103,6 +103,7 @@ import { installResourceEnvelopeRoutes } from './intelligence/resource-envelope.
 import { installPredictiveRoutes } from './intelligence/predictive-processing.js';
 import { installActiveInferenceRoutes } from './intelligence/active-inference.js';
 import { installHiveBridgeRoutes } from './intelligence/hive-bridge-routes.js';
+import { installDossierRoutes } from './intelligence/dossier-engine-routes.js';
 import { installIntegrityRoutes, startWatchdog, verifyAll, autoTrackCriticalFiles } from './integrity/watchdog.js';
 import { installPlasmidRoutes } from './integrity/plasmid-backup.js';
 import { installGovernanceRoutes } from './integrity/routes.js';
@@ -275,6 +276,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installPredictiveRoutes(app);
   installActiveInferenceRoutes(app);
   installHiveBridgeRoutes(app);
+  installDossierRoutes(app);
   installIntegrityRoutes(app);
   installPlasmidRoutes(app);
   installGovernanceRoutes(app, { broadcast, dreamer, remembered, ledger, ouroboros });
