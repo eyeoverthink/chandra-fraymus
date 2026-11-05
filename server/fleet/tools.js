@@ -15,6 +15,7 @@ import { getEmotionalFeedbackStatus, triggerEmotionalFeedback } from '../intelli
 import { getMotorOutputStatus, triggerMotorCycle } from '../intelligence/motor-output.js';
 import { getAttentionGateStatus, computeAttentionWeights } from '../intelligence/attention-gate.js';
 import { getHabituationStatus } from '../intelligence/habituation.js';
+import { getWorkingMemoryStatus, queryWorkingMemory } from '../intelligence/working-memory.js';
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
@@ -336,6 +337,25 @@ export function createFleetTools({ workflowStore }) {
       execute: async () => {
         const status = getHabituationStatus();
         ledger.record('habituation.read', { computations: status.computations, spikes: status.totalSpikes, tier: status.gateTier }, 'fleet');
+        return status;
+      },
+    },
+    {
+      name: 'working_memory_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Read the working memory: a temporal buffer of recent sensory frames with trend detection. Maintains last 24 frames (2 minutes) and computes per-channel derivatives (rising/falling), system volatility (rate of change), and coherence (are channels moving together). Injects 3 temporal signals into CTRNN: trend direction, volatility, coherence. Optionally query a specific channel history.',
+      parameters: object({
+        channel: { type: 'string', description: 'Optional: query a specific sensory channel (bus, memory, emotion, consciousness, agent, health, workflow, goals)' },
+      }),
+      execute: async (params) => {
+        if (params.channel) {
+          const query = queryWorkingMemory({ channel: params.channel });
+          ledger.record('working-memory.query', { channel: params.channel, derivative: query.derivative }, 'fleet');
+          return query;
+        }
+        const status = getWorkingMemoryStatus();
+        ledger.record('working-memory.read', { frames: status.frames, trend: status.lastTrend, volatility: status.lastVolatility, tier: status.gateTier }, 'fleet');
         return status;
       },
     },

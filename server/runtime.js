@@ -95,6 +95,7 @@ import { installEmotionalFeedbackRoutes } from './intelligence/emotional-feedbac
 import { installMotorOutputRoutes } from './intelligence/motor-output.js';
 import { installAttentionGateRoutes } from './intelligence/attention-gate.js';
 import { installHabituationRoutes } from './intelligence/habituation.js';
+import { installWorkingMemoryRoutes } from './intelligence/working-memory.js';
 import { installIntegrityRoutes, startWatchdog, verifyAll, autoTrackCriticalFiles } from './integrity/watchdog.js';
 import { installPlasmidRoutes } from './integrity/plasmid-backup.js';
 import { installGovernanceRoutes } from './integrity/routes.js';
@@ -257,6 +258,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installMotorOutputRoutes(app);
   installAttentionGateRoutes(app);
   installHabituationRoutes(app);
+  installWorkingMemoryRoutes(app);
   installIntegrityRoutes(app);
   installPlasmidRoutes(app);
   installGovernanceRoutes(app, { broadcast, dreamer, remembered, ledger, ouroboros });

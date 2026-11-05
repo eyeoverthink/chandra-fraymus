@@ -231,6 +231,25 @@ npm run start        # production server (serves built client)
 - 3 REST endpoints: GET /api/intelligence/habituation, GET .../history, POST .../reset
 - 1 fleet tool: `habituation_status`
 
+### Working Memory (server/intelligence/working-memory.js)
+- `working-memory.js` — Phase 13: Temporal buffer with trend detection. Maintains a circular buffer of 24 sensory frames (2 minutes at 5s interval) and computes temporal derivatives via least-squares linear regression, giving the CTRNN a sense of whether things are ramping up, winding down, or volatile.
+- **Temporal cortex CTRNN regions** (row 6 — between sensory and motor bands):
+  - Trend direction (6, 4) σ=1.5 — aggregate derivative sign: positive = ramping up
+  - Volatility (6, 8) σ=2.0 — sum of |derivatives|: high = rapid change
+  - Coherence (6, 12) σ=1.5 — channel correlation: high = coordinated shift
+- **Three aggregate signals**: trend (weighted mean of per-channel derivatives), volatility (mean of |derivatives|), coherence (fraction of moving channels sharing dominant direction)
+- **Derivative computation**: `linearSlope(values)` — least-squares linear regression over buffer, more robust than simple difference
+- **Trend spikes** (volatility > 0.4) published to `system.working-memory.trend-spike` bus topic
+- Runs synchronously (called by sensory bridge each cycle via `updateWorkingMemory(frame)`)
+- Consciousness-aware: sensitivity = BASE_TEMPORAL_SENSITIVITY(0.6) + (evolutionRate - 1.0) * 0.3, clamped [0.2, 1.2]
+- `queryWorkingMemory({ channel, lastN })` — query API for per-channel or aggregate temporal data
+- `resetWorkingMemory()` — clears buffer, called on daemon stop
+- Snapshots every 60th computation to `working_memory_events` table, auto-prunes >7 days
+- Wired into daemon engine: working memory reset on stop, status in getDaemonStatus()
+- DB table: `working_memory_events` (id, derivatives, trend, volatility, coherence, injections, gate_tier, sensitivity, buffer_depth, created_at)
+- 4 REST endpoints: GET /api/intelligence/working-memory, GET .../query, GET .../history, POST .../reset
+- 1 fleet tool: `working_memory_status` (with optional channel query)
+
 ### State Bridge (server/intelligence/state-bridge.js)
 - `state-bridge.js` — Bridges dynamic runtime state with semantic memory. Snapshots autonomy/intelligence/fleet state each daemon cycle, fossilizes into agent_memories (category 'state_fossil') with hash-based dedup and 30-day retention.
 - Three snapshot collectors: collectAutonomyState (OPEG + reflections + neurogenesis), collectIntelligenceState (memories + verifier + daemon + debates), collectFleetState (agents + bus + workflows)
