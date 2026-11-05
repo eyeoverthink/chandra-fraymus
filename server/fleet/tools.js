@@ -14,6 +14,7 @@ import { getSensoryStatus, triggerInjection } from '../intelligence/sensory-brid
 import { getEmotionalFeedbackStatus, triggerEmotionalFeedback } from '../intelligence/emotional-feedback.js';
 import { getMotorOutputStatus, triggerMotorCycle } from '../intelligence/motor-output.js';
 import { getAttentionGateStatus, computeAttentionWeights } from '../intelligence/attention-gate.js';
+import { getHabituationStatus } from '../intelligence/habituation.js';
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
@@ -323,6 +324,18 @@ export function createFleetTools({ workflowStore }) {
         }
         const status = getAttentionGateStatus();
         ledger.record('attention.gate.read', { computations: status.computations, tier: status.gateTier }, 'fleet');
+        return status;
+      },
+    },
+    {
+      name: 'habituation_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Read the habituation system: temporal novelty detection for sensory channels. Tracks rolling signal history per channel and computes novelty factors — constant signals get attenuated (habituation), changing signals get amplified (novelty). Shows per-channel rolling means, window fill, novelty factors, and recent spikes.',
+      parameters: object({}),
+      execute: async () => {
+        const status = getHabituationStatus();
+        ledger.record('habituation.read', { computations: status.computations, spikes: status.totalSpikes, tier: status.gateTier }, 'fleet');
         return status;
       },
     },

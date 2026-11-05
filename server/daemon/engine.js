@@ -14,6 +14,7 @@ import { startSensoryBridge, stopSensoryBridge, getSensoryStatus, setSensoryHear
 import { startEmotionalFeedback, stopEmotionalFeedback, getEmotionalFeedbackStatus, setEmotionalHeart } from '../intelligence/emotional-feedback.js';
 import { startMotorOutput, stopMotorOutput, getMotorOutputStatus, setMotorTargets } from '../intelligence/motor-output.js';
 import { setAttentionSources, getAttentionGateStatus } from '../intelligence/attention-gate.js';
+import { getHabituationStatus, resetHabituation } from '../intelligence/habituation.js';
 import { neurogenesisCycle } from '../intelligence/neurogenesis.js';
 import { heart } from '../fraymus-tools.js';
 
@@ -559,6 +560,8 @@ export function stopDaemon() {
   try { stopEmotionalFeedback(); } catch (_) {}
   // Phase 10: Stop motor output with daemon
   try { stopMotorOutput(); } catch (_) {}
+  // Phase 12: Reset habituation signal history with daemon
+  try { resetHabituation(); } catch (_) {}
   daemonState.running = false;
   daemonState.nextCycleAt = 0;
   return { stopped: true };
@@ -581,6 +584,7 @@ export function getDaemonStatus() {
     emotionalFeedback: getEmotionalFeedbackStatus(),
     motorOutput: getMotorOutputStatus(),
     attentionGate: getAttentionGateStatus(),
+    habituation: getHabituationStatus(),
   };
 }
 

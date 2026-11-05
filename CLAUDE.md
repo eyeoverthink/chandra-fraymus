@@ -209,12 +209,27 @@ npm run start        # production server (serves built client)
 - Runs synchronously (called by sensory bridge each cycle, no own timer)
 - Consciousness-aware: gate evolutionRate scales attention dynamic range (INTEGRATED=wider swings, DORMANT=flatter)
 - Late-binding: `setAttentionSources({ getMotorReadings, getEmotionState })` wired by daemon at startup
-- Sensory bridge integration: `computeAttentionWeights()` returns per-key weights, consumed at `amp = raw * sensitivity * attention`
+- Sensory bridge integration: `computeAttentionWeights()` returns per-key weights, consumed at `amp = raw * sensitivity * attention * novelty`
 - Snapshots every 60th computation to `attention_gate_events` table, auto-prunes >7 days
 - Wired into daemon engine: sources wired at startup, status in getDaemonStatus()
 - DB table: `attention_gate_events` (id, weights, motor_influence, emotion_influence, gate_tier, dynamic_range, created_at)
 - 3 REST endpoints: GET /api/intelligence/attention, GET .../weights, GET .../history
 - 1 fleet tool: `attention_gate_status` (with optional compute)
+
+### Habituation & Novelty Detection (server/intelligence/habituation.js)
+- `habituation.js` — Phase 12: Temporal sensory adaptation. Tracks rolling signal history per sensory channel and computes novelty factors — constant signals get attenuated (habituation), changing signals get amplified (novelty detection). Complement to Phase 11 top-down attention: attention selects WHAT to sense, habituation selects WHEN a signal matters.
+- **Computation**: per-channel rolling mean over last 12 readings (60s window at 5s sensory interval), relative delta = |current − mean| / max(mean, ε), novelty = BASE_NOVELTY(0.7) + delta × noveltyScale × dynamicRange, clamped [0.3, 2.5]
+- **Sensory gain chain**: `amp = raw × sensitivity × attention × novelty` — 4 multiplicative factors, each independent and ranging around 1.0
+- BASE_NOVELTY = 0.7 — constant signals still get 70% through (never fully habituated)
+- **Novelty spikes** (factor > 1.8) published to `system.habituation.spike` bus topic for other subsystems to react to
+- Runs synchronously (called by sensory bridge each cycle via `computeNoveltyFactors(signals)`)
+- Consciousness-aware: gate evolutionRate scales novelty sensitivity (INTEGRATED has wider novelty range, DORMANT is flatter)
+- `resetHabituation()` — clears all signal history, called on daemon stop to prevent stale baselines
+- Snapshots every 60th computation to `habituation_events` table, auto-prunes >7 days
+- Wired into daemon engine: habituation reset on stop, status in getDaemonStatus()
+- DB table: `habituation_events` (id, novelty_factors, spikes, gate_tier, dynamic_range, created_at)
+- 3 REST endpoints: GET /api/intelligence/habituation, GET .../history, POST .../reset
+- 1 fleet tool: `habituation_status`
 
 ### State Bridge (server/intelligence/state-bridge.js)
 - `state-bridge.js` — Bridges dynamic runtime state with semantic memory. Snapshots autonomy/intelligence/fleet state each daemon cycle, fossilizes into agent_memories (category 'state_fossil') with hash-based dedup and 30-day retention.

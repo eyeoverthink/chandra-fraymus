@@ -26,6 +26,7 @@ import { db } from '../db.js';
 import { getCTRNN } from './ctrnn-instance.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
 import { computeAttentionWeights } from './attention-gate.js';
+import { computeNoveltyFactors } from './habituation.js';
 import { randomUUID } from 'node:crypto';
 
 const now = () => Date.now();
@@ -171,11 +172,17 @@ function injectSensorySignals() {
     attentionWeights = computeAttentionWeights();
   } catch (_) {}
 
+  let noveltyFactors = {};
+  try {
+    noveltyFactors = computeNoveltyFactors(signals);
+  } catch (_) {}
+
   const amplitudes = {};
   for (const [key, region] of Object.entries(SENSORY_REGIONS)) {
     const raw = signals[key] || 0;
     const attention = attentionWeights[key] || 1.0;
-    const amp = raw * sensitivity * attention;
+    const novelty = noveltyFactors[key] || 1.0;
+    const amp = raw * sensitivity * attention * novelty;
     amplitudes[key] = Math.round(amp * 1000) / 1000;
     if (amp > 0.01) {
       ctrnn.inject(region.tx, region.ty, region.sigma, amp);
@@ -207,7 +214,7 @@ function injectSensorySignals() {
     } catch (_) {}
   }
 
-  return { signals, amplitudes, attentionWeights, sensitivity, tier: gateMods.tier, tick: ctrnn.tick };
+  return { signals, amplitudes, attentionWeights, noveltyFactors, sensitivity, tier: gateMods.tier, tick: ctrnn.tick };
 }
 
 export function startSensoryBridge() {
