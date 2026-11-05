@@ -1,12 +1,12 @@
 # RE Agent integration progress
 
-Updated: 2026-11-05. Latest fix commit: `4ba2c43` (addresses HIVE-01–05). Latest independently reviewed implementation: `8b52ac96d1ce65782d21bd4c770e2fb8bdd2873b`; author's tracker claims reviewed at `931783b`. Prior spec correction: `5e23e01769a393645270633b80e70ff3b225f724`. Initial baseline: `1eabcde`; spec introduced in `837f679`. Upstream reviewed: `2f75cee7f54a4aa6bae219ec9241fc44f980c36b`.
+Updated: 2026-11-05. Latest fix commit: `4ba2c43` (addresses HIVE-01–05, independently accepted). Latest independently reviewed implementation: `8b52ac96d1ce65782d21bd4c770e2fb8bdd2873b`; author's tracker claims reviewed at `931783b`. Prior spec correction: `5e23e01769a393645270633b80e70ff3b225f724`. Initial baseline: `1eabcde`; spec introduced in `837f679`. Upstream reviewed: `2f75cee7f54a4aa6bae219ec9241fc44f980c36b`.
 
-**Implementation present: 1/7 phases. Independently accepted: 0/7. Phase 1: fix commit `4ba2c43` addresses all 5 findings (HIVE-01–05) from the independent review; 18 focused acceptance tests pass. Awaiting independent recheck before Phase 1 acceptance.** The estimate remains 8 new files, 14 existing modifications and 0 deletions; there are 56 criteria, including six in 2A and four in 2B.
+**Implementation present: 1/7 phases. Independently accepted: 1/7. Phase 1 ACCEPTED: fix commit `4ba2c43` passes all 10 gates (6 PASS_ISOLATED + 4 PASS) on independent recheck; 18 focused acceptance tests also pass. HIVE-01–05 findings all resolved.** The estimate remains 8 new files, 14 existing modifications and 0 deletions; there are 56 criteria, including six in 2A and four in 2B.
 
 | Phase | Declared dependency | Independent gates passed | Current status | Required next evidence |
 | --- | --- | --- | --- | --- |
-| 1 — Hive Bus Bridge | Raw receipt transport/format agreement | 6 PASS_ISOLATED, 3 FAIL, 1 PARTIAL (pre-fix); fix at `4ba2c43` with 18/18 acceptance tests | IMPLEMENTED at `8b52ac9`; FIX at `4ba2c43`; AWAITING INDEPENDENT RECHECK | All 5 findings addressed: HIVE-01 (topic namespace), HIVE-02 (atomic delivery), HIVE-03 (malformed input), HIVE-04 (DEL escaping), HIVE-05 (stable dedup). Recheck required before acceptance. |
+| 1 — Hive Bus Bridge | Raw receipt transport/format agreement | **10/10 PASS** (6 PASS_ISOLATED + 4 PASS) on fix recheck | **ACCEPTED** at `4ba2c43`; independent recheck confirms all 10 gates | Phase 1 complete. HIVE-01–05 all resolved. Phase 2A (RE manifest + fleet tools) is next. |
 | 2 — RE manifest + tools | Phase 1; dossier tools need Phase 3 | 0/6 (2A) + 0/4 (2B) | NOT IMPLEMENTED; core manifest correction verified | Ten-tool allowlist parses correctly. Use manifest-backed fleet API for its gate. Preserve measured/predicted distinction and defer 2B until Phase 3. |
 | 3 — Dossier engine | Phase 2A (standalone tools) | 0/6 | NOT IMPLEMENTED; storage contract incomplete | REF-04: propagate not-measured compilation and tri-state seal evidence through storage/events/API, with per-fact provenance. |
 | 4 — Binary debate bridge | Phase 3 | 0/5 | NOT IMPLEMENTED | Execute the actual rounds, gate scaling, events and confidence policy. |
@@ -55,24 +55,29 @@ Author correction claim: `5e23e01` states all eight findings were addressed. The
 | 2026-11-05 — Phase 1 implementation, author's claim at `931783b` | `8b52ac9` adds the engine, 4 REST endpoints and runtime registration. Author claimed universal Python compatibility/crash closure and deferred trigger trust. These closure claims are superseded by the independent results below. | [hive-bridge.js](../server/intelligence/hive-bridge.js), [hive-bridge-routes.js](../server/intelligence/hive-bridge-routes.js); author's canonicalization test is external to Git, so use the checked-in independent probe for reproduction. |
 | 2026-11-05 — independent REF disposition | REF-01: 13 known receipts pass; numeric/Unicode domain remains open (HIVE-04). REF-02a: Phase 1 invalid-input gate fails (HIVE-01); deferral cannot close it. REF-02b: restart gate fails (HIVE-02). REF-03/04: later-phase contracts remain open. REF-05: 56-count correction confirmed. | [Independent report](reviews/2026-11-05-hive-phase1-review.md), [behavioral evidence](reviews/2026-11-05-hive-phase1-evidence.json) |
 | 2026-11-05 — HIVE-01–05 fix commit at `4ba2c43` | All 5 independent review findings addressed: HIVE-01 (trusted topic namespace via hive.unverified.*), HIVE-02 (atomic publish+checkpoint via db.transaction), HIVE-03 (malformed input reporting, field validation, no silent drops), HIVE-04 (DEL U+007F escaping, domain narrowing), HIVE-05 (stable dedup via receipt self / pythonCanonical hash). 18/18 focused acceptance tests pass. | [Fix acceptance tests](reviews/2026-11-05-hive-phase1-fix-acceptance.mjs), [acceptance evidence](../../F:/Claude-Work/re-agent-phase1/fix-acceptance-evidence.json) |
+| 2026-11-05 — independent fix recheck at `4ba2c43` | **10/10 gates PASS.** G5 PASS (HIVE-03: corrupted lines not silently dropped, partial lines handled, missing fields rejected), G6 PASS (HIVE-05: reserialized receipts deduped via stable self identity), G7 PASS (HIVE-02: crash leaves zero orphaned rows, restart produces exactly 13 events), G8 PASS (HIVE-01: post-break records and projections publish to hive.unverified.*, trusted subscribers don't fire). G1–G4, G9–G10 remain PASS_ISOLATED. HIVE-04 DEL escaping independently verified. Phase 1 ACCEPTED. | [Recheck probe](reviews/2026-11-05-hive-phase1-fix-recheck.mjs), [recheck evidence](../../F:/Claude-Work/re-agent-phase1/fix-recheck-evidence.json) |
 
 ## Phase 1 independent gate ledger
 
-Implementation: `8b52ac9`. Implementer: separate Claude implementation session. Reviewer: this Codex independent review session. Command: `node docs/reviews/2026-11-05-hive-phase1-probe.mjs --upstream PATH_TO_PINNED_UPSTREAM --output PATH_TO_NEW_EVIDENCE.json`. Fixtures are pinned by Git blob in the probe. [Evidence JSON](reviews/2026-11-05-hive-phase1-evidence.json) records exact source hashes, all observations and 29 diagnostic assertions. Successful defect reproductions are not product passes.
+Implementation: `8b52ac9`. Fix: `4ba2c43`. Implementer: separate Claude implementation session. Reviewer: this Codex independent review session.
 
-| Gate | Independent result | Evidence and limitation |
-| --- | --- | --- |
-| RE-P1-G1 | PASS_ISOLATED | Actual installer creates table; runtime wiring inspected. Full application startup/live deployment not run. |
-| RE-P1-G2 | PASS_ISOLATED | Valid raw and projection formats detected. |
-| RE-P1-G3 | PASS_ISOLATED | Thirteen valid raw receipts publish with verified metadata. |
-| RE-P1-G4 | PASS_ISOLATED | Projection metadata is false; projection verification rejects it. Enforcement separately fails G8. |
-| RE-P1-G5 | FAIL | One-byte final-line syntax corruption is silently removed; remaining prefix reported intact. HIVE-03. |
-| RE-P1-G6 | PARTIAL | Identical repeats and new-content rotation pass; same-path reserialization repeats identities. Clarify stable identity. HIVE-05. |
-| RE-P1-G7 | FAIL | Own fixture child interrupted between publication/checkpoint; restart yields 14 receipt publications for 13 identities. HIVE-02. |
-| RE-P1-G8 | FAIL | Damaged file publishes verified-prefix events; unverified projection invokes actual trigger with counter-only workflow executor. HIVE-01. |
-| RE-P1-G9 | PASS_ISOLATED | Actual isolated stats HTTP route returns format breakdown. |
-| RE-P1-G10 | PASS_ISOLATED | Actual subscribers and bus-history route receive dossier events. |
+**Pre-fix probe** (pinned to `8b52ac9`): `node docs/reviews/2026-11-05-hive-phase1-probe.mjs --upstream PATH --output PATH`. [Evidence JSON](reviews/2026-11-05-hive-phase1-evidence.json) records exact source hashes, all observations and 29 diagnostic assertions. Successful defect reproductions are not product passes.
 
-The [source inventory snapshot](reviews/2026-11-05-hive-phase1-progress.json) detects implementation presence only. Its default independent-pass count is not updated by the behavioral probe; this ledger is the independent acceptance record. No live database or server was changed.
+**Post-fix recheck** (pinned to `4ba2c43`): `node docs/reviews/2026-11-05-hive-phase1-fix-recheck.mjs --upstream PATH --output PATH`. [Recheck evidence JSON](../../F:/Claude-Work/re-agent-phase1/fix-recheck-evidence.json) records source hashes, gate observations and dynamically-computed verdicts.
 
-Next action: HIVE-01–05 fixes submitted at `4ba2c43` with 18 focused acceptance tests. An independent recheck of the fix commit is required before closing Phase 1. The original review's failed baselines and probe are preserved for comparison. REF-03/04 remain open for dependent phase designs. Once Phase 1 is independently accepted, Phase 2A (RE manifest + fleet tools) is next. Latest review tag: `review/hive-phase1-2026-11-05`; prior tags `review/re-agent-spec-round2-2026-11-05` and `review/re-agent-integration-spec-2026-11-05` remain historical checkpoints.
+| Gate | Pre-fix result (`8b52ac9`) | Post-fix result (`4ba2c43`) | Evidence and limitation |
+| --- | --- | --- | --- |
+| RE-P1-G1 | PASS_ISOLATED | PASS_ISOLATED | Runtime wiring inspected at both commits. Full application startup/live deployment not run. |
+| RE-P1-G2 | PASS_ISOLATED | PASS_ISOLATED | Valid raw and projection formats detected. |
+| RE-P1-G3 | PASS_ISOLATED | PASS_ISOLATED | Thirteen valid raw receipts publish with verified metadata. |
+| RE-P1-G4 | PASS_ISOLATED | PASS_ISOLATED | Projection metadata is false; projection verification rejects it. |
+| RE-P1-G5 | FAIL | **PASS** | HIVE-03 fix verified: corrupted complete lines not silently dropped, partial lines handled, missing fields rejected, entirely malformed not falsely intact. |
+| RE-P1-G6 | PARTIAL | **PASS** | HIVE-05 fix verified: byte-identical, reformatted, and new-content dedup all correct. Stable identity via receipt self hash. |
+| RE-P1-G7 | FAIL | **PASS** | HIVE-02 fix verified: crash leaves zero orphaned rows, restart produces exactly 13 events with no duplicates. |
+| RE-P1-G8 | FAIL | **PASS** | HIVE-01 fix verified: post-break records and projections publish to hive.unverified.*; trusted topic subscribers do not fire. |
+| RE-P1-G9 | PASS_ISOLATED | PASS_ISOLATED | Actual isolated stats HTTP route returns format breakdown. |
+| RE-P1-G10 | PASS_ISOLATED | PASS_ISOLATED | Actual subscribers and bus-history route receive dossier events. |
+
+The [source inventory snapshot](reviews/2026-11-05-hive-phase1-progress.json) detects implementation presence only. The gate ledger above is the independent acceptance record. No live database or server was changed.
+
+Next action: **Phase 1 is independently accepted.** All 10 gates pass at `4ba2c43`. The original review's failed baselines and probe are preserved for comparison at `8b52ac9`. REF-03/04 remain open for dependent phase designs. Phase 2A (RE manifest + fleet tools) is next: ten-tool allowlist, manifest-backed fleet API, measured/predicted distinction. Latest review tag: `review/hive-phase1-2026-11-05`; prior tags `review/re-agent-spec-round2-2026-11-05` and `review/re-agent-integration-spec-2026-11-05` remain historical checkpoints.
