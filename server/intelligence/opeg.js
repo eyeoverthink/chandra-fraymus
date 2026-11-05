@@ -2,6 +2,7 @@ import { db } from '../db.js';
 import { publish } from '../fleet/bus.js';
 import { randomUUID } from 'node:crypto';
 import { getAutonomyModifiers } from './consciousness-gate.js';
+import { getAdaptiveModifiers } from './adaptive-strategy.js';
 
 const now = () => Date.now();
 const BASE_REGRESSION_TOLERANCE = 10;
@@ -145,7 +146,8 @@ export function sanitize(id) {
 
 function evaluateModification(type, pre, post, execResult) {
   const gateMods = getAutonomyModifiers();
-  const regressionTolerance = Math.round(BASE_REGRESSION_TOLERANCE * gateMods.evolutionRate);
+  const adaptiveMods = getAdaptiveModifiers();
+  const regressionTolerance = Math.round(BASE_REGRESSION_TOLERANCE * gateMods.evolutionRate * (adaptiveMods.opegToleranceScale || 1.0));
   const checks = [];
 
   if (execResult.error || execResult.ok === false) {

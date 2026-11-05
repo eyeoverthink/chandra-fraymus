@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { runPipeline as opegPipeline } from './opeg.js';
 import { forgeAgent } from '../fleet/forge.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
+import { getAdaptiveModifiers } from './adaptive-strategy.js';
 
 const now = () => Date.now();
 
@@ -184,7 +185,11 @@ export async function neurogenesisCycle() {
   let gateMods = { neurogenesisBoost: 0, sampleIndices: [], tier: 'UNKNOWN' };
   try { gateMods = getAutonomyModifiers(); } catch (_) {}
 
-  if (score < CONNECTIVITY_FLOOR) {
+  // Phase 16: adaptive strategy shifts the connectivity floor
+  const adaptiveMods = getAdaptiveModifiers();
+  const effectiveFloor = Math.max(0.05, Math.min(0.30, CONNECTIVITY_FLOOR + (adaptiveMods.neurogenesisFloorAdjust || 0)));
+
+  if (score < effectiveFloor) {
     stimuli.push(await injectStimulus('bus_stimulus', { score, reason: 'Below connectivity floor' }));
     stimuli.push(await injectStimulus('memory_seed', { score, reason: 'Emergency re-ignition' }));
     stimuli.push(await injectStimulus('forge_agent', { score, reason: 'Critical connectivity drop' }));

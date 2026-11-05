@@ -17,7 +17,7 @@ import { setAttentionSources, getAttentionGateStatus } from '../intelligence/att
 import { getHabituationStatus, resetHabituation } from '../intelligence/habituation.js';
 import { getWorkingMemoryStatus, resetWorkingMemory } from '../intelligence/working-memory.js';
 import { startMetacognitiveMonitor, stopMetacognitiveMonitor, getMetacognitiveStatus } from '../intelligence/metacognitive-monitor.js';
-import { getAdaptiveStatus, resetAdaptiveStrategy } from '../intelligence/adaptive-strategy.js';
+import { getAdaptiveStatus, getAdaptiveModifiers, resetAdaptiveStrategy } from '../intelligence/adaptive-strategy.js';
 import { neurogenesisCycle } from '../intelligence/neurogenesis.js';
 import { heart } from '../fraymus-tools.js';
 
@@ -540,7 +540,8 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
   function scheduleNext() {
     if (!daemonState.running) return;
     const mods = getAutonomyModifiers();
-    const effective = Math.max(MIN_CYCLE_MS, Math.round(baseCycleMs * mods.cycleMultiplier));
+    const adaptMods = getAdaptiveModifiers();
+    const effective = Math.max(MIN_CYCLE_MS, Math.round(baseCycleMs * mods.cycleMultiplier * (adaptMods.cycleMultiplier || 1.0)));
     daemonState.effectiveCycleMs = effective;
     daemonState.nextCycleAt = now() + effective;
     daemonState.lastGateTier = mods.tier;

@@ -28,6 +28,7 @@
 import { db } from '../db.js';
 import { getCTRNN } from './ctrnn-instance.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
+import { isActionSuppressed, isActionPreferred } from './adaptive-strategy.js';
 import { publish } from '../fleet/bus.js';
 import { randomUUID } from 'node:crypto';
 
@@ -202,9 +203,18 @@ async function motorCycle() {
     readings[key] = Math.round(activation * 1000) / 1000;
 
     const prevActivation = previousReadings[key] || 0;
-    const sustained = prevActivation >= threshold && activation >= threshold;
+    const preferred = isActionPreferred(key);
+    const effectiveThreshold = preferred ? threshold * 0.85 : threshold;
+    const sustained = prevActivation >= effectiveThreshold && activation >= effectiveThreshold;
 
     if (sustained && !isOnCooldown(key, cooldownMs)) {
+      if (isActionSuppressed(key)) {
+        firings.push({
+          region: key, label: region.label, activation: readings[key],
+          action: region.action, result: 'suppressed',
+        });
+        continue;
+      }
       const result = await fireAction(key, activation, gateMods);
       firings.push({
         region: key,
@@ -212,6 +222,7 @@ async function motorCycle() {
         activation: readings[key],
         action: region.action,
         result: result ? 'ok' : 'no_handler',
+        preferred,
       });
     }
   }

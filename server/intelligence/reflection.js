@@ -6,6 +6,7 @@ import { synthesizeWorkflow } from '../workflow/synthesizer.js';
 import { runPipeline as opegPipeline } from './opeg.js';
 import { runDebate } from './debate.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
+import { getAdaptiveModifiers, isActionSuppressed } from './adaptive-strategy.js';
 import { heart } from '../fraymus-tools.js';
 
 const now = () => Date.now();
@@ -252,7 +253,11 @@ export async function reflect({ trigger = 'manual' } = {}) {
   const state = collectState();
 
   const gateMods = getAutonomyModifiers();
-  const maxActions = gateMods.reflectionDepth || BASE_MAX_ACTIONS;
+  const adaptiveMods = getAdaptiveModifiers();
+  let maxActions = gateMods.reflectionDepth || BASE_MAX_ACTIONS;
+  if (adaptiveMods.reflectionCap !== null && adaptiveMods.reflectionCap < maxActions) {
+    maxActions = adaptiveMods.reflectionCap;
+  }
   const gateTier = gateMods.tier || 'AWAKENING';
 
   const stateStr = JSON.stringify(state, null, 2);
@@ -265,7 +270,13 @@ export async function reflect({ trigger = 'manual' } = {}) {
   const plan = parseReflectionResponse(response, maxActions);
   const results = [];
 
+  const ACTION_SUPPRESSION_MAP = { forge_agent: 'forge', synthesize_workflow: 'synthesize' };
   for (const action of plan.actions) {
+    const suppressKey = ACTION_SUPPRESSION_MAP[action.action];
+    if (suppressKey && isActionSuppressed(suppressKey)) {
+      results.push({ ...action, result: { ok: false, skipped: true, reason: `suppressed by adaptive strategy (${adaptiveMods.strategy})` } });
+      continue;
+    }
     const result = await executeAction(action);
     results.push({ ...action, result });
   }

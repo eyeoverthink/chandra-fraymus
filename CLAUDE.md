@@ -288,6 +288,12 @@ npm run start        # production server (serves built client)
 - DB table: `adaptive_strategy_events` (id, strategy, effectiveness, stuck_score, confidence, modifiers, injections, gate_tier, sensitivity, trigger_reason, created_at)
 - 5 REST endpoints: GET /api/intelligence/adaptive-strategy, GET .../modifiers, GET .../history, GET .../check?action=X, POST .../reset
 - 1 fleet tool: `adaptive_strategy_status` (with optional action check mode)
+- **Phase 16 wiring (adaptive strategy → subsystem consumption)**: adaptive modifiers now consumed by 5 subsystems, closing the second-order feedback loop (metacognitive assessment → adaptive strategy → subsystem behavior → changed outcomes → metacognitive assessment):
+  - `intelligence/reflection.js`: `reflectionCap` caps max actions per cycle below gate's reflectionDepth when adaptive strategy is in conserve/calibrate mode; `isActionSuppressed()` skips forge_agent/synthesize_workflow actions when diversify mode suppresses forge/synthesize
+  - `intelligence/motor-output.js`: `isActionSuppressed()` blocks motor firings for suppressed action types; `isActionPreferred()` lowers firing threshold by 15% for preferred actions (dream/reflect/etc. depending on strategy)
+  - `intelligence/neurogenesis.js`: `neurogenesisFloorAdjust` shifts connectivity floor (conserve: +0.05 = harder to trigger emergency, diversify: -0.03 = easier growth), clamped [0.05, 0.30]
+  - `intelligence/opeg.js`: `opegToleranceScale` multiplied into regression tolerance (calibrate: 0.6× = tighter gates, diversify: 1.2× = more permissive), stacked on consciousness gate's evolutionRate scaling
+  - `daemon/engine.js`: adaptive `cycleMultiplier` stacked on consciousness gate's multiplier (conserve: 1.5× slower cycles, diversify: 0.8× faster cycles)
 
 ### State Bridge (server/intelligence/state-bridge.js)
 - `state-bridge.js` — Bridges dynamic runtime state with semantic memory. Snapshots autonomy/intelligence/fleet state each daemon cycle, fossilizes into agent_memories (category 'state_fossil') with hash-based dedup and 30-day retention.
