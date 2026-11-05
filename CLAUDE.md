@@ -177,6 +177,24 @@ npm run start        # production server (serves built client)
 - 5 REST endpoints: GET /api/intelligence/emotional-feedback, GET .../history, POST .../start, POST .../stop, POST .../trigger
 - 1 fleet tool: `emotional_feedback_status` (with optional trigger)
 
+### Motor Output (server/intelligence/motor-output.js)
+- `motor-output.js` — Phase 10: Reads CTRNN activation patterns from designated motor cortex regions and translates sustained high activation into autonomous system actions, closing the full perception→emotion→cognition→action loop
+- **Motor regions** (6 action zones):
+  - Bottom-left quadrant (self-directed): Reflect (14,2), Neurogenesis (14,6), Dream (14,10), Self-audit (14,14)
+  - Center band (externally-directed): Communicate (8,4), Goal-seek (8,12)
+- Each region reads a 3×3 patch of neurons, averages |tanh(B)| activations
+- **Debounced firing**: activation must exceed threshold for 2 consecutive readings (15s apart) before action fires
+- **Action mapping**: Reflect → `reflect()`, Neurogenesis → `neurogenesisCycle()`, Dream → bus publish to `system.motor.dream`, Self-audit → `runConsciousnessAudit()`, Communicate → bus publish to `system.motor.impulse`, Goal-seek → `generateGoals()`
+- Per-region cooldowns prevent action spam (base 120s, consciousness-scaled)
+- Consciousness-aware: gate evolutionRate inversely scales firing threshold (INTEGRATED fires easier, DORMANT harder) and cooldown duration
+- Runs on its own 15-second interval (actions are expensive; slower than sensory 5s and emotional 10s)
+- Fires bus events on `system.motor.fired` when any region triggers
+- Snapshots fired actions to `motor_output_events` table, auto-prunes >7 days
+- Wired into daemon engine: starts/stops with daemon, motor targets wired to reflect/neurogenesis/consciousness/goals functions, status in getDaemonStatus()
+- DB table: `motor_output_events` (id, tick, region, activation, action_taken, gate_tier, threshold, created_at)
+- 5 REST endpoints: GET /api/intelligence/motor-output, GET .../history, POST .../start, POST .../stop, POST .../trigger
+- 1 fleet tool: `motor_output_status` (with optional trigger)
+
 ### State Bridge (server/intelligence/state-bridge.js)
 - `state-bridge.js` — Bridges dynamic runtime state with semantic memory. Snapshots autonomy/intelligence/fleet state each daemon cycle, fossilizes into agent_memories (category 'state_fossil') with hash-based dedup and 30-day retention.
 - Three snapshot collectors: collectAutonomyState (OPEG + reflections + neurogenesis), collectIntelligenceState (memories + verifier + daemon + debates), collectFleetState (agents + bus + workflows)

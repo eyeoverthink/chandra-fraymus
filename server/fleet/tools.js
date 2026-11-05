@@ -12,6 +12,7 @@ import { runConsciousnessAudit, listAudits as listConsciousnessAudits, getAuditS
 import { getGateStatus as getConsciousnessGateStatus } from '../intelligence/consciousness-gate.js';
 import { getSensoryStatus, triggerInjection } from '../intelligence/sensory-bridge.js';
 import { getEmotionalFeedbackStatus, triggerEmotionalFeedback } from '../intelligence/emotional-feedback.js';
+import { getMotorOutputStatus, triggerMotorCycle } from '../intelligence/motor-output.js';
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
@@ -286,6 +287,24 @@ export function createFleetTools({ workflowStore }) {
         }
         const status = getEmotionalFeedbackStatus();
         ledger.record('emotional.feedback.read', { running: status.running, modulations: status.modulations, tier: status.gateTier }, 'fleet');
+        return status;
+      },
+    },
+    {
+      name: 'motor_output_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Read the motor output loop: CTRNN activation patterns → autonomous actions. Shows 6 motor regions (reflect, neurogenesis, dream, self-audit, communicate, goal-seek) with current activation levels, firing thresholds, cooldown status, and gate tier. Sustained high activation in a region triggers the corresponding system action.',
+      parameters: object({ trigger: { type: 'boolean', default: false, description: 'If true, trigger an immediate motor cycle reading and return fired actions' } }),
+      execute: async ({ args }) => {
+        if (args.trigger) {
+          const result = await triggerMotorCycle();
+          if (!result) return { error: 'CTRNN not running' };
+          ledger.record('motor.output.fleet', { firings: result.firings?.length || 0, tier: result.tier }, 'fleet');
+          return result;
+        }
+        const status = getMotorOutputStatus();
+        ledger.record('motor.output.read', { running: status.running, firings: status.firings, tier: status.gateTier }, 'fleet');
         return status;
       },
     },
