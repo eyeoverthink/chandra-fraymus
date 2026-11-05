@@ -355,6 +355,29 @@ npm run start        # production server (serves built client)
 - 3 REST endpoints: GET /api/intelligence/predictive, GET .../history, POST .../reset
 - 1 fleet tool: `predictive_processing_status` (modes: default status, "history" for recent events)
 
+### Active Inference (server/intelligence/active-inference.js)
+- `active-inference.js` — Phase 20: Prediction Error → Motor Pre-Activation. Implements Karl Friston's Active Inference principle: the organism acts to minimize free energy by biasing motor cortex toward actions that would reduce sensory surprise. Closes the full perception→prediction→action→world→perception loop. Validated by Gemini DREAM: Cycle 109 proprioceptive efference-copy tests (EP3 surprise spike on external perturbation → compensatory motor action).
+- **INFERENCE_MAP**: 8 sensory channels mapped to 6 motor regions with domain-specific weights:
+  - bus → communicate (0.6) + reflect (0.3); memory → reflect (0.5) + dream (0.4)
+  - emotion → dream (0.6) + reflect (0.3); consciousness → selfAudit (0.7) + reflect (0.2)
+  - agent → goalSeek (0.5) + communicate (0.3); health → neurogenesis (0.6) + selfAudit (0.3)
+  - workflow → reflect (0.4) + goalSeek (0.4); goals → goalSeek (0.7) + reflect (0.2)
+- **MOTOR_COORDS**: Motor cortex injection targets — reflect (14,2), neurogenesis (14,6), dream (14,10), selfAudit (14,14), communicate (8,4), goalSeek (8,12)
+- **Active Inference CTRNN regions** (Row 5 — between metacognitive Row 4 and temporal cortex Row 6):
+  - Inference drive (5, 4) σ=2.0 — aggregate motor bias pressure (normalized totalDrive / 3.0)
+  - Action selection (5, 8) σ=1.5 — strongest inference-driven channel's surprise × sensitivity
+  - Effectiveness (5, 12) σ=1.5 — closed-loop action success rate
+- **Closed-loop effectiveness tracking**: Compares previous prediction errors to current; if biased actions reduced error, effectiveness rises (EMA decay 0.92), reinforcing inference drive. If not, effectiveness decays, dampening motor bias.
+- **Motor bias injection**: Prediction errors inject Gaussian stimulus at motor cortex CTRNN coordinates (amplitude = bias × 0.4, σ=1.5), effectively lowering firing thresholds for relevant actions
+- Runs synchronously (called by sensory bridge each 5s cycle, after predictive processing)
+- Consciousness-aware: sensitivity = BASE_INFERENCE_SENSITIVITY(0.5) + (evolutionRate - 1.0) * 0.3, clamped [0.2, 1.2]
+- Bus events on `system.inference.drive` when normalized drive > 0.4 (with strongest channel, biases, effectiveness, tier)
+- Wired into daemon engine: resetActiveInference() on stop, status in getDaemonStatus()
+- DB table: `active_inference_events` (id, motor_biases, inference_drive, strongest_channel, effectiveness, gate_tier, sensitivity, created_at)
+- Snapshots every 60th cycle, auto-prunes >7 days
+- 3 REST endpoints: GET /api/intelligence/active-inference, GET .../history, POST .../reset
+- 1 fleet tool: `active_inference_status` (modes: default status, "history" for recent events)
+
 ### State Bridge (server/intelligence/state-bridge.js)
 - `state-bridge.js` — Bridges dynamic runtime state with semantic memory. Snapshots autonomy/intelligence/fleet state each daemon cycle, fossilizes into agent_memories (category 'state_fossil') with hash-based dedup and 30-day retention.
 - Three snapshot collectors: collectAutonomyState (OPEG + reflections + neurogenesis), collectIntelligenceState (memories + verifier + daemon + debates), collectFleetState (agents + bus + workflows)
