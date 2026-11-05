@@ -335,6 +335,26 @@ npm run start        # production server (serves built client)
 - 7 REST endpoints: GET /api/intelligence/resource-envelope, GET .../pressure, GET .../history, GET .../budgets, POST .../start, POST .../stop, POST .../trigger
 - 1 fleet tool: `resource_envelope_status` (modes: default status, "pressure" quick read, "trigger" force measurement)
 
+### Predictive Processing (server/intelligence/predictive-processing.js)
+- `predictive-processing.js` — Phase 19: Forward model & prediction error — gives the CTRNN the ability to anticipate future states. Based on Karl Friston's Free Energy Principle + cross-system insight from Gemini DREAM: Cycle 108 (efference copy forward model, EP3 cube-root surprise signal).
+- **Forward model**: Uses working memory's temporal derivatives (1st-order via linearSlope) plus computed 2nd-order derivatives (acceleration of change) to project each of 8 sensory channels forward by 1–3 measurement cycles (5–15 seconds) via Taylor expansion: `f(t+h) ≈ f(t) + f'(t)*h + 0.5*f''(t)*h²`
+- **EP3 cube-root compression**: Prediction error compressed via `cbrt(|error|) * sign(error)` — Stevens' power law from psychophysics. Preserves sensitivity to small surprises while compressing large ones.
+- **Efference copy mechanism**: Motor output firings recorded as expected sensory consequences. Motor reflect → memory-writes increase; communicate → bus traffic spike; neurogenesis → health shift; dream → emotion shift; selfAudit → consciousness shift; goalSeek → goals/workflow shift. Rapid decay (0.3 per cycle) — motor effect mostly in first cycle after firing.
+- **CTRNN prediction error regions** (Row 3 — between sensory and metacognitive):
+  - Aggregate surprise (3, 4) σ=2.0 — total prediction error (excitatory when high — drives attention/exploration)
+  - Prediction confidence (3, 8) σ=1.5 — rolling accuracy (excitatory when predictions are accurate — stabilizing signal)
+  - Anticipatory signal (3, 12) σ=1.5 — directional forecast for motor pre-activation
+- **Rolling confidence**: Exponential moving average (decay 0.9) of per-cycle accuracy scores. High confidence = world is predictable = system can conserve resources.
+- **Surprise spikes** (aggregate > 0.4) published to `system.prediction.surprise` bus topic with top 3 error channels
+- Runs synchronously (called by sensory bridge each 5s cycle, after working memory update)
+- Consciousness-aware: sensitivity = BASE_PREDICTION_SENSITIVITY(0.5) + (evolutionRate - 1.0) * 0.3, clamped [0.2, 1.2]
+- Wired into motor-output: `recordEfferenceCopy(regionKey)` called on every successful motor firing
+- Wired into daemon engine: resetPredictions() on stop, status in getDaemonStatus()
+- DB table: `predictive_processing_events` (id, predictions, errors, surprise, confidence, anticipatory, injections, efference, gate_tier, sensitivity, created_at)
+- Snapshots every 60th cycle, auto-prunes >7 days
+- 3 REST endpoints: GET /api/intelligence/predictive, GET .../history, POST .../reset
+- 1 fleet tool: `predictive_processing_status` (modes: default status, "history" for recent events)
+
 ### State Bridge (server/intelligence/state-bridge.js)
 - `state-bridge.js` — Bridges dynamic runtime state with semantic memory. Snapshots autonomy/intelligence/fleet state each daemon cycle, fossilizes into agent_memories (category 'state_fossil') with hash-based dedup and 30-day retention.
 - Three snapshot collectors: collectAutonomyState (OPEG + reflections + neurogenesis), collectIntelligenceState (memories + verifier + daemon + debates), collectFleetState (agents + bus + workflows)
