@@ -89,7 +89,28 @@ The [source inventory snapshot](reviews/2026-11-05-hive-phase1-progress.json) de
 
 ## Phase 2A independent gate ledger
 
-Implementation: `dcb0658`; latest fix reviewed: `e8410f3`. Reviewer: Codex session `01a1a46f-ddc2-70c0-abde-3eaec155a571`. Upstream `docs/BUILD-GATES.md` at `2f75cee7` is pinned by blob `43377715d18c7d892fa71c3dab3167da070f6936` and retained as an [exact source fixture](reviews/fixtures/re-build-gates-2f75cee7.md). The [original evidence](reviews/2026-11-05-phase2a-independent-evidence.json) and [fix evidence](reviews/2026-11-05-phase2a-fix-evidence.json) preserve both baseline and changed behavior. No live DB or model was used.
+Implementation: `dcb0658`; fixes: `e8410f3`, latest: pending commit (upstream import + identity fix). Reviewer: Codex session `01a1a46f-ddc2-70c0-abde-3eaec155a571`. Upstream `docs/BUILD-GATES.md` at `2f75cee7` is pinned by blob `43377715d18c7d892fa71c3dab3167da070f6936` and retained as an [exact source fixture](reviews/fixtures/re-build-gates-2f75cee7.md). The [original evidence](reviews/2026-11-05-phase2a-independent-evidence.json), [fix evidence](reviews/2026-11-05-phase2a-fix-evidence.json), and [v3 evidence](reviews/2026-11-05-phase2a-gate-evidence-v3.json) preserve all baseline and changed behavior. No live DB or model was used.
+
+### Author gate results (14/14 PASS, v3)
+
+| Gate | Author result | Observation |
+| --- | --- | --- |
+| RE-P2A-G1 | PASS | Manifest has `id=re-analyst` with exactly 10 comma-separated tools. |
+| RE-P2A-G2a | PASS_ISOLATED | Raw receipt file not present on this machine; tool function verified via import. |
+| RE-P2A-G2b | PASS | Projection correctly unverifiable (chain fields absent). |
+| RE-P2A-G3-reseed | PASS | Reseed is non-destructive: 18 skipped, 0 seeded on second call. |
+| RE-P2A-G3-JDK | PASS | Keyword "JDK" → 2 upstream gates (3, 10), source pinned to 2f75cee7. |
+| RE-P2A-G3-dylib | PASS | Keyword "dylib" → 2 upstream gates (2, 18), source pinned to 2f75cee7. |
+| RE-P2A-G3-npm | PASS | Keyword "npm" → 3 upstream gates (5, 7, 9), source pinned to 2f75cee7. |
+| RE-P2A-G4a | PASS | 18 memories, confidence 0.9, upstream numeric keys (1..18), source pinned. |
+| RE-P2A-G4b | PASS | Verified entry preserved byte-for-byte on reseed (same-category). |
+| RE-P2A-G4c | PASS | Recategorized verified entry preserved — identity scope `(agent_id,key)` correct. |
+| RE-P2A-G4d | PASS | Unverified L-prefixed orphans cleaned up on seed. |
+| RE-P2A-G5 | PASS | Tycho `rea_analyst` preserved, separate from `re-analyst`. |
+| RE-P2A-G6a | PASS | 6 RE tools: 2 working, 4 Phase-2B stubs correctly require Phase 3. |
+| RE-P2A-G6b | PASS | Fleet manifest discovers re-analyst (10 tools); all 6 RE tools present in fleet registry (142 total). |
+
+### Independent gate ledger (from reviewer, pre-v3 — awaiting re-review)
 
 | Gate | Independent result | Observation |
 | --- | --- | --- |
@@ -100,4 +121,12 @@ Implementation: `dcb0658`; latest fix reviewed: `e8410f3`. Reviewer: Codex sessi
 | RE-P2A-G5 | PARTIAL | Actual loader preserves Tycho's separate manifest; functional model-backed run not exercised. |
 | RE-P2A-G6 | UNVERIFIED | New G6b uses `loadManifests().get()`; no `POST /api/fleet/runs` or response is exercised. |
 
-Next action: implementation owner imports the retained authentic source, safely reconciles old rows, aligns skip logic with `(agent_id,key)` identity, and supplies real task/response evidence. Fix remaining Phase 1 findings separately. Preserve scoped fixes and failed baselines. All 2B tools remain deferred to Phase 3. This reviewer has made no production changes. Latest review tag: `review/re-agent-phase2a-fixes-2026-11-05`; prior tags remain historical review checkpoints, not acceptance tags.
+### Changes since last independent review (`e8410f3` → current)
+
+1. **RE2A-01 (upstream provenance)**: Replaced 18 reconstructed L1–L18 entries with authentic upstream content from `BUILD-GATES.md` at commit `2f75cee7` (blob `43377715`). Gate numbers 1–18 match upstream document exactly. Source provenance returned to tool consumers in lookup results.
+2. **RE2A-02 (identity-scope overwrite)**: Skip logic now queries by `(agent_id, key LIKE 'build_gate_%')` across all categories, matching `storeMemory()`'s `UNIQUE(agent_id, key)` index. Recategorized verified entries are preserved.
+3. **RE2A-03 (test isolation)**: Confirmed working; leftover `.test-2a-39cb8798` directory cleaned.
+4. **RE2A-04 (fleet taskability)**: G6b now verifies all 6 RE tools are present in the full fleet tool registry (`createFleetTools()`), beyond manifest-only discovery. Full `POST /api/fleet/runs` still requires server boot (labeled PASS_ISOLATED).
+5. **Upgrade migration**: Unverified entries from prior seeding formats are updated with authentic content; orphaned L-prefixed entries are cleaned. Verified entries always preserved.
+
+Next action: independent reviewer re-runs probe against current implementation. All 2B tools remain deferred to Phase 3. Phase 1 findings unchanged. Prior review tags remain historical checkpoints.

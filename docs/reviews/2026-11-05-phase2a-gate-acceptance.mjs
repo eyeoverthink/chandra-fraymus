@@ -5,9 +5,9 @@
  * 1. re-analyst manifest discovered with exactly 10 tools (not wildcard)
  * 2. re.verify_chain returns chain status
  * 3. re.build_gate_lookup returns relevant gates for keywords
- * 4. 18 build-gate memories at confidence 0.9
+ * 4. 18 build-gate memories at confidence 0.9 with upstream provenance
  * 5. Existing Tycho rea_analyst still functions
- * 6. RE Analyst taskable via fleet API (manifest loadable + tools registered)
+ * 6. RE Analyst taskable via fleet API (manifest + tool registry)
  *
  * DATABASE ISOLATION: This test creates a disposable database in a temp
  * directory via CHANDRA_DATA_DIR. The live data/chandra.db is never touched.
@@ -149,22 +149,30 @@ try {
 
   // Verify reseed is non-destructive: calling again should skip all 18
   const reseedResult = seedBuildGates();
-  if (reseedResult.skipped !== 18) throw new Error(`Reseed should skip all 18, got ${reseedResult.seeded} seeded, ${reseedResult.skipped} skipped`);
+  if (reseedResult.skipped !== 18) throw new Error(`Reseed should skip all 18, got ${reseedResult.seeded} seeded, ${reseedResult.skipped} skipped, ${reseedResult.updated} updated`);
   gate('RE-P2A-G3-reseed', 'PASS', 'Reseed is non-destructive: 18 skipped, 0 seeded on second call');
 
   const tools = createRETools();
   const lookupTool = tools.find(t => t.name === 're.build_gate_lookup');
   if (!lookupTool) throw new Error('re.build_gate_lookup tool not found');
 
-  // Test keyword searches
+  // Test keyword searches using upstream keywords
   const keywords = ['JDK', 'dylib', 'npm'];
   for (const kw of keywords) {
     const result = await lookupTool.execute({ args: { keyword: kw } });
     if (!result.gates || result.gates.length === 0) {
       throw new Error(`No gates found for keyword "${kw}"`);
     }
-    const gateIds = result.gates.map(g => g.localId).join(', ');
-    gate(`RE-P2A-G3-${kw}`, 'PASS', `Keyword "${kw}" → ${result.matches} gate(s): [${gateIds}]`);
+    // Verify upstream gate format: numeric gate number, not localId
+    const gateNums = result.gates.map(g => g.gate);
+    if (gateNums.some(n => typeof n !== 'number')) {
+      throw new Error(`Expected numeric gate numbers, got: ${JSON.stringify(gateNums)}`);
+    }
+    // Verify source provenance is returned to tool consumers
+    if (!result.gates[0].source) {
+      throw new Error(`Lookup result missing source provenance for keyword "${kw}"`);
+    }
+    gate(`RE-P2A-G3-${kw}`, 'PASS', `Keyword "${kw}" → ${result.matches} gate(s): [${gateNums.join(', ')}], source="${result.gates[0].source}"`);
   }
 } catch (e) {
   gate('RE-P2A-G3', 'FAIL', e.message);
@@ -175,7 +183,8 @@ try {
 console.log('\n═══ Gate 2A-4: Build Gate Memories ═══');
 
 try {
-  const { recallMemories } = await import(pathToFileURL(resolve(ROOT, 'server/fleet/agent-memory.js')).href);
+  const { recallMemories, storeMemory, verifyMemory } = await import(pathToFileURL(resolve(ROOT, 'server/fleet/agent-memory.js')).href);
+  const { db: testDb } = await import(pathToFileURL(resolve(ROOT, 'server/db.js')).href);
   const memories = recallMemories('re-analyst', { category: 'build_gate', limit: 100 });
 
   if (memories.length !== 18) throw new Error(`Found ${memories.length} build_gate memories, expected 18`);
@@ -185,19 +194,62 @@ try {
     throw new Error(`${wrongConfidence.length} memories have wrong confidence: ${wrongConfidence.map(m => `${m.key}=${m.confidence}`).join(', ')}`);
   }
 
-  const at1_0 = memories.filter(m => m.confidence === 1.0);
-  if (at1_0.length > 0) {
-    throw new Error(`${at1_0.length} memories incorrectly at confidence 1.0 — not reproduced on this machine`);
+  // Verify keys use upstream numeric format, not L-prefix
+  const hasUpstreamKeys = memories.every(m => /^build_gate_\d+$/.test(m.key));
+  if (!hasUpstreamKeys) {
+    const badKeys = memories.filter(m => !/^build_gate_\d+$/.test(m.key)).map(m => m.key);
+    throw new Error(`Keys should use upstream format (build_gate_1..18), found: ${badKeys.join(', ')}`);
   }
 
-  // Verify keys use localId format, not upstream gate numbers
-  const hasLocalIdKeys = memories.every(m => /^build_gate_L\d+$/.test(m.key));
-  if (!hasLocalIdKeys) {
-    const badKeys = memories.filter(m => !/^build_gate_L\d+$/.test(m.key)).map(m => m.key);
-    throw new Error(`Keys should use localId format (build_gate_L1..L18), found: ${badKeys.join(', ')}`);
+  // Verify upstream source provenance
+  const wrongSource = memories.filter(m => !m.source.includes('2f75cee7'));
+  if (wrongSource.length > 0) {
+    throw new Error(`${wrongSource.length} memories have wrong source: ${wrongSource[0].source}`);
   }
 
-  gate('RE-P2A-G4', 'PASS', `18 build_gate memories stored, all at confidence 0.9, localId keys (L1..L18)`);
+  gate('RE-P2A-G4a', 'PASS', `18 build_gate memories stored, all at confidence 0.9, upstream keys (1..18), source pinned to 2f75cee7`);
+
+  // G4b: Verified entries survive reseed (same-category preservation)
+  const firstMemory = memories[0];
+  storeMemory('re-analyst', 'build_gate', firstMemory.key, 'LOCALLY_VERIFIED_CORRECTION', { confidence: 1.0, source: 'local reproduction' });
+  verifyMemory(firstMemory.id);
+
+  const { seedBuildGates } = await import(pathToFileURL(resolve(ROOT, 'server/fleet/re-tools.js')).href);
+  const before = testDb.prepare(`SELECT * FROM agent_memories WHERE id = ?`).get(firstMemory.id);
+  const reseedResult = seedBuildGates();
+  const after = testDb.prepare(`SELECT * FROM agent_memories WHERE id = ?`).get(firstMemory.id);
+
+  if (before.value !== after.value) throw new Error('Verified entry value was overwritten on reseed');
+  if (before.confidence !== after.confidence) throw new Error('Verified entry confidence was changed on reseed');
+  if (before.source !== after.source) throw new Error('Verified entry source was changed on reseed');
+  if (before.verified_at !== after.verified_at) throw new Error('Verified entry verification stamp was changed on reseed');
+  gate('RE-P2A-G4b', 'PASS', 'Verified entry preserved byte-for-byte on reseed');
+
+  // G4c: Cross-category identity protection — recategorized entries survive
+  const secondMemory = memories[1];
+  // Recategorize to local_fix (different category, same key identity)
+  storeMemory('re-analyst', 'local_fix', secondMemory.key, 'RECLASSIFIED_CORRECTION', { confidence: 1.0, source: 'local fix' });
+  verifyMemory(secondMemory.id);
+
+  const beforeRecat = testDb.prepare(`SELECT * FROM agent_memories WHERE agent_id = ? AND key = ?`).get('re-analyst', secondMemory.key);
+  seedBuildGates();
+  const afterRecat = testDb.prepare(`SELECT * FROM agent_memories WHERE agent_id = ? AND key = ?`).get('re-analyst', secondMemory.key);
+
+  if (beforeRecat.category !== afterRecat.category) throw new Error(`Recategorized entry's category was changed: ${beforeRecat.category} → ${afterRecat.category}`);
+  if (beforeRecat.value !== afterRecat.value) throw new Error('Recategorized entry value was overwritten');
+  if (beforeRecat.confidence !== afterRecat.confidence) throw new Error('Recategorized entry confidence was changed');
+  gate('RE-P2A-G4c', 'PASS', 'Recategorized verified entry preserved across seed — identity scope correct');
+
+  // G4d: Upgrade migration — old L-prefixed entries are cleaned
+  // Simulate old L-format entries
+  storeMemory('re-analyst', 'build_gate', 'build_gate_L99', 'OLD_RECONSTRUCTED', { confidence: 0.9, source: 'Reconstructed' });
+  const beforeClean = testDb.prepare(`SELECT * FROM agent_memories WHERE agent_id = ? AND key = 'build_gate_L99'`).get('re-analyst');
+  if (!beforeClean) throw new Error('Failed to insert test L-prefix entry');
+  seedBuildGates();
+  const afterClean = testDb.prepare(`SELECT * FROM agent_memories WHERE agent_id = ? AND key = 'build_gate_L99'`).get('re-analyst');
+  if (afterClean) throw new Error('Unverified L-prefixed orphan was NOT cleaned up');
+  gate('RE-P2A-G4d', 'PASS', 'Unverified L-prefixed orphans cleaned up on seed');
+
 } catch (e) {
   gate('RE-P2A-G4', 'FAIL', e.message);
 }
@@ -236,7 +288,7 @@ try {
   gate('RE-P2A-G5', 'FAIL', e.message);
 }
 
-// ─── Gate 2A-6: RE Analyst tool registration + taskability ──────
+// ─── Gate 2A-6: Tool Registration + Fleet Taskability ─────────
 
 console.log('\n═══ Gate 2A-6: Tool Registration + Taskability ═══');
 
@@ -275,7 +327,7 @@ try {
 
   gate('RE-P2A-G6a', 'PASS', '6 RE tools registered: 2 Gate-2A working, 4 Gate-2B stubs correctly require Phase 3');
 
-  // Taskability: verify the manifest loader can discover re-analyst
+  // G6b: Fleet manifest loader + tool registry verification
   const { loadManifests } = await import(pathToFileURL(resolve(ROOT, 'server/fleet/manifest.js')).href);
   const manifests = loadManifests();
   const reAgent = manifests.get('re-analyst');
@@ -284,7 +336,18 @@ try {
     throw new Error(`Fleet loader parsed ${Array.isArray(reAgent.tools) ? reAgent.tools.length : 'wildcard'} tools, expected 10`);
   }
 
-  gate('RE-P2A-G6b', 'PASS', `Fleet manifest loader discovers re-analyst with ${reAgent.tools.length} tools — agent is taskable`);
+  // Verify the agent's RE tools are ALL present in the full fleet tool registry
+  const { createFleetTools } = await import(pathToFileURL(resolve(ROOT, 'server/fleet/tools.js')).href);
+  const allFleetTools = createFleetTools({ workflowStore: null });
+  const allFleetToolNames = new Set(allFleetTools.map(t => t.name));
+
+  const agentReTools = reAgent.tools.filter(t => t.startsWith('re.'));
+  const missingFromRegistry = agentReTools.filter(t => !allFleetToolNames.has(t));
+  if (missingFromRegistry.length > 0) {
+    throw new Error(`Agent declares RE tools not in fleet registry: ${missingFromRegistry.join(', ')}`);
+  }
+
+  gate('RE-P2A-G6b', 'PASS', `Fleet manifest discovers re-analyst with ${reAgent.tools.length} tools; all ${agentReTools.length} RE tools present in fleet registry (${allFleetTools.length} total tools)`);
 } catch (e) {
   gate('RE-P2A-G6', 'FAIL', e.message);
 }
@@ -305,9 +368,8 @@ const evidence = {
   gates: results,
   summary: { passed, failed, total: results.length },
   limitations: [
-    'G2a: raw receipt file not present on this machine (PASS_ISOLATED)',
-    'G6b: fleet taskability verified via manifest loader, not full POST /api/fleet/runs (no server boot)',
-    'Build gate local IDs (L1-L18) are reconstructed from context, not verified against upstream BUILD-GATES.md numbering',
+    'G2a/b: raw receipt files not present on this machine (PASS_ISOLATED)',
+    'G6b: fleet taskability verified via manifest loader + tool registry, not full POST /api/fleet/runs (no server boot)',
   ],
 };
 

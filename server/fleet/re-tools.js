@@ -7,57 +7,100 @@ const RE_AGENT_ID = 're-analyst';
 const string = (maxLength, extra = {}) => ({ type: 'string', maxLength, ...extra });
 const object = (properties, required = []) => ({ type: 'object', properties, required });
 
-// ─── 18 reconstructed build gates ───────────────────────────────
-// Lessons from the upstream RE toolchain (darwin-arm64), reconstructed
-// from context. LOCAL IDs (L1–L18) are NOT upstream gate numbers —
-// the actual BUILD-GATES.md numbering lives on the iMac and has not
-// been verified on this machine. When the upstream file is available,
-// re-key these entries to match its numbering.
-// Stored at confidence 0.9 — not reproduced on this Windows machine.
+// ─── 18 upstream build gates ──────────────────────────────────
+// Authentic lessons from BUILD-GATES.md at upstream commit 2f75cee7
+// (Git blob 43377715d18c7d892fa71c3dab3167da070f6936).
+// Gate numbers 1–18 match the upstream document's numbering exactly.
+// Stored at confidence 0.9 — observed on darwin-arm64, not this machine.
 // Confidence upgraded to 1.0 only when independently reproduced locally.
 
+const UPSTREAM_SOURCE = 'BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)';
+
 const BUILD_GATES = [
-  { localId: 'L1', keyword: 'JDK', title: 'JDK 25 required for Ghidra 12.3 DEV', fix: 'Install JDK 25 EA (Temurin or Oracle). Ghidra 12.3 DEV will not start on JDK 17 or 21 — the analyzeHeadless script checks JAVA_HOME version and exits with "Unsupported JDK" if < 25.' },
-  { localId: 'L2', keyword: 'JAVA_HOME', title: 'JAVA_HOME must point to JDK 25 installation', fix: 'Export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home before running Ghidra. Shell profiles may override — verify with `java -version` in the same shell.' },
-  { localId: 'L3', keyword: 'Ghidra', title: 'Ghidra headless analyzer timeout per function', fix: 'Set GhidraScript timeout to 90 seconds per function via -scriptTimeout 90. Without this, complex functions (switch tables, deeply nested loops) hang the pipeline indefinitely.' },
-  { localId: 'L4', keyword: 'dylib', title: 'radare2 dylib linking fails on ARM macOS', fix: 'Build radare2 from source with `sys/install.sh` instead of Homebrew. The Homebrew bottle links against x86_64 dylibs on some mixed-arch systems. Verify with `file $(which r2)` showing arm64.' },
-  { localId: 'L5', keyword: 'rabin2', title: 'rabin2 -i import count mismatch with Ghidra', fix: 'rabin2 -i counts PLT stub entries (92 for /bin/ls). Ghidra counts unique import symbols (78). Use rabin2 for triage speed and Ghidra for accuracy — the 14-entry gap is PLT aliases and versioned symbols.' },
-  { localId: 'L6', keyword: 'clang', title: 'clang -fsyntax-only needs stub headers for decompiled C', fix: 'Decompiled C references Ghidra-generated types (undefined4, byte, etc.). Create a ghidra_types.h stub with typedefs before running clang. Without it, every function fails on the first Ghidra type.' },
-  { localId: 'L7', keyword: 'Python', title: 'Python 3.12+ required for fra-annotate.py walrus operator', fix: 'The annotation script uses := (walrus operator, PEP 572) and match/case (PEP 634). Requires Python 3.12+. macOS ships 3.9 — install via pyenv or Homebrew.' },
-  { localId: 'L8', keyword: 'Ollama', title: 'Ollama model pull required before first annotation run', fix: 'fra-annotate.py calls llama3 and phi3/qwen3.5 without checking availability. Run `ollama pull llama3 && ollama pull phi3` before the first pipeline run or the script fails with connection refused.' },
-  { localId: 'L9', keyword: 'split', title: 'fra-eval.py re.split() produces 181 fragments from 136 functions', fix: 'The upstream evaluator uses re.split() on function markers, which creates empty strings at boundaries. Use re.findall() with the marker pattern instead — this correctly produces 136 function records.' },
-  { localId: 'L10', keyword: 'npm', title: 'rea-agents npm install fails on native modules', fix: 'The rea-agents orchestrator (5,810 TS files) has native deps that require node-gyp + Python + make. On macOS ARM, ensure Xcode CLT is installed: `xcode-select --install`. Some deps need `npm rebuild` after arch switch.' },
-  { localId: 'L11', keyword: 'seal', title: 'Dossier seal includes ghidra.log which is not committed', fix: 'The pipeline seals every file in the dossier directory including ghidra.log. The committed subset excludes ghidra.log, so seal recomputation from committed files will not match. This is NOT tampering — it is a missing file.' },
-  { localId: 'L12', keyword: 'PATH', title: 'Pipeline scripts assume tools on PATH', fix: 'fra-pipeline.sh calls r2, ghidra, clang, python3 by bare name. All must be on PATH. Create a .env or wrapper script that prepends /opt/homebrew/bin:/usr/local/bin and the Ghidra support directory.' },
-  { localId: 'L13', keyword: 'timeout', title: 'Hive nightly cron must complete before next run', fix: 'hive-nightly.sh uses scp over Tailnet (100.x.x.x) to push projections. If the previous run is still transferring (large dossier), launchd fires a second instance. Add a lockfile check at the top of the script.' },
-  { localId: 'L14', keyword: 'receipt', title: 'Receipt chain breaks if hive-receipts.py crashes mid-append', fix: 'The append-only JSONL chain expects prev=last_self. If the process crashes after writing prev but before computing self, the chain is permanently broken. Atomic write: compose full JSON line in memory, then single write() call.' },
-  { localId: 'L15', keyword: 'import', title: 'Import verification only confirms 3 of 78 Ghidra imports', fix: 'Ghidra marks 78 imports but only printf, putchar, strlen appear in the decompiled bodies. The other 75 are called indirectly via PLT stubs that Ghidra decompiles as FUN_ addresses. Import count != verified count.' },
-  { localId: 'L16', keyword: 'annotation', title: 'qwen3.5 think-block contaminates annotations', fix: 'qwen3.5 sometimes emits <think>...</think> blocks in its annotation output. The parser does not strip these, so annotations contain reasoning traces. Filter with regex before storing: re.sub(r"<think>.*?</think>", "", text, flags=re.S).' },
-  { localId: 'L17', keyword: 'Tailnet', title: 'Tailnet DNS resolution fails for Windows target', fix: 'hive-nightly.sh uses the Tailnet hostname (e.g., desktop-xyz) which requires MagicDNS. If MagicDNS is disabled, use the 100.x.x.x IP directly. Check with `tailscale status` on both machines.' },
-  { localId: 'L18', keyword: 'permission', title: 'Ghidra project directory needs write permission for headless mode', fix: 'analyzeHeadless creates a .gpr/.rep project in the specified directory. If running as a different user (e.g., via cron), the directory may not be writable. Set permissions or use a per-user temp project path.' },
+  { gate: 1, keyword: 'sudo', title: 'r2 sys/install.sh — sudo hang', fix: './configure --prefix=$HOME/fraymus-re/tools/r2 && make install — user-owned prefix, zero elevation.' },
+  { gate: 2, keyword: 'dylib', title: 'r2 dylib path decay', fix: 'export DYLD_FALLBACK_LIBRARY_PATH=$HOME/fraymus-re/tools/r2/lib (saved to tools/r2/r2env.sh).' },
+  { gate: 3, keyword: 'JDK', title: 'Ghidra JDK 21 daemon crash', fix: 'brew install openjdk@25, JAVA_HOME=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home.' },
+  { gate: 4, keyword: 'flatRepo', title: 'Ghidra build #3 — missing flat repo', fix: './gradlew -I gradle/support/fetchDependencies.gradle init before buildGhidra.' },
+  { gate: 5, keyword: 'npm', title: 'rea engine gate (EBADENGINE)', fix: '--engine-strict=false for install, but see gate 6 for genuine runtime incompatibility.' },
+  { gate: 6, keyword: 'runtime', title: 'rea genuine runtime incompat', fix: 'brew install node@24 side-by-side, PATH-prefix /opt/homebrew/opt/node@24/bin for rea builds only.' },
+  { gate: 7, keyword: 'install-scripts', title: 'npm 11 install-scripts block', fix: 'npm install-scripts approve esbuild fsevents then reinstall/build.' },
+  { gate: 8, keyword: 'git', title: 'rea prepare.mjs needs .git', fix: 'git init + snapshot commit in rea-main.' },
+  { gate: 9, keyword: 'entrypoint', title: 'rea entrypoint law', fix: 'Run node scripts/rea.mjs --version; runtime self-diagnoses missing build — npm ci && npm run build:cached.' },
+  { gate: 10, keyword: 'TTY', title: 'Ghidra JDK prompt with no TTY', fix: 'java -cp support/LaunchSupport.jar LaunchSupport $GH -jdk_home -save with JAVA_HOME set.' },
+  { gate: 11, keyword: 'analyzeHeadless', title: 'Bad argument: /bin/ls', fix: '-import /bin/ls (flag is mandatory for analyzeHeadless).' },
+  { gate: 12, keyword: 'ghidra-projects', title: 'Directory not found (ghidra-projects)', fix: 'mkdir -p ~/fraymus-re/ghidra-projects first.' },
+  { gate: 13, keyword: 'PyGhidra', title: 'Ghidra 12 headless python = gone', fix: 'Java GhidraScript (decompile_all.java) + -process ls -noanalysis -scriptPath -postScript. Result: 136 functions, 5152 lines of C.' },
+  { gate: 14, keyword: 'brew', title: 'Node runtime heals itself via brew', fix: 'brew upgrade node — v26.13.0 (>= their pin), simdjson decay gone.' },
+  { gate: 15, keyword: 'gradle', title: 'ReVa gradle root confusion', fix: 'Build at repo ROOT with Gradle 9.1+ via gradle directly (not ./gradlew), with GHIDRA_INSTALL_DIR + JAVA_HOME set.' },
+  { gate: 16, keyword: 'setuptools', title: 'setuptools-scm needs git metadata', fix: 'git init + snapshot commit, then pip install -e . — mcp-reva --help.' },
+  { gate: 17, keyword: 'regex', title: 'FRA score v1 verified nothing — regex fault', fix: 'Proper column parse for rabin2 -i + per-model token budgets. Verified result: 3/78 (printf, putchar, strlen).' },
+  { gate: 18, keyword: 'r2ai', title: 'r2ai build gates', fix: 'Pass R2USRPLUGDIR/R2BINDIR/R2MANDIR explicitly, bypass r2check with make -o r2check, set PKG_CONFIG_PATH, rename dylib, use positional args not -q.' },
 ];
 
-// ─── Build-gate seeding (non-destructive) ───────────────────────
-// Only inserts NEW gates. Existing memories are never overwritten,
-// so local confidence upgrades (0.9 → 1.0) and verified_at flags
-// survive server restarts.
+// ─── Build-gate seeding (non-destructive + upgrade-safe) ──────
+// Identity scope matches storeMemory's UNIQUE(agent_id, key) index:
+// skip logic queries by key across ALL categories, so recategorized
+// entries are never silently overwritten. Verified entries are always
+// preserved regardless of category. Unverified entries from prior
+// seeding formats are updated with authentic upstream content.
+// Orphaned L-prefixed entries (from the e8410f3 reconstructed format)
+// are cleaned up if unverified.
 
 export function seedBuildGates() {
   let seeded = 0;
   let skipped = 0;
-  const existingKeys = new Set(
-    db.prepare(`SELECT key FROM agent_memories WHERE agent_id = ? AND category = 'build_gate'`)
+  let updated = 0;
+  let cleaned = 0;
+
+  // Query ALL existing keys for this agent with build_gate prefix — any category.
+  // This matches storeMemory's (agent_id, key) identity scope.
+  const existingByKey = new Map(
+    db.prepare(`SELECT key, category, confidence, verified_at, source FROM agent_memories WHERE agent_id = ? AND key LIKE 'build_gate_%'`)
       .all(RE_AGENT_ID)
-      .map(r => r.key)
+      .map(r => [r.key, r])
   );
+
   for (const g of BUILD_GATES) {
-    const key = `build_gate_${g.localId}`;
-    if (existingKeys.has(key)) { skipped++; continue; }
-    const value = JSON.stringify({ localId: g.localId, keyword: g.keyword, title: g.title, fix: g.fix });
-    storeMemory(RE_AGENT_ID, 'build_gate', key, value, { confidence: 0.9, source: 'Reconstructed from upstream context (not verified against BUILD-GATES.md)' });
-    seeded++;
+    const key = `build_gate_${g.gate}`;
+    const existing = existingByKey.get(key);
+
+    if (existing && existing.verified_at) {
+      // Locally verified — preserve regardless of category or content
+      skipped++;
+      continue;
+    }
+
+    const value = JSON.stringify({ gate: g.gate, keyword: g.keyword, title: g.title, fix: g.fix });
+
+    if (existing) {
+      // Check if content and source already match — skip needless DB writes
+      const currentValue = db.prepare(`SELECT value, source FROM agent_memories WHERE agent_id = ? AND key = ?`).get(RE_AGENT_ID, key);
+      if (currentValue && currentValue.value === value && currentValue.source === UPSTREAM_SOURCE) {
+        skipped++;
+        continue;
+      }
+      // Exists but content differs or not verified — update with authentic upstream content
+      storeMemory(RE_AGENT_ID, 'build_gate', key, value, { confidence: 0.9, source: UPSTREAM_SOURCE });
+      updated++;
+    } else {
+      // New entry
+      storeMemory(RE_AGENT_ID, 'build_gate', key, value, { confidence: 0.9, source: UPSTREAM_SOURCE });
+      seeded++;
+    }
   }
-  return { seeded, skipped, total: BUILD_GATES.length };
+
+  // Clean up orphaned L-prefixed entries from the e8410f3 reconstructed format
+  const orphanedKeys = [...existingByKey.keys()].filter(k => /^build_gate_L\d+$/.test(k));
+  for (const key of orphanedKeys) {
+    const entry = existingByKey.get(key);
+    if (!entry.verified_at) {
+      db.prepare(`DELETE FROM agent_memories WHERE agent_id = ? AND key = ?`).run(RE_AGENT_ID, key);
+      cleaned++;
+    }
+    // Verified L-entries are preserved as historical local corrections
+  }
+
+  return { seeded, skipped, updated, cleaned, total: BUILD_GATES.length };
 }
 
 // ─── RE fleet tools ──────────────────────────────────────────────
@@ -81,7 +124,7 @@ export function createRETools() {
       name: 're.build_gate_lookup',
       group: 'fleet',
       risk: 'safe',
-      description: 'Search known build failure patterns (gates) from upstream BUILD-GATES.md by keyword.',
+      description: 'Search known build failure patterns (gates) from upstream BUILD-GATES.md (2f75cee7) by keyword. Returns gate number, title, fix, provenance, confidence, and verification status.',
       parameters: object({
         keyword: string(200, { description: 'Keyword to search for in build gate entries (e.g., "JDK", "dylib", "npm").' }),
       }, ['keyword']),
@@ -90,8 +133,8 @@ export function createRETools() {
         if (!keyword) throw new Error('keyword required');
         const memories = recallMemories(RE_AGENT_ID, { category: 'build_gate', query: keyword, limit: 18 });
         const gates = memories.map(m => {
-          try { return { ...JSON.parse(m.value), confidence: m.confidence, verified: !!m.verified_at }; }
-          catch (_) { return { raw: m.value, confidence: m.confidence }; }
+          try { return { ...JSON.parse(m.value), confidence: m.confidence, verified: !!m.verified_at, source: m.source }; }
+          catch (_) { return { raw: m.value, confidence: m.confidence, source: m.source }; }
         });
         return { keyword, matches: gates.length, gates };
       },
