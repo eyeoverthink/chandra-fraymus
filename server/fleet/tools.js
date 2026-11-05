@@ -11,6 +11,7 @@ import { startDaemon, stopDaemon, getDaemonStatus, runCycle, listCycles } from '
 import { runConsciousnessAudit, listAudits as listConsciousnessAudits, getAuditStats as getConsciousnessStats } from '../intelligence/consciousness-cycle.js';
 import { getGateStatus as getConsciousnessGateStatus } from '../intelligence/consciousness-gate.js';
 import { getSensoryStatus, triggerInjection } from '../intelligence/sensory-bridge.js';
+import { getEmotionalFeedbackStatus, triggerEmotionalFeedback } from '../intelligence/emotional-feedback.js';
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
@@ -267,6 +268,24 @@ export function createFleetTools({ workflowStore }) {
         }
         const status = getSensoryStatus();
         ledger.record('sensory.status.read', { running: status.running, injections: status.injections, tier: status.gateTier }, 'fleet');
+        return status;
+      },
+    },
+    {
+      name: 'emotional_feedback_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Read the emotional feedback loop: Heart emotion → CTRNN plasticity modulation. Shows current emotional state (primary, valence, arousal), active plasticity parameters (hebbianRate, pruneRate, neurogenesisThreshold, biosphereRate), mood cloud injection, and gate tier. Joy/love → faster learning, fear/anger → faster pruning, surprise → more neurogenesis.',
+      parameters: object({ trigger: { type: 'boolean', default: false, description: 'If true, trigger an immediate emotional feedback cycle and return the result' } }),
+      execute: async ({ args }) => {
+        if (args.trigger) {
+          const result = triggerEmotionalFeedback();
+          if (!result) return { error: 'CTRNN not running or no emotional data' };
+          ledger.record('emotional.feedback.fleet', { primary: result.emotion?.primary, valence: result.emotion?.valence, tier: result.tier }, 'fleet');
+          return result;
+        }
+        const status = getEmotionalFeedbackStatus();
+        ledger.record('emotional.feedback.read', { running: status.running, modulations: status.modulations, tier: status.gateTier }, 'fleet');
         return status;
       },
     },

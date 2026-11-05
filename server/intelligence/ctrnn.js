@@ -436,6 +436,18 @@ export function createCTRNN(config = {}) {
       injectGaussian(tx, ty, sigma, amplitude);
     },
 
+    modulatePlasticity(overrides = {}) {
+      const before = { hebbianRate: cfg.hebbianRate, hebbianDecay: cfg.hebbianDecay, pruneRate: cfg.pruneRate, neurogenesisThreshold: cfg.neurogenesisThreshold, biosphereRate: cfg.biosphereRate };
+      if (overrides.hebbianRate !== undefined) cfg.hebbianRate = Math.max(0, Math.min(0.05, overrides.hebbianRate));
+      if (overrides.hebbianDecay !== undefined) cfg.hebbianDecay = Math.max(0, Math.min(0.01, overrides.hebbianDecay));
+      if (overrides.pruneRate !== undefined) cfg.pruneRate = Math.max(0, Math.min(0.02, overrides.pruneRate));
+      if (overrides.neurogenesisThreshold !== undefined) cfg.neurogenesisThreshold = Math.max(0, Math.min(0.5, overrides.neurogenesisThreshold));
+      if (overrides.biosphereRate !== undefined) cfg.biosphereRate = Math.max(0, Math.min(0.1, overrides.biosphereRate));
+      return { before, after: { hebbianRate: cfg.hebbianRate, hebbianDecay: cfg.hebbianDecay, pruneRate: cfg.pruneRate, neurogenesisThreshold: cfg.neurogenesisThreshold, biosphereRate: cfg.biosphereRate } };
+    },
+
+    get baseConfig() { return { ...DEFAULT_CONFIG }; },
+
     state() {
       return getState();
     },

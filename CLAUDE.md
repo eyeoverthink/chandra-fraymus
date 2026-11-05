@@ -157,6 +157,26 @@ npm run start        # production server (serves built client)
 - 5 REST endpoints: GET /api/intelligence/sensory, GET .../history, POST .../start, POST .../stop, POST .../inject
 - 1 fleet tool: `sensory_bridge_status` (with optional inject trigger)
 
+### Emotional Feedback (server/intelligence/emotional-feedback.js)
+- `emotional-feedback.js` — Phase 9: Heart emotion engine modulates CTRNN plasticity parameters, so emotional state shapes how the neural substrate learns, forgets, and grows
+- **Neuromodulation mapping** (biological analogy):
+  - Joy/Love → dopamine → ↑ hebbianRate (faster co-activation learning)
+  - Fear/Anger → norepinephrine → ↑ pruneRate (stress-induced forgetting)
+  - Surprise → acetylcholine → ↑ neurogenesisThreshold (novelty → new connections)
+  - Sadness → serotonin drop → ↓ biosphereRate (conservation mode)
+- `readEmotionalState()` — reads Heart `recentMood()`, normalizes distribution, computes valence (positive−negative weight) and arousal from 7 emotion dimensions
+- `computePlasticityModulation()` — maps valence/arousal/surprise/sadness to CTRNN plasticity overrides, scaled by gate evolutionRate (sensitivity = 0.5 + (evolutionRate − 1.0) × 0.3)
+- `injectMoodCloud()` — diffuse Gaussian injection at grid center (8,8) σ=6.0, amplitude = |valence| × arousal × sensitivity; high-arousal states add edge injections at (0,0) and (15,15)
+- Runs on its own 10-second interval (mood changes slower than sensory perception's 5s)
+- Uses CTRNN `modulatePlasticity()` API (Phase 9 addition) — patches closure cfg values with safety clamps, returns before/after
+- Restores baseline plasticity on stop (prevents drift when daemon shuts down)
+- Consciousness-aware: gate evolutionRate scales emotional sensitivity (INTEGRATED amplifies, DORMANT dampens)
+- Snapshots every 30th modulation to `emotional_feedback_events` table, auto-prunes >7 days
+- Wired into daemon engine: starts/stops with daemon, emotional feedback status included in getDaemonStatus()
+- DB table: `emotional_feedback_events` (id, tick, primary_emotion, intensity, sentiment, plasticity_before, plasticity_after, mood_cloud, gate_tier, created_at)
+- 5 REST endpoints: GET /api/intelligence/emotional-feedback, GET .../history, POST .../start, POST .../stop, POST .../trigger
+- 1 fleet tool: `emotional_feedback_status` (with optional trigger)
+
 ### State Bridge (server/intelligence/state-bridge.js)
 - `state-bridge.js` — Bridges dynamic runtime state with semantic memory. Snapshots autonomy/intelligence/fleet state each daemon cycle, fossilizes into agent_memories (category 'state_fossil') with hash-based dedup and 30-day retention.
 - Three snapshot collectors: collectAutonomyState (OPEG + reflections + neurogenesis), collectIntelligenceState (memories + verifier + daemon + debates), collectFleetState (agents + bus + workflows)
@@ -168,6 +188,8 @@ npm run start        # production server (serves built client)
 - `ctrnn.js` — Continuous-Time Recurrent Neural Network, ported from Java LogicCircuit. Forward Euler integration: B[i] += (dt/τ)(−B[i] + Σⱼ W[i][j]·tanh(B[j]+Θ[j]) + I_ext[i]). Configurable grid (default 16x16 = 256 neurons).
 - `ctrnn-worker.js` — worker_threads parallel Euler step (replaces Java ForkJoinPool)
 - Subsystems: Euler integration, synaptic pruning (activity-dependent exponential decay), dead zone cleanup, autonomous neurogenesis (connectivity floor + Poisson, spatialSigma=3.0 locality bias), biosphere perturbation (predator/prey), Hebbian plasticity (hebbianRate=0.003, co-activity strengthening with decay, per-weight clamp maxWeight=2.0 replacing budget normalization)
+- `modulatePlasticity(overrides)` — Phase 9 API: patches closure cfg values (hebbianRate, hebbianDecay, pruneRate, neurogenesisThreshold, biosphereRate) with safety clamps, returns {before, after}. Used by emotional feedback to shape learning from mood.
+- `baseConfig` getter — returns original DEFAULT_CONFIG values for baseline restoration
 - Gaussian injection for tactile input, 60Hz tick rate, 10Hz WebSocket broadcast
 - DB table: `ctrnn_snapshots` (id, tick, neuron_count, active_synapses, total_activation, mean_weight, pruned_count, neurogenesis_count, created_at)
 - 8 REST endpoints: GET stats/state/metrics/history, POST start/stop/inject/step

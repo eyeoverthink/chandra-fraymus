@@ -11,6 +11,7 @@ import { snapshotState, pruneFossils } from '../intelligence/state-bridge.js';
 import { runConsciousnessAudit } from '../intelligence/consciousness-cycle.js';
 import { getConsciousnessState, getAutonomyModifiers } from '../intelligence/consciousness-gate.js';
 import { startSensoryBridge, stopSensoryBridge, getSensoryStatus, setSensoryHeart } from '../intelligence/sensory-bridge.js';
+import { startEmotionalFeedback, stopEmotionalFeedback, getEmotionalFeedbackStatus, setEmotionalHeart } from '../intelligence/emotional-feedback.js';
 import { heart } from '../fraymus-tools.js';
 
 const now = () => Date.now();
@@ -483,6 +484,14 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     console.error('sensory bridge start error:', e.message);
   }
 
+  // Phase 9: Start emotional feedback (Heart mood → CTRNN plasticity modulation)
+  try {
+    setEmotionalHeart(heart);
+    startEmotionalFeedback();
+  } catch (e) {
+    console.error('emotional feedback start error:', e.message);
+  }
+
   function scheduleNext() {
     if (!daemonState.running) return;
     const mods = getAutonomyModifiers();
@@ -512,6 +521,8 @@ export function stopDaemon() {
   }
   // Phase 8: Stop sensory bridge with daemon
   try { stopSensoryBridge(); } catch (_) {}
+  // Phase 9: Stop emotional feedback with daemon (restores baseline plasticity)
+  try { stopEmotionalFeedback(); } catch (_) {}
   daemonState.running = false;
   daemonState.nextCycleAt = 0;
   return { stopped: true };
@@ -531,6 +542,7 @@ export function getDaemonStatus() {
       stale: gateMods.stale,
     },
     sensoryBridge: getSensoryStatus(),
+    emotionalFeedback: getEmotionalFeedbackStatus(),
   };
 }
 
