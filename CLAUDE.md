@@ -250,6 +250,24 @@ npm run start        # production server (serves built client)
 - 4 REST endpoints: GET /api/intelligence/working-memory, GET .../query, GET .../history, POST .../reset
 - 1 fleet tool: `working_memory_status` (with optional channel query)
 
+### Metacognitive Monitor (server/intelligence/metacognitive-monitor.js)
+- `metacognitive-monitor.js` — Phase 14: Self-assessment of cognitive quality. Monitors agent run success rates, verification loop approvals, reflection action density, workflow completions, OPEG proposal outcomes — computes effectiveness, stuck detection, and confidence calibration. Injects three metacognitive signals into CTRNN "prefrontal" regions. Detects pathological patterns and publishes strategy adjustments.
+- **Metacognitive CTRNN regions** (row 4 — above sensory, below temporal cortex):
+  - Effectiveness (4, 4) σ=2.0 — cognitive action success rate (excitatory)
+  - Stuck detection (4, 8) σ=1.5 — loop/stagnation signal (inhibitory — negative amplitude)
+  - Confidence (4, 12) σ=1.5 — prediction-outcome calibration
+- **Three assessments**: effectiveness (weighted composite: run success 0.35 + verify success 0.25 + reflection density 0.20 + workflow success 0.20), stuckness (5 checks: action type repetition, unused forged agents, empty reflections, repeated verification failures, OPEG rejection rate), confidence (OPEG prediction-outcome alignment)
+- **Four strategy modes**: nominal (all OK), diversify (stuck — switch action types), conserve (low effectiveness — dampen autonomy), calibrate (low confidence — tighten OPEG gates)
+- **Strategy changes** published to `system.metacognition.strategy-change` bus topic
+- Runs on its own 30-second interval (cognitive quality changes slowly — slower than sensory 5s, emotional 10s, motor 15s)
+- Consciousness-aware: sensitivity = BASE_METACOG_SENSITIVITY(0.5) + (evolutionRate - 1.0) * 0.3, clamped [0.2, 1.0]
+- `getStrategyRecommendation()` — returns current strategy with adjustments for other subsystems
+- Snapshots every 30th assessment to `metacognitive_events` table, auto-prunes >7 days
+- Wired into daemon engine: starts/stops with daemon, status in getDaemonStatus()
+- DB table: `metacognitive_events` (id, effectiveness, stuck_score, confidence, injections, strategy, gate_tier, sensitivity, assessment_data, created_at)
+- 6 REST endpoints: GET /api/intelligence/metacognitive, GET .../history, GET .../strategy, POST .../start, POST .../stop, POST .../trigger
+- 1 fleet tool: `metacognitive_status` (with optional strategy-only mode)
+
 ### State Bridge (server/intelligence/state-bridge.js)
 - `state-bridge.js` — Bridges dynamic runtime state with semantic memory. Snapshots autonomy/intelligence/fleet state each daemon cycle, fossilizes into agent_memories (category 'state_fossil') with hash-based dedup and 30-day retention.
 - Three snapshot collectors: collectAutonomyState (OPEG + reflections + neurogenesis), collectIntelligenceState (memories + verifier + daemon + debates), collectFleetState (agents + bus + workflows)

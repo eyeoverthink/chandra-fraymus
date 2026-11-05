@@ -16,6 +16,7 @@ import { getMotorOutputStatus, triggerMotorCycle } from '../intelligence/motor-o
 import { getAttentionGateStatus, computeAttentionWeights } from '../intelligence/attention-gate.js';
 import { getHabituationStatus } from '../intelligence/habituation.js';
 import { getWorkingMemoryStatus, queryWorkingMemory } from '../intelligence/working-memory.js';
+import { getMetacognitiveStatus, getStrategyRecommendation } from '../intelligence/metacognitive-monitor.js';
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
@@ -356,6 +357,25 @@ export function createFleetTools({ workflowStore }) {
         }
         const status = getWorkingMemoryStatus();
         ledger.record('working-memory.read', { frames: status.frames, trend: status.lastTrend, volatility: status.lastVolatility, tier: status.gateTier }, 'fleet');
+        return status;
+      },
+    },
+    {
+      name: 'metacognitive_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Read the metacognitive monitor: self-assessment of cognitive quality. Returns effectiveness (action success rate), stuck score (loop/stagnation detection), confidence (prediction-outcome calibration), current strategy recommendation (nominal/diversify/conserve/calibrate), and CTRNN injection amplitudes. Use "strategy" mode to get only the strategy recommendation with adjustments.',
+      parameters: object({
+        mode: { type: 'string', description: 'Optional: "strategy" returns only the current strategy recommendation with adjustments' },
+      }),
+      execute: async (params) => {
+        if (params.mode === 'strategy') {
+          const rec = getStrategyRecommendation();
+          ledger.record('metacognitive.strategy', { strategy: rec.strategy, reason: rec.reason }, 'fleet');
+          return rec;
+        }
+        const status = getMetacognitiveStatus();
+        ledger.record('metacognitive.read', { effectiveness: status.lastEffectiveness, stuck: status.lastStuckScore, confidence: status.lastConfidence, strategy: status.lastStrategy, tier: status.gateTier }, 'fleet');
         return status;
       },
     },

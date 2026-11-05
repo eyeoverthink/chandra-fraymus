@@ -16,6 +16,7 @@ import { startMotorOutput, stopMotorOutput, getMotorOutputStatus, setMotorTarget
 import { setAttentionSources, getAttentionGateStatus } from '../intelligence/attention-gate.js';
 import { getHabituationStatus, resetHabituation } from '../intelligence/habituation.js';
 import { getWorkingMemoryStatus, resetWorkingMemory } from '../intelligence/working-memory.js';
+import { startMetacognitiveMonitor, stopMetacognitiveMonitor, getMetacognitiveStatus } from '../intelligence/metacognitive-monitor.js';
 import { neurogenesisCycle } from '../intelligence/neurogenesis.js';
 import { heart } from '../fraymus-tools.js';
 
@@ -510,6 +511,13 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     console.error('motor output start error:', e.message);
   }
 
+  // Phase 14: Start metacognitive monitor (30s cycle — self-assessment)
+  try {
+    startMetacognitiveMonitor();
+  } catch (e) {
+    console.error('metacognitive monitor start error:', e.message);
+  }
+
   // Phase 11: Wire attention gate sources (motor intentions + emotion → sensory gain)
   try {
     setAttentionSources({
@@ -565,6 +573,8 @@ export function stopDaemon() {
   try { resetHabituation(); } catch (_) {}
   // Phase 13: Reset working memory buffer with daemon
   try { resetWorkingMemory(); } catch (_) {}
+  // Phase 14: Stop metacognitive monitor with daemon
+  try { stopMetacognitiveMonitor(); } catch (_) {}
   daemonState.running = false;
   daemonState.nextCycleAt = 0;
   return { stopped: true };
@@ -589,6 +599,7 @@ export function getDaemonStatus() {
     attentionGate: getAttentionGateStatus(),
     habituation: getHabituationStatus(),
     workingMemory: getWorkingMemoryStatus(),
+    metacognitive: getMetacognitiveStatus(),
   };
 }
 
