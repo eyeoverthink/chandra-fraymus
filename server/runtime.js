@@ -90,6 +90,7 @@ import { installSubconsciousRoutes } from './intelligence/subconscious.js';
 import { installOuroborosCycleRoutes } from './intelligence/ouroboros-cycle.js';
 import { installConsciousnessRoutes } from './intelligence/consciousness-cycle.js';
 import { installConsciousnessGateRoutes } from './intelligence/consciousness-gate.js';
+import { installSensoryRoutes } from './intelligence/sensory-bridge.js';
 import { installIntegrityRoutes, startWatchdog, verifyAll, autoTrackCriticalFiles } from './integrity/watchdog.js';
 import { installPlasmidRoutes } from './integrity/plasmid-backup.js';
 import { installGovernanceRoutes } from './integrity/routes.js';
@@ -247,6 +248,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installOuroborosCycleRoutes(app);
   installConsciousnessRoutes(app);
   installConsciousnessGateRoutes(app);
+  installSensoryRoutes(app);
   installIntegrityRoutes(app);
   installPlasmidRoutes(app);
   installGovernanceRoutes(app, { broadcast, dreamer, remembered, ledger, ouroboros });

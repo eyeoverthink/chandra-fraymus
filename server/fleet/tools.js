@@ -10,6 +10,7 @@ import { runVerifierLoop, listLoops as listVerifierLoops } from '../intelligence
 import { startDaemon, stopDaemon, getDaemonStatus, runCycle, listCycles } from '../daemon/engine.js';
 import { runConsciousnessAudit, listAudits as listConsciousnessAudits, getAuditStats as getConsciousnessStats } from '../intelligence/consciousness-cycle.js';
 import { getGateStatus as getConsciousnessGateStatus } from '../intelligence/consciousness-gate.js';
+import { getSensoryStatus, triggerInjection } from '../intelligence/sensory-bridge.js';
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
@@ -248,6 +249,24 @@ export function createFleetTools({ workflowStore }) {
       execute: async () => {
         const status = getConsciousnessGateStatus();
         ledger.record('consciousness.gate.read', { tier: status.modifiers.tier, phi: status.currentState.phi || 0, proven: status.currentState.proven }, 'fleet');
+        return status;
+      },
+    },
+    {
+      name: 'sensory_bridge_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Read the sensory bridge: 8 system metrics mapped to spatial regions of the 16x16 CTRNN grid via continuous Gaussian injection (bus traffic, memory writes, emotion, consciousness, agent activity, health, workflows, goals). Shows current signal levels, computed amplitudes, gate tier, and sensitivity.',
+      parameters: object({ inject: { type: 'boolean', default: false, description: 'If true, trigger an immediate sensory injection and return the result' } }),
+      execute: async ({ args }) => {
+        if (args.inject) {
+          const result = triggerInjection();
+          if (!result) return { error: 'CTRNN not running' };
+          ledger.record('sensory.inject.fleet', { tier: result.tier, sensitivity: result.sensitivity }, 'fleet');
+          return result;
+        }
+        const status = getSensoryStatus();
+        ledger.record('sensory.status.read', { running: status.running, injections: status.injections, tier: status.gateTier }, 'fleet');
         return status;
       },
     },

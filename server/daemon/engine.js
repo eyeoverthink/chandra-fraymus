@@ -10,6 +10,7 @@ import { runCycle as runOuroborosCycle } from '../intelligence/ouroboros-cycle.j
 import { snapshotState, pruneFossils } from '../intelligence/state-bridge.js';
 import { runConsciousnessAudit } from '../intelligence/consciousness-cycle.js';
 import { getConsciousnessState, getAutonomyModifiers } from '../intelligence/consciousness-gate.js';
+import { startSensoryBridge, stopSensoryBridge, getSensoryStatus, setSensoryHeart } from '../intelligence/sensory-bridge.js';
 import { heart } from '../fraymus-tools.js';
 
 const now = () => Date.now();
@@ -474,6 +475,14 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     lastGateTier: null,
   };
 
+  // Phase 8: Start sensory bridge (continuous CTRNN stimulus from system state)
+  try {
+    setSensoryHeart(heart);
+    startSensoryBridge();
+  } catch (e) {
+    console.error('sensory bridge start error:', e.message);
+  }
+
   function scheduleNext() {
     if (!daemonState.running) return;
     const mods = getAutonomyModifiers();
@@ -501,6 +510,8 @@ export function stopDaemon() {
     clearTimeout(daemonTimer);
     daemonTimer = null;
   }
+  // Phase 8: Stop sensory bridge with daemon
+  try { stopSensoryBridge(); } catch (_) {}
   daemonState.running = false;
   daemonState.nextCycleAt = 0;
   return { stopped: true };
@@ -519,6 +530,7 @@ export function getDaemonStatus() {
       proofsPassed: gateMods.proofsPassed,
       stale: gateMods.stale,
     },
+    sensoryBridge: getSensoryStatus(),
   };
 }
 

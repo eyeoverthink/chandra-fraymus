@@ -142,6 +142,21 @@ npm run start        # production server (serves built client)
 - 1 fleet tool: `consciousness_gate_status`
 - Gate data included in GET /api/intelligence/live aggregated dashboard
 
+### Sensory Bridge (server/intelligence/sensory-bridge.js)
+- `sensory-bridge.js` — Phase 8: Maps live system telemetry to spatial regions of the 16x16 CTRNN grid via continuous Gaussian injection, giving the neural core a felt sense of what the organism is doing
+- **Sensory regions** (left hemisphere = internal state, right hemisphere = action state):
+  - Bus traffic (2,2) σ=2.0, Memory writes (2,6) σ=2.0, Emotion/Heart (2,10) σ=2.5, Consciousness tier (2,14) σ=2.0
+  - Agent activity (10,2) σ=2.0, Health status (10,6) σ=2.0, Workflow runs (10,10) σ=2.0, Goals/RSI (10,14) σ=2.0
+- Runs on its own 5-second interval (Iext decays at 0.95/tick → ~1s half-life requires continuous injection)
+- Consciousness-aware: baseSensitivity=0.5 + (neurogenesisBoost * 0.3) — INTEGRATED tier amplifies sensory input, DORMANT dampens it
+- Collects signals from 6 DB tables (bus_messages, agent_memories, runs, health_alerts, workflow_runs, goal_proposals) + Heart emotion engine
+- Each signal normalized to [0,1], multiplied by gate-scaled sensitivity, injected as Gaussian stimulus at its assigned grid region
+- Snapshots every 60th injection to `sensory_bridge_events` table, auto-prunes >7 days
+- Wired into daemon engine: starts/stops with daemon, sensory status included in getDaemonStatus()
+- DB table: `sensory_bridge_events` (id, tick, signals, amplitudes, gate_tier, sensitivity, created_at)
+- 5 REST endpoints: GET /api/intelligence/sensory, GET .../history, POST .../start, POST .../stop, POST .../inject
+- 1 fleet tool: `sensory_bridge_status` (with optional inject trigger)
+
 ### State Bridge (server/intelligence/state-bridge.js)
 - `state-bridge.js` — Bridges dynamic runtime state with semantic memory. Snapshots autonomy/intelligence/fleet state each daemon cycle, fossilizes into agent_memories (category 'state_fossil') with hash-based dedup and 30-day retention.
 - Three snapshot collectors: collectAutonomyState (OPEG + reflections + neurogenesis), collectIntelligenceState (memories + verifier + daemon + debates), collectFleetState (agents + bus + workflows)
