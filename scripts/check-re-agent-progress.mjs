@@ -33,7 +33,7 @@ const definitions = [
   { number: 2, requires: ['agents/re-analyst.md', 'server/fleet/re-tools.js'], markers: { 'server/fleet/tools.js': 'createRETools' } },
   { number: 3, requires: ['server/intelligence/dossier-engine.js', 'server/intelligence/dossier-engine-routes.js'], markers: { 'server/runtime.js': 'installDossierRoutes' } },
   { number: 4, requires: [], markers: { 'server/intelligence/debate.js': 'debateBinaryAnnotation', 'server/intelligence/dossier-engine.js': 'debateBinaryAnnotation' } },
-  { number: 5, requires: [], markers: Object.fromEntries(['sensory-bridge', 'attention-gate', 'working-memory', 'habituation'].map(name => [`server/intelligence/${name}.js`, 'binary_insight'])) },
+  { number: 5, requires: [], markers: Object.fromEntries(['sensory-bridge', 'attention-gate', 'working-memory', 'habituation', 'predictive-processing', 'active-inference'].map(name => [`server/intelligence/${name}.js`, 'binary_insight'])) },
   { number: 6, requires: [], markers: { 'server/fraymus/workflows/definitions.js': 'DossierAnalysis', 'server/intelligence/reflection.js': 're_analyze', 'server/intelligence/opeg.js': 're_reanalysis' } },
   { number: 7, requires: ['server/intelligence/hive-export.js', 'server/intelligence/hive-export-routes.js'], markers: { 'server/daemon/engine.js': 'exportChandraReceipts', 'server/runtime.js': 'installHiveExportRoutes' } },
 ];
@@ -47,15 +47,24 @@ const phases = definitions.map(definition => {
   ];
   const present = requirements.some(item => item.present);
   const status = present ? 'IMPLEMENTATION_DETECTED_NOT_VERIFIED' : 'NOT_IMPLEMENTED';
-  const gates = [...block.matchAll(/^- \[([ xX])\] (.+)$/gm)].map((match, index) => ({ id: `RE-P${definition.number}-G${index + 1}`, criterion: match[2].trim(), authorChecked: match[1] !== ' ', independentStatus: status === 'NOT_IMPLEMENTED' ? 'NOT_IMPLEMENTED' : 'NOT_VERIFIED', evidence: null }));
+  const gates = [];
+  let section = String(definition.number), sectionIndex = 0;
+  for (const line of block.split('\n')) {
+    const heading = line.match(/^### Verification Gate (\d+[AB]?)/);
+    if (heading) { section = heading[1]; sectionIndex = 0; }
+    const criterion = line.match(/^- \[([ xX])\] (.+)$/);
+    if (criterion) gates.push({ id: `RE-P${section}-G${++sectionIndex}`, section, prerequisitePhase: section === '2B' ? 3 : definition.number > 1 ? definition.number - 1 : null, criterion: criterion[2].trim(), authorChecked: criterion[1] !== ' ', independentStatus: status === 'NOT_IMPLEMENTED' ? 'NOT_IMPLEMENTED' : 'NOT_VERIFIED', evidence: null });
+  }
   return { phase: definition.number, name, status, prerequisites: definition.number > 1 ? [definition.number - 1] : [], requirements, gates, verifiedGateCount: 0 };
 });
 
 const checks = [];
 function check(name, condition) { assert.ok(condition, name); checks.push(name); }
 check('seven phases extracted', phases.length === 7);
-check('each phase defines five or six criteria', phases.every(phase => phase.gates.length >= 5 && phase.gates.length <= 6));
-check('planned inventory contains eight creations and eleven existing modifications', uniqueCreates.length === 8 && existingModifications.length === 11);
+check('each phase defines concrete criteria with unique identifiers', phases.every(phase => phase.gates.length > 0) && new Set(phases.flatMap(phase => phase.gates.map(gate => gate.id))).size === phases.reduce((sum, phase) => sum + phase.gates.length, 0));
+const claimedNewFiles = Number(spec.match(/\*\*(\d+) new files\*\* created/)?.[1]);
+const claimedModifiedFiles = Number(spec.match(/\*\*(\d+) existing files\*\* modified/)?.[1]);
+check('file inventory matches the spec count', uniqueCreates.length === claimedNewFiles && existingModifications.length === claimedModifiedFiles);
 
 // Reproduce the proposed manifest using the actual parser, without discovery or IO.
 const manifestSource = read('server/fleet/manifest.js');
@@ -63,16 +72,20 @@ const parserText = manifestSource.match(/export function parseManifest\([\s\S]*?
 const parseManifest = new vm.Script(`(${parserText.replace('export ', '')})`).runInNewContext();
 const yaml = spec.match(/```yaml\n([\s\S]*?)```/)?.[1];
 const parsed = parseManifest(yaml);
-const intendedTools = [...yaml.matchAll(/^  - (.+)$/gm)].map(match => match[1]);
-const commaControl = parseManifest(yaml.replace(/tools:\n(?:  - .+\n)+/, `tools: ${intendedTools.join(', ')}\n`));
-check('proposed YAML list falls back to wildcard permissions', parsed.tools === '*');
+const csvTools = yaml.match(/^tools:[ \t]*([^\r\n]*)\r?$/m)?.[1]?.trim();
+const intendedTools = csvTools ? csvTools.split(',').map(tool => tool.trim()) : [...yaml.matchAll(/^  - (.+)$/gm)].map(match => match[1]);
+const commaControl = parseManifest(csvTools ? yaml : yaml.replace(/tools:\n(?:  - .+\n)+/, `tools: ${intendedTools.join(', ')}\n`));
+check('actual parser behavior matches the manifest syntax under review', csvTools ? Array.isArray(parsed.tools) && JSON.stringify(parsed.tools) === JSON.stringify(intendedTools) : parsed.tools === '*');
 check('comma-separated manifest positive control preserves tool restriction', Array.isArray(commaControl.tools) && commaControl.tools.length === intendedTools.length);
 
 const workflow = read('server/workflow/engine.js');
 const classifierSource = workflow.match(/function nodeKind\(type\) \{[\s\S]*?\n}/)?.[0];
 const classify = new vm.Script(`(${classifierSource})`).runInNewContext();
-const workflowKinds = Object.fromEntries(['start', 'agent_run', 'memory_recall', 'end'].map(type => [type, classify(type)]));
-check('proposed workflow agent/start/end node types are not supported', ['start', 'agent_run', 'end'].every(type => workflowKinds[type] === 'unknown'));
+const phaseSix = spec.match(/^## Phase 6 [\s\S]*?(?=^## Phase 7)/m)?.[0];
+const workflowExample = phaseSix?.match(/```(?:js)?\n([\s\S]*?)```/)?.[1] || '';
+const proposedTypes = [...new Set([...workflowExample.matchAll(/\btype:\s*'([^']+)'/g)].map(match => match[1]))];
+const workflowKinds = Object.fromEntries([...new Set([...proposedTypes, 'start', 'agent_run', 'memory_recall', 'end'])].map(type => [type, classify(type)]));
+check('proposed workflow vocabulary was inspected without executing it', proposedTypes.length > 0);
 check('existing memory_recall positive control is supported', workflowKinds.memory_recall === 'memory_recall');
 
 const habituationText = read('server/intelligence/habituation.js').replace(/^import [^\n]+;\r?$/gm, '').replace(/^export /gm, '');
@@ -98,9 +111,9 @@ const result = {
   safety: 'Committed-source reads, source-isolated pure functions, bounded read of landing ledger; no app import, live DB, network calls, or bus publication',
   specPath, sourceHashes: hashes,
   plannedInventory: { newFiles: uniqueCreates, existingModifiedFiles: existingModifications, presentPlannedNewFiles: uniqueCreates.filter(path => tracked.has(path)), deletedFilesPlanned: 0 },
-  summary: { phases: phases.length, implementationDetected: phases.filter(phase => phase.status !== 'NOT_IMPLEMENTED').length, independentlyVerifiedPhases: 0, independentGatePasses: 0, totalPhaseGates: phases.reduce((sum, phase) => sum + phase.gates.length, 0) },
+  summary: { phases: phases.length, implementationDetected: phases.filter(phase => phase.status !== 'NOT_IMPLEMENTED').length, independentlyVerifiedPhases: 0, independentGatePasses: 0, totalPhaseGates: phases.reduce((sum, phase) => sum + phase.gates.length, 0), gatesBySection: Object.fromEntries([...new Set(phases.flatMap(phase => phase.gates.map(gate => gate.section)))].map(section => [section, phases.flatMap(phase => phase.gates).filter(gate => gate.section === section).length])) },
   phases,
-  contractChecks: { assertionCount: checks.length, checks, manifest: { specPath: 'server/fleet/agents/re-analyst.md', actualDefaultDirectory: 'agents/', parsedTools: parsed.tools, intendedTools, commaSeparatedControl: commaControl.tools }, workflowKinds, habituationOutputKeys: Object.keys(novelty), landingLedger: ledger },
+  contractChecks: { assertionCount: checks.length, checks, manifest: { specPath: uniqueCreates.find(path => path.endsWith('/re-analyst.md')), actualDefaultDirectory: 'agents/', parsedTools: parsed.tools, intendedTools, restricted: Array.isArray(parsed.tools) && parsed.tools.every(tool => !tool.includes('*')) && JSON.stringify(parsed.tools) === JSON.stringify(intendedTools), commaSeparatedControl: commaControl.tools }, proposedWorkflowTypes: proposedTypes, unsupportedProposedNodes: proposedTypes.filter(type => workflowKinds[type] === 'unknown'), workflowKinds, habituationOutputKeys: Object.keys(novelty), landingLedger: ledger },
   limitations: 'Static presence never passes a phase gate. Future implementations require their own behavior tests and independent evidence. Cross-machine runtime and upstream tool execution are not tested by this script.',
 };
 const outputFlag = process.argv.indexOf('--output');

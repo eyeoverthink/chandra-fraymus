@@ -8,6 +8,8 @@
 
 > **Independent review checkpoint — 2026-11-05:** [Changes requested](reviews/2026-11-05-re-integration-spec-review.md) for the raw receipt transport/format, manifest contract, measured compile-rate baseline, and downstream wiring. [Progress tracker](RE-AGENT-PROGRESS.md): 0/7 phases implemented and 0/41 acceptance criteria independently passed at `1eabcde`. The approval label above is the author's planning status; it is not an independent implementation verdict.
 
+> **Correction recheck of `5e23e01` — 2026-11-05:** [Not all findings are closed](reviews/2026-11-05-re-spec-fix-review.md). The revised manifest passes its ten-tool parser check, but Phase 1 hashing/trust/delivery contracts and Phase 6 workflow execution still need correction. Actual progress is 0/7 implemented and 0/56 criteria verified. The independent reviewer has not started implementation.
+
 ---
 
 ## Table of Contents

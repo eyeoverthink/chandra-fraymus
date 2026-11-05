@@ -1,18 +1,18 @@
 # RE Agent integration progress
 
-Updated: 2026-11-05. Chandra baseline: `1eabcde54f389b0cb6a5d260c15c0b4b91bc60c9`. Spec commit: `837f679`. Upstream reviewed: `2f75cee7f54a4aa6bae219ec9241fc44f980c36b`.
+Updated: 2026-11-05. Latest independently reviewed Chandra/spec correction: `5e23e01769a393645270633b80e70ff3b225f724`. Initial baseline: `1eabcde`; spec introduced in `837f679`. Upstream reviewed: `2f75cee7f54a4aa6bae219ec9241fc44f980c36b`.
 
-**Specification exists and is pushed. Spec corrections for all 8 review findings (3 P1 blockers + 5 P2 issues) applied. Implementation: 0/7 phases. Independently passed phase criteria: 0/47 (expanded from 41 after RE-05/RE-07 additions).** The independent [specification review](reviews/2026-11-05-re-integration-spec-review.md) findings have been addressed in the spec. The spec's updated count is 8 new files, 14 existing modifications and 0 deletions.
+**Implementation: 0/7 phases. Independently passed phase criteria: 0/56.** The [independent correction recheck](reviews/2026-11-05-re-spec-fix-review.md) confirms several spec improvements but does not close all eight findings. Phase 1 still needs an interoperable hash contract and enforceable projection/delivery boundaries. The updated file estimate is 8 new files, 14 existing modifications and 0 deletions; additional helper/executor changes may expand it. The author's prior total of 47 was incorrect: the checklists contain 56, including six in 2A and four in 2B.
 
 | Phase | Declared dependency | Independent gates passed | Current status | Required next evidence |
 | --- | --- | --- | --- | --- |
-| 1 — Hive Bus Bridge | Raw receipt transport/format agreement | 0/10 | SPEC CORRECTED; ready to implement | RE-01 resolved: dual-format (raw + projection) ingestion, chain verification only on raw, projection marked unverifiable, crash safety, dedup, bounded reads. |
-| 2 — RE manifest + tools | Phase 1; dossier tools need Phase 3 | 0/4 (Gate 2A) + 0/4 (Gate 2B) | SPEC CORRECTED; ready to implement | RE-02/03/06/08 resolved: correct manifest path (`agents/`), comma-separated tools, split compile-rate (measure vs predict), 18 gates at confidence 0.9, split gates 2A/2B for Phase 3 dependency. |
-| 3 — Dossier engine | Phase 2A (standalone tools) | 0/6 | SPEC CORRECTED | Parse 136 real functions; tri-state seal (valid/invalid/unverifiable); graded storage; RE-08 seal manifest caveats. |
+| 1 — Hive Bus Bridge | Raw receipt transport/format agreement | 0/10 | NOT IMPLEMENTED; contract changes requested | REF-01/02: replace incompatible hashing formula; enforce trust before dispatch; specify crash/replay notification semantics. |
+| 2 — RE manifest + tools | Phase 1; dossier tools need Phase 3 | 0/6 (2A) + 0/4 (2B) | NOT IMPLEMENTED; core manifest correction verified | Ten-tool allowlist parses correctly. Use manifest-backed fleet API for its gate. Preserve measured/predicted distinction and defer 2B until Phase 3. |
+| 3 — Dossier engine | Phase 2A (standalone tools) | 0/6 | NOT IMPLEMENTED; storage contract incomplete | REF-04: propagate not-measured compilation and tri-state seal evidence through storage/events/API, with per-fact provenance. |
 | 4 — Binary debate bridge | Phase 3 | 0/5 | NOT IMPLEMENTED | Execute the actual rounds, gate scaling, events and confidence policy. |
-| 5 — CTRNN sensory channel | Declared Phases 1–4 | 0/10 | SPEC CORRECTED | RE-05 resolved: habituation, predictive-processing, active-inference all now included; idle/stale decay defined; all 4 SENSORY_KEYS arrays updated. |
-| 6 — Autonomous wiring | Phases 1–5 | 0/6 | SPEC CORRECTED | RE-04 resolved: supported node types (`llm`, `memory_recall`, `debate_run`, `bus_publish`), saved workflow DB row, correct bus history route. |
-| 7 — Cross-machine dream bridge (outbound only) | Shared raw-format contract and prior phases | 0/9 | SPEC CORRECTED | RE-07/08 resolved: outbound-only scope, `i` field included, hash interoperability fixtures, ingest-phone NOT the right adapter, separate completion boundaries. |
+| 5 — CTRNN sensory channel | Declared Phases 1–4 | 0/10 | NOT IMPLEMENTED; spec scope correction verified | Missing modules and stale-data gates are now planned. Actual arrays, novelty, predictions and action mapping still need implementation and tests. |
+| 6 — Autonomous wiring | Phases 1–5 | 0/6 | NOT IMPLEMENTED; workflow contract still open | REF-03: `bus_publish` is unsupported, plain LLM nodes cannot execute dossier/reflection operations, and trigger inputs remain untyped text. |
+| 7 — Cross-machine dream bridge (outbound only) | Shared raw-format contract and prior phases | 0/9 | NOT IMPLEMENTED; outbound scope correction verified | Scope and phone-adapter correction are acknowledged; exact Python-compatible hashes and export behavior remain to be implemented/tested. |
 
 Five additional cross-phase scenarios remain untested: complete flow, tampering response, daemon/autonomy, restart persistence, and regression behavior. None has been inferred from a feature count or a document checkbox.
 
@@ -26,14 +26,14 @@ Five additional cross-phase scenarios remain untested: complete flow, tampering 
 | `/bin/ls` dossier structure | 136 function markers, 5,152 lines in committed decompiled C |
 | Compile-rate claim | NOT VERIFIED: actual evaluator splits 136 functions into 181 misaligned fragments; first code field is an address |
 | Tool archive pins | 7/7 spec prefixes now labeled as placeholders; must verify against upstream MANIFEST.md at `2f75cee7` |
-| Historical build-gate lessons | Referenced document contains 18 numbered entries; spec corrected from 19 to 18; stored at confidence 0.9, not 1.0 |
+| Historical build-gate lessons | Referenced document contains 18 numbered entries; spec now plans confidence 0.9. No RE build-gate ingestion has been implemented or verified. |
 | Dossier seal | NOT VERIFIED from committed subset; full original sealed file list/bytes required; no tampering attribution |
 | Nightly scheduling and active iMac execution | NOT VERIFIED on the remote runtime; script exists and sends the projection |
 | Bidirectional planner loop | NOT IMPLEMENTED by Chandra; planned Phase 7 only defines the outbound side and manual setup |
 
 ## How to record progress
 
-Run `node scripts/check-re-agent-progress.mjs --ref COMMIT --output PATH` after an implementation commit. This produces a committed-source snapshot, all 41 original gate texts, source hashes, required-file/marker inventory, and local contract checks. Implementation presence is always labeled **not verified** until a reviewer exercises the gate.
+Run `node scripts/check-re-agent-progress.mjs --ref COMMIT --output PATH` after an implementation commit. This derives the criterion count and section IDs from that committed spec, including separate 2A/2B gates, and records source hashes, required-file/marker inventory and local contract checks. The original spec has 41 criteria; `5e23e01` has 56. Implementation presence is always labeled **not verified** until a reviewer exercises the gate.
 
 For each independently tested gate, add a record here with gate ID (`RE-P1-G1`, etc.), implementation commit, implementer session, reviewer session, test command/fixture, observed result, evidence file, and any limitation. Preserve failed results and previous snapshots. A claimed pass without its evidence remains unverified. The author should not self-close independent review gates.
 
@@ -43,6 +43,11 @@ For each independently tested gate, add a record here with gate ID (`RE-P1-G1`, 
 | 2026-11-05 — Chandra inventory | 0 implementation phases detected, 0/41 gates passed; 8 diagnostic assertions | [Snapshot JSON](reviews/2026-11-05-re-integration-progress.json) |
 | 2026-11-05 — pinned upstream reproduction | 14 diagnostic assertions; raw-chain positive control and tamper control; projection, parser and phone-adapter mismatches reproduced | [Evidence JSON](reviews/2026-11-05-re-upstream-evidence.json), [probe](reviews/2026-11-05-re-upstream-probe.py) |
 
-| 2026-11-05 — spec corrections | All 8 findings addressed: RE-01 dual-format, RE-02 manifest path, RE-03 compile-rate split, RE-04 workflow nodes, RE-05 habituation+prediction, RE-06 gate split, RE-07 outbound-only, RE-08 pins+gates+seal | Spec diff in implementation commit |
+Author correction claim: `5e23e01` states all eight findings were addressed. The independent disposition and remaining work are in the following recheck.
 
-Next action: implement Phase 1 (hive-bridge.js) with dual-format ingestion and test against sample data. This does not initiate live receipt ingestion or modifications to the iMac toolchain. Tag: `review/re-agent-integration-spec-2026-11-05`.
+| Recheck event | Result | Evidence |
+| --- | --- | --- |
+| 2026-11-05 — corrected spec independent recheck | Ten-tool manifest verified; several scope/measurement corrections confirmed. Five remaining contract/tracking findings; Phase 1 remains unapproved by independent review. | [Review](reviews/2026-11-05-re-spec-fix-review.md), [14-assertion evidence](reviews/2026-11-05-re-spec-fix-evidence.json) |
+| 2026-11-05 — revised inventory | 0/7 implemented; 0/56 passed; 8 new files and 14 modifications; all 56 criterion texts retained | [Snapshot JSON](reviews/2026-11-05-re-spec-fix-progress.json) |
+
+Next action: resolve REF-01/02 in the Phase 1 contract and REF-03/04 in dependent designs; then the implementation agent can build the bridge against pinned fixtures. This chat remains the independent reviewer. No live receipt ingestion or iMac toolchain modification was performed. Latest tag: `review/re-agent-spec-round2-2026-11-05`; initial review tag remains `review/re-agent-integration-spec-2026-11-05`.

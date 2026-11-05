@@ -1,0 +1,87 @@
+{
+  "generatedAt": "2026-11-05T21:43:18.347Z",
+  "sourceRef": "5e23e01769a393645270633b80e70ff3b225f724",
+  "sources": {
+    "docs/RE-AGENT-INTEGRATION.md": "2d7851d35261e87dabfa740511d737b9b47ae43b2e0ccb8aaaba9bc5e4df32fb",
+    "docs/RE-AGENT-PROGRESS.md": "a1734474fd69bce219aa14979cf029ca990f452389b25c8f5337f29841115dcd",
+    "server/fleet/manifest.js": "3be22dd85d1726b853e348578264b2ec3dd9df36c6a5cb3bf4e8bc64f4108645",
+    "server/workflow/engine.js": "23f553b655d4bdbc9c681eb7f2d332f13a15bf48732ab4771bea07740b306ac4",
+    "server/db-migrate.js": "6a3eb642bbd64c564d83232bdfc0c0f8caa30293c3ef098a87d335d47d79950c",
+    "server/fleet/bus.js": "93b12941f183c20b16db624ffcb1942b8c12a01b86310b19baa5c7c80bc1ad43",
+    "server/fleet/bus-triggers.js": "4773ecf3c430388619a116546fa9c6d3aed32688882ca982df7a088eabc15687"
+  },
+  "safety": "Pinned Git source, isolated modules, in-memory SQLite and counter-only workflow mock; Python canonicalizes stdin JSON only; no live DB, network, model, binary, or real workflow execution",
+  "assertionCount": 14,
+  "checks": [
+    "corrected manifest restricts exactly ten distinct tools",
+    "corrected manifest includes measured and predicted compile tools separately",
+    "three revised node types are supported",
+    "revised bus_publish node remains unsupported",
+    "LLM execution branch only generates text, not HTTP/tool actions",
+    "producer-compatible Python bytes match the recorded raw fixture hash",
+    "compact sorted JavaScript bytes do not match the producer",
+    "JSON.stringify sorted-key replacer also drops nested evidence fields",
+    "revised spec still explicitly prescribes no extra spacing",
+    "actual trigger dispatches a projection event despite chainVerified false",
+    "transaction rollback removes persisted event but cannot retract subscriber call",
+    "retry can produce one durable event but two subscriber side effects",
+    "revised spec defines 56 phase criteria, including six in 2A and four in 2B",
+    "author tracker still claims 47 instead of actual 56"
+  ],
+  "manifest": {
+    "tools": [
+      "re.ingest_dossier",
+      "re.verify_chain",
+      "re.query_dossier",
+      "re.build_gate_lookup",
+      "re.compile_rate_measure",
+      "re.compile_rate_predict",
+      "bus_publish",
+      "bus_read",
+      "agent_remember",
+      "agent_recall"
+    ],
+    "count": 10
+  },
+  "workflow": {
+    "nodeKinds": {
+      "llm": "llm",
+      "memory_recall": "memory_recall",
+      "debate_run": "debate_run",
+      "bus_publish": "unknown"
+    },
+    "llmBranch": "if (k === 'llm') {\n        const prompt = upstreamText || opts.prompt || node.data?.prompt || 'Hello';\n        const out = await callOllama(prompt, node.data?.systemPrompt);\n        texts[id] = r.text = out.text;\n      "
+  },
+  "canonicalization": {
+    "producerHash": "8f7b8616d0814d9d1563472dcac1707116ae55ba0543454610c3407353ed118f",
+    "pythonCanonicalHash": "8f7b8616d0814d9d1563472dcac1707116ae55ba0543454610c3407353ed118f",
+    "compactSortedHash": "faef6a84920569878edd68fe484ec4c96158e5c74817e17c542db8c145f24cf4",
+    "sortedKeyReplacerHash": "25fb99036b1d8f4b25f4809cf1106b9270329fef0d5ada7d164b47cdf7cab106",
+    "pythonCanonical": "{\"claim\": \"fixture caf\\u00e9\", \"evidence\": {\"a\": 2, \"z\": 1}, \"i\": 0, \"organ\": \"chandra\", \"prev\": \"0000000000000000000000000000000000000000000000000000000000000000\", \"seal\": \"\", \"ts\": \"2026-11-05T21:21:11Z\", \"type\": \"reflection\"}",
+    "compactSorted": "{\"claim\":\"fixture café\",\"evidence\":{\"z\":1,\"a\":2},\"i\":0,\"organ\":\"chandra\",\"prev\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"seal\":\"\",\"ts\":\"2026-11-05T21:21:11Z\",\"type\":\"reflection\"}",
+    "sortedKeyReplacer": "{\"claim\":\"fixture café\",\"evidence\":{},\"i\":0,\"organ\":\"chandra\",\"prev\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"seal\":\"\",\"ts\":\"2026-11-05T21:21:11Z\",\"type\":\"reflection\"}"
+  },
+  "projectionTrust": {
+    "workflowInvocations": 1,
+    "triggerFireCount": 1,
+    "chainVerifiedInPrompt": true
+  },
+  "transactionNotification": {
+    "persistedNewEvents": 1,
+    "observerCalls": 2
+  },
+  "acceptanceCriteria": {
+    "counts": {
+      "1": 10,
+      "3": 6,
+      "4": 5,
+      "5": 10,
+      "6": 6,
+      "7": 9,
+      "2A": 6,
+      "2B": 4
+    },
+    "actualTotal": 56,
+    "authorClaimedTotal": 47
+  }
+}
