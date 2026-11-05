@@ -116,7 +116,7 @@ export async function runAutomation(userId, automationId, trigger = 'manual') {
 
     db.prepare('UPDATE automation_runs SET status = ?, output = ?, finished_at = ? WHERE id = ?')
       .run('done', (output || '').slice(0, 50_000), now(), runId);
-    broadcastFn('automation', { type: 'run_done', automationId: a.id, runId });
+    broadcastFn('automation', { type: 'run_done', automationId: a.id, runId, status: 'done' });
     if (memoryBridgeRef) {
       memoryBridgeRef.storeCognitionResult({
         phase: 'automation_run', type: 'automation', automationName: a.name, kind: a.kind,

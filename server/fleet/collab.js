@@ -80,10 +80,12 @@ export async function runCollab(sessionId) {
       result = await runDebate(sessionId, session.goal, agents);
     }
 
+    const hasStepErrors = Array.isArray(result?.outputs) && result.outputs.some(o => o.error);
+    const sessionStatus = hasStepErrors ? 'partial_failure' : 'done';
     db.prepare('UPDATE collab_sessions SET status = ?, result = ?, completed_at = ? WHERE id = ?')
-      .run('done', JSON.stringify(result), now(), sessionId);
-    publish('system', 'collab.done', { id: sessionId, strategy: session.strategy });
-    broadcastFn('collab', { type: 'done', id: sessionId });
+      .run(sessionStatus, JSON.stringify(result), now(), sessionId);
+    publish('system', 'collab.done', { id: sessionId, strategy: session.strategy, status: sessionStatus });
+    broadcastFn('collab', { type: 'done', id: sessionId, status: sessionStatus });
     return result;
   } catch (e) {
     db.prepare('UPDATE collab_sessions SET status = ?, result = ?, completed_at = ? WHERE id = ?')

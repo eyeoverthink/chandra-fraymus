@@ -402,6 +402,7 @@ async function drive(runId, depth = 0) {
       // Harness Law 2: Salvage on crash — persist partial history before death
       salvageOnCrash(runId, agent.id, e, step, run.thread_id);
       setRun(runId, { status: 'error', error: e.message });
+      broadcastFn('fleet', { type: 'done', runId, status: 'error', error: e.message });
       if (depth === 0) try { recordOutcome({ success: false, summary: `${agent.id} crashed at step ${step}: ${e.message}` }); } catch (_) {}
       return;
     }
@@ -412,7 +413,7 @@ async function drive(runId, depth = 0) {
 
     if (!res.tool_calls.length) {
       setRun(runId, { status: 'done' });
-      broadcastFn('fleet', { type: 'done', runId, harness: { steps: envelope.steps.length, evidence: true } });
+      broadcastFn('fleet', { type: 'done', runId, status: 'done', harness: { steps: envelope.steps.length, evidence: true } });
       try { autoStoreFromCompletion(agent.id, lastUser?.content, res.content); } catch (_) {}
       try { replayRecord(agent.id, lastUser?.content || '', agent.model, envelope.steps, 0.5, step + 1); } catch (_) {}
       if (depth === 0) try { recordOutcome({ success: true, summary: `${agent.id} completed in ${step + 1} steps`, effectivePerspectives: null }); } catch (_) {}

@@ -108,7 +108,7 @@ export function installWorkflowRoutes(app, { broadcast, memoryBridge }) {
       JSON.stringify(result.results), result.imageUrl || null, result.html || null,
       result.durationMs, now()
     );
-    broadcast('workflow', { type: 'run_complete', id: wf.id, runId });
+    broadcast('workflow', { type: 'run_complete', id: wf.id, runId, status: result.status });
     res.json({ runId, ...result });
   }));
 

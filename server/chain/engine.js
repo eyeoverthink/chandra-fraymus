@@ -276,7 +276,7 @@ export async function executeChain(objective, config = {}, { broadcast = () => {
     }
 
     saveRun(run);
-    broadcast('chain', { type: 'chain.completed', runId: run.id, stats: ledgerStats(run.ledger), durationMs: run.usage.durationMs });
+    broadcast('chain', { type: 'chain.completed', runId: run.id, status: run.status, stats: ledgerStats(run.ledger), durationMs: run.usage.durationMs });
 
     return run;
   } catch (err) {

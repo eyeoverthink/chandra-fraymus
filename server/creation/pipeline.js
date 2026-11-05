@@ -371,13 +371,15 @@ export async function runCreationPipeline(input, opts = {}) {
     // Log the run
     const runId = randomUUID();
     try {
+      const hasStageErrs = stages.some(s => s.status === 'error' || s.error);
+      const creationStatus = hasStageErrs ? 'partial_failure' : 'completed';
       db.prepare(`INSERT INTO creation_pipeline_runs
         (id, topic, format, status, stages, shot_count, channels, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
         runId,
         input.topic,
         input.format || 'short_video',
-        'completed',
+        creationStatus,
         JSON.stringify(stages),
         assembled.shotCount || 0,
         JSON.stringify(distributed.packages?.map(p => p.platform) || []),
@@ -397,7 +399,9 @@ export async function runCreationPipeline(input, opts = {}) {
       });
     }
 
-    if (broadcast) broadcast('creation', { type: 'pipeline_complete', runId, topic: input.topic });
+    const hasStageErrors = stages.some(s => s.status === 'error' || s.error);
+    const pipelineStatus = hasStageErrors ? 'partial_failure' : 'completed';
+    if (broadcast) broadcast('creation', { type: 'pipeline_complete', runId, topic: input.topic, status: pipelineStatus });
 
     return {
       status: 'completed',

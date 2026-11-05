@@ -174,10 +174,12 @@ Return JSON: {
   });
   const avgQuality = qualityScores.length > 0 ? qualityScores.reduce((s, v) => s + v, 0) / qualityScores.length : 0;
 
-  db.prepare(`UPDATE repurpose_jobs SET status = 'completed', variants = ?, variant_count = ?, quality_score = ?, duration_ms = ?, completed_at = ? WHERE id = ?`)
-    .run(JSON.stringify(variants), variants.filter(v => !v.error).length, avgQuality, Date.now() - startTime, Date.now(), jobId);
+  const successCount = variants.filter(v => !v.error).length;
+  const jobStatus = successCount === 0 ? 'failed' : successCount < variants.length ? 'partial_failure' : 'completed';
+  db.prepare(`UPDATE repurpose_jobs SET status = ?, variants = ?, variant_count = ?, quality_score = ?, duration_ms = ?, completed_at = ? WHERE id = ?`)
+    .run(jobStatus, JSON.stringify(variants), successCount, avgQuality, Date.now() - startTime, Date.now(), jobId);
 
-  if (broadcast) broadcast('repurpose', { type: 'job_completed', id: jobId, variants: variants.length });
+  if (broadcast) broadcast('repurpose', { type: 'job_completed', id: jobId, status: jobStatus, variants: variants.length, successCount });
 
   if (memoryBridge) {
     memoryBridge.storeCognitionResult({

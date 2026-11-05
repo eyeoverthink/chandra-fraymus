@@ -92,7 +92,7 @@ function assessEffectiveness() {
       `SELECT COUNT(*) as c FROM runs WHERE created_at > ?`
     ).get(windowStart)?.c || 0;
     const succeeded = db.prepare(
-      `SELECT COUNT(*) as c FROM runs WHERE created_at > ? AND status = 'completed'`
+      `SELECT COUNT(*) as c FROM runs WHERE created_at > ? AND status = 'done'`
     ).get(windowStart)?.c || 0;
     metrics.runSuccess = total > 0 ? succeeded / total : 0.5;
     metrics.runCount = total;
@@ -135,7 +135,7 @@ function assessEffectiveness() {
       `SELECT COUNT(*) as c FROM workflow_runs WHERE created_at > ?`
     ).get(windowStart)?.c || 0;
     const completed = db.prepare(
-      `SELECT COUNT(*) as c FROM workflow_runs WHERE created_at > ? AND status = 'completed'`
+      `SELECT COUNT(*) as c FROM workflow_runs WHERE created_at > ? AND status = 'success'`
     ).get(windowStart)?.c || 0;
     metrics.workflowSuccess = total > 0 ? completed / total : 0.5;
     metrics.workflowCount = total;
