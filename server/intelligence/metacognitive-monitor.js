@@ -103,7 +103,7 @@ function assessEffectiveness() {
       `SELECT COUNT(*) as c FROM verification_loops WHERE created_at > ?`
     ).get(windowStart)?.c || 0;
     const approved = db.prepare(
-      `SELECT COUNT(*) as c FROM verification_loops WHERE created_at > ? AND status = 'APPROVED'`
+      `SELECT COUNT(*) as c FROM verification_loops WHERE created_at > ? AND status = 'passed'`
     ).get(windowStart)?.c || 0;
     metrics.verifySuccess = total > 0 ? approved / total : 0.5;
     metrics.verifyCount = total;
@@ -199,7 +199,7 @@ function assessStuckness() {
 
   try {
     const recentFails = db.prepare(
-      `SELECT COUNT(*) as c FROM verification_loops WHERE created_at > ? AND status != 'APPROVED'`
+      `SELECT COUNT(*) as c FROM verification_loops WHERE created_at > ? AND status != 'passed'`
     ).get(windowStart)?.c || 0;
     if (recentFails >= 3) stuckSignals++;
     totalChecks++;

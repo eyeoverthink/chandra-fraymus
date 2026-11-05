@@ -328,7 +328,17 @@ export function getResourcePressure() {
 }
 
 export function isResourceConstrained() {
-  return envelopeState.lastPressure >= 0.6;
+  if (envelopeState.lastPressure >= 0.6) return true;
+  // Per-resource critical check: a single resource at its critical threshold
+  // should suppress expensive actions even if aggregate pressure is low
+  const r = envelopeState.lastResources;
+  if (!r || typeof r !== 'object') return false;
+  if (r.heapMB >= RESOURCE_BUDGETS.heapMB.critical) return true;
+  if (r.dbSizeMB >= RESOURCE_BUDGETS.dbSizeMB.critical) return true;
+  if (r.concurrentRuns >= RESOURCE_BUDGETS.concurrentRuns.critical) return true;
+  if (r.ollamaLatencyMs >= RESOURCE_BUDGETS.ollamaLatencyMs.critical) return true;
+  if (r.busMessagesPerMin >= RESOURCE_BUDGETS.busBacklog.critical) return true;
+  return false;
 }
 
 export function getResourceEnvelopeHistory({ limit = 50 } = {}) {

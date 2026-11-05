@@ -217,8 +217,10 @@ async function motorCycle() {
         });
         continue;
       }
+      if (!motorState.running) break;
       const result = await fireAction(key, activation, gateMods);
-      if (result) {
+      const succeeded = result && !result.error;
+      if (succeeded) {
         try { recordEfferenceCopy(key); } catch (_) {}
       }
       firings.push({
@@ -226,7 +228,7 @@ async function motorCycle() {
         label: region.label,
         activation: readings[key],
         action: region.action,
-        result: result ? 'ok' : 'no_handler',
+        result: succeeded ? 'ok' : (result?.error ? 'error' : 'no_handler'),
         preferred,
       });
     }
