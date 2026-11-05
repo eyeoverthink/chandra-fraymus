@@ -14,6 +14,8 @@
 
 > **Independent fix recheck of `4ba2c43` / claim `3b901f7` — 2026-11-05:** [Partial fixes; changes still requested](reviews/2026-11-05-hive-phase1-fix-review.md). Author tests reproduce 18/18 and their reported 10/10, but independent delivery/integrity/recovery tests find 6 scoped passes, 3 failed gates and 1 partial. SQLite row atomicity and projection isolation improve; subscriber effects still escape rollback, malformed input reaches trusted dispatch, numeric tampering can verify intact, and identity recovery/upgrade remains incomplete. **0/7 phases independently accepted.** The current gate contract has not authorized a damaged-input prefix exception.
 
+> **Phase 2A independent review of `dcb0658` — 2026-11-05:** [Changes requested](reviews/2026-11-05-phase2a-independent-review.md). Actual manifest/allowlist/registration and positive chain-wrapper checks work. The seeded catalog does not match upstream `docs/BUILD-GATES.md`, startup replaces locally verified corrections, and the acceptance script writes the configured DB by default. Its G6 does not test the required fleet task/response; the G1 endpoint names the host registry rather than the manifest-backed fleet. Current 2A result: 1 scoped pass, 1 failure, 3 partial and 1 unverified. All 2B criteria remain deferred; **0/7 phases accepted**.
+
 ---
 
 ## Table of Contents

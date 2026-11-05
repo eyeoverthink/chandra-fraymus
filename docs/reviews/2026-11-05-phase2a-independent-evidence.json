@@ -1,0 +1,411 @@
+{
+  "generatedAt": "2026-11-05T22:54:01.992Z",
+  "implementationRef": "dcb065868448978ac5f8b963b7e326ca64a7b374",
+  "upstreamRef": "2f75cee7f54a4aa6bae219ec9241fc44f980c36b",
+  "upstreamBuildGateBlob": "43377715d18c7d892fa71c3dab3167da070f6936",
+  "sourceHashes": {
+    "server/db-migrate.js": "6a3eb642bbd64c564d83232bdfc0c0f8caa30293c3ef098a87d335d47d79950c",
+    "server/fleet/agent-memory.js": "ca722a684e44d1cde6d46ac2dd6c8953fb0d4298361221744a7b258640aa72d0",
+    "server/intelligence/hive-bridge.js": "f746d33a5d4e5b298b6383744a100b63eaf26476ae43f9b2ef0b573f8bb2c9d2",
+    "server/fleet/re-tools.js": "34337b6989518f9ceb9a98aefd211c63771c35db11fd3a0f0c10181678e8a44d",
+    "agents/re-analyst.md": "43559b20af68332b829f5466c7ad8d3df7cfb401826377f5cfc31ffdaec7afbc",
+    "agents/rea_analyst.md": "835062daec4f1952cfc6e66cf0ca68750f0c66905dae068c42458f74c929ed33",
+    "server/fleet/manifest.js": "3be22dd85d1726b853e348578264b2ec3dd9df36c6a5cb3bf4e8bc64f4108645",
+    "server/fleet/runtime.js": "269ec71288801a656b76b13e8bedfad182ebb00fafd6522fd27eae631b310594",
+    "server/fleet/tools.js": "57205f6f66d95d29f4225a21fa62e6b31ed9250e79643e0a748a54911ff1c026",
+    "server/runtime.js": "801d7b9cf9108d0ef55665652184e951eb3b0f70c947ccc12d46e5451dc0ad1f",
+    "server/app.js": "6b71f95d697fdb1d40b93c8301a7541d217ab3b36db17551d1870abc38b348fd",
+    "server/fleet/routes.js": "c5ebee04a08342352f408c9ef102e52fe91dc7859ec51b3b73e583f1581f7815",
+    "docs/reviews/2026-11-05-phase2a-gate-acceptance.mjs": "d54405f10ae3150f866929fc692a2efa9b1a28c5e4bc1b76f049a95f7e745b0f"
+  },
+  "safety": "Pinned production bodies evaluated with in-memory SQLite and temporary manifest/data directories. Actual fleet GET routes tested on ephemeral loopback. No fleet run/model call. Author script run only in a child with CHANDRA_DATA_DIR explicitly set to a prepared disposable database. No live DB opened/checkpointed or server restarted.",
+  "retainedTemporaryDirectory": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-phase2a-review-oeNmzB",
+  "checks": [
+    "fresh fixture gets eighteen build-gate rows at confidence 0.9",
+    "source and seed disagree on gate 1 identity",
+    "source and seed disagree on gate 7 identity",
+    "source and seed disagree on gate 18 identity",
+    "lookup searches return stored keyword matches",
+    "startup reseeding overwrites a locally verified correction and lowers confidence",
+    "replacement content retains the old verified_at flag",
+    "seeding reports eighteen skipped despite mutating existing rows",
+    "actual manifest loader discovers RE Analyst with ten explicit tools",
+    "actual fleet allowlist excludes an unrelated registered tool",
+    "actual loader retains the separate Tycho manifest",
+    "actual RE wrapper returns valid raw status and rejects projection verification",
+    "four Phase 2B tools explicitly defer instead of faking measurements",
+    "fleet registry spread and startup seed are wired in source",
+    "declared /api/agents gate targets host rows rather than manifest-backed fleet",
+    "author script reproduces reported passes in a prepared disposable database",
+    "author script directly imports DB-owning modules and never submits the required fleet task",
+    "author acceptance run writes eighteen memories into its selected database"
+  ],
+  "diagnosticAssertionCount": 18,
+  "firstSeed": {
+    "seeded": 18,
+    "skipped": 0,
+    "total": 18
+  },
+  "initialConfidenceCount": 18,
+  "catalogComparison": [
+    {
+      "gate": 1,
+      "seededTitle": "JDK 25 required for Ghidra 12.3 DEV",
+      "upstreamTitle": "r2 sys/install.sh → sudo hang."
+    },
+    {
+      "gate": 2,
+      "seededTitle": "JAVA_HOME must point to JDK 25 installation",
+      "upstreamTitle": "r2 dylib path decay."
+    },
+    {
+      "gate": 3,
+      "seededTitle": "Ghidra headless analyzer timeout per function",
+      "upstreamTitle": "Ghidra JDK 21 daemon crash."
+    },
+    {
+      "gate": 4,
+      "seededTitle": "radare2 dylib linking fails on ARM macOS",
+      "upstreamTitle": "Ghidra build #3 → missing flat repo (16s)."
+    },
+    {
+      "gate": 5,
+      "seededTitle": "rabin2 -i import count mismatch with Ghidra",
+      "upstreamTitle": "rea engine gate."
+    },
+    {
+      "gate": 6,
+      "seededTitle": "clang -fsyntax-only needs stub headers for decompiled C",
+      "upstreamTitle": "rea genuine runtime incompat."
+    },
+    {
+      "gate": 7,
+      "seededTitle": "Python 3.12+ required for fra-annotate.py walrus operator",
+      "upstreamTitle": "npm 11 install-scripts block."
+    },
+    {
+      "gate": 8,
+      "seededTitle": "Ollama model pull required before first annotation run",
+      "upstreamTitle": "rea prepare.mjs needs .git."
+    },
+    {
+      "gate": 9,
+      "seededTitle": "fra-eval.py re.split() produces 181 fragments from 136 functions",
+      "upstreamTitle": "rea entrypoint law."
+    },
+    {
+      "gate": 10,
+      "seededTitle": "rea-agents npm install fails on native modules",
+      "upstreamTitle": "Ghidra JDK prompt with no TTY."
+    },
+    {
+      "gate": 11,
+      "seededTitle": "Dossier seal includes ghidra.log which is not committed",
+      "upstreamTitle": "Bad argument: /bin/ls."
+    },
+    {
+      "gate": 12,
+      "seededTitle": "Pipeline scripts assume tools on PATH",
+      "upstreamTitle": "Directory not found (ghidra-projects)."
+    },
+    {
+      "gate": 13,
+      "seededTitle": "Hive nightly cron must complete before next run",
+      "upstreamTitle": "Ghidra 12 headless python = gone."
+    },
+    {
+      "gate": 14,
+      "seededTitle": "Receipt chain breaks if hive-receipts.py crashes mid-append",
+      "upstreamTitle": "Node runtime heals itself via brew."
+    },
+    {
+      "gate": 15,
+      "seededTitle": "Import verification only confirms 3 of 78 Ghidra imports",
+      "upstreamTitle": "ReVa gradle root confusion."
+    },
+    {
+      "gate": 16,
+      "seededTitle": "qwen3.5 think-block contaminates annotations",
+      "upstreamTitle": "setuptools-scm needs git metadata (again)."
+    },
+    {
+      "gate": 17,
+      "seededTitle": "Tailnet DNS resolution fails for Windows target",
+      "upstreamTitle": "FRA score v1 verified nothing — my regex's fault."
+    },
+    {
+      "gate": 18,
+      "seededTitle": "Ghidra project directory needs write permission for headless mode",
+      "upstreamTitle": "r2ai build gates."
+    }
+  ],
+  "lookupResults": [
+    {
+      "keyword": "JDK",
+      "matches": 2,
+      "gates": [
+        {
+          "gate": 1,
+          "keyword": "JDK",
+          "title": "JDK 25 required for Ghidra 12.3 DEV",
+          "fix": "Install JDK 25 EA (Temurin or Oracle). Ghidra 12.3 DEV will not start on JDK 17 or 21 — the analyzeHeadless script checks JAVA_HOME version and exits with \"Unsupported JDK\" if < 25.",
+          "confidence": 0.9,
+          "verified": false
+        },
+        {
+          "gate": 2,
+          "keyword": "JAVA_HOME",
+          "title": "JAVA_HOME must point to JDK 25 installation",
+          "fix": "Export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home before running Ghidra. Shell profiles may override — verify with `java -version` in the same shell.",
+          "confidence": 0.9,
+          "verified": false
+        }
+      ]
+    },
+    {
+      "keyword": "dylib",
+      "matches": 1,
+      "gates": [
+        {
+          "gate": 4,
+          "keyword": "dylib",
+          "title": "radare2 dylib linking fails on ARM macOS",
+          "fix": "Build radare2 from source with `sys/install.sh` instead of Homebrew. The Homebrew bottle links against x86_64 dylibs on some mixed-arch systems. Verify with `file $(which r2)` showing arm64.",
+          "confidence": 0.9,
+          "verified": false
+        }
+      ]
+    },
+    {
+      "keyword": "npm",
+      "matches": 1,
+      "gates": [
+        {
+          "gate": 10,
+          "keyword": "npm",
+          "title": "rea-agents npm install fails on native modules",
+          "fix": "The rea-agents orchestrator (5,810 TS files) has native deps that require node-gyp + Python + make. On macOS ARM, ensure Xcode CLT is installed: `xcode-select --install`. Some deps need `npm rebuild` after arch switch.",
+          "confidence": 0.9,
+          "verified": false
+        }
+      ]
+    }
+  ],
+  "reseed": {
+    "result": {
+      "seeded": 0,
+      "skipped": 18,
+      "total": 18
+    },
+    "before": {
+      "id": 1,
+      "agent_id": "re-analyst",
+      "category": "build_gate",
+      "key": "build_gate_1",
+      "value": "{\"gate\":1,\"title\":\"Locally reproduced correction\",\"fix\":\"Preserve this verified fixture lesson\"}",
+      "confidence": 1,
+      "source": "local reproduction fixture",
+      "access_count": 2,
+      "verified_at": 1793919241511,
+      "created_at": 1793919241509,
+      "updated_at": 1793919241510
+    },
+    "after": {
+      "id": 1,
+      "agent_id": "re-analyst",
+      "category": "build_gate",
+      "key": "build_gate_1",
+      "value": "{\"gate\":1,\"keyword\":\"JDK\",\"title\":\"JDK 25 required for Ghidra 12.3 DEV\",\"fix\":\"Install JDK 25 EA (Temurin or Oracle). Ghidra 12.3 DEV will not start on JDK 17 or 21 — the analyzeHeadless script checks JAVA_HOME version and exits with \\\"Unsupported JDK\\\" if < 25.\"}",
+      "confidence": 0.9,
+      "source": "BUILD-GATES.md (upstream, not reproduced locally)",
+      "access_count": 3,
+      "verified_at": 1793919241511,
+      "created_at": 1793919241509,
+      "updated_at": 1793919241511
+    }
+  },
+  "manifest": {
+    "id": "re-analyst",
+    "tools": [
+      "re.ingest_dossier",
+      "re.verify_chain",
+      "re.query_dossier",
+      "re.build_gate_lookup",
+      "re.compile_rate_measure",
+      "re.compile_rate_predict",
+      "bus_publish",
+      "bus_read",
+      "agent_remember",
+      "agent_recall"
+    ],
+    "tychoId": "rea_analyst",
+    "effectiveAllowedTools": [
+      "re.verify_chain",
+      "re.build_gate_lookup",
+      "re.ingest_dossier",
+      "re.query_dossier",
+      "re.compile_rate_measure",
+      "re.compile_rate_predict",
+      "bus_publish",
+      "bus_read",
+      "agent_remember",
+      "agent_recall"
+    ]
+  },
+  "rawResult": {
+    "total": 13,
+    "intact": true,
+    "breakIndex": null,
+    "format": "raw",
+    "malformed": [],
+    "malformedComplete": false
+  },
+  "projectionResult": {
+    "error": "Chain verification impossible for projection format — chain fields (prev, self) are absent"
+  },
+  "deferred": [
+    {
+      "name": "re.ingest_dossier",
+      "deferred": true
+    },
+    {
+      "name": "re.query_dossier",
+      "deferred": true
+    },
+    {
+      "name": "re.compile_rate_measure",
+      "deferred": true
+    },
+    {
+      "name": "re.compile_rate_predict",
+      "deferred": true
+    }
+  ],
+  "registration": {
+    "spread": true,
+    "startupSeed": true
+  },
+  "api": {
+    "hostAgentIds": [
+      "fixture-host"
+    ],
+    "fleetAgentIds": [
+      "re-analyst",
+      "rea_analyst"
+    ],
+    "reAnalystToolCount": 10,
+    "fleetTaskSubmitted": false,
+    "modelResponseVerified": false
+  },
+  "authorRerun": {
+    "status": 0,
+    "stdout": "\n═══ Gate 2A-1: Manifest Discovery ═══\n  ✓ RE-P2A-G1: PASS — Manifest has id=\"re-analyst\" with exactly 10 tools: [re.ingest_dossier, re.verify_chain, re.query_dossier, re.build_gate_lookup, re.compile_rate_measure, re.compile_rate_predict, bus_publish, bus_read, agent_remember, agent_recall]\n\n═══ Gate 2A-2: re.verify_chain ═══\n  ✓ RE-P2A-G2a: PASS_ISOLATED — Raw receipt file not present on this machine — tool function verified via import\n  ✓ RE-P2A-G2b: PASS — Projection correctly unverifiable: \"Chain verification impossible for projection format — chain fields (prev, self) are absent\"\n\n═══ Gate 2A-3: Build Gate Lookup ═══\n  ✓ RE-P2A-G3-JDK: PASS — Keyword \"JDK\" → 2 gate(s): [2, 1]\n  ✓ RE-P2A-G3-dylib: PASS — Keyword \"dylib\" → 1 gate(s): [4]\n  ✓ RE-P2A-G3-npm: PASS — Keyword \"npm\" → 1 gate(s): [10]\n\n═══ Gate 2A-4: Build Gate Memories ═══\n  ✓ RE-P2A-G4: PASS — 18 build_gate memories stored, all at confidence 0.9 (not 1.0)\n\n═══ Gate 2A-5: Tycho rea_analyst Preserved ═══\n  ✓ RE-P2A-G5: PASS — Tycho rea_analyst preserved: id=\"rea_analyst\", name=\"Tycho\", separate from re-analyst\n\n═══ Gate 2A-6: Tool Registration ═══\n  ✓ RE-P2A-G6: PASS — 6 RE tools registered: 2 Gate-2A working, 4 Gate-2B stubs correctly require Phase 3\n\n═══════════════════════════════════════════\n  Phase 2A Gate Results: 9 PASS, 0 FAIL\n═══════════════════════════════════════════\n\nEvidence written to: C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-phase2a-review-oeNmzB\\author-evidence.json\n",
+    "stderr": "",
+    "evidence": {
+      "phase": "2A",
+      "title": "RE Agent Manifest + Fleet Tools — Gate Acceptance",
+      "timestamp": "2026-11-05T22:54:01.978Z",
+      "gates": [
+        {
+          "id": "RE-P2A-G1",
+          "status": "PASS",
+          "detail": "Manifest has id=\"re-analyst\" with exactly 10 tools: [re.ingest_dossier, re.verify_chain, re.query_dossier, re.build_gate_lookup, re.compile_rate_measure, re.compile_rate_predict, bus_publish, bus_read, agent_remember, agent_recall]",
+          "timestamp": "2026-11-05T22:54:01.896Z"
+        },
+        {
+          "id": "RE-P2A-G2a",
+          "status": "PASS_ISOLATED",
+          "detail": "Raw receipt file not present on this machine — tool function verified via import",
+          "timestamp": "2026-11-05T22:54:01.953Z"
+        },
+        {
+          "id": "RE-P2A-G2b",
+          "status": "PASS",
+          "detail": "Projection correctly unverifiable: \"Chain verification impossible for projection format — chain fields (prev, self) are absent\"",
+          "timestamp": "2026-11-05T22:54:01.954Z"
+        },
+        {
+          "id": "RE-P2A-G3-JDK",
+          "status": "PASS",
+          "detail": "Keyword \"JDK\" → 2 gate(s): [2, 1]",
+          "timestamp": "2026-11-05T22:54:01.967Z"
+        },
+        {
+          "id": "RE-P2A-G3-dylib",
+          "status": "PASS",
+          "detail": "Keyword \"dylib\" → 1 gate(s): [4]",
+          "timestamp": "2026-11-05T22:54:01.968Z"
+        },
+        {
+          "id": "RE-P2A-G3-npm",
+          "status": "PASS",
+          "detail": "Keyword \"npm\" → 1 gate(s): [10]",
+          "timestamp": "2026-11-05T22:54:01.969Z"
+        },
+        {
+          "id": "RE-P2A-G4",
+          "status": "PASS",
+          "detail": "18 build_gate memories stored, all at confidence 0.9 (not 1.0)",
+          "timestamp": "2026-11-05T22:54:01.977Z"
+        },
+        {
+          "id": "RE-P2A-G5",
+          "status": "PASS",
+          "detail": "Tycho rea_analyst preserved: id=\"rea_analyst\", name=\"Tycho\", separate from re-analyst",
+          "timestamp": "2026-11-05T22:54:01.978Z"
+        },
+        {
+          "id": "RE-P2A-G6",
+          "status": "PASS",
+          "detail": "6 RE tools registered: 2 Gate-2A working, 4 Gate-2B stubs correctly require Phase 3",
+          "timestamp": "2026-11-05T22:54:01.978Z"
+        }
+      ],
+      "summary": {
+        "passed": 9,
+        "failed": 0,
+        "total": 9
+      }
+    },
+    "seededRows": 18
+  },
+  "gateResults": [
+    {
+      "id": "RE-P2A-G1",
+      "status": "PARTIAL",
+      "detail": "Actual manifest and fleet API have ten tools; spec /api/agents route is a different host-node registry."
+    },
+    {
+      "id": "RE-P2A-G2",
+      "status": "PASS_ISOLATED",
+      "detail": "Wrapper works on positive raw/projection fixtures; underlying Phase 1 findings remain open."
+    },
+    {
+      "id": "RE-P2A-G3",
+      "status": "PARTIAL",
+      "detail": "Keyword search works, but seeded gate identities/content do not match documented upstream source."
+    },
+    {
+      "id": "RE-P2A-G4",
+      "status": "FAIL",
+      "detail": "Eighteen confidence-0.9 rows exist, but sourced lessons are substituted and startup overwrites local verified corrections."
+    },
+    {
+      "id": "RE-P2A-G5",
+      "status": "PARTIAL",
+      "detail": "Tycho manifest coexists; functional model-backed execution not exercised."
+    },
+    {
+      "id": "RE-P2A-G6",
+      "status": "UNVERIFIED",
+      "detail": "Required POST /api/fleet/runs response was replaced by tool-registration checks in author test."
+    }
+  ],
+  "summary": {
+    "scopedPasses": 1,
+    "failures": 1,
+    "partial": 3,
+    "unverified": 1,
+    "independentlyAcceptedPhases": 0
+  }
+}
