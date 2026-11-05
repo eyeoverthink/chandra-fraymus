@@ -295,6 +295,23 @@ npm run start        # production server (serves built client)
   - `intelligence/opeg.js`: `opegToleranceScale` multiplied into regression tolerance (calibrate: 0.6× = tighter gates, diversify: 1.2× = more permissive), stacked on consciousness gate's evolutionRate scaling
   - `daemon/engine.js`: adaptive `cycleMultiplier` stacked on consciousness gate's multiplier (conserve: 1.5× slower cycles, diversify: 0.8× faster cycles)
 
+### Self-Model Registry (server/intelligence/self-model.js)
+- `self-model.js` — Phase 17: System proprioception. Static registry (SYSTEM_MAP) mapping every subsystem to its backend module/functions/endpoints and frontend view/panel/widget/constellation node. Gives agents spatial awareness of where they live in the Nexus UI.
+- **SYSTEM_MAP**: 27 subsystem entries across 7 categories (intelligence, fleet, workflow, commerce, media, core, ui), each with backend (module, functions, endpoints) and frontend (view, panel, widget, constellationNode, description)
+- **collectVisualState()**: Queries DB tables to determine which subsystems are currently active (runs, bus messages, alerts, etc. in last 5 minutes)
+- **buildSpatialContext(agentId)**: Returns prompt fragment injected into every agent's system prompt, telling it where it lives in the UI, how users interact with it, and what intelligence subsystems surround it
+- **buildSubsystemContext(subsystemId)**: Returns one-line backend↔frontend mapping for a specific subsystem
+- **CTRNN proprioceptive regions** (row 0 — crown, above all other bands):
+  - Body activity (0, 4) σ=2.0 — active subsystem ratio (how alive the visual body is)
+  - Body coherence (0, 12) σ=2.0 — UI-present subsystems that are also DB-active (alignment)
+- **Consciousness-aware**: sensitivity = BASE_PROPRIO_SENSITIVITY(0.5) + (evolutionRate - 1.0) * 0.3, clamped [0.2, 1.2]
+- Snapshots every 20th call to `self_model_snapshots` table, auto-prunes >7 days
+- Wired into daemon engine as Step 10 (self-model snapshot), reset on stop, status in getDaemonStatus()
+- Wired into fleet/runtime.js: `buildSpatialContext(agent.id)` appended to every agent's system prompt
+- DB table: `self_model_snapshots` (id, snapshot_type, subsystem_count, active_count, visual_summary, gate_tier, sensitivity, created_at)
+- 6 REST endpoints: GET /api/intelligence/self-model, GET .../map, GET .../lookup?q=X, GET .../spatial?agent=X, GET .../history, POST .../snapshot
+- 1 fleet tool: `self_model_status` (modes: default status, "map" full registry, "lookup" search, "spatial" agent context, "subsystem" single mapping)
+
 ### State Bridge (server/intelligence/state-bridge.js)
 - `state-bridge.js` — Bridges dynamic runtime state with semantic memory. Snapshots autonomy/intelligence/fleet state each daemon cycle, fossilizes into agent_memories (category 'state_fossil') with hash-based dedup and 30-day retention.
 - Three snapshot collectors: collectAutonomyState (OPEG + reflections + neurogenesis), collectIntelligenceState (memories + verifier + daemon + debates), collectFleetState (agents + bus + workflows)

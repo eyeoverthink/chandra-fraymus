@@ -18,6 +18,7 @@ import { getHabituationStatus } from '../intelligence/habituation.js';
 import { getWorkingMemoryStatus, queryWorkingMemory } from '../intelligence/working-memory.js';
 import { getMetacognitiveStatus, getStrategyRecommendation } from '../intelligence/metacognitive-monitor.js';
 import { getAdaptiveStatus, getAdaptiveModifiers, isActionSuppressed, isActionPreferred } from '../intelligence/adaptive-strategy.js';
+import { getSelfModelStatus, getSystemMap, lookupSubsystem, buildSpatialContext, buildSubsystemContext } from '../intelligence/self-model.js';
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
@@ -402,6 +403,42 @@ export function createFleetTools({ workflowStore }) {
         }
         const status = getAdaptiveStatus();
         ledger.record('adaptive.read', { strategy: status.activeStrategy, switchCount: status.switchCount, tier: status.gateTier }, 'fleet');
+        return status;
+      },
+    },
+    {
+      name: 'self_model_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Read the system self-model: a proprioceptive registry mapping every backend subsystem to its frontend visual representation (view, panel, widget, constellation node). Returns subsystem count, active count, categories, CTRNN proprioceptive injection state, gate tier. Use "map" mode to get the full system map, "lookup" mode with a query to find specific subsystems, "spatial" mode to get your spatial awareness context, or "subsystem" mode to get one subsystem\'s backend↔frontend mapping.',
+      parameters: object({
+        mode: { type: 'string', description: 'Optional: "map" returns full system map, "lookup" with query searches, "spatial" returns your UI location context, "subsystem" with id returns one mapping' },
+        query: { type: 'string', description: 'Search query (used with mode "lookup")' },
+        id: { type: 'string', description: 'Subsystem id (used with mode "subsystem")' },
+      }),
+      execute: async (params) => {
+        if (params.mode === 'map') {
+          const map = getSystemMap();
+          ledger.record('selfModel.map', { count: map.length }, 'fleet');
+          return { subsystems: map };
+        }
+        if (params.mode === 'lookup' && params.query) {
+          const results = lookupSubsystem(params.query);
+          ledger.record('selfModel.lookup', { query: params.query, found: results.length }, 'fleet');
+          return { query: params.query, results };
+        }
+        if (params.mode === 'spatial') {
+          const context = buildSpatialContext(params.id || 'system');
+          ledger.record('selfModel.spatial', { agentId: params.id || 'system' }, 'fleet');
+          return { context };
+        }
+        if (params.mode === 'subsystem' && params.id) {
+          const context = buildSubsystemContext(params.id);
+          ledger.record('selfModel.subsystem', { id: params.id }, 'fleet');
+          return { id: params.id, context };
+        }
+        const status = getSelfModelStatus();
+        ledger.record('selfModel.read', { subsystemCount: status.subsystemCount, activeCount: status.activeCount, tier: status.gateTier }, 'fleet');
         return status;
       },
     },

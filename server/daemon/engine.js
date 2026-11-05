@@ -19,6 +19,7 @@ import { getWorkingMemoryStatus, resetWorkingMemory } from '../intelligence/work
 import { startMetacognitiveMonitor, stopMetacognitiveMonitor, getMetacognitiveStatus } from '../intelligence/metacognitive-monitor.js';
 import { getAdaptiveStatus, getAdaptiveModifiers, resetAdaptiveStrategy } from '../intelligence/adaptive-strategy.js';
 import { neurogenesisCycle } from '../intelligence/neurogenesis.js';
+import { selfModelSnapshot, getSelfModelStatus, resetSelfModel, setSelfModelCTRNN } from '../intelligence/self-model.js';
 import { heart } from '../fraymus-tools.js';
 
 const now = () => Date.now();
@@ -425,6 +426,14 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
       stepResults.fossilPrune = { error: e.message };
     }
 
+    // Step 10: Self-Model — proprioceptive snapshot + CTRNN injection
+    try {
+      const smResult = selfModelSnapshot();
+      stepResults.selfModel = { activeCount: smResult.visualState.activeCount, ctrnn: smResult.ctrnnResult, tick: smResult.tick };
+    } catch (e) {
+      stepResults.selfModel = { error: e.message };
+    }
+
     const duration = now() - t0;
 
     db.prepare(
@@ -519,6 +528,15 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     console.error('metacognitive monitor start error:', e.message);
   }
 
+  // Phase 17: Wire self-model CTRNN reference for proprioceptive injection
+  try {
+    import('../intelligence/ctrnn-instance.js').then(({ getCTRNN }) => {
+      setSelfModelCTRNN(getCTRNN());
+    }).catch(() => {});
+  } catch (e) {
+    console.error('self-model CTRNN wiring error:', e.message);
+  }
+
   // Phase 11: Wire attention gate sources (motor intentions + emotion → sensory gain)
   try {
     setAttentionSources({
@@ -579,6 +597,8 @@ export function stopDaemon() {
   try { stopMetacognitiveMonitor(); } catch (_) {}
   // Phase 15: Reset adaptive strategy with daemon
   try { resetAdaptiveStrategy(); } catch (_) {}
+  // Phase 17: Reset self-model with daemon
+  try { resetSelfModel(); } catch (_) {}
   daemonState.running = false;
   daemonState.nextCycleAt = 0;
   return { stopped: true };
@@ -605,6 +625,7 @@ export function getDaemonStatus() {
     workingMemory: getWorkingMemoryStatus(),
     metacognitive: getMetacognitiveStatus(),
     adaptiveStrategy: getAdaptiveStatus(),
+    selfModel: getSelfModelStatus(),
   };
 }
 

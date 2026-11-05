@@ -18,6 +18,7 @@ import { requestWrit, consumeWrit } from '../integrity/writ-system.js';
 import { isClockTrusted, getLastVerdict } from '../integrity/clock-honesty.js';
 import { buildPromptContext as akashicPromptContext } from '../intelligence/akashic.js';
 import { record as replayRecord } from '../intelligence/replay-engine.js';
+import { buildSpatialContext } from '../intelligence/self-model.js';
 
 const MAX_STEPS = 8;
 const MAX_HISTORY = 40;
@@ -185,7 +186,13 @@ async function systemPrompt(agent, userId) {
     consciousnessBlock = `\n\nConsciousness state: ${tierDirectives[gateMods.tier] || tierDirectives.AWAKENING} [Phi=${gateMods.phiValue?.toFixed?.(2) || '?'}, proofs=${gateMods.proofsPassed}/4, evolution=${gateMods.evolutionRate}x]`;
   } catch (_) {}
 
-  return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}${intelligenceBlock}${bridgeBlock}${agentMemBlock}${akashicBlock}${perspectiveBlock}${consciousnessBlock}`;
+  // Self-Model — spatial awareness of where this agent lives in the UI
+  let selfModelBlock = '';
+  try {
+    selfModelBlock = buildSpatialContext(agent.id);
+  } catch (_) {}
+
+  return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}${intelligenceBlock}${bridgeBlock}${agentMemBlock}${akashicBlock}${perspectiveBlock}${consciousnessBlock}${selfModelBlock}`;
 }
 
 async function chat(messages, tools, model) {
