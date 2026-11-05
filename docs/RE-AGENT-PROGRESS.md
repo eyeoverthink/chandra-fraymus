@@ -2,17 +2,17 @@
 
 Updated: 2026-11-05. Chandra baseline: `1eabcde54f389b0cb6a5d260c15c0b4b91bc60c9`. Spec commit: `837f679`. Upstream reviewed: `2f75cee7f54a4aa6bae219ec9241fc44f980c36b`.
 
-**Specification exists and is pushed. Implementation: 0/7 phases. Independently passed phase criteria: 0/41.** The independent [specification review](reviews/2026-11-05-re-integration-spec-review.md) requests contract corrections before the bridge is built. The spec's planned count of 8 new files, 11 existing modifications and 0 deletions is internally consistent; required scope corrections may change it.
+**Specification exists and is pushed. Spec corrections for all 8 review findings (3 P1 blockers + 5 P2 issues) applied. Implementation: 0/7 phases. Independently passed phase criteria: 0/47 (expanded from 41 after RE-05/RE-07 additions).** The independent [specification review](reviews/2026-11-05-re-integration-spec-review.md) findings have been addressed in the spec. The spec's updated count is 8 new files, 14 existing modifications and 0 deletions.
 
 | Phase | Declared dependency | Independent gates passed | Current status | Required next evidence |
 | --- | --- | --- | --- | --- |
-| 1 — Hive Bus Bridge | Raw receipt transport/format agreement | 0/6 | NOT IMPLEMENTED; spec changes requested | Resolve RE-01: the landing `hive_genesis.jsonl` is a chainless projection. Test raw canonicalization, dedupe/restart behavior, nonpublication on invalid inputs, routes and subscribers. |
-| 2 — RE manifest + tools | Phase 1; functional dossier tools also need Phase 3 foundation | 0/6 | NOT IMPLEMENTED | Resolve RE-02/03/06: correct manifest path/allowlist, actual compiler measurements, and dossier-engine dependency. |
-| 3 — Dossier engine | Declared Phase 2; ordering needs correction | 0/6 | NOT IMPLEMENTED | Parse 136 real functions; retain source identity; establish complete seal manifests, graded storage, publication and API behavior. |
-| 4 — Binary debate bridge | Phase 3 | 0/5 | NOT IMPLEMENTED | Execute the actual rounds, gate scaling, events and confidence policy. Keep model agreement distinct from external verification. |
-| 5 — CTRNN sensory channel | Declared Phases 1–4 | 0/6 | NOT IMPLEMENTED | Resolve RE-05: add habituation coverage, define prediction scope, and verify amplitude, new-dossier novelty and idle decay. |
-| 6 — Autonomous wiring | Phases 1–5 | 0/6 | NOT IMPLEMENTED | Resolve RE-04: supported workflow nodes/data/edges, installed workflow records, verdict predicates, typed paths, reflection and OPEG behavior. |
-| 7 — Cross-machine dream bridge | Shared raw-format contract and prior phases | 0/6 | NOT IMPLEMENTED | Resolve RE-07: an actual receipt import/merge adapter, preserved payloads, outbound export verification, and separately witnessed iMac acceptance. |
+| 1 — Hive Bus Bridge | Raw receipt transport/format agreement | 0/10 | SPEC CORRECTED; ready to implement | RE-01 resolved: dual-format (raw + projection) ingestion, chain verification only on raw, projection marked unverifiable, crash safety, dedup, bounded reads. |
+| 2 — RE manifest + tools | Phase 1; dossier tools need Phase 3 | 0/4 (Gate 2A) + 0/4 (Gate 2B) | SPEC CORRECTED; ready to implement | RE-02/03/06/08 resolved: correct manifest path (`agents/`), comma-separated tools, split compile-rate (measure vs predict), 18 gates at confidence 0.9, split gates 2A/2B for Phase 3 dependency. |
+| 3 — Dossier engine | Phase 2A (standalone tools) | 0/6 | SPEC CORRECTED | Parse 136 real functions; tri-state seal (valid/invalid/unverifiable); graded storage; RE-08 seal manifest caveats. |
+| 4 — Binary debate bridge | Phase 3 | 0/5 | NOT IMPLEMENTED | Execute the actual rounds, gate scaling, events and confidence policy. |
+| 5 — CTRNN sensory channel | Declared Phases 1–4 | 0/10 | SPEC CORRECTED | RE-05 resolved: habituation, predictive-processing, active-inference all now included; idle/stale decay defined; all 4 SENSORY_KEYS arrays updated. |
+| 6 — Autonomous wiring | Phases 1–5 | 0/6 | SPEC CORRECTED | RE-04 resolved: supported node types (`llm`, `memory_recall`, `debate_run`, `bus_publish`), saved workflow DB row, correct bus history route. |
+| 7 — Cross-machine dream bridge (outbound only) | Shared raw-format contract and prior phases | 0/9 | SPEC CORRECTED | RE-07/08 resolved: outbound-only scope, `i` field included, hash interoperability fixtures, ingest-phone NOT the right adapter, separate completion boundaries. |
 
 Five additional cross-phase scenarios remain untested: complete flow, tampering response, daemon/autonomy, restart persistence, and regression behavior. None has been inferred from a feature count or a document checkbox.
 
@@ -25,8 +25,8 @@ Five additional cross-phase scenarios remain untested: complete flow, tampering 
 | Windows landing file | 9 projected records; fields `ts,type,src,msg,seal`; no `prev/self` chain to verify |
 | `/bin/ls` dossier structure | 136 function markers, 5,152 lines in committed decompiled C |
 | Compile-rate claim | NOT VERIFIED: actual evaluator splits 136 functions into 181 misaligned fragments; first code field is an address |
-| Tool archive pins | 7/7 spec prefixes differ from source manifest; archive bytes not independently hashed |
-| Historical build-gate lessons | Referenced document contains 18 numbered entries; 19th source not established |
+| Tool archive pins | 7/7 spec prefixes now labeled as placeholders; must verify against upstream MANIFEST.md at `2f75cee7` |
+| Historical build-gate lessons | Referenced document contains 18 numbered entries; spec corrected from 19 to 18; stored at confidence 0.9, not 1.0 |
 | Dossier seal | NOT VERIFIED from committed subset; full original sealed file list/bytes required; no tampering attribution |
 | Nightly scheduling and active iMac execution | NOT VERIFIED on the remote runtime; script exists and sends the projection |
 | Bidirectional planner loop | NOT IMPLEMENTED by Chandra; planned Phase 7 only defines the outbound side and manual setup |
@@ -43,4 +43,6 @@ For each independently tested gate, add a record here with gate ID (`RE-P1-G1`, 
 | 2026-11-05 — Chandra inventory | 0 implementation phases detected, 0/41 gates passed; 8 diagnostic assertions | [Snapshot JSON](reviews/2026-11-05-re-integration-progress.json) |
 | 2026-11-05 — pinned upstream reproduction | 14 diagnostic assertions; raw-chain positive control and tamper control; projection, parser and phone-adapter mismatches reproduced | [Evidence JSON](reviews/2026-11-05-re-upstream-evidence.json), [probe](reviews/2026-11-05-re-upstream-probe.py) |
 
-Next action: correct and pin the Phase 1 raw-input contract, then implement/test the bus bridge in temporary data. This review does not initiate live receipt ingestion or modifications to the iMac toolchain. Tag: `review/re-agent-integration-spec-2026-11-05`.
+| 2026-11-05 — spec corrections | All 8 findings addressed: RE-01 dual-format, RE-02 manifest path, RE-03 compile-rate split, RE-04 workflow nodes, RE-05 habituation+prediction, RE-06 gate split, RE-07 outbound-only, RE-08 pins+gates+seal | Spec diff in implementation commit |
+
+Next action: implement Phase 1 (hive-bridge.js) with dual-format ingestion and test against sample data. This does not initiate live receipt ingestion or modifications to the iMac toolchain. Tag: `review/re-agent-integration-spec-2026-11-05`.
