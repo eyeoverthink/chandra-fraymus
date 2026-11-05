@@ -1,18 +1,18 @@
 # RE Agent integration progress
 
-Updated: 2026-11-05. Latest independently reviewed Chandra/spec correction: `5e23e01769a393645270633b80e70ff3b225f724`. Phase 1 implementation: `8b52ac9`. Initial baseline: `1eabcde`; spec introduced in `837f679`. Upstream reviewed: `2f75cee7f54a4aa6bae219ec9241fc44f980c36b`.
+Updated: 2026-11-05. Latest independently reviewed implementation: `8b52ac96d1ce65782d21bd4c770e2fb8bdd2873b`; author's tracker claims reviewed at `931783b`. Prior spec correction: `5e23e01769a393645270633b80e70ff3b225f724`. Initial baseline: `1eabcde`; spec introduced in `837f679`. Upstream reviewed: `2f75cee7f54a4aa6bae219ec9241fc44f980c36b`.
 
-**Implementation: 1/7 phases. Independently passed phase criteria: 0/56 (Phase 1 implemented but not yet independently gate-verified).** Phase 1 (Hive Bus Bridge) was implemented at `8b52ac9` with Python-compatible JSON canonicalization verified 13/13 against real upstream receipts, dual-format ingestion (raw + projection), content-hash dedup, and at-least-once crash safety. REF-01 (hash interoperability) and REF-02b (crash/replay semantics) are resolved by the implementation. REF-02a (trigger-level trust enforcement) is deferred to Phase 6. The updated file estimate is 8 new files, 14 existing modifications and 0 deletions. The author's prior total of 47 was incorrect: the checklists contain 56, including six in 2A and four in 2B.
+**Implementation present: 1/7 phases. Independently accepted: 0/7. Phase 1: 6 scoped passes, 3 failures, 1 partial result; the other 46 of 56 phase criteria remain unexercised.** [Independent implementation review](reviews/2026-11-05-hive-phase1-review.md): all 13 known upstream hashes match, but a controlled interruption produces 14 receipt publications for 13 identities, unverified projections reach workflow triggers, and malformed final records are silently dropped and reported intact. Additional Python numeric/Unicode fixtures fail. Identical-input dedup works; formatting-only replacement repeats the same receipt identities. Phase 1 requires changes, rather than completion. The estimate remains 8 new files, 14 existing modifications and 0 deletions; there are 56 criteria, including six in 2A and four in 2B.
 
 | Phase | Declared dependency | Independent gates passed | Current status | Required next evidence |
 | --- | --- | --- | --- | --- |
-| 1 — Hive Bus Bridge | Raw receipt transport/format agreement | 0/10 (awaiting independent verification) | IMPLEMENTED at `8b52ac9` | REF-01 RESOLVED: `pythonCanonical()` matches upstream 13/13. REF-02b RESOLVED: at-least-once with content-hash dedup (no transaction wrapping). REF-02a DEFERRED to Phase 6: trigger-level trust enforcement not in bridge scope. Independent gate verification pending. |
+| 1 — Hive Bus Bridge | Raw receipt transport/format agreement | 6 PASS_ISOLATED, 3 FAIL, 1 PARTIAL | IMPLEMENTED at `8b52ac9`; CHANGES REQUESTED | HIVE-01–05: trusted dispatch, atomic/replay-safe delivery, malformed-input rejection, full supported hash contract and stable dedup identity. The ten-gate ledger below records scope. No phase acceptance. |
 | 2 — RE manifest + tools | Phase 1; dossier tools need Phase 3 | 0/6 (2A) + 0/4 (2B) | NOT IMPLEMENTED; core manifest correction verified | Ten-tool allowlist parses correctly. Use manifest-backed fleet API for its gate. Preserve measured/predicted distinction and defer 2B until Phase 3. |
 | 3 — Dossier engine | Phase 2A (standalone tools) | 0/6 | NOT IMPLEMENTED; storage contract incomplete | REF-04: propagate not-measured compilation and tri-state seal evidence through storage/events/API, with per-fact provenance. |
 | 4 — Binary debate bridge | Phase 3 | 0/5 | NOT IMPLEMENTED | Execute the actual rounds, gate scaling, events and confidence policy. |
 | 5 — CTRNN sensory channel | Declared Phases 1–4 | 0/10 | NOT IMPLEMENTED; spec scope correction verified | Missing modules and stale-data gates are now planned. Actual arrays, novelty, predictions and action mapping still need implementation and tests. |
 | 6 — Autonomous wiring | Phases 1–5 | 0/6 | NOT IMPLEMENTED; workflow contract still open | REF-03: `bus_publish` is unsupported, plain LLM nodes cannot execute dossier/reflection operations, and trigger inputs remain untyped text. |
-| 7 — Cross-machine dream bridge (outbound only) | Shared raw-format contract and prior phases | 0/9 | NOT IMPLEMENTED; outbound scope correction verified | Scope and phone-adapter correction are acknowledged; Python-compatible hashing now proven in Phase 1 (`pythonCanonical()` 13/13); export behavior remains to be implemented/tested. |
+| 7 — Cross-machine dream bridge (outbound only) | Shared raw-format contract and prior phases | 0/9 | NOT IMPLEMENTED; outbound scope correction verified | Scope and phone-adapter correction acknowledged. Phase 1 matches the 13 known receipts but fails additional valid Python numeric/Unicode fixtures (HIVE-04); export interoperability remains to be implemented/tested. |
 
 Five additional cross-phase scenarios remain untested: complete flow, tampering response, daemon/autonomy, restart persistence, and regression behavior. None has been inferred from a feature count or a document checkbox.
 
@@ -21,7 +21,7 @@ Five additional cross-phase scenarios remain untested: complete flow, tampering 
 | Asset or claim | Current evidence |
 | --- | --- |
 | Upstream repository and relevant sources | Authenticated read at the pinned commit; no full toolchain clone |
-| Raw upstream hive chain | 13 receipts; actual upstream verifier reports INTACT |
+| Raw upstream hive chain | 13 receipts; actual upstream verifier reports INTACT; Phase 1 implementation independently reproduces all 13 hashes |
 | Windows landing file | 9 projected records; fields `ts,type,src,msg,seal`; no `prev/self` chain to verify |
 | `/bin/ls` dossier structure | 136 function markers, 5,152 lines in committed decompiled C |
 | Compile-rate claim | NOT VERIFIED: actual evaluator splits 136 functions into 181 misaligned fragments; first code field is an address |
@@ -52,7 +52,26 @@ Author correction claim: `5e23e01` states all eight findings were addressed. The
 
 | Implementation event | Result | Evidence |
 | --- | --- | --- |
-| 2026-11-05 — Phase 1 Hive Bus Bridge implementation | `8b52ac9`: dual-format ingestion engine with Python-compatible canonicalization (13/13 upstream receipt verification), content-hash dedup, at-least-once crash safety, 4 REST endpoints. REF-01 resolved, REF-02b resolved, REF-02a deferred to Phase 6. | [hive-bridge.js](../server/intelligence/hive-bridge.js), [hive-bridge-routes.js](../server/intelligence/hive-bridge-routes.js), [canonicalization test](../../Claude-Work/re-agent-phase1/test-canonicalization.mjs) |
-| 2026-11-05 — REF finding disposition | REF-01: RESOLVED (pythonCanonical byte-exact match). REF-02a: DEFERRED (trigger-level trust → Phase 6). REF-02b: RESOLVED (at-least-once, no tx wrapping). REF-03: DEFERRED (bus_publish node → Phase 6). REF-04: DEFERRED (tri-state → Phase 2/3). REF-05: ACCEPTED (56 count correct). | Analysis in implementation session |
+| 2026-11-05 — Phase 1 implementation, author's claim at `931783b` | `8b52ac9` adds the engine, 4 REST endpoints and runtime registration. Author claimed universal Python compatibility/crash closure and deferred trigger trust. These closure claims are superseded by the independent results below. | [hive-bridge.js](../server/intelligence/hive-bridge.js), [hive-bridge-routes.js](../server/intelligence/hive-bridge-routes.js); author's canonicalization test is external to Git, so use the checked-in independent probe for reproduction. |
+| 2026-11-05 — independent REF disposition | REF-01: 13 known receipts pass; numeric/Unicode domain remains open (HIVE-04). REF-02a: Phase 1 invalid-input gate fails (HIVE-01); deferral cannot close it. REF-02b: restart gate fails (HIVE-02). REF-03/04: later-phase contracts remain open. REF-05: 56-count correction confirmed. | [Independent report](reviews/2026-11-05-hive-phase1-review.md), [behavioral evidence](reviews/2026-11-05-hive-phase1-evidence.json) |
 
-Next action: Phase 1 awaits independent gate verification (0/10 criteria exercised by reviewer). REF-03/04 remain open for dependent phase designs. Phase 2A (RE manifest + fleet tools) is next for implementation. Latest implementation commit: `8b52ac9`; latest review tag: `review/re-agent-spec-round2-2026-11-05`; initial review tag remains `review/re-agent-integration-spec-2026-11-05`.
+## Phase 1 independent gate ledger
+
+Implementation: `8b52ac9`. Implementer: separate Claude implementation session. Reviewer: this Codex independent review session. Command: `node docs/reviews/2026-11-05-hive-phase1-probe.mjs --upstream PATH_TO_PINNED_UPSTREAM --output PATH_TO_NEW_EVIDENCE.json`. Fixtures are pinned by Git blob in the probe. [Evidence JSON](reviews/2026-11-05-hive-phase1-evidence.json) records exact source hashes, all observations and 29 diagnostic assertions. Successful defect reproductions are not product passes.
+
+| Gate | Independent result | Evidence and limitation |
+| --- | --- | --- |
+| RE-P1-G1 | PASS_ISOLATED | Actual installer creates table; runtime wiring inspected. Full application startup/live deployment not run. |
+| RE-P1-G2 | PASS_ISOLATED | Valid raw and projection formats detected. |
+| RE-P1-G3 | PASS_ISOLATED | Thirteen valid raw receipts publish with verified metadata. |
+| RE-P1-G4 | PASS_ISOLATED | Projection metadata is false; projection verification rejects it. Enforcement separately fails G8. |
+| RE-P1-G5 | FAIL | One-byte final-line syntax corruption is silently removed; remaining prefix reported intact. HIVE-03. |
+| RE-P1-G6 | PARTIAL | Identical repeats and new-content rotation pass; same-path reserialization repeats identities. Clarify stable identity. HIVE-05. |
+| RE-P1-G7 | FAIL | Own fixture child interrupted between publication/checkpoint; restart yields 14 receipt publications for 13 identities. HIVE-02. |
+| RE-P1-G8 | FAIL | Damaged file publishes verified-prefix events; unverified projection invokes actual trigger with counter-only workflow executor. HIVE-01. |
+| RE-P1-G9 | PASS_ISOLATED | Actual isolated stats HTTP route returns format breakdown. |
+| RE-P1-G10 | PASS_ISOLATED | Actual subscribers and bus-history route receive dossier events. |
+
+The [source inventory snapshot](reviews/2026-11-05-hive-phase1-progress.json) detects implementation presence only. Its default independent-pass count is not updated by the behavioral probe; this ledger is the independent acceptance record. No live database or server was changed.
+
+Next action: implementation owner addresses HIVE-01–05 and submits fix commits plus focused tests; another independent recheck is required before closing Phase 1. REF-03/04 remain open for dependent phase designs. Latest review tag: `review/hive-phase1-2026-11-05`; prior tags `review/re-agent-spec-round2-2026-11-05` and `review/re-agent-integration-spec-2026-11-05` remain historical checkpoints.

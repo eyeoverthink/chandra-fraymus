@@ -1,0 +1,348 @@
+{
+  "generatedAt": "2026-11-05T21:59:08.371Z",
+  "implementationRef": "8b52ac96d1ce65782d21bd4c770e2fb8bdd2873b",
+  "upstreamRef": "2f75cee7f54a4aa6bae219ec9241fc44f980c36b",
+  "upstreamReceiptBlob": "9fcb7465a12abc80117c45c02c9d064a15ed81cf",
+  "safety": "No app import or live DB. Source modules evaluated with temporary/in-memory SQLite and actual bus code. Workflow execution is a counter-only mock. Only our fixture child exits at a controlled point; no live process is killed. Python emits canonical fixtures only.",
+  "sourceHashes": {
+    "server/runtime.js": "29e13f1e73440cdfd1e4bdbfdf686851642b89ec636c3f9dcb3b3ed1281e8e58",
+    "server/db-migrate.js": "6a3eb642bbd64c564d83232bdfc0c0f8caa30293c3ef098a87d335d47d79950c",
+    "server/fleet/bus.js": "93b12941f183c20b16db624ffcb1942b8c12a01b86310b19baa5c7c80bc1ad43",
+    "server/intelligence/hive-bridge.js": "49f340c6de0c21dc0961ef93d3af98e0e9f720dcfeafd67cb7de8e7dcd85e683",
+    "server/fleet/bus-triggers.js": "4773ecf3c430388619a116546fa9c6d3aed32688882ca982df7a088eabc15687",
+    "server/intelligence/hive-bridge-routes.js": "0266e359b27bec1ef7215cf4e7fa6893a644a3bdd1cd028594ae947dadc832de",
+    "server/fleet/bus-routes.js": "b1bc7d3d8b147070b7fd4a0b2ac14e43d8aea88ff31b4f3cba1e0b300ab93637"
+  },
+  "retainedTemporaryDirectory": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-hive-phase1-review-cNwqxm",
+  "checks": [
+    "runtime registers the actual hive bridge route installer",
+    "all thirteen upstream self hashes independently match",
+    "full real upstream chain verifies intact",
+    "first raw ingestion persists thirteen verified receipts",
+    "actual subscribers receive the thirteen receipts",
+    "byte-identical repeated ingestion skips all receipts",
+    "reformatted receipts still pass their original receipt hashes",
+    "same receipt identities are published again after whitespace-only reserialization",
+    "same-path replacement with genuinely new receipt content ingests once",
+    "structured tampering is correctly detected at receipt seven",
+    "damaged chain nonetheless publishes every receipt",
+    "damaged file still grants trusted flags to its seven-record prefix",
+    "projection is detected and marked chainVerified false",
+    "projection verification returns an explicit error",
+    "projection nevertheless launches the actual topic-trigger dispatch",
+    "a one-byte syntax corruption in the final terminated record is silently removed and reported intact",
+    "partial last record also reports its prefix intact without a partial-input warning",
+    "an entirely malformed file is reported as an intact empty input",
+    "ingestion of malformed complete input publishes twelve verified-prefix receipts",
+    "additional nested ASCII control hashes match",
+    "DEL, Unicode key order, float and large integer cases expose further hash mismatches",
+    "missing required receipt type is still accepted as intact",
+    "controlled fixture process exits after committed publication",
+    "restart sees a published event with no ingestion checkpoint",
+    "restart replays the first receipt and produces fourteen events for thirteen identities",
+    "actual route installation creates the table and stats API returns zero counts",
+    "actual ingestion, format stats and paginated receipt routes work",
+    "actual bus history route returns imported dossier events",
+    "projection verify API returns HTTP 400"
+  ],
+  "diagnosticAssertionCount": 29,
+  "positive": {
+    "perReceiptHashes": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "verification": {
+      "total": 13,
+      "intact": true,
+      "breakIndex": null,
+      "format": "raw"
+    },
+    "first": {
+      "format": "raw",
+      "ingested": 13,
+      "skipped": 0,
+      "errors": [],
+      "chainStatus": "INTACT"
+    },
+    "byteIdenticalRepeat": {
+      "format": "raw",
+      "ingested": 0,
+      "skipped": 13,
+      "errors": [],
+      "chainStatus": "INTACT"
+    },
+    "subscriberEventsBeforeReformat": 13,
+    "reformattedVerification": {
+      "total": 13,
+      "intact": true,
+      "breakIndex": null,
+      "format": "raw"
+    },
+    "reformatted": {
+      "format": "raw",
+      "ingested": 13,
+      "skipped": 0,
+      "errors": [],
+      "chainStatus": "INTACT"
+    },
+    "storedReceiptRowsAfterReformat": 26,
+    "newContentRotation": {
+      "first": {
+        "format": "raw",
+        "ingested": 1,
+        "skipped": 0,
+        "errors": [],
+        "chainStatus": "INTACT"
+      },
+      "repeated": {
+        "format": "raw",
+        "ingested": 0,
+        "skipped": 1,
+        "errors": [],
+        "chainStatus": "INTACT"
+      }
+    }
+  },
+  "damaged": {
+    "verify": {
+      "total": 13,
+      "intact": false,
+      "breakIndex": 7,
+      "format": "raw"
+    },
+    "ingestion": {
+      "format": "raw",
+      "ingested": 13,
+      "skipped": 0,
+      "errors": [],
+      "chainStatus": "DAMAGED",
+      "chainBreakIndex": 7,
+      "chainBreakReason": "self_mismatch"
+    },
+    "publishedReceipts": 13,
+    "publishedWithVerifiedFlag": 7
+  },
+  "projection": {
+    "ingestion": {
+      "format": "projection",
+      "ingested": 1,
+      "skipped": 0,
+      "errors": []
+    },
+    "eventMetadata": {
+      "format": "projection",
+      "receiptIndex": 0,
+      "chainVerified": false,
+      "ingestedAt": "2026-11-05T21:59:07.774Z"
+    },
+    "topic": "hive.fra-pipeline:dossier",
+    "workflowInvocations": 1
+  },
+  "malformed": {
+    "malformedTerminated": {
+      "total": 12,
+      "intact": true,
+      "breakIndex": null,
+      "format": "raw"
+    },
+    "partialLastLine": {
+      "total": 12,
+      "intact": true,
+      "breakIndex": null,
+      "format": "raw"
+    },
+    "entirelyMalformed": {
+      "total": 0,
+      "intact": true,
+      "format": "unknown"
+    },
+    "ingestion": {
+      "format": "raw",
+      "ingested": 12,
+      "skipped": 0,
+      "errors": [],
+      "chainStatus": "INTACT"
+    }
+  },
+  "additionalCanonicalization": [
+    {
+      "name": "nested_ascii",
+      "pythonSelf": "3f9805d50761d4dc766efa4470ff18f35789b9a628dd95b6e4351042fb2c9ae9",
+      "bridgeSelf": "3f9805d50761d4dc766efa4470ff18f35789b9a628dd95b6e4351042fb2c9ae9",
+      "matches": true
+    },
+    {
+      "name": "unicode_text",
+      "pythonSelf": "e6fa22db526381854357bfcf718ec76c9a55b9ae779694bac96eab97408a9945",
+      "bridgeSelf": "e6fa22db526381854357bfcf718ec76c9a55b9ae779694bac96eab97408a9945",
+      "matches": true
+    },
+    {
+      "name": "delete_character",
+      "pythonSelf": "59dbf3fd89729cc5aba0f9c3ae7ac56ec5ec4043006447112f24b9e97c3e61f1",
+      "bridgeSelf": "9c90d505cb74c8ac7f6f9d6e15580b05c03f1a24125ab35e55e33cd1983db7b1",
+      "matches": false
+    },
+    {
+      "name": "unicode_keys",
+      "pythonSelf": "69792c7e443174074c51b7d19c6db8975cb64e10ad3a5508be972ceacae05bc9",
+      "bridgeSelf": "1d31c5851d7c43e8bfa6c25b6227f25af9ad11797967ec82c90386d2139f5775",
+      "matches": false
+    },
+    {
+      "name": "float_integral",
+      "pythonSelf": "2a564e7b3a3a753ea1ade225badad7634a983a71e5ad246046d57f60eb44f7ea",
+      "bridgeSelf": "3a6901445dbe0ac88b5090a2b43e9e003002a0dadef304e478b9052fdbfc0bd5",
+      "matches": false
+    },
+    {
+      "name": "small_float",
+      "pythonSelf": "30943d2d05a58affd99860eb7af4f3fb0d4e052701b30458201d4bc72b0ae944",
+      "bridgeSelf": "458a6623b7fb8d62142607cfa2f06b03c414a647524af70182fa72421e1576f2",
+      "matches": false
+    },
+    {
+      "name": "large_float",
+      "pythonSelf": "4d04a30bb609ffeb0e9a704a53def795f3e9f6e4ed571ab816ee5995ec9fdf6b",
+      "bridgeSelf": "f4a757e1543a24736eb33535201820e97e45e028b8d62a699d70ffa4ea57eef2",
+      "matches": false
+    },
+    {
+      "name": "large_integer",
+      "pythonSelf": "bfbc420ad5aff5ed4e7d1799268c2e6fe6a9361aa10a759857c398e61d0731c8",
+      "bridgeSelf": "ab1cc0efbaf164670009a1735a09aebda7856507cb8a400dd4031d6d9ce6f8bc",
+      "matches": false
+    }
+  ],
+  "missingSchema": {
+    "missingTypeVerification": {
+      "total": 1,
+      "intact": true,
+      "breakIndex": null,
+      "format": "raw"
+    },
+    "missingTypeIngestion": {
+      "format": "raw",
+      "ingested": 1,
+      "skipped": 0,
+      "errors": [],
+      "chainStatus": "INTACT"
+    },
+    "publishedTopic": "hive.review:undefined"
+  },
+  "crash": {
+    "fixtureExitCode": 47,
+    "beforeRetry": {
+      "receiptRows": 0,
+      "publishedRows": 1
+    },
+    "retry": {
+      "format": "raw",
+      "ingested": 13,
+      "skipped": 0,
+      "errors": [],
+      "chainStatus": "INTACT"
+    },
+    "publishedRowsAfterRetry": 14,
+    "distinctReceiptIdentities": 13,
+    "firstReceiptDeliveries": 2
+  },
+  "api": {
+    "startupInstallerCreatesTable": true,
+    "initialStats": {
+      "lastRun": null,
+      "totalIngested": 0,
+      "rawCount": 0,
+      "projectionCount": 0,
+      "chainVerifiedCount": 0,
+      "chainStatus": "NO_RAW_DATA"
+    },
+    "ingestion": {
+      "format": "raw",
+      "ingested": 13,
+      "skipped": 0,
+      "errors": [],
+      "chainStatus": "INTACT"
+    },
+    "stats": {
+      "lastRun": "2026-11-05T21:59:08.358Z",
+      "totalIngested": 13,
+      "rawCount": 13,
+      "projectionCount": 0,
+      "chainVerifiedCount": 13,
+      "chainStatus": "INTACT"
+    },
+    "receiptPage": {
+      "count": 2,
+      "total": 13
+    },
+    "dossierHistoryCount": 2,
+    "projectionVerifyStatus": 400
+  },
+  "gateResults": [
+    {
+      "id": "RE-P1-G1",
+      "status": "PASS_ISOLATED",
+      "evidence": "Actual installer creates the table; runtime import/call wiring inspected. Full app boot/live deployment not run."
+    },
+    {
+      "id": "RE-P1-G2",
+      "status": "PASS_ISOLATED",
+      "evidence": "Raw and projection formats recognized on valid samples."
+    },
+    {
+      "id": "RE-P1-G3",
+      "status": "PASS_ISOLATED",
+      "evidence": "Thirteen valid raw receipts publish with _hive.chainVerified true."
+    },
+    {
+      "id": "RE-P1-G4",
+      "status": "PASS_ISOLATED",
+      "evidence": "Projection event carries _hive.chainVerified false; trust enforcement separately fails G8."
+    },
+    {
+      "id": "RE-P1-G5",
+      "status": "FAIL",
+      "evidence": "Structured tampering detected, but malformed final records are discarded and reported intact."
+    },
+    {
+      "id": "RE-P1-G6",
+      "status": "PARTIAL",
+      "evidence": "Byte-identical repeat and genuinely new same-path replacement work; same-path reserialization republishes thirteen existing receipt identities. Stable identity expectations need clarification."
+    },
+    {
+      "id": "RE-P1-G7",
+      "status": "FAIL",
+      "evidence": "Controlled exit/restart duplicates a committed receipt publication."
+    },
+    {
+      "id": "RE-P1-G8",
+      "status": "FAIL",
+      "evidence": "Damaged raw prefix is marked verified; all raw entries publish; projection triggers the workflow mock."
+    },
+    {
+      "id": "RE-P1-G9",
+      "status": "PASS_ISOLATED",
+      "evidence": "Actual GET stats route returns format breakdown."
+    },
+    {
+      "id": "RE-P1-G10",
+      "status": "PASS_ISOLATED",
+      "evidence": "Actual subscribers and bus-history route receive hive events."
+    }
+  ],
+  "scopedPasses": 6,
+  "failures": 3,
+  "partial": 1
+}
