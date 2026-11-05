@@ -1,0 +1,154 @@
+{
+  "upstreamRef": "2f75cee7f54a4aa6bae219ec9241fc44f980c36b",
+  "safety": "Pinned upstream definitions only; append/export fixtures confined to checked temporary directory; no execution of binaries, compiler, models, or network jobs",
+  "checks": [
+    "pinned source bytes: scripts/hive-receipts.py",
+    "pinned source bytes: scripts/fra-eval.py",
+    "pinned source bytes: dossier-ls/decompiled.c",
+    "pinned source bytes: hive/receipts.jsonl",
+    "committed raw receipt chain verifies",
+    "positive control generated chain verifies",
+    "feed-akashic projection omits chain fields",
+    "phone adapter reinterprets Chandra receipt as an empty phone bundle",
+    "phone adapter does not preserve reflection claim",
+    "positive control detects tampered raw receipt",
+    "dossier contains 136 actual function markers",
+    "upstream evaluator splits those into 181 fragments",
+    "first evaluator code field is an address, not function C",
+    "same regex findall identifies 136 function records"
+  ],
+  "assertionCount": 14,
+  "sources": {
+    "scripts/hive-receipts.py": {
+      "gitBlob": "c5076787c9697d0cf6dc0ab430cc16c637245ad2",
+      "sha256": "8b2fc3191131ee7b5ea9eb775497bcb4f20ec9eeb3896b0e09bf97651037467e"
+    },
+    "scripts/fra-eval.py": {
+      "gitBlob": "aecd23e4786d65f3a61c2a1cb6fc647188a4833b",
+      "sha256": "65258be807b3d06df9ca5e70659d20815cce45b4ae44d95c4f21a196df7e539d"
+    },
+    "dossier-ls/decompiled.c": {
+      "gitBlob": "7c61c5b00a778d62afa12bcc1c06325db8463128",
+      "sha256": "3eb28cde8a684360bab4291366a9d67324895bdfe57b933d6ea01485de3c78fb"
+    },
+    "hive/receipts.jsonl": {
+      "gitBlob": "9fcb7465a12abc80117c45c02c9d064a15ed81cf",
+      "sha256": "11b9cf9b5afb14c35f0115da0e517bf744d97a814502defd5a7b89b545fccd07"
+    }
+  },
+  "rawReceipts": {
+    "count": 13,
+    "verificationOutput": "verified 13 receipts, chain INTACT \u2014 head=a6589cc6c4ce1153\u2026"
+  },
+  "fixtureReceipt": {
+    "organ": "chandra",
+    "type": "reflection",
+    "claim": "fixture caf\u00e9",
+    "evidence": {
+      "z": 1,
+      "a": 2
+    },
+    "seal": "",
+    "i": 0,
+    "ts": "2026-11-05T21:21:11Z",
+    "prev": "0000000000000000000000000000000000000000000000000000000000000000",
+    "self": "8f7b8616d0814d9d1563472dcac1707116ae55ba0543454610c3407353ed118f"
+  },
+  "positiveChainOutput": "verified 1 receipts, chain INTACT \u2014 head=8f7b8616d0814d9d\u2026",
+  "tamperedOutput": "SELFSHA MISMATCH at 0\nverified 2 receipts, chain DAMAGED",
+  "akashicProjectionKeys": [
+    "ts",
+    "type",
+    "src",
+    "msg",
+    "seal"
+  ],
+  "phoneAdapterResult": {
+    "organ": "phone-headroom",
+    "type": "proof_bundle",
+    "claim": "?: 0 packets, dna=None\u2026"
+  },
+  "compileRateParser": {
+    "actualFunctionMarkers": 136,
+    "evaluatorFragments": 181,
+    "firstFragment": {
+      "name": "// decompiled: ls  image: /bin/ls\n",
+      "addr": "FUN_100000718",
+      "c": "100000718"
+    },
+    "correctRegexMatches": 136,
+    "compilerRun": false
+  },
+  "sealRecomputation": {
+    "filesAvailable": [
+      "annotations.md",
+      "binary.sha256",
+      "counts.txt",
+      "decompiled.c",
+      "entries.txt",
+      "imports.txt",
+      "info.txt",
+      "README.md"
+    ],
+    "stored": "35e83ee65044ebbfe941f3c7b590139c1afbe08e2ad114da6ecdeb8fa0721e27",
+    "candidateFromAvailableFiles": "18bfcdc7423e0dabf1cc7787dc3fcfaccf30476c31f11e4077b90e4dbe1f2899",
+    "matches": false,
+    "verdict": "NOT_VERIFIED: complete original sealed file set and canonical manifest required; mismatch alone does not establish tampering"
+  },
+  "sourceInventory": {
+    "numberedBuildGates": 18,
+    "specClaimsBuildGates": 19,
+    "pinComparison": [
+      {
+        "specTool": "Ghidra 12.3 DEV",
+        "specPrefix": "6e8c79",
+        "manifestTool": "ghidra-master",
+        "manifestPrefix": "3d0373cc057f0a52",
+        "matchesPrefix": false
+      },
+      {
+        "specTool": "radare2 6.2.5",
+        "specPrefix": "a1f3b2",
+        "manifestTool": "radare2-master",
+        "manifestPrefix": "b136430b8784cdaa",
+        "matchesPrefix": false
+      },
+      {
+        "specTool": "LLM4Decompile",
+        "specPrefix": "c4d891",
+        "manifestTool": "LLM4Decompile-main",
+        "manifestPrefix": "65c33fd3bc74d088",
+        "matchesPrefix": false
+      },
+      {
+        "specTool": "r2ai (decai)",
+        "specPrefix": "7b2e4f",
+        "manifestTool": "r2ai-master",
+        "manifestPrefix": "cbec45cb5d77a2cc",
+        "matchesPrefix": false
+      },
+      {
+        "specTool": "ida-pro-mcp",
+        "specPrefix": "d9a1c3",
+        "manifestTool": "ida-pro-mcp-main",
+        "manifestPrefix": "d1b9d562f264e709",
+        "matchesPrefix": false
+      },
+      {
+        "specTool": "ReVa",
+        "specPrefix": "e5f7a0",
+        "manifestTool": "reverse-engineering-assistant-main (ReVa)",
+        "manifestPrefix": "1a5546793c0c2ebb",
+        "matchesPrefix": false
+      },
+      {
+        "specTool": "rea-agents",
+        "specPrefix": "b8c2d6",
+        "manifestTool": "rea-main (rea-agents)",
+        "manifestPrefix": "ca0c563cb700f619",
+        "matchesPrefix": false
+      }
+    ],
+    "archiveBytesIndependentlyHashed": false
+  }
+}

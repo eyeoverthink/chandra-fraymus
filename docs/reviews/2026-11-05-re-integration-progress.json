@@ -1,0 +1,632 @@
+{
+  "generatedAt": "2026-11-05T21:23:30.293Z",
+  "sourceRef": "1eabcde54f389b0cb6a5d260c15c0b4b91bc60c9",
+  "headAtFinish": "1eabcde54f389b0cb6a5d260c15c0b4b91bc60c9",
+  "workingTree": "M README.md\n M docs/RE-AGENT-INTEGRATION.md\n?? docs/RE-AGENT-PROGRESS.md\n?? docs/reviews/2026-11-05-re-integration-progress.json\n?? docs/reviews/2026-11-05-re-integration-spec-review.md\n?? docs/reviews/2026-11-05-re-upstream-evidence.json\n?? docs/reviews/2026-11-05-re-upstream-probe.py\n?? scripts/check-re-agent-progress.mjs",
+  "safety": "Committed-source reads, source-isolated pure functions, bounded read of landing ledger; no app import, live DB, network calls, or bus publication",
+  "specPath": "docs/RE-AGENT-INTEGRATION.md",
+  "sourceHashes": {
+    "docs/RE-AGENT-INTEGRATION.md": "03515d7a76113a3e4c4c0c0932eda02066c03a9b96baaa86ed219bd7f8523979",
+    "server/runtime.js": "e08408c220ef8450daefcfe3880e3c395cceae418e250ababadb6e9ce7457068",
+    "server/fleet/tools.js": "28dec6001d33d63b199b5bee695ded59717e35f2eb4168d7c55a98cd13ffccfe",
+    "server/intelligence/debate.js": "947d0e640ce7f5ee0ca3d013d55712e45b9f809762cebfeff47ed449f8695fbc",
+    "server/intelligence/sensory-bridge.js": "4f9d2fd0940002c3bab02c835d7f2dc9cb334880fdc8a55cff69b8e3a1228f5e",
+    "server/intelligence/attention-gate.js": "3db2bf6a97612ec0b8ace6c3fedfea39fe7f177738f251acd7dddb08dba085b2",
+    "server/intelligence/working-memory.js": "95861e57eecfb9269b1a2ab0ef8e1bffbf5fc0a525d93a6f27c8011f8b47993c",
+    "server/intelligence/habituation.js": "007489c5da3da39ac394d7771cb27f2ba24b764fe85000d47acafe97f609e948",
+    "server/fraymus/workflows/definitions.js": "a4ad645d2d560450acaae5095351328958270a2e448fb6fc54aa10cbfa915c56",
+    "server/intelligence/reflection.js": "c20572a1cad899e7fd55e9600333b0b0cb668a14b6c71b893df285c1cc685fff",
+    "server/intelligence/opeg.js": "65d6d52355674c6f7ac027dd612a0fac6e0f00c7c02b218ca0d3ba2c9ec63ee0",
+    "server/daemon/engine.js": "89eac078911e855acbad7842ad0ac74e1ebce9b85b701b229f18dde67f7cfbae",
+    "server/fleet/manifest.js": "3be22dd85d1726b853e348578264b2ec3dd9df36c6a5cb3bf4e8bc64f4108645",
+    "server/workflow/engine.js": "23f553b655d4bdbc9c681eb7f2d332f13a15bf48732ab4771bea07740b306ac4"
+  },
+  "plannedInventory": {
+    "newFiles": [
+      "server/intelligence/hive-bridge.js",
+      "server/intelligence/hive-bridge-routes.js",
+      "server/fleet/agents/re-analyst.md",
+      "server/fleet/re-tools.js",
+      "server/intelligence/dossier-engine.js",
+      "server/intelligence/dossier-engine-routes.js",
+      "server/intelligence/hive-export.js",
+      "server/intelligence/hive-export-routes.js"
+    ],
+    "existingModifiedFiles": [
+      "server/runtime.js",
+      "server/fleet/tools.js",
+      "server/intelligence/debate.js",
+      "server/intelligence/sensory-bridge.js",
+      "server/intelligence/attention-gate.js",
+      "server/intelligence/working-memory.js",
+      "server/intelligence/reflection.js",
+      "server/intelligence/opeg.js",
+      "server/intelligence/motor-output.js",
+      "server/fraymus/workflows/definitions.js",
+      "server/daemon/engine.js"
+    ],
+    "presentPlannedNewFiles": [],
+    "deletedFilesPlanned": 0
+  },
+  "summary": {
+    "phases": 7,
+    "implementationDetected": 0,
+    "independentlyVerifiedPhases": 0,
+    "independentGatePasses": 0,
+    "totalPhaseGates": 41
+  },
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Phase 1 — Hive Bus Bridge",
+      "status": "NOT_IMPLEMENTED",
+      "prerequisites": [],
+      "requirements": [
+        {
+          "path": "server/intelligence/hive-bridge.js",
+          "present": false,
+          "requirement": "tracked file"
+        },
+        {
+          "path": "server/intelligence/hive-bridge-routes.js",
+          "present": false,
+          "requirement": "tracked file"
+        },
+        {
+          "path": "server/runtime.js",
+          "marker": "installHiveBridgeRoutes",
+          "present": false,
+          "requirement": "integration marker; not behavior proof"
+        }
+      ],
+      "gates": [
+        {
+          "id": "RE-P1-G1",
+          "criterion": "`hive_ingestion` table created on startup",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P1-G2",
+          "criterion": "Manual ingest of sample `hive_genesis.jsonl` produces bus events on `hive.*` topics",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P1-G3",
+          "criterion": "Chain verification detects a tampered receipt (flip one byte, re-run verify)",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P1-G4",
+          "criterion": "Watermark prevents double-ingestion (run ingest twice, second returns skipped > 0)",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P1-G5",
+          "criterion": "`GET /api/intelligence/hive-bridge` returns valid stats",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P1-G6",
+          "criterion": "Bus subscribers receive hive events (check via `GET /api/bus/history?topic=hive.fra-pipeline:dossier`)",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        }
+      ],
+      "verifiedGateCount": 0
+    },
+    {
+      "phase": 2,
+      "name": "Phase 2 — RE Agent Manifest + Fleet Tools",
+      "status": "NOT_IMPLEMENTED",
+      "prerequisites": [
+        1
+      ],
+      "requirements": [
+        {
+          "path": "agents/re-analyst.md",
+          "present": false,
+          "requirement": "tracked file"
+        },
+        {
+          "path": "server/fleet/re-tools.js",
+          "present": false,
+          "requirement": "tracked file"
+        },
+        {
+          "path": "server/fleet/tools.js",
+          "marker": "createRETools",
+          "present": false,
+          "requirement": "integration marker; not behavior proof"
+        }
+      ],
+      "gates": [
+        {
+          "id": "RE-P2-G1",
+          "criterion": "`curl http://127.0.0.1:8787/api/agents` shows `re-analyst` in the fleet",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P2-G2",
+          "criterion": "`re.ingest_dossier` with a sample dossier directory stores memories correctly",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P2-G3",
+          "criterion": "`re.query_dossier` retrieves stored dossier data by binary SHA or function name",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P2-G4",
+          "criterion": "`re.build_gate_lookup` returns relevant gates for keywords like \"JDK\", \"dylib\", \"npm\"",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P2-G5",
+          "criterion": "`re.verify_chain` returns chain status",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P2-G6",
+          "criterion": "RE Analyst agent can be tasked via `POST /api/fleet/runs` and responds with binary analysis",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        }
+      ],
+      "verifiedGateCount": 0
+    },
+    {
+      "phase": 3,
+      "name": "Phase 3 — Dossier Ingestion Engine",
+      "status": "NOT_IMPLEMENTED",
+      "prerequisites": [
+        2
+      ],
+      "requirements": [
+        {
+          "path": "server/intelligence/dossier-engine.js",
+          "present": false,
+          "requirement": "tracked file"
+        },
+        {
+          "path": "server/intelligence/dossier-engine-routes.js",
+          "present": false,
+          "requirement": "tracked file"
+        },
+        {
+          "path": "server/runtime.js",
+          "marker": "installDossierRoutes",
+          "present": false,
+          "requirement": "integration marker; not behavior proof"
+        }
+      ],
+      "gates": [
+        {
+          "id": "RE-P3-G1",
+          "criterion": "`parseDossier()` correctly extracts 136 functions from the `/bin/ls` dossier",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P3-G2",
+          "criterion": "Evidence grading assigns correct grades (measured for counts, verified for import hits)",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P3-G3",
+          "criterion": "`storeDossier()` creates agent_memory entries with correct confidence scores",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P3-G4",
+          "criterion": "`processDossier()` publishes bus events on `system.re.dossier.processed`",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P3-G5",
+          "criterion": "REST API returns dossier data, function listings, and individual function details",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P3-G6",
+          "criterion": "Dossier seal verification catches a tampered dossier (modify one file, re-process)",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        }
+      ],
+      "verifiedGateCount": 0
+    },
+    {
+      "phase": 4,
+      "name": "Phase 4 — Red/Blue → Debate Engine Bridge",
+      "status": "NOT_IMPLEMENTED",
+      "prerequisites": [
+        3
+      ],
+      "requirements": [
+        {
+          "path": "server/intelligence/debate.js",
+          "marker": "debateBinaryAnnotation",
+          "present": false,
+          "requirement": "integration marker; not behavior proof"
+        },
+        {
+          "path": "server/intelligence/dossier-engine.js",
+          "marker": "debateBinaryAnnotation",
+          "present": false,
+          "requirement": "integration marker; not behavior proof"
+        }
+      ],
+      "gates": [
+        {
+          "id": "RE-P4-G1",
+          "criterion": "`debateBinaryAnnotation()` runs a multi-round debate for a decompiled function",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P4-G2",
+          "criterion": "Debate uses consciousness gate's evolutionRate for round scaling",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P4-G3",
+          "criterion": "Bus events published on `system.debate.binary`",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P4-G4",
+          "criterion": "Agent memory confidence updated based on debate verdict (confirmed → +0.1, challenged → -0.2)",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P4-G5",
+          "criterion": "Functions with empty annotations (qwen3.5 think-block issue) are flagged as `CHALLENGED`",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        }
+      ],
+      "verifiedGateCount": 0
+    },
+    {
+      "phase": 5,
+      "name": "Phase 5 — CTRNN Sensory Integration",
+      "status": "NOT_IMPLEMENTED",
+      "prerequisites": [
+        4
+      ],
+      "requirements": [
+        {
+          "path": "server/intelligence/sensory-bridge.js",
+          "marker": "binary_insight",
+          "present": false,
+          "requirement": "integration marker; not behavior proof"
+        },
+        {
+          "path": "server/intelligence/attention-gate.js",
+          "marker": "binary_insight",
+          "present": false,
+          "requirement": "integration marker; not behavior proof"
+        },
+        {
+          "path": "server/intelligence/working-memory.js",
+          "marker": "binary_insight",
+          "present": false,
+          "requirement": "integration marker; not behavior proof"
+        },
+        {
+          "path": "server/intelligence/habituation.js",
+          "marker": "binary_insight",
+          "present": false,
+          "requirement": "integration marker; not behavior proof"
+        }
+      ],
+      "gates": [
+        {
+          "id": "RE-P5-G1",
+          "criterion": "Sensory bridge injects Gaussian stimulus at (6, 14) when dossier is processed",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P5-G2",
+          "criterion": "Stimulus amplitude scales with compile-rate and debate confidence",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P5-G3",
+          "criterion": "Attention gate amplifies binary_insight during reflect and selfAudit motor states",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P5-G4",
+          "criterion": "Working memory tracks binary_insight derivatives (trend detection)",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P5-G5",
+          "criterion": "Habituation module attenuates constant RE activity, spikes on new dossier arrival",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P5-G6",
+          "criterion": "CTRNN stats endpoint shows binary_insight in sensory region data",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        }
+      ],
+      "verifiedGateCount": 0
+    },
+    {
+      "phase": 6,
+      "name": "Phase 6 — Autonomous Pipeline Wiring",
+      "status": "NOT_IMPLEMENTED",
+      "prerequisites": [
+        5
+      ],
+      "requirements": [
+        {
+          "path": "server/fraymus/workflows/definitions.js",
+          "marker": "DossierAnalysis",
+          "present": false,
+          "requirement": "integration marker; not behavior proof"
+        },
+        {
+          "path": "server/intelligence/reflection.js",
+          "marker": "re_analyze",
+          "present": false,
+          "requirement": "integration marker; not behavior proof"
+        },
+        {
+          "path": "server/intelligence/opeg.js",
+          "marker": "re_reanalysis",
+          "present": false,
+          "requirement": "integration marker; not behavior proof"
+        }
+      ],
+      "gates": [
+        {
+          "id": "RE-P6-G1",
+          "criterion": "Bus trigger fires DossierAnalysis workflow when `hive.fra-pipeline:dossier` event arrives",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P6-G2",
+          "criterion": "Reflection loop includes RE data in its input summary",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P6-G3",
+          "criterion": "OPEG accepts `re_reanalysis` proposals with proper hypothesis/execute/sanitize/update cycle",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P6-G4",
+          "criterion": "Motor reflect action can trigger dossier review",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P6-G5",
+          "criterion": "DossierAnalysis workflow runs end-to-end with a sample dossier",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P6-G6",
+          "criterion": "Challenged annotations trigger system.alert via bus trigger",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        }
+      ],
+      "verifiedGateCount": 0
+    },
+    {
+      "phase": 7,
+      "name": "Phase 7 — Cross-Machine Dream Bridge",
+      "status": "NOT_IMPLEMENTED",
+      "prerequisites": [
+        6
+      ],
+      "requirements": [
+        {
+          "path": "server/intelligence/hive-export.js",
+          "present": false,
+          "requirement": "tracked file"
+        },
+        {
+          "path": "server/intelligence/hive-export-routes.js",
+          "present": false,
+          "requirement": "tracked file"
+        },
+        {
+          "path": "server/daemon/engine.js",
+          "marker": "exportChandraReceipts",
+          "present": false,
+          "requirement": "integration marker; not behavior proof"
+        },
+        {
+          "path": "server/runtime.js",
+          "marker": "installHiveExportRoutes",
+          "present": false,
+          "requirement": "integration marker; not behavior proof"
+        }
+      ],
+      "gates": [
+        {
+          "id": "RE-P7-G1",
+          "criterion": "`exportChandraReceipts()` produces valid hive-format JSONL with correct chain linking",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P7-G2",
+          "criterion": "Exported receipts include reflection insights, debate verdicts, and consciousness tier",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P7-G3",
+          "criterion": "`verifyHiveChain()` (from Phase 1) validates the exported chain",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P7-G4",
+          "criterion": "Daemon engine includes hive export as Step 12",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P7-G5",
+          "criterion": "REST API returns export stats and recent receipts",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        },
+        {
+          "id": "RE-P7-G6",
+          "criterion": "Round-trip test: export Chandra receipts → manually feed to `hive-receipts.py ingest-phone` format → verify chain intact",
+          "authorChecked": false,
+          "independentStatus": "NOT_IMPLEMENTED",
+          "evidence": null
+        }
+      ],
+      "verifiedGateCount": 0
+    }
+  ],
+  "contractChecks": {
+    "assertionCount": 8,
+    "checks": [
+      "seven phases extracted",
+      "each phase defines five or six criteria",
+      "planned inventory contains eight creations and eleven existing modifications",
+      "proposed YAML list falls back to wildcard permissions",
+      "comma-separated manifest positive control preserves tool restriction",
+      "proposed workflow agent/start/end node types are not supported",
+      "existing memory_recall positive control is supported",
+      "current habituation ignores an unregistered binary_insight channel"
+    ],
+    "manifest": {
+      "specPath": "server/fleet/agents/re-analyst.md",
+      "actualDefaultDirectory": "agents/",
+      "parsedTools": "*",
+      "intendedTools": [
+        "re.ingest_dossier",
+        "re.verify_chain",
+        "re.query_dossier",
+        "re.build_gate_lookup",
+        "re.compile_rate",
+        "bus_publish",
+        "bus_read",
+        "agent_remember",
+        "agent_recall"
+      ],
+      "commaSeparatedControl": [
+        "re.ingest_dossier",
+        "re.verify_chain",
+        "re.query_dossier",
+        "re.build_gate_lookup",
+        "re.compile_rate",
+        "bus_publish",
+        "bus_read",
+        "agent_remember",
+        "agent_recall"
+      ]
+    },
+    "workflowKinds": {
+      "start": "unknown",
+      "agent_run": "unknown",
+      "memory_recall": "memory_recall",
+      "end": "unknown"
+    },
+    "habituationOutputKeys": [
+      "bus",
+      "memory",
+      "emotion",
+      "consciousness",
+      "agent",
+      "health",
+      "workflow",
+      "goals"
+    ],
+    "landingLedger": {
+      "path": "C:/Users/eyeka/hive/hive_genesis.jsonl",
+      "bytes": 2060,
+      "sha256": "5e7b37d52ae44de70a5a77bf6511ef0707f74caf47ea9c4e5c0648c23451f1a7",
+      "rows": 9,
+      "keys": [
+        "ts",
+        "type",
+        "src",
+        "msg",
+        "seal"
+      ],
+      "rowsWithFullChain": 0,
+      "rowsWithSource": 9
+    }
+  },
+  "limitations": "Static presence never passes a phase gate. Future implementations require their own behavior tests and independent evidence. Cross-machine runtime and upstream tool execution are not tested by this script."
+}

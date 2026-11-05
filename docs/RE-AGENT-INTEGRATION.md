@@ -6,6 +6,8 @@
 > **Source repo:** `github.com/eyeoverthink/fraymus-re-agent`  
 > **Review:** Another agent will independently verify each phase against this document.
 
+> **Independent review checkpoint — 2026-11-05:** [Changes requested](reviews/2026-11-05-re-integration-spec-review.md) for the raw receipt transport/format, manifest contract, measured compile-rate baseline, and downstream wiring. [Progress tracker](RE-AGENT-PROGRESS.md): 0/7 phases implemented and 0/41 acceptance criteria independently passed at `1eabcde`. The approval label above is the author's planning status; it is not an independent implementation verdict.
+
 ---
 
 ## Table of Contents
