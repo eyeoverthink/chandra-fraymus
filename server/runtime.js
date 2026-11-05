@@ -23,7 +23,7 @@ import { createFraymusTools, MemoryBridge, heart, ledger, dreamer, remembered, o
 import { createAutonomyEngine } from './autonomy.js';
 import { installFraymusRoutes } from './fraymus-routes.js';
 import { createWorkflowStore, installWorkflowRoutes } from './workflow/routes.js';
-import { createFleetTools } from './fleet/tools.js';
+import { createFleetTools, seedBuildGates } from './fleet/tools.js';
 import { initFleet, setFleetTools, runAgentAndWait } from './fleet/runtime.js';
 import { installFleetRoutes } from './fleet/routes.js';
 import { installMcpEndpoint } from './mcp/server.js';
@@ -164,6 +164,8 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   const desktop = createDesktopBroker({db,driver:desktopDriver,onRevoke:(id,state)=>agent?.endDesktopRun(id,state),onReceipt:(id,receipt)=>agent?.recordDesktopReceipt(id,receipt)});
   const workflowStore = createWorkflowStore();
   const fleetTools = createFleetTools({ workflowStore });
+  try { const bg = seedBuildGates(); if (bg.seeded > 0) console.log(`runtime: seeded ${bg.seeded} RE build gates (${bg.skipped} already existed)`); }
+  catch (e) { console.error('runtime: RE build gate seeding failed:', e.message); }
   let mcpImported = [];
   try { mcpImported = getImportedTools(); } catch (e) { console.error('runtime: MCP tool import failed:', e.message); }
   let browserTools = [];

@@ -1,5 +1,6 @@
 import { db } from '../db.js';
 import { runPipeline } from '../workflow/engine.js';
+import { createRETools, seedBuildGates } from './re-tools.js';
 import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
 import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching } from '../fraymus/intelligence/ouroboros.js';
 import { publish, directMessage, inbox } from './bus.js';
@@ -2101,5 +2102,8 @@ export function createFleetTools({ workflowStore }) {
         return r.json();
       },
     },
+    ...createRETools(),
   ];
 }
+
+export { seedBuildGates };
