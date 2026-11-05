@@ -1,0 +1,16 @@
+{
+  "generatedAt": "2026-11-05T21:09:17.549Z",
+  "safety": "in-memory database, fixture model, ephemeral local HTTP only",
+  "checks": [
+    "opening the panel auto-syncs eight real-schema fixture items",
+    "agent filter shows all three provenance kinds",
+    "all six sources have setup actions",
+    "source navigation reaches the provided drawer callback",
+    "optional focus and current agent records reach recommendation generation",
+    "HTTP failures are visible instead of rendering a false empty feed",
+    "genuinely empty sources show a setup path",
+    "panel fits a narrow drawer without horizontal overflow",
+    "panel rendered without uncaught browser errors"
+  ],
+  "browserErrors": []
+}

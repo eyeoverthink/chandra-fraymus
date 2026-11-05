@@ -2031,7 +2031,7 @@ export function createFleetTools({ workflowStore }) {
       name: 'nexus_ingest',
       group: 'nexus',
       risk: 'low',
-      description: 'Ingest items from all sources (YouTube, web, trends, browsing, calendar) into the Content Nexus feed.',
+      description: 'Sync existing agent debates, reflections, reviewed memories, YouTube saves, web research, trends, browsing, and calendar records into Content Nexus. Returns source diagnostics; does not launch research.',
       parameters: object({}),
       execute: async () => {
         const r = await fetch('http://127.0.0.1:8787/api/nexus/ingest', { method: 'POST', signal: AbortSignal.timeout(15_000) });
@@ -2042,7 +2042,7 @@ export function createFleetTools({ workflowStore }) {
       name: 'nexus_feed',
       group: 'nexus',
       risk: 'low',
-      description: 'Get the unified Content Nexus feed. Filter by source (youtube, web, trends, browsing, calendar), acted status, or min relevance score.',
+      description: 'Get the unified Content Nexus feed. Filter by source (agents, youtube, web, trends, browsing, calendar), handled status, or min relevance score. Agent-generated insights retain their provenance.',
       parameters: object({
         source: { type: 'string', description: 'Filter by source' },
         limit: { type: 'number', description: 'Max items (default 50)' },
@@ -2089,12 +2089,15 @@ export function createFleetTools({ workflowStore }) {
       name: 'nexus_recommend',
       group: 'nexus',
       risk: 'low',
-      description: 'Get AI-powered recommendations on which Content Nexus items to act on next.',
+      description: 'Get recommendations grounded in pending Content Nexus items and recent agent discussions. Optional focus guides the ranking without fixing the topic list.',
       parameters: object({
         limit: { type: 'number', description: 'Number of recommendations (default 5)' },
+        focus: { type: 'string', description: 'Optional current interests or goals; leave blank to follow evolving agent discussions' },
       }),
       execute: async ({ args }) => {
-        const r = await fetch(`http://127.0.0.1:8787/api/nexus/recommendations?limit=${args.limit || 5}`, { signal: AbortSignal.timeout(30_000) });
+        const params = new URLSearchParams({ limit: String(args.limit || 5) });
+        if (args.focus) params.set('focus', String(args.focus).slice(0, 500));
+        const r = await fetch(`http://127.0.0.1:8787/api/nexus/recommendations?${params}`, { signal: AbortSignal.timeout(190_000) });
         return r.json();
       },
     },

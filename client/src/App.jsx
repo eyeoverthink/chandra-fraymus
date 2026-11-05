@@ -238,7 +238,7 @@ export default function App() {
           }} />
           <DetailDrawer
             panel={drawer.panel} title={drawer.title}
-            onClose={closeDrawer} wsEvent={wsEvent} health={health}
+            onClose={closeDrawer} wsEvent={wsEvent} health={health} onOpenPanel={openDrawer}
           />
         </>
       )}

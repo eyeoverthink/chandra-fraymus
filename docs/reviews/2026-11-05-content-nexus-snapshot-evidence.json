@@ -1,0 +1,312 @@
+{
+  "generatedAt": "2026-11-05T21:09:12.717Z",
+  "method": "SQLite online backup from read-only live connection; all ingestion writes confined to temporary snapshot",
+  "temporarySnapshot": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-nexus-snapshot-A0eVHy\\snapshot.db",
+  "firstSync": {
+    "counts": {
+      "agents": 20,
+      "youtube": 0,
+      "web": 0,
+      "trends": 0,
+      "browsing": 0,
+      "calendar": 0
+    },
+    "total": 20,
+    "results": [
+      {
+        "source": "agents",
+        "ingested": 20,
+        "skipped": 0,
+        "status": "synced"
+      },
+      {
+        "source": "youtube",
+        "ingested": 0,
+        "skipped": 0,
+        "status": "empty"
+      },
+      {
+        "source": "web",
+        "ingested": 0,
+        "skipped": 0,
+        "status": "empty"
+      },
+      {
+        "source": "trends",
+        "ingested": 0,
+        "skipped": 0,
+        "status": "empty"
+      },
+      {
+        "source": "browsing",
+        "ingested": 0,
+        "skipped": 0,
+        "status": "unavailable",
+        "error": "browsing source could not be synced. Check its setup in Sources."
+      },
+      {
+        "source": "calendar",
+        "ingested": 0,
+        "skipped": 0,
+        "status": "empty"
+      }
+    ],
+    "status": "partial_failure"
+  },
+  "repeatSync": {
+    "counts": {
+      "agents": 0,
+      "youtube": 0,
+      "web": 0,
+      "trends": 0,
+      "browsing": 0,
+      "calendar": 0
+    },
+    "total": 0,
+    "results": [
+      {
+        "source": "agents",
+        "ingested": 0,
+        "skipped": 0,
+        "status": "up_to_date"
+      },
+      {
+        "source": "youtube",
+        "ingested": 0,
+        "skipped": 0,
+        "status": "empty"
+      },
+      {
+        "source": "web",
+        "ingested": 0,
+        "skipped": 0,
+        "status": "empty"
+      },
+      {
+        "source": "trends",
+        "ingested": 0,
+        "skipped": 0,
+        "status": "empty"
+      },
+      {
+        "source": "browsing",
+        "ingested": 0,
+        "skipped": 0,
+        "status": "unavailable",
+        "error": "browsing source could not be synced. Check its setup in Sources."
+      },
+      {
+        "source": "calendar",
+        "ingested": 0,
+        "skipped": 0,
+        "status": "empty"
+      }
+    ],
+    "status": "partial_failure"
+  },
+  "sources": [
+    {
+      "source": "agents",
+      "available": true,
+      "saved": 175,
+      "inFeed": 20,
+      "channels": [
+        {
+          "channel": "debates",
+          "available": true,
+          "saved": 24
+        },
+        {
+          "channel": "reflections",
+          "available": true,
+          "saved": 134
+        },
+        {
+          "channel": "agent_memories",
+          "available": true,
+          "saved": 17
+        }
+      ],
+      "status": "ready"
+    },
+    {
+      "source": "youtube",
+      "available": true,
+      "saved": 0,
+      "inFeed": 0,
+      "status": "empty"
+    },
+    {
+      "source": "web",
+      "available": true,
+      "saved": 0,
+      "inFeed": 0,
+      "status": "empty"
+    },
+    {
+      "source": "trends",
+      "available": true,
+      "saved": 0,
+      "inFeed": 0,
+      "status": "empty"
+    },
+    {
+      "source": "browsing",
+      "available": false,
+      "saved": null,
+      "inFeed": 0,
+      "status": "unavailable",
+      "message": "This source has not been initialized or is unavailable."
+    },
+    {
+      "source": "calendar",
+      "available": true,
+      "saved": 0,
+      "inFeed": 0,
+      "status": "empty"
+    }
+  ],
+  "feedCount": 20,
+  "agentItems": [
+    {
+      "id": 19,
+      "kind": "debate",
+      "recordId": "debate-mw3zz48g-ciyc",
+      "sourceTable": "debates",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 12,
+      "kind": "debate",
+      "recordId": "debate-mw40be1g-v8tc",
+      "sourceTable": "debates",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 10,
+      "kind": "debate",
+      "recordId": "debate-mw40d6f6-vv7i",
+      "sourceTable": "debates",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 8,
+      "kind": "debate",
+      "recordId": "debate-mw40eemr-xck5",
+      "sourceTable": "debates",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 20,
+      "kind": "reflection",
+      "recordId": 120,
+      "sourceTable": "reflections",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 18,
+      "kind": "reflection",
+      "recordId": 117,
+      "sourceTable": "reflections",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 17,
+      "kind": "reflection",
+      "recordId": 122,
+      "sourceTable": "reflections",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 16,
+      "kind": "reflection",
+      "recordId": 119,
+      "sourceTable": "reflections",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 15,
+      "kind": "reflection",
+      "recordId": 126,
+      "sourceTable": "reflections",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 14,
+      "kind": "reflection",
+      "recordId": 123,
+      "sourceTable": "reflections",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 13,
+      "kind": "reflection",
+      "recordId": 127,
+      "sourceTable": "reflections",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 11,
+      "kind": "reflection",
+      "recordId": 124,
+      "sourceTable": "reflections",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 9,
+      "kind": "reflection",
+      "recordId": 132,
+      "sourceTable": "reflections",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 7,
+      "kind": "reflection",
+      "recordId": 125,
+      "sourceTable": "reflections",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 6,
+      "kind": "reflection",
+      "recordId": 128,
+      "sourceTable": "reflections",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 5,
+      "kind": "reflection",
+      "recordId": 129,
+      "sourceTable": "reflections",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 4,
+      "kind": "reflection",
+      "recordId": 131,
+      "sourceTable": "reflections",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 3,
+      "kind": "reflection",
+      "recordId": 130,
+      "sourceTable": "reflections",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 2,
+      "kind": "reflection",
+      "recordId": 133,
+      "sourceTable": "reflections",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 1,
+      "kind": "reflection",
+      "recordId": 134,
+      "sourceTable": "reflections",
+      "provenance": "agent_generated"
+    }
+  ]
+}

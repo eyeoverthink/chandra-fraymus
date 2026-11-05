@@ -104,11 +104,12 @@ const PANELS = {
   'content-nexus': { component: ContentNexusPanel, label: 'Content Nexus' },
 };
 
-export default function DetailDrawer({ panel, title, onClose, wsEvent, health }) {
+export default function DetailDrawer({ panel, title, onClose, wsEvent, health, onOpenPanel }) {
   if (!panel || !PANELS[panel]) return null;
   const cfg = PANELS[panel];
   const Component = cfg.component;
   const props = { wsEvent };
+  if (panel === 'content-nexus') props.onOpenPanel = onOpenPanel;
   if (cfg.needsHealth) props.health = health;
 
   return (
