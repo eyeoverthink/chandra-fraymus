@@ -55,7 +55,8 @@ export function createContentNexus({ db, broadcast, chat = chatOllama }) {
     ON CONFLICT(source, external_id) DO UPDATE SET
       title = excluded.title, description = excluded.description, url = excluded.url,
       thumbnail = excluded.thumbnail, metadata_json = excluded.metadata_json,
-      relevance_score = excluded.relevance_score, actionability = excluded.actionability, tags = excluded.tags
+      relevance_score = excluded.relevance_score, actionability = excluded.actionability, tags = excluded.tags,
+      surfaced_at = datetime('now')
     WHERE nexus_items.title IS NOT excluded.title OR nexus_items.description IS NOT excluded.description
        OR nexus_items.url IS NOT excluded.url OR nexus_items.thumbnail IS NOT excluded.thumbnail
        OR nexus_items.metadata_json IS NOT excluded.metadata_json OR nexus_items.relevance_score IS NOT excluded.relevance_score
@@ -152,7 +153,8 @@ export function createContentNexus({ db, broadcast, chat = chatOllama }) {
     const collection = collectAgentInsights(db, limit);
     if (!collection.available) throw new Error('Agent intelligence channels are unavailable');
     let count = 0;
-    for (const item of collection.items) {
+    // Insert oldest first so tied sync timestamps still put new discussions first.
+    for (const item of collection.items.slice().reverse()) {
       const info = insertItem.run('agents', 'insight', item.external_id, item.title, item.description, '', '', JSON.stringify(item.metadata), score(item.confidence, 0.55), 'creation,repurpose', item.metadata.kind);
       count += info.changes;
     }
@@ -207,7 +209,9 @@ export function createContentNexus({ db, broadcast, chat = chatOllama }) {
     if (acted === true) { sql += ' AND acted_on = 1'; }
     if (acted === false) { sql += ' AND acted_on = 0'; }
     if (typeof minScore === 'number' && Number.isFinite(minScore)) { sql += ' AND relevance_score >= ?'; params.push(score(minScore)); }
-    sql += ' ORDER BY relevance_score DESC, surfaced_at DESC, id DESC LIMIT ? OFFSET ?';
+    sql += source === 'agents'
+      ? ' ORDER BY surfaced_at DESC, id DESC LIMIT ? OFFSET ?'
+      : ' ORDER BY relevance_score DESC, surfaced_at DESC, id DESC LIMIT ? OFFSET ?';
     params.push(bounded(limit, 50, 1, 200), bounded(offset, 0, 0, Number.MAX_SAFE_INTEGER));
     const items = db.prepare(sql).all(...params);
     return items.map(i => ({ ...i, url: safeUrl(i.url), thumbnail: safeUrl(i.thumbnail), metadata: safeParse(i.metadata_json) }));
@@ -235,7 +239,10 @@ export function createContentNexus({ db, broadcast, chat = chatOllama }) {
 
   async function generateRecommendations(limit = 5, { focus = '' } = {}) {
     limit = bounded(limit, 5, 1, 10);
-    const pending = db.prepare('SELECT * FROM nexus_items WHERE acted_on = 0 ORDER BY relevance_score DESC LIMIT 20').all();
+    // Reserve room for recent thinking so old high-scoring items cannot freeze
+    // the recommendation pool while agents change direction.
+    const candidates = [...getFeed({ source: 'agents', acted: false, limit: 8 }), ...getFeed({ acted: false, limit: 20 })];
+    const pending = [...new Map(candidates.map(item => [item.id, item])).values()].slice(0, 20);
     if (pending.length === 0) return { recommendations: [], message: 'No pending items to recommend.' };
     const summary = pending.map(i => ({ id: i.id, source: i.source, title: i.title, score: i.relevance_score }));
     try {

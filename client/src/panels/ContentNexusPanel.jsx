@@ -198,7 +198,7 @@ export default function ContentNexusPanel({ wsEvent, onOpenPanel }) {
           </div>
 
           {feedLoading && <div role="status" style={{ color: '#aaa', padding: 12 }}>Loading feed...</div>}
-          {!feedLoading && feed.length === 0 ? (
+          {!feedLoading && !error && feed.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 32, color: '#aaa', border: '1px solid #292935', borderRadius: 8 }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>📡</div>
               <div style={{ color: '#e0e0e8', fontWeight: 600, marginBottom: 8 }}>{source === 'all' ? 'Your feed is waiting for source content' : `No ${SOURCES.find(item => item.id === source)?.label} items synced yet`}</div>

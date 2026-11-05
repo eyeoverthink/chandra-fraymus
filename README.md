@@ -23,7 +23,7 @@
 
 <p align="center">
   <a href="#-quick-start">Quick Start</a> · 
-  <a href="#independent-recheck-2026-11-05">Latest Handoff</a> ·
+  <a href="#content-nexus-agent-feed-2026-11-05">Latest Handoff</a> ·
   <a href="APP-STATUS.md">App Status</a> ·
   <a href="#-intelligence-stack">Intelligence</a> · 
   <a href="#perspective--the-meta-cognitive-bartender">Perspective</a> · 
@@ -35,6 +35,10 @@
 </p>
 
 ---
+
+## Content Nexus agent feed 2026-11-05
+
+Content Nexus now syncs **agent debates, reflections, and reviewed memories** alongside saved content. Suggestions use current agent discussions with an optional focus; no fixed topic list is required. The panel refreshes local records every 30 seconds while open, exposes source readiness/errors, preserves handled state, and identifies agent-generated material. [Implementation, validation, and restart handoff](docs/handoffs/2026-11-05-content-nexus.md): 11 focused tests and 9 isolated browser checks pass; a temporary consistent database snapshot yielded 20 genuine insights with no repeat-sync duplicates. **Normal backend restart and independent review remain pending; live model generation was not verified.** Tag: `handoff/content-nexus-agent-feed-2026-11-05`.
 
 ## Independent recheck 2026-11-05
 
@@ -75,6 +79,7 @@ The historical corruption cause remains unresolved. The [shutdown/WAL review](do
 
 | Review | Source / owner | Reviewer | Status and next action |
 | --- | --- | --- | --- |
+| [Content Nexus dynamic agent feed](docs/handoffs/2026-11-05-content-nexus.md) | Codex implementation; initial shared-tree commit `eb60df0` plus this handoff | **Different agent required** | **IMPLEMENTED + LOCALLY TESTED; AWAITING INDEPENDENT REVIEW.** 11 focused tests, 9 isolated UI checks; real agent-data ingestion verified on a temporary SQLite online-backup snapshot. Gracefully restart the owning backend terminal before live validation. Do not confuse local sync with launching new research or model-generated insights with external facts. |
 | [Recent intelligence additions and claims](docs/reviews/2026-11-05-intelligence-claims-review.md) | Baseline `284075d`; handoff fix `3c9cd83`; concurrent implementation session | Codex independent recheck | **CHANGES REQUESTED.** INT-01 verified fixed; INT-02–07 reproduced and open. 25 diagnostic assertions include defect reproductions; they are not 25 product acceptance passes. 40 JS files parse; existing suite is 12/13 due to stale ledger mock. Repair the committed probe's undefined `positiveControl`. Claim findings and add focused acceptance tests before Phase 21. |
 | [Phase 2 continuity hardening and handoff](docs/reviews/2026-11-04-phase2-continuity-review.md) | Reviewed `3167e38` / `5d7e21e`; fixes `be2cbde` through `9a2ec22`, Codex author | **Different agent required** | **IMPLEMENTED + LOCALLY TESTED; AWAITING INDEPENDENT REVIEW.** Reproduced committed-row rollback in disposable DBs, then protected databases/journals from file healing. Self-tests now honor failures; vault signatures, exact bytes and numbering are checked; signing identity survives restart. 13 tests + isolated 27-case probe pass. Source changes require a normal backend restart. |
 | [Immune round 4: independent closure check](docs/reviews/2026-11-04-immune-round4-independent-review.md) | `2d61f0d` | Codex independent recheck | **SCOPED FIXES VERIFIED.** IMM-08, IMM-10 and IMM-11 pass independent fleet/main, schema, depth and completion checks; author's probe is 22/22. IMM-05 stays deferred/advisory. Phase 2 planning can proceed; no Phase 2 implementation has been reviewed yet. |

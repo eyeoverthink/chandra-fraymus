@@ -1,7 +1,13 @@
 {
-  "generatedAt": "2026-11-05T21:09:12.717Z",
+  "generatedAt": "2026-11-05T21:11:43.463Z",
+  "sourceHead": "eb60df06eb81a8968ebc1b019b7b13fd960b858c",
+  "sourceHashes": {
+    "server/intelligence/content-nexus.js": "117db07218f297af9dbec87a5c2c412a48a26aab8d80d6c7f9704ce01fa14bdb",
+    "server/intelligence/content-nexus-agents.js": "76ff20be1dc80d1e5505e19762d88c973dd3a514f5faeb7032ad64914f3ebfae",
+    "server/intelligence/content-nexus-routes.js": "f50c91b5170c2fff98eada2772bc4d6bc8e1b8a86f8f82fd5b6f352651ba125d"
+  },
   "method": "SQLite online backup from read-only live connection; all ingestion writes confined to temporary snapshot",
-  "temporarySnapshot": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-nexus-snapshot-A0eVHy\\snapshot.db",
+  "temporarySnapshot": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-nexus-snapshot-V6fYgH\\snapshot.db",
   "firstSync": {
     "counts": {
       "agents": 20,
@@ -169,84 +175,77 @@
   "feedCount": 20,
   "agentItems": [
     {
-      "id": 19,
-      "kind": "debate",
-      "recordId": "debate-mw3zz48g-ciyc",
-      "sourceTable": "debates",
-      "provenance": "agent_generated"
-    },
-    {
-      "id": 12,
-      "kind": "debate",
-      "recordId": "debate-mw40be1g-v8tc",
-      "sourceTable": "debates",
-      "provenance": "agent_generated"
-    },
-    {
-      "id": 10,
-      "kind": "debate",
-      "recordId": "debate-mw40d6f6-vv7i",
-      "sourceTable": "debates",
-      "provenance": "agent_generated"
-    },
-    {
-      "id": 8,
-      "kind": "debate",
-      "recordId": "debate-mw40eemr-xck5",
-      "sourceTable": "debates",
-      "provenance": "agent_generated"
-    },
-    {
       "id": 20,
       "kind": "reflection",
-      "recordId": 120,
+      "recordId": 134,
+      "sourceTable": "reflections",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 19,
+      "kind": "reflection",
+      "recordId": 133,
       "sourceTable": "reflections",
       "provenance": "agent_generated"
     },
     {
       "id": 18,
       "kind": "reflection",
-      "recordId": 117,
+      "recordId": 130,
       "sourceTable": "reflections",
       "provenance": "agent_generated"
     },
     {
       "id": 17,
       "kind": "reflection",
-      "recordId": 122,
+      "recordId": 131,
       "sourceTable": "reflections",
       "provenance": "agent_generated"
     },
     {
       "id": 16,
       "kind": "reflection",
-      "recordId": 119,
+      "recordId": 129,
       "sourceTable": "reflections",
       "provenance": "agent_generated"
     },
     {
       "id": 15,
       "kind": "reflection",
-      "recordId": 126,
+      "recordId": 128,
       "sourceTable": "reflections",
       "provenance": "agent_generated"
     },
     {
       "id": 14,
       "kind": "reflection",
-      "recordId": 123,
+      "recordId": 125,
       "sourceTable": "reflections",
       "provenance": "agent_generated"
     },
     {
       "id": 13,
+      "kind": "debate",
+      "recordId": "debate-mw40eemr-xck5",
+      "sourceTable": "debates",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 12,
       "kind": "reflection",
-      "recordId": 127,
+      "recordId": 132,
       "sourceTable": "reflections",
       "provenance": "agent_generated"
     },
     {
       "id": 11,
+      "kind": "debate",
+      "recordId": "debate-mw40d6f6-vv7i",
+      "sourceTable": "debates",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 10,
       "kind": "reflection",
       "recordId": 124,
       "sourceTable": "reflections",
@@ -254,57 +253,64 @@
     },
     {
       "id": 9,
+      "kind": "debate",
+      "recordId": "debate-mw40be1g-v8tc",
+      "sourceTable": "debates",
+      "provenance": "agent_generated"
+    },
+    {
+      "id": 8,
       "kind": "reflection",
-      "recordId": 132,
+      "recordId": 127,
       "sourceTable": "reflections",
       "provenance": "agent_generated"
     },
     {
       "id": 7,
       "kind": "reflection",
-      "recordId": 125,
+      "recordId": 123,
       "sourceTable": "reflections",
       "provenance": "agent_generated"
     },
     {
       "id": 6,
       "kind": "reflection",
-      "recordId": 128,
+      "recordId": 126,
       "sourceTable": "reflections",
       "provenance": "agent_generated"
     },
     {
       "id": 5,
       "kind": "reflection",
-      "recordId": 129,
+      "recordId": 119,
       "sourceTable": "reflections",
       "provenance": "agent_generated"
     },
     {
       "id": 4,
       "kind": "reflection",
-      "recordId": 131,
+      "recordId": 122,
       "sourceTable": "reflections",
       "provenance": "agent_generated"
     },
     {
       "id": 3,
       "kind": "reflection",
-      "recordId": 130,
+      "recordId": 117,
       "sourceTable": "reflections",
       "provenance": "agent_generated"
     },
     {
       "id": 2,
-      "kind": "reflection",
-      "recordId": 133,
-      "sourceTable": "reflections",
+      "kind": "debate",
+      "recordId": "debate-mw3zz48g-ciyc",
+      "sourceTable": "debates",
       "provenance": "agent_generated"
     },
     {
       "id": 1,
       "kind": "reflection",
-      "recordId": 134,
+      "recordId": 120,
       "sourceTable": "reflections",
       "provenance": "agent_generated"
     }

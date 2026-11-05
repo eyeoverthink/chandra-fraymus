@@ -106,6 +106,21 @@ test('recommendations receive evolving agent context, optional guidance, and rea
   assert.equal(result.recommendations[0].id, request.items[0].id);
 });
 
+test('new agent thinking remains eligible ahead of old high-confidence memories', async t => {
+  let request;
+  const { db, nexus } = fixture(t, { seed: true, chat: async messages => {
+    request = JSON.parse(messages[1].content);
+    return JSON.stringify([{ id: request.items[0].id, action: 'creation', reason: 'Follow the current discussion' }]);
+  } });
+  nexus.ingestAll();
+  db.prepare('INSERT INTO reflections(trigger,input_summary,actions_taken,insights,duration_ms,created_at) VALUES(?,?,?,?,?,?)').run('test','New goal','[]','The agents have a new research direction.',1,Date.now()+2000);
+  nexus.ingestFromAgents();
+  const newest = nexus.getFeed({ source: 'agents' })[0];
+  assert.ok(newest.description.includes('new research direction'));
+  await nexus.generateRecommendations();
+  assert.equal(request.items[0].id, newest.id);
+});
+
 test('empty sources and model failures are distinct and unsafe URLs are not rendered', async t => {
   const { db, nexus } = fixture(t, { chat: async () => { throw new Error('provider fixture'); } });
   const empty = await nexus.generateRecommendations();
