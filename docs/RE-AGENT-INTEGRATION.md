@@ -12,6 +12,8 @@
 
 > **Phase 1 implementation recheck of `8b52ac9` — 2026-11-05:** [Changes requested](reviews/2026-11-05-hive-phase1-review.md). Implementation is present (1/7 phases), with 6 scoped passes, 3 failures and 1 partial result across Phase 1's ten criteria; 0/7 phases independently accepted. The 13 known upstream hashes match. Trusted dispatch, restart duplication, malformed-input handling, broader Python compatibility and stable receipt identity remain open. The [progress tracker](RE-AGENT-PROGRESS.md) preserves the author's claims and independent gate evidence separately.
 
+> **Independent fix recheck of `4ba2c43` / claim `3b901f7` — 2026-11-05:** [Partial fixes; changes still requested](reviews/2026-11-05-hive-phase1-fix-review.md). Author tests reproduce 18/18 and their reported 10/10, but independent delivery/integrity/recovery tests find 6 scoped passes, 3 failed gates and 1 partial. SQLite row atomicity and projection isolation improve; subscriber effects still escape rollback, malformed input reaches trusted dispatch, numeric tampering can verify intact, and identity recovery/upgrade remains incomplete. **0/7 phases independently accepted.** The current gate contract has not authorized a damaged-input prefix exception.
+
 ---
 
 ## Table of Contents

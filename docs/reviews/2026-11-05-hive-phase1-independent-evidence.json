@@ -1,0 +1,384 @@
+{
+  "generatedAt": "2026-11-05T22:48:21.546Z",
+  "implementationRef": "4ba2c433681bc6fecac6acc9b0c1c18c232b1592",
+  "authorRecheckCommit": "3b901f731f1147e878a6b91b89cf015c347325ef",
+  "upstreamRef": "2f75cee7f54a4aa6bae219ec9241fc44f980c36b",
+  "upstreamReceiptBlob": "9fcb7465a12abc80117c45c02c9d064a15ed81cf",
+  "sourceHashes": {
+    "4ba2c433681bc6fecac6acc9b0c1c18c232b1592:server/db-migrate.js": "6a3eb642bbd64c564d83232bdfc0c0f8caa30293c3ef098a87d335d47d79950c",
+    "4ba2c433681bc6fecac6acc9b0c1c18c232b1592:server/fleet/bus.js": "93b12941f183c20b16db624ffcb1942b8c12a01b86310b19baa5c7c80bc1ad43",
+    "4ba2c433681bc6fecac6acc9b0c1c18c232b1592:server/intelligence/hive-bridge.js": "f746d33a5d4e5b298b6383744a100b63eaf26476ae43f9b2ef0b573f8bb2c9d2",
+    "4ba2c433681bc6fecac6acc9b0c1c18c232b1592:server/fleet/bus-triggers.js": "4773ecf3c430388619a116546fa9c6d3aed32688882ca982df7a088eabc15687",
+    "8b52ac96d1ce65782d21bd4c770e2fb8bdd2873b:server/db-migrate.js": "6a3eb642bbd64c564d83232bdfc0c0f8caa30293c3ef098a87d335d47d79950c",
+    "8b52ac96d1ce65782d21bd4c770e2fb8bdd2873b:server/fleet/bus.js": "93b12941f183c20b16db624ffcb1942b8c12a01b86310b19baa5c7c80bc1ad43",
+    "8b52ac96d1ce65782d21bd4c770e2fb8bdd2873b:server/intelligence/hive-bridge.js": "49f340c6de0c21dc0961ef93d3af98e0e9f720dcfeafd67cb7de8e7dcd85e683",
+    "4ba2c433681bc6fecac6acc9b0c1c18c232b1592:server/intelligence/hive-bridge-routes.js": "0266e359b27bec1ef7215cf4e7fa6893a644a3bdd1cd028594ae947dadc832de",
+    "4ba2c433681bc6fecac6acc9b0c1c18c232b1592:server/fleet/bus-routes.js": "b1bc7d3d8b147070b7fd4a0b2ac14e43d8aea88ff31b4f3cba1e0b300ab93637",
+    "4ba2c433681bc6fecac6acc9b0c1c18c232b1592:server/runtime.js": "29e13f1e73440cdfd1e4bdbfdf686851642b89ec636c3f9dcb3b3ed1281e8e58"
+  },
+  "safety": "No application/live DB import. Exact pinned function bodies use disposable SQLite and actual bus/trigger code. Workflow executor is a counter-only mock. Only our fixture child exits. External observer is a local temporary append-only file. No recursive cleanup or live process signalling.",
+  "retainedTemporaryDirectory": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-hive-independent-6bDyGi",
+  "checks": [
+    "all thirteen real upstream hashes and valid ingestion still work",
+    "ordinary identical and reformatted receipt dedup is fixed",
+    "DEL is now escaped like Python",
+    "projection namespace isolation prevents actual trusted trigger dispatch",
+    "complete malformed suffix is now reported by verification",
+    "ingestion still reports INTACT and publishes twelve trusted receipts from malformed input",
+    "malformed input still invokes a real trusted-topic trigger",
+    "partial trailing input still verifies its prefix intact",
+    "database transaction rolls back bus and checkpoint rows together",
+    "subscriber and real trigger escape rollback before commit",
+    "retry repeats notification and workflow execution for one durable receipt",
+    "crash leaves zero committed rows before retry",
+    "restart stores thirteen rows but external observer receives fourteen notifications",
+    "damaged chain still publishes seven trusted-prefix events",
+    "unverified identities block later corrected-chain ingestion",
+    "dedup-key upgrade republishes thirteen already-stored receipts",
+    "DEL fix leaves five of the eight Python cases mismatched",
+    "Python confirms changed numeric content no longer matches original self",
+    "unsafe integer rounding accepts tampered content as intact and trusted",
+    "actual installer, runtime wiring, HTTP stats and bus history remain functional"
+  ],
+  "diagnosticAssertionCount": 20,
+  "positive": {
+    "hashesMatched": 13,
+    "verification": {
+      "total": 13,
+      "intact": true,
+      "breakIndex": null,
+      "format": "raw",
+      "malformed": [],
+      "malformedComplete": false
+    },
+    "first": {
+      "format": "raw",
+      "ingested": 13,
+      "skipped": 0,
+      "errors": [],
+      "malformed": [],
+      "chainStatus": "INTACT"
+    },
+    "repeat": {
+      "format": "raw",
+      "ingested": 0,
+      "skipped": 13,
+      "errors": [],
+      "malformed": [],
+      "chainStatus": "INTACT"
+    },
+    "formatted": {
+      "format": "raw",
+      "ingested": 0,
+      "skipped": 13,
+      "errors": [],
+      "malformed": [],
+      "chainStatus": "INTACT"
+    },
+    "del": "{\"text\": \"\\u007f\"}"
+  },
+  "projection": {
+    "result": {
+      "format": "projection",
+      "ingested": 1,
+      "skipped": 0,
+      "errors": [],
+      "malformed": []
+    },
+    "topic": "hive.unverified.fra-pipeline:dossier",
+    "trustedWorkflowInvocations": 0
+  },
+  "malformed": {
+    "verify": {
+      "total": 12,
+      "intact": false,
+      "breakIndex": null,
+      "format": "raw",
+      "malformed": [
+        {
+          "index": 12,
+          "reason": "invalid_json",
+          "message": "Unexpected token '!', \"!\"claim\": \"... is not valid JSON"
+        }
+      ],
+      "malformedComplete": true
+    },
+    "partialVerify": {
+      "total": 12,
+      "intact": true,
+      "breakIndex": null,
+      "format": "raw",
+      "malformed": [
+        {
+          "index": 12,
+          "reason": "partial_trailing_line",
+          "message": "Unexpected end of JSON input"
+        }
+      ],
+      "malformedComplete": false
+    },
+    "ingest": {
+      "format": "raw",
+      "ingested": 12,
+      "skipped": 0,
+      "errors": [],
+      "malformed": [
+        {
+          "index": 12,
+          "reason": "invalid_json",
+          "message": "Unexpected token '!', \"!\"claim\": \"... is not valid JSON"
+        }
+      ],
+      "chainStatus": "INTACT"
+    },
+    "trustedPublications": 12,
+    "trustedWorkflowInvocations": 1
+  },
+  "rollback": {
+    "failed": {
+      "format": "raw",
+      "ingested": 0,
+      "skipped": 0,
+      "errors": [
+        "Atomic ingest failed for receipt 0: fixture checkpoint failure"
+      ],
+      "malformed": [],
+      "chainStatus": "INTACT"
+    },
+    "beforeRetry": {
+      "busRows": 0,
+      "ingestionRows": 0,
+      "subscriberDeliveries": 1,
+      "workflowExecutions": 1,
+      "workflowRows": 1
+    },
+    "retry": {
+      "format": "raw",
+      "ingested": 1,
+      "skipped": 0,
+      "errors": [],
+      "malformed": [],
+      "chainStatus": "INTACT"
+    },
+    "deliveries": [
+      {
+        "self": "0b2eb6f89529c1c55e3bd10b8e0d69dd9707367d7a735cc0c70baf284e6b6418",
+        "inTransaction": true
+      },
+      {
+        "self": "0b2eb6f89529c1c55e3bd10b8e0d69dd9707367d7a735cc0c70baf284e6b6418",
+        "inTransaction": true
+      }
+    ],
+    "workflowExecutionsAfterRetry": 2,
+    "durableReceiptRowsAfterRetry": 1
+  },
+  "crash": {
+    "beforeRetry": {
+      "busRows": 0,
+      "ingestionRows": 0
+    },
+    "retry": {
+      "format": "raw",
+      "ingested": 13,
+      "skipped": 0,
+      "errors": [],
+      "malformed": [],
+      "chainStatus": "INTACT"
+    },
+    "durableReceiptRows": 13,
+    "observerNotifications": 14,
+    "distinctIdentities": 13,
+    "firstReceiptDeliveries": 2
+  },
+  "poisonedDedup": {
+    "damagedIngestion": {
+      "format": "raw",
+      "ingested": 13,
+      "skipped": 0,
+      "errors": [],
+      "malformed": [],
+      "chainStatus": "DAMAGED",
+      "chainBreakIndex": 7,
+      "chainBreakReason": "self_mismatch"
+    },
+    "correctedIngestion": {
+      "format": "raw",
+      "ingested": 0,
+      "skipped": 13,
+      "errors": [],
+      "malformed": [],
+      "chainStatus": "INTACT"
+    },
+    "trustedReceiptRows": 7,
+    "unverifiedReceiptRows": 6
+  },
+  "upgrade": {
+    "priorDurableReceipts": 13,
+    "result": {
+      "format": "raw",
+      "ingested": 13,
+      "skipped": 0,
+      "errors": [],
+      "malformed": [],
+      "chainStatus": "INTACT"
+    },
+    "afterDurableReceipts": 26
+  },
+  "canonicalization": [
+    {
+      "name": "nested_ascii",
+      "pythonSelf": "39d06dcad283943fed1cbc97c4014eba5f300bff1f70817b15b47e9346f53f24",
+      "bridgeSelf": "39d06dcad283943fed1cbc97c4014eba5f300bff1f70817b15b47e9346f53f24",
+      "matches": true
+    },
+    {
+      "name": "unicode_text",
+      "pythonSelf": "901ae14f2f281a885c34dd57b84d0a7e8057ac329b7c978f208888878db03945",
+      "bridgeSelf": "901ae14f2f281a885c34dd57b84d0a7e8057ac329b7c978f208888878db03945",
+      "matches": true
+    },
+    {
+      "name": "DEL",
+      "pythonSelf": "59dbf3fd89729cc5aba0f9c3ae7ac56ec5ec4043006447112f24b9e97c3e61f1",
+      "bridgeSelf": "59dbf3fd89729cc5aba0f9c3ae7ac56ec5ec4043006447112f24b9e97c3e61f1",
+      "matches": true
+    },
+    {
+      "name": "unicode_keys",
+      "pythonSelf": "69792c7e443174074c51b7d19c6db8975cb64e10ad3a5508be972ceacae05bc9",
+      "bridgeSelf": "1d31c5851d7c43e8bfa6c25b6227f25af9ad11797967ec82c90386d2139f5775",
+      "matches": false
+    },
+    {
+      "name": "float_integral",
+      "pythonSelf": "2a564e7b3a3a753ea1ade225badad7634a983a71e5ad246046d57f60eb44f7ea",
+      "bridgeSelf": "3a6901445dbe0ac88b5090a2b43e9e003002a0dadef304e478b9052fdbfc0bd5",
+      "matches": false
+    },
+    {
+      "name": "small_float",
+      "pythonSelf": "30943d2d05a58affd99860eb7af4f3fb0d4e052701b30458201d4bc72b0ae944",
+      "bridgeSelf": "458a6623b7fb8d62142607cfa2f06b03c414a647524af70182fa72421e1576f2",
+      "matches": false
+    },
+    {
+      "name": "large_float",
+      "pythonSelf": "4d04a30bb609ffeb0e9a704a53def795f3e9f6e4ed571ab816ee5995ec9fdf6b",
+      "bridgeSelf": "f4a757e1543a24736eb33535201820e97e45e028b8d62a699d70ffa4ea57eef2",
+      "matches": false
+    },
+    {
+      "name": "large_integer",
+      "pythonSelf": "bfbc420ad5aff5ed4e7d1799268c2e6fe6a9361aa10a759857c398e61d0731c8",
+      "bridgeSelf": "ab1cc0efbaf164670009a1735a09aebda7856507cb8a400dd4031d6d9ce6f8bc",
+      "matches": false
+    }
+  ],
+  "numericTamper": {
+    "originalLine": "{\"claim\": \"fixture\", \"evidence\": {\"n\": 9007199254740992}, \"i\": 0, \"organ\": \"review\", \"prev\": \"0000000000000000000000000000000000000000000000000000000000000000\", \"seal\": \"\", \"self\": \"ab1cc0efbaf164670009a1735a09aebda7856507cb8a400dd4031d6d9ce6f8bc\", \"ts\": \"2026-11-05T00:00:00Z\", \"type\": \"metric\"}",
+    "tamperedLine": "{\"claim\": \"fixture\", \"evidence\": {\"n\": 9007199254740993}, \"i\": 0, \"organ\": \"review\", \"prev\": \"0000000000000000000000000000000000000000000000000000000000000000\", \"seal\": \"\", \"self\": \"ab1cc0efbaf164670009a1735a09aebda7856507cb8a400dd4031d6d9ce6f8bc\", \"ts\": \"2026-11-05T00:00:00Z\", \"type\": \"metric\"}",
+    "originalSelf": "ab1cc0efbaf164670009a1735a09aebda7856507cb8a400dd4031d6d9ce6f8bc",
+    "pythonTamperedSelf": "bfbc420ad5aff5ed4e7d1799268c2e6fe6a9361aa10a759857c398e61d0731c8",
+    "verify": {
+      "total": 1,
+      "intact": true,
+      "breakIndex": null,
+      "format": "raw",
+      "malformed": [],
+      "malformedComplete": false
+    },
+    "ingest": {
+      "format": "raw",
+      "ingested": 1,
+      "skipped": 0,
+      "errors": [],
+      "malformed": [],
+      "chainStatus": "INTACT"
+    },
+    "trustedPublications": 1,
+    "parsedNumber": 9007199254740992
+  },
+  "api": {
+    "initial": {
+      "lastRun": null,
+      "totalIngested": 0,
+      "rawCount": 0,
+      "projectionCount": 0,
+      "chainVerifiedCount": 0,
+      "chainStatus": "NO_RAW_DATA"
+    },
+    "ingest": {
+      "format": "raw",
+      "ingested": 13,
+      "skipped": 0,
+      "errors": [],
+      "malformed": [],
+      "chainStatus": "INTACT"
+    },
+    "stats": {
+      "lastRun": "2026-11-05T22:48:21.507Z",
+      "totalIngested": 13,
+      "rawCount": 13,
+      "projectionCount": 0,
+      "chainVerifiedCount": 13,
+      "chainStatus": "INTACT"
+    },
+    "runtimeWiring": true,
+    "subscriberDeliveries": 13,
+    "dossierHistoryRows": 2
+  },
+  "gateResults": [
+    {
+      "id": "RE-P1-G1",
+      "status": "PASS_ISOLATED",
+      "scope": "Installer and static runtime wiring only; no full app boot."
+    },
+    {
+      "id": "RE-P1-G2",
+      "status": "PASS_ISOLATED"
+    },
+    {
+      "id": "RE-P1-G3",
+      "status": "PASS_ISOLATED"
+    },
+    {
+      "id": "RE-P1-G4",
+      "status": "PASS_ISOLATED"
+    },
+    {
+      "id": "RE-P1-G5",
+      "status": "FAIL",
+      "scope": "Numeric content integrity and partial input remain unsafe despite complete-suffix verify fix."
+    },
+    {
+      "id": "RE-P1-G6",
+      "status": "PARTIAL",
+      "scope": "Ordinary formatting dedup passes; recovery and prior-version identity migration fail."
+    },
+    {
+      "id": "RE-P1-G7",
+      "status": "FAIL",
+      "scope": "Durable row atomicity passes; precommit subscriber delivery repeats."
+    },
+    {
+      "id": "RE-P1-G8",
+      "status": "FAIL",
+      "scope": "Projection isolation passes; malformed input still reaches trusted topics."
+    },
+    {
+      "id": "RE-P1-G9",
+      "status": "PASS_ISOLATED"
+    },
+    {
+      "id": "RE-P1-G10",
+      "status": "PASS_ISOLATED"
+    }
+  ],
+  "summary": {
+    "scopedPasses": 6,
+    "failures": 3,
+    "partial": 1,
+    "independentlyAcceptedPhases": 0
+  }
+}

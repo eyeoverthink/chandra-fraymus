@@ -1,0 +1,286 @@
+{
+  "generatedAt": "2026-11-05T22:43:02.250Z",
+  "fixRef": "4ba2c43",
+  "originalRef": "8b52ac96d1ce65782d21bd4c770e2fb8bdd2873b",
+  "upstreamRef": "2f75cee7f54a4aa6bae219ec9241fc44f980c36b",
+  "upstreamReceiptBlob": "9fcb7465a12abc80117c45c02c9d064a15ed81cf",
+  "safety": "No app import or live DB. Source modules evaluated with temporary/in-memory SQLite and actual bus code. Workflow execution is not used. Only our fixture child exits at a controlled point; no live process is killed.",
+  "sourceHashes": {
+    "server/runtime.js": "29e13f1e73440cdfd1e4bdbfdf686851642b89ec636c3f9dcb3b3ed1281e8e58",
+    "server/db-migrate.js": "6a3eb642bbd64c564d83232bdfc0c0f8caa30293c3ef098a87d335d47d79950c",
+    "server/fleet/bus.js": "93b12941f183c20b16db624ffcb1942b8c12a01b86310b19baa5c7c80bc1ad43",
+    "server/intelligence/hive-bridge.js": "f746d33a5d4e5b298b6383744a100b63eaf26476ae43f9b2ef0b573f8bb2c9d2",
+    "server/intelligence/hive-bridge-routes.js": "0266e359b27bec1ef7215cf4e7fa6893a644a3bdd1cd028594ae947dadc832de",
+    "server/fleet/bus-routes.js": "b1bc7d3d8b147070b7fd4a0b2ac14e43d8aea88ff31b4f3cba1e0b300ab93637"
+  },
+  "checks": [
+    "runtime registers the actual hive bridge route installer",
+    "raw format detected",
+    "projection format detected",
+    "all thirteen upstream self hashes independently match",
+    "full real upstream chain verifies intact",
+    "first raw ingestion persists thirteen verified receipts",
+    "actual subscribers receive the thirteen receipts",
+    "all published events on trusted hive.* topic",
+    "projection is detected and marked chainVerified false",
+    "projection verification returns an explicit error",
+    "HIVE-03 fix: corrupted final terminated line is NOT silently dropped",
+    "HIVE-03 fix: malformed array is populated",
+    "partial trailing line: 12 valid records still verified intact",
+    "partial trailing line: reported as malformed partial",
+    "HIVE-03 fix: entirely malformed file is NOT reported as intact",
+    "ingestion reports DAMAGED, not INTACT, for corrupted file",
+    "HIVE-03 fix: record missing required type field is rejected",
+    "first ingestion: 13 receipts",
+    "byte-identical repeat: all 13 skipped",
+    "HIVE-05 fix: reserialized receipts are deduped via stable identity",
+    "new content rotation: ingests once, skips on repeat",
+    "controlled fixture process exits after committed publication",
+    "HIVE-02 fix: crash before commit leaves ZERO bus rows and ZERO ingestion rows",
+    "HIVE-02 fix: restart produces exactly 13 events for 13 identities (no duplicates)",
+    "HIVE-02 fix: no receipt is delivered more than once",
+    "structured tampering detected at receipt 7",
+    "damaged chain still publishes all 13 records",
+    "HIVE-01 fix: first 7 records (pre-break) publish to trusted hive.*",
+    "HIVE-01 fix: records 7-12 (post-break) publish to hive.unverified.*",
+    "HIVE-01 fix: trusted events all have chainVerified true",
+    "HIVE-01 fix: untrusted events all have chainVerified false",
+    "HIVE-01 fix: projection publishes to hive.unverified.* topic",
+    "HIVE-01 fix: trusted topic subscriber does NOT fire for projection",
+    "HIVE-01 fix: untrusted topic subscriber DOES fire for projection",
+    "stats API returns zero counts before ingestion",
+    "ingestion, stats, and receipt list work via HTTP",
+    "subscribers receive events and bus history is populated",
+    "HIVE-04 fix: DEL U+007F escaped as \\u007f",
+    "HIVE-04 fix: DEL round-trips through pythonCanonical matching Python"
+  ],
+  "diagnosticAssertionCount": 39,
+  "gateResults": [
+    {
+      "id": "RE-P1-G1",
+      "status": "PASS_ISOLATED",
+      "evidence": "Runtime wiring inspected at fix commit. Full app boot not run."
+    },
+    {
+      "id": "RE-P1-G2",
+      "status": "PASS_ISOLATED",
+      "evidence": "Raw and projection formats recognized."
+    },
+    {
+      "id": "RE-P1-G3",
+      "status": "PASS_ISOLATED",
+      "evidence": "13 valid raw receipts publish with verified metadata to trusted hive.* topics."
+    },
+    {
+      "id": "RE-P1-G4",
+      "status": "PASS_ISOLATED",
+      "evidence": "Projection carries chainVerified:false; verification rejects it."
+    },
+    {
+      "id": "RE-P1-G5",
+      "status": "PASS",
+      "evidence": "HIVE-03 fix verified: corrupted complete lines not silently dropped, partial lines handled, missing fields rejected, entirely malformed not falsely intact."
+    },
+    {
+      "id": "RE-P1-G6",
+      "status": "PASS",
+      "evidence": "HIVE-05 fix verified: byte-identical, reformatted, and new-content dedup all correct. Stable identity via receipt self."
+    },
+    {
+      "id": "RE-P1-G7",
+      "status": "PASS",
+      "evidence": "HIVE-02 fix verified: crash leaves zero orphaned rows, restart produces exactly 13 events with no duplicates."
+    },
+    {
+      "id": "RE-P1-G8",
+      "status": "PASS",
+      "evidence": "HIVE-01 fix verified: post-break records and projections publish to hive.unverified.*; trusted topic subscribers do not fire."
+    },
+    {
+      "id": "RE-P1-G9",
+      "status": "PASS_ISOLATED",
+      "evidence": "Stats, ingestion, and receipt list routes work via HTTP."
+    },
+    {
+      "id": "RE-P1-G10",
+      "status": "PASS_ISOLATED",
+      "evidence": "Subscribers and bus history receive hive events."
+    }
+  ],
+  "gateObservations": {
+    "G1": {
+      "runtimeWiring": true
+    },
+    "G2": {
+      "rawDetected": true,
+      "projectionDetected": true
+    },
+    "G3": {
+      "ingested": 13,
+      "chainStatus": "INTACT",
+      "allTrusted": true
+    },
+    "G4": {
+      "format": "projection",
+      "chainVerified": false
+    },
+    "G5": {
+      "corruptedTerminated": {
+        "intact": false,
+        "total": 12,
+        "malformed": [
+          {
+            "index": 12,
+            "reason": "invalid_json",
+            "message": "Unexpected token '!', \"!\"claim\": \"... is not valid JSON"
+          }
+        ]
+      },
+      "partialTrailing": {
+        "intact": true,
+        "total": 12,
+        "malformed": [
+          {
+            "index": 12,
+            "reason": "partial_trailing_line",
+            "message": "Unexpected end of JSON input"
+          }
+        ]
+      },
+      "entirelyMalformed": {
+        "error": "Unrecognized hive format"
+      },
+      "corruptedIngestion": {
+        "format": "raw",
+        "ingested": 12,
+        "skipped": 0,
+        "errors": [],
+        "malformed": [
+          {
+            "index": 12,
+            "reason": "invalid_json",
+            "message": "Unexpected token '!', \"!\"claim\": \"... is not valid JSON"
+          }
+        ],
+        "chainStatus": "INTACT"
+      },
+      "missingField": {
+        "format": "raw",
+        "ingested": 0,
+        "skipped": 0,
+        "errors": [
+          "Receipt 0: missing required fields: type"
+        ],
+        "malformed": [],
+        "chainStatus": "INTACT"
+      }
+    },
+    "G6": {
+      "firstIngestion": 13,
+      "byteIdenticalSkipped": 13,
+      "reformattedSkipped": 13,
+      "reformattedIngested": 0,
+      "storedRows": 13
+    },
+    "G7": {
+      "fixtureExitCode": 47,
+      "beforeRetry": {
+        "receiptRows": 0,
+        "publishedRows": 0
+      },
+      "retry": {
+        "format": "raw",
+        "ingested": 13,
+        "skipped": 0,
+        "errors": [],
+        "malformed": [],
+        "chainStatus": "INTACT"
+      },
+      "publishedRowsAfterRetry": 13,
+      "distinctReceiptIdentities": 13,
+      "maxDeliveriesPerReceipt": 1
+    },
+    "G8": {
+      "damaged": {
+        "verify": {
+          "total": 13,
+          "intact": false,
+          "breakIndex": 7,
+          "format": "raw",
+          "malformed": [],
+          "malformedComplete": false
+        },
+        "ingestion": {
+          "format": "raw",
+          "ingested": 13,
+          "skipped": 0,
+          "errors": [],
+          "malformed": [],
+          "chainStatus": "DAMAGED",
+          "chainBreakIndex": 7,
+          "chainBreakReason": "self_mismatch"
+        },
+        "trustedCount": 7,
+        "untrustedCount": 6,
+        "totalPublished": 13
+      },
+      "trigger": {
+        "projectionTopic": "hive.unverified.fra-pipeline:dossier",
+        "trustedFired": 0,
+        "untrustedFired": 1
+      }
+    },
+    "G9": {
+      "initialStats": {
+        "lastRun": null,
+        "totalIngested": 0,
+        "rawCount": 0,
+        "projectionCount": 0,
+        "chainVerifiedCount": 0,
+        "chainStatus": "NO_RAW_DATA"
+      },
+      "ingestion": {
+        "format": "raw",
+        "ingested": 13,
+        "skipped": 0,
+        "errors": [],
+        "malformed": [],
+        "chainStatus": "INTACT"
+      },
+      "stats": {
+        "lastRun": "2026-11-05T22:43:02.154Z",
+        "totalIngested": 13,
+        "rawCount": 13,
+        "projectionCount": 0,
+        "chainVerifiedCount": 13,
+        "chainStatus": "INTACT"
+      },
+      "receiptPage": {
+        "count": 2,
+        "total": 13
+      }
+    },
+    "G10": {
+      "subscriberEvents": 13,
+      "historyTopics": [
+        "hive.cadence:build_note",
+        "hive.fra-pipeline:dossier",
+        "hive.phone-headroom:proof_bundle",
+        "hive.phone-headroom:proof_packet",
+        "hive.phone-headroom:walkie",
+        "hive.planner:ask_red",
+        "hive.planner:ask_blue",
+        "hive.planner:dream_prepared",
+        "hive.fra-eval:compile_rate",
+        "hive.fra-eval:repair_run"
+      ]
+    },
+    "HIVE04": {
+      "delEscaped": true,
+      "pythonMatch": true
+    }
+  },
+  "passes": 10,
+  "fails": 0,
+  "partial": 0
+}

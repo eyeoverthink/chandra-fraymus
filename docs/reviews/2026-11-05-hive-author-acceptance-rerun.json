@@ -1,0 +1,86 @@
+{
+  "timestamp": "2026-11-05T22:43:01.585Z",
+  "sourceHashes": {
+    "server/intelligence/hive-bridge.js": "f746d33a5d4e5b298b6383744a100b63eaf26476ae43f9b2ef0b573f8bb2c9d2"
+  },
+  "upstreamReceipts": 13,
+  "results": [
+    {
+      "name": "pythonJsonString escapes DEL as \\u007f",
+      "status": "PASS"
+    },
+    {
+      "name": "DEL-bearing string round-trips through canonical",
+      "status": "PASS"
+    },
+    {
+      "name": "corrupted final line (newline-terminated) is NOT silently dropped",
+      "status": "PASS"
+    },
+    {
+      "name": "one-byte syntax corruption at end → NOT reported as INTACT",
+      "status": "PASS"
+    },
+    {
+      "name": "partial trailing line (no newline) is skipped, rest processed",
+      "status": "PASS"
+    },
+    {
+      "name": "all-malformed file → error, not falsely intact",
+      "status": "PASS"
+    },
+    {
+      "name": "file with valid first line + malformed second → reported as damaged",
+      "status": "PASS"
+    },
+    {
+      "name": "raw record missing type field is rejected during ingestion",
+      "status": "PASS"
+    },
+    {
+      "name": "projection events publish to hive.unverified.* namespace",
+      "status": "PASS"
+    },
+    {
+      "name": "damaged chain: post-break records publish to hive.unverified.*",
+      "status": "PASS"
+    },
+    {
+      "name": "projection to hive.unverified.* does NOT fire trigger on hive.*",
+      "status": "PASS"
+    },
+    {
+      "name": "crash between publish and checkpoint → 0 orphaned bus rows, clean restart",
+      "status": "PASS"
+    },
+    {
+      "name": "identical second ingestion → all skipped (baseline positive control)",
+      "status": "PASS"
+    },
+    {
+      "name": "whitespace-reserialized receipts → dedup catches them (HIVE-05 fix)",
+      "status": "PASS"
+    },
+    {
+      "name": "genuinely new content → ingested normally",
+      "status": "PASS"
+    },
+    {
+      "name": "13 known upstream receipts → all chain-verified, INTACT",
+      "status": "PASS"
+    },
+    {
+      "name": "13 receipts all publish to trusted hive.* namespace",
+      "status": "PASS"
+    },
+    {
+      "name": "chain verification passes for intact file",
+      "status": "PASS"
+    }
+  ],
+  "summary": {
+    "passed": 18,
+    "failed": 0,
+    "total": 18
+  }
+}
