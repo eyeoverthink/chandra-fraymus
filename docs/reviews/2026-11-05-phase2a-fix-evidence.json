@@ -1,0 +1,396 @@
+{
+  "generatedAt": "2026-11-05T23:06:41.405Z",
+  "implementationRef": "e8410f30c7344cd291014e01cb3c971725d65dcf",
+  "previousRef": "dcb065868448978ac5f8b963b7e326ca64a7b374",
+  "upstreamRef": "2f75cee7f54a4aa6bae219ec9241fc44f980c36b",
+  "upstreamBuildGateBlob": "43377715d18c7d892fa71c3dab3167da070f6936",
+  "sourceHashes": {
+    "e8410f30c7344cd291014e01cb3c971725d65dcf:server/db-migrate.js": "6a3eb642bbd64c564d83232bdfc0c0f8caa30293c3ef098a87d335d47d79950c",
+    "e8410f30c7344cd291014e01cb3c971725d65dcf:server/fleet/agent-memory.js": "ca722a684e44d1cde6d46ac2dd6c8953fb0d4298361221744a7b258640aa72d0",
+    "e8410f30c7344cd291014e01cb3c971725d65dcf:server/fleet/re-tools.js": "ada516d2d14d2f091ee2989435c476f1e47762a444eab5bca14ff46dafba2673",
+    "dcb065868448978ac5f8b963b7e326ca64a7b374:server/fleet/re-tools.js": "34337b6989518f9ceb9a98aefd211c63771c35db11fd3a0f0c10181678e8a44d",
+    "e8410f30c7344cd291014e01cb3c971725d65dcf:docs/reviews/2026-11-05-phase2a-gate-acceptance.mjs": "71ea9b8a1cbffa53636926e12fed71060460d010299207d98ee68f99ac731e30",
+    "e8410f30c7344cd291014e01cb3c971725d65dcf:server/config.js": "4b9d58cd11cb7f26f4ef68ff8ef3a5b0abd4a2ec6932a0118c6561ca7ca500c4",
+    "e8410f30c7344cd291014e01cb3c971725d65dcf:server/db.js": "5f39a432887997d9bc4edb728dee123fe1119cda8f696387fd593d41b39374aa"
+  },
+  "safety": "Pinned seeder/memory function bodies evaluated in disposable in-memory SQLite. Author script runs only as a child after source inspection confirms its data override precedes imports; inherited sentinel is an extra disposable file. No live app/database import by reviewer, no fleet/model run, no server restart.",
+  "retainedTemporaryDirectory": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-2a-fix-review-2INZOe",
+  "checks": [
+    "fresh seeding creates eighteen local-ID entries with reconstructed source labels",
+    "same-category reseeding preserves the entire verified row unchanged",
+    "a recategorized existing key is still overwritten and downgraded",
+    "recategorized replacement still inherits the prior value verification stamp",
+    "upgrading the prior seeder leaves eighteen old rows and adds eighteen new rows",
+    "upgrade preserves the eighteen prior false source attributions",
+    "lookup mixes old numeric IDs and new local IDs without returning source labels",
+    "the exact eighteen-entry upstream source is available locally for this review",
+    "new G6b still checks Map discovery without running an agent",
+    "test data-directory override precedes the first DB-owning import",
+    "author test reproduces eleven successful subchecks with built-in disposable persistence",
+    "inherited sentinel database remains byte-identical and is not the selected test directory",
+    "claimed tracker update is absent from the two-file fix commit"
+  ],
+  "diagnosticAssertionCount": 13,
+  "preservation": {
+    "first": {
+      "seeded": 18,
+      "skipped": 0,
+      "total": 18
+    },
+    "reseed": {
+      "seeded": 0,
+      "skipped": 18,
+      "total": 18
+    },
+    "before": {
+      "id": 1,
+      "agent_id": "re-analyst",
+      "category": "build_gate",
+      "key": "build_gate_L1",
+      "value": "LOCALLY_VERIFIED_CORRECTION",
+      "confidence": 1,
+      "source": "local reproduction fixture",
+      "access_count": 1,
+      "verified_at": 1793919998381,
+      "created_at": 1793919998379,
+      "updated_at": 1793919998381
+    },
+    "after": {
+      "id": 1,
+      "agent_id": "re-analyst",
+      "category": "build_gate",
+      "key": "build_gate_L1",
+      "value": "LOCALLY_VERIFIED_CORRECTION",
+      "confidence": 1,
+      "source": "local reproduction fixture",
+      "access_count": 1,
+      "verified_at": 1793919998381,
+      "created_at": 1793919998379,
+      "updated_at": 1793919998381
+    }
+  },
+  "catalog": {
+    "localIds": [
+      "L1",
+      "L2",
+      "L3",
+      "L4",
+      "L5",
+      "L6",
+      "L7",
+      "L8",
+      "L9",
+      "L10",
+      "L11",
+      "L12",
+      "L13",
+      "L14",
+      "L15",
+      "L16",
+      "L17",
+      "L18"
+    ],
+    "stillReconstructed": true,
+    "storedConfidence": 0.9,
+    "toolDescription": "Search known build failure patterns (gates) from upstream BUILD-GATES.md by keyword."
+  },
+  "crossCategory": {
+    "before": {
+      "id": 1,
+      "agent_id": "re-analyst",
+      "category": "local_fix",
+      "key": "build_gate_L1",
+      "value": "LOCALLY_VERIFIED_RECLASSIFIED_CORRECTION",
+      "confidence": 1,
+      "source": "local reproduction fixture",
+      "access_count": 0,
+      "verified_at": 1793919998383,
+      "created_at": 1793919998383,
+      "updated_at": 1793919998383
+    },
+    "seeded": {
+      "seeded": 18,
+      "skipped": 0,
+      "total": 18
+    },
+    "after": {
+      "id": 1,
+      "agent_id": "re-analyst",
+      "category": "build_gate",
+      "key": "build_gate_L1",
+      "value": "{\"localId\":\"L1\",\"keyword\":\"JDK\",\"title\":\"JDK 25 required for Ghidra 12.3 DEV\",\"fix\":\"Install JDK 25 EA (Temurin or Oracle). Ghidra 12.3 DEV will not start on JDK 17 or 21 — the analyzeHeadless script checks JAVA_HOME version and exits with \\\"Unsupported JDK\\\" if < 25.\"}",
+      "confidence": 0.9,
+      "source": "Reconstructed from upstream context (not verified against BUILD-GATES.md)",
+      "access_count": 1,
+      "verified_at": 1793919998383,
+      "created_at": 1793919998383,
+      "updated_at": 1793919998383
+    }
+  },
+  "upgrade": {
+    "beforeRows": 18,
+    "afterRows": 36,
+    "seed": {
+      "seeded": 18,
+      "skipped": 0,
+      "total": 18
+    },
+    "falselySourcedRows": 18,
+    "jdkLookup": {
+      "keyword": "JDK",
+      "matches": 4,
+      "gates": [
+        {
+          "localId": "L1",
+          "keyword": "JDK",
+          "title": "JDK 25 required for Ghidra 12.3 DEV",
+          "fix": "Install JDK 25 EA (Temurin or Oracle). Ghidra 12.3 DEV will not start on JDK 17 or 21 — the analyzeHeadless script checks JAVA_HOME version and exits with \"Unsupported JDK\" if < 25.",
+          "confidence": 0.9,
+          "verified": false
+        },
+        {
+          "localId": "L2",
+          "keyword": "JAVA_HOME",
+          "title": "JAVA_HOME must point to JDK 25 installation",
+          "fix": "Export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home before running Ghidra. Shell profiles may override — verify with `java -version` in the same shell.",
+          "confidence": 0.9,
+          "verified": false
+        },
+        {
+          "gate": 1,
+          "keyword": "JDK",
+          "title": "JDK 25 required for Ghidra 12.3 DEV",
+          "fix": "Install JDK 25 EA (Temurin or Oracle). Ghidra 12.3 DEV will not start on JDK 17 or 21 — the analyzeHeadless script checks JAVA_HOME version and exits with \"Unsupported JDK\" if < 25.",
+          "confidence": 0.9,
+          "verified": false
+        },
+        {
+          "gate": 2,
+          "keyword": "JAVA_HOME",
+          "title": "JAVA_HOME must point to JDK 25 installation",
+          "fix": "Export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home before running Ghidra. Shell profiles may override — verify with `java -version` in the same shell.",
+          "confidence": 0.9,
+          "verified": false
+        }
+      ]
+    }
+  },
+  "upstreamHeadings": [
+    {
+      "gate": 1,
+      "title": "r2 sys/install.sh → sudo hang."
+    },
+    {
+      "gate": 2,
+      "title": "r2 dylib path decay."
+    },
+    {
+      "gate": 3,
+      "title": "Ghidra JDK 21 daemon crash."
+    },
+    {
+      "gate": 4,
+      "title": "Ghidra build #3 → missing flat repo (16s)."
+    },
+    {
+      "gate": 5,
+      "title": "rea engine gate."
+    },
+    {
+      "gate": 6,
+      "title": "rea genuine runtime incompat."
+    },
+    {
+      "gate": 7,
+      "title": "npm 11 install-scripts block."
+    },
+    {
+      "gate": 8,
+      "title": "rea prepare.mjs needs .git."
+    },
+    {
+      "gate": 9,
+      "title": "rea entrypoint law."
+    },
+    {
+      "gate": 10,
+      "title": "Ghidra JDK prompt with no TTY."
+    },
+    {
+      "gate": 11,
+      "title": "Bad argument: /bin/ls."
+    },
+    {
+      "gate": 12,
+      "title": "Directory not found (ghidra-projects)."
+    },
+    {
+      "gate": 13,
+      "title": "Ghidra 12 headless python = gone."
+    },
+    {
+      "gate": 14,
+      "title": "Node runtime heals itself via brew."
+    },
+    {
+      "gate": 15,
+      "title": "ReVa gradle root confusion."
+    },
+    {
+      "gate": 16,
+      "title": "setuptools-scm needs git metadata (again)."
+    },
+    {
+      "gate": 17,
+      "title": "FRA score v1 verified nothing — my regex's fault."
+    },
+    {
+      "gate": 18,
+      "title": "r2ai build gates."
+    }
+  ],
+  "sourceMentionsTaskPost": false,
+  "changedFiles": [
+    "docs/reviews/2026-11-05-phase2a-gate-acceptance.mjs",
+    "server/fleet/re-tools.js"
+  ],
+  "authorRerun": {
+    "status": 0,
+    "stdout": "\nDatabase isolation: F:\\Fraymus-Skill-Lab\\chandra-fraymus\\.test-2a-39cb8798\n\n═══ Gate 2A-1: Manifest Discovery ═══\n  ✓ RE-P2A-G1: PASS — Manifest has id=\"re-analyst\" with exactly 10 tools: [re.ingest_dossier, re.verify_chain, re.query_dossier, re.build_gate_lookup, re.compile_rate_measure, re.compile_rate_predict, bus_publish, bus_read, agent_remember, agent_recall]\n\n═══ Gate 2A-2: re.verify_chain ═══\n  ✓ RE-P2A-G2a: PASS_ISOLATED — Raw receipt file not present on this machine — tool function verified via import\n  ✓ RE-P2A-G2b: PASS — Projection correctly unverifiable: \"Chain verification impossible for projection format — chain fields (prev, self) are absent\"\n\n═══ Gate 2A-3: Build Gate Lookup ═══\n  ✓ RE-P2A-G3-reseed: PASS — Reseed is non-destructive: 18 skipped, 0 seeded on second call\n  ✓ RE-P2A-G3-JDK: PASS — Keyword \"JDK\" → 2 gate(s): [L2, L1]\n  ✓ RE-P2A-G3-dylib: PASS — Keyword \"dylib\" → 1 gate(s): [L4]\n  ✓ RE-P2A-G3-npm: PASS — Keyword \"npm\" → 1 gate(s): [L10]\n\n═══ Gate 2A-4: Build Gate Memories ═══\n  ✓ RE-P2A-G4: PASS — 18 build_gate memories stored, all at confidence 0.9, localId keys (L1..L18)\n\n═══ Gate 2A-5: Tycho rea_analyst Preserved ═══\n  ✓ RE-P2A-G5: PASS — Tycho rea_analyst preserved: id=\"rea_analyst\", name=\"Tycho\", separate from re-analyst\n\n═══ Gate 2A-6: Tool Registration + Taskability ═══\n  ✓ RE-P2A-G6a: PASS — 6 RE tools registered: 2 Gate-2A working, 4 Gate-2B stubs correctly require Phase 3\n  ✓ RE-P2A-G6b: PASS — Fleet manifest loader discovers re-analyst with 10 tools — agent is taskable\n\n═══════════════════════════════════════════\n  Phase 2A Gate Results: 11 PASS, 0 FAIL\n  Database: disposable (F:\\Fraymus-Skill-Lab\\chandra-fraymus\\.test-2a-39cb8798)\n═══════════════════════════════════════════\n\nEvidence written to: C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-2a-fix-review-2INZOe\\author-evidence.json\n",
+    "stderr": "",
+    "evidence": {
+      "phase": "2A",
+      "title": "RE Agent Manifest + Fleet Tools — Gate Acceptance",
+      "timestamp": "2026-11-05T23:06:41.334Z",
+      "databaseIsolation": true,
+      "disposableDir": "F:\\Fraymus-Skill-Lab\\chandra-fraymus\\.test-2a-39cb8798",
+      "gates": [
+        {
+          "id": "RE-P2A-G1",
+          "status": "PASS",
+          "detail": "Manifest has id=\"re-analyst\" with exactly 10 tools: [re.ingest_dossier, re.verify_chain, re.query_dossier, re.build_gate_lookup, re.compile_rate_measure, re.compile_rate_predict, bus_publish, bus_read, agent_remember, agent_recall]",
+          "timestamp": "2026-11-05T23:06:40.621Z"
+        },
+        {
+          "id": "RE-P2A-G2a",
+          "status": "PASS_ISOLATED",
+          "detail": "Raw receipt file not present on this machine — tool function verified via import",
+          "timestamp": "2026-11-05T23:06:40.641Z"
+        },
+        {
+          "id": "RE-P2A-G2b",
+          "status": "PASS",
+          "detail": "Projection correctly unverifiable: \"Chain verification impossible for projection format — chain fields (prev, self) are absent\"",
+          "timestamp": "2026-11-05T23:06:40.642Z"
+        },
+        {
+          "id": "RE-P2A-G3-reseed",
+          "status": "PASS",
+          "detail": "Reseed is non-destructive: 18 skipped, 0 seeded on second call",
+          "timestamp": "2026-11-05T23:06:40.963Z"
+        },
+        {
+          "id": "RE-P2A-G3-JDK",
+          "status": "PASS",
+          "detail": "Keyword \"JDK\" → 2 gate(s): [L2, L1]",
+          "timestamp": "2026-11-05T23:06:40.996Z"
+        },
+        {
+          "id": "RE-P2A-G3-dylib",
+          "status": "PASS",
+          "detail": "Keyword \"dylib\" → 1 gate(s): [L4]",
+          "timestamp": "2026-11-05T23:06:41.012Z"
+        },
+        {
+          "id": "RE-P2A-G3-npm",
+          "status": "PASS",
+          "detail": "Keyword \"npm\" → 1 gate(s): [L10]",
+          "timestamp": "2026-11-05T23:06:41.029Z"
+        },
+        {
+          "id": "RE-P2A-G4",
+          "status": "PASS",
+          "detail": "18 build_gate memories stored, all at confidence 0.9, localId keys (L1..L18)",
+          "timestamp": "2026-11-05T23:06:41.330Z"
+        },
+        {
+          "id": "RE-P2A-G5",
+          "status": "PASS",
+          "detail": "Tycho rea_analyst preserved: id=\"rea_analyst\", name=\"Tycho\", separate from re-analyst",
+          "timestamp": "2026-11-05T23:06:41.330Z"
+        },
+        {
+          "id": "RE-P2A-G6a",
+          "status": "PASS",
+          "detail": "6 RE tools registered: 2 Gate-2A working, 4 Gate-2B stubs correctly require Phase 3",
+          "timestamp": "2026-11-05T23:06:41.331Z"
+        },
+        {
+          "id": "RE-P2A-G6b",
+          "status": "PASS",
+          "detail": "Fleet manifest loader discovers re-analyst with 10 tools — agent is taskable",
+          "timestamp": "2026-11-05T23:06:41.334Z"
+        }
+      ],
+      "summary": {
+        "passed": 11,
+        "failed": 0,
+        "total": 11
+      },
+      "limitations": [
+        "G2a: raw receipt file not present on this machine (PASS_ISOLATED)",
+        "G6b: fleet taskability verified via manifest loader, not full POST /api/fleet/runs (no server boot)",
+        "Build gate local IDs (L1-L18) are reconstructed from context, not verified against upstream BUILD-GATES.md numbering"
+      ]
+    },
+    "sentinelUnchanged": true,
+    "cleanupLeftovers": [
+      "chandra.db"
+    ]
+  },
+  "gateResults": [
+    {
+      "id": "RE-P2A-G1",
+      "status": "PARTIAL",
+      "detail": "No change to the mismatched spec endpoint; actual discovery remains confirmed by prior review."
+    },
+    {
+      "id": "RE-P2A-G2",
+      "status": "PASS_ISOLATED",
+      "detail": "Wrapper unchanged from independently tested positive fixtures; Phase 1 findings remain open."
+    },
+    {
+      "id": "RE-P2A-G3",
+      "status": "PARTIAL",
+      "detail": "Reconstructed keyword entries still substitute for source lessons; upgraded lookups mix old and new identities."
+    },
+    {
+      "id": "RE-P2A-G4",
+      "status": "FAIL",
+      "detail": "Actual source not imported; upgrade retains false provenance and creates 36 rows; category-scoped skip can still overwrite existing keys."
+    },
+    {
+      "id": "RE-P2A-G5",
+      "status": "PARTIAL",
+      "detail": "Manifest coexistence unchanged; model-backed functional regression still unverified."
+    },
+    {
+      "id": "RE-P2A-G6",
+      "status": "UNVERIFIED",
+      "detail": "Map.get is discovery; POST /api/fleet/runs and a response are not exercised."
+    }
+  ],
+  "findingDisposition": {
+    "RE2A-01": "PARTIAL: new labels are more honest, but source requirement and existing false-attribution migration remain open",
+    "RE2A-02": "PARTIAL: same-category preservation fixed; recategorized keys still overwritten",
+    "RE2A-03": "SCOPED_FIX_CONFIRMED: default test data override and schema migration verified",
+    "RE2A-04": "OPEN: manifest discovery does not meet task/response gate"
+  },
+  "summary": {
+    "scopedPasses": 1,
+    "failures": 1,
+    "partial": 3,
+    "unverified": 1,
+    "independentlyAcceptedPhases": 0
+  }
+}

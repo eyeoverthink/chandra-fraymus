@@ -16,6 +16,8 @@
 
 > **Phase 2A independent review of `dcb0658` — 2026-11-05:** [Changes requested](reviews/2026-11-05-phase2a-independent-review.md). Actual manifest/allowlist/registration and positive chain-wrapper checks work. The seeded catalog does not match upstream `docs/BUILD-GATES.md`, startup replaces locally verified corrections, and the acceptance script writes the configured DB by default. Its G6 does not test the required fleet task/response; the G1 endpoint names the host registry rather than the manifest-backed fleet. Current 2A result: 1 scoped pass, 1 failure, 3 partial and 1 unverified. All 2B criteria remain deferred; **0/7 phases accepted**.
 
+> **Phase 2A fix recheck of `e8410f3` — 2026-11-05:** [Scoped improvements; changes still requested](reviews/2026-11-05-phase2a-fix-review.md). Same-category memory preservation and default test isolation are confirmed; eleven author subchecks reproduce. Local-ID relabeling does not import the authentic source, upgrading leaves 36 rows with old false attributions, recategorized keys can still be overwritten, and G6b is discovery rather than a task/response test. The [exact upstream source](reviews/fixtures/re-build-gates-2f75cee7.md) is now retained with its verified blob. Criterion and phase acceptance counts are unchanged.
+
 ---
 
 ## Table of Contents
