@@ -76,6 +76,9 @@ const PIPELINE_ALIASES = {
   'swarm': 'swarm',
   'hive': 'swarm',
   'perspective': 'perspective',
+  'workspace': 'workspace',
+  'docs': 'workspace',
+  'generate-docs': 'workspace',
 };
 
 const PIPELINE_ENDPOINTS = {
@@ -103,6 +106,7 @@ const PIPELINE_ENDPOINTS = {
   arena: '/api/perspective/arena',
   swarm: '/api/swarm/initiate',
   perspective: '/api/perspective/assess',
+  workspace: '/api/workspace/generate',
 };
 
 export function installCommandRouter(app, { broadcast }) {
@@ -184,6 +188,7 @@ export function installCommandRouter(app, { broadcast }) {
             : pipeline === 'arena' ? { task: arg, agentCount: 3 }
             : pipeline === 'swarm' ? { task: arg }
             : pipeline === 'perspective' ? { task: arg, context: 'command-router' }
+            : pipeline === 'workspace' ? (arg ? { outputDir: arg } : {})
             : {};
           const method = pipeline === 'observatory' ? 'GET' : 'POST';
           const fetchOpts = method === 'GET'

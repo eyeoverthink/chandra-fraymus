@@ -2113,7 +2113,7 @@ export function createFleetTools({ workflowStore }) {
         mode: { type: 'string', description: 'One of: status, read, tiers, verify, evaluate (default: status)' },
         age: { type: 'number', description: 'For verify/evaluate: the age tier (0, 2, 5, 9, 13, 17)' },
         formula: { type: 'string', description: 'For evaluate: formula name (e.g. "quadratic", "pythagorean", "hadamard")' },
-        args: { type: 'array', description: 'For evaluate: arguments array for the formula' },
+        args: { type: 'array', items: { type: 'number' }, description: 'For evaluate: arguments array for the formula' },
       }),
       execute: async ({ args }) => {
         const mode = args.mode || 'status';
@@ -2140,6 +2140,19 @@ export function createFleetTools({ workflowStore }) {
         const stats = getLineageStats();
         ledger.record('lineage.status', { age: stats.currentAge, readings: stats.totalReadings }, 'fleet');
         return stats;
+      },
+    },
+
+    {
+      name: 'workspace.generate_docs',
+      group: 'fleet',
+      risk: 'safe',
+      description: 'Generate sequenced README documentation from live system state. Queries DB for agents, workflows, runs, bus messages, intelligence stats, and produces markdown files + JSON snapshot. Specify outputDir or uses default data/workspace.',
+      parameters: object({ outputDir: string(500) }, []),
+      execute: async ({ args }) => {
+        const { generateWorkspaceDocs } = await import('../workspace/doc-generator.js');
+        const outputDir = args.outputDir || './data/workspace';
+        return generateWorkspaceDocs(outputDir);
       },
     },
   ];

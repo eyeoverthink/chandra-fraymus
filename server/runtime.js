@@ -67,6 +67,7 @@ import { createChainTools } from './chain/tools.js';
 import { installChainRoutes } from './chain/routes.js';
 import { getObsBridge } from './streaming/overlay.js';
 import { installCommandRouter } from './command-router.js';
+import { installWorkspaceRoutes } from './workspace/routes.js';
 import { installDeployRoutes } from './deploy-api/routes.js';
 import { initBus } from './fleet/bus.js';
 import { installBusRoutes } from './fleet/bus-routes.js';
@@ -340,6 +341,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   app.use(musicRouter);
   installStreamingRoutes(app, { broadcast, memoryBridge, db, obsBridge });
   installDeployRoutes(app, { broadcast, memoryBridge });
+  installWorkspaceRoutes(app, { broadcast });
   installCommandRouter(app, { broadcast });
 
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
