@@ -1,0 +1,318 @@
+{
+  "generatedAt": "2026-11-06T01:52:17.076Z",
+  "implementationRef": "5f7f17a5a8a64c296be6156c4e15bac61f105636",
+  "progressClaimRef": "f2b6c2e",
+  "upstreamRef": "2f75cee7f54a4aa6bae219ec9241fc44f980c36b",
+  "upstreamBlobs": {
+    "decompiled.c": "7c61c5b00a778d62afa12bcc1c06325db8463128",
+    "annotations.md": "5d2de19c3a5a38aa25b1fb41b2b130d0763fde20",
+    "imports.txt": "c67e01e367bb73d422327bc0708f9ef082823bea",
+    "binary.sha256": "d7d4e85ed3e71aaf5a901926f95e4579e783b765",
+    "dossier.seal": "2a9cada682e45598688f9f91a7772dc08966dd6d"
+  },
+  "sourceHashes": {
+    "server/db-migrate.js": "6a3eb642bbd64c564d83232bdfc0c0f8caa30293c3ef098a87d335d47d79950c",
+    "server/fleet/agent-memory.js": "ca722a684e44d1cde6d46ac2dd6c8953fb0d4298361221744a7b258640aa72d0",
+    "server/fleet/bus.js": "93b12941f183c20b16db624ffcb1942b8c12a01b86310b19baa5c7c80bc1ad43",
+    "server/intelligence/dossier-engine.js": "5a43b6d030731e2a868616860121ea7f3936706a0c8554b70d86fda1a9eecef6",
+    "server/fleet/re-tools.js": "676234c95e1e5ce9cb21d651a30b711d784485f8c6a0a319b3ba79cf71d72d24",
+    "server/intelligence/dossier-engine-routes.js": "96d145f553f9757006c50ff9aef8fd52f88eebd35b326ddbf67a37aeb3da75b4",
+    "server/runtime.js": "73ed80a4e9ab707eaf1d139b18460944009e9c2dc3289bb644c70b598d02f391"
+  },
+  "safety": "Pinned function bodies use disposable SQLite and temporary fixtures. Actual bus and Express handlers are exercised. Dynamic compiler, writable FS and model boundaries are SyntheticModule fixtures: no real compiler/shell/model or deletion is executed. Upstream dossier reads are read-only. No live application/database imported or server restarted.",
+  "retainedTemporaryDirectory": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-phase3-review-jpH5bB",
+  "checks": [
+    "pinned upstream has 136 markers but production parser returns zero functions",
+    "pinned upstream has 90 import rows but production parser returns zero imports",
+    "real annotation headings and verification/score syntax are not parsed",
+    "0x-prefixed synthetic marker is a working parser control",
+    "actual bus publish fails on wrong argument arity while process reports one event",
+    "committed upstream subset is labeled invalid rather than unverifiable",
+    "a string-literal import mention is promoted to verified evidence",
+    "engine self-format positive control verifies, but same digest with producer suffix does not",
+    "upstream shasum manifest bytes differ from implemented name-colon-hash bytes",
+    "same function name/address from another binary overwrites the first binary fact",
+    "summary lookup only searches key/value and omits function rows stored under source SHA",
+    "function-name-only tool query is rejected despite being an advertised query mode",
+    "function query truncates before pagination and cannot expose all 136 stored functions",
+    "missing compiler is counted as zero-percent failed compilation without not_available state",
+    "compiler tool overwrites and unlinks a preexisting input-directory artifact in the intercepted FS protocol",
+    "successful compiler return does not fill stored compile status or aggregate rate",
+    "untrusted marker name escapes the dossier and overwrites/deletes the intercepted outside record",
+    "prediction has a human opinion note but no structured llm_prediction evidence type",
+    "prediction accepts an out-of-range model percentage without validation",
+    "actual installer/ingest/list/detail routes work on a compatible synthetic fixture",
+    "declared process endpoint is not installed",
+    "runtime contains actual dossier route registration"
+  ],
+  "diagnosticAssertionCount": 22,
+  "upstreamResults": {
+    "observedMarkers": 136,
+    "observedImports": 90,
+    "parsedFunctions": 0,
+    "parsedImports": 0,
+    "parsedAnnotationFunctions": 0,
+    "parsedAnnotationImports": 0,
+    "parsedSeal": {
+      "status": "invalid",
+      "detail": "Seal mismatch: expected 35e83ee65044ebbf..., computed 98e1599ad07dcac5..."
+    },
+    "processed": {
+      "parsed": {
+        "binary": "03a229a30505d148f4a66f3eaa1d046d7f6e7e4c2b7abd8f4cf0e3ac2b124651",
+        "functionCount": 0,
+        "importCount": 0,
+        "sealStatus": "invalid",
+        "annotationCoverage": 0
+      },
+      "graded": {},
+      "stored": {
+        "stored": 1,
+        "skipped": 0,
+        "errors": []
+      },
+      "busEvents": 1
+    },
+    "publishAttempts": [
+      {
+        "arity": 2,
+        "from": "system.re.dossier.processed",
+        "topicType": "object"
+      }
+    ],
+    "publishFailures": [
+      "Too few parameter values were provided"
+    ],
+    "busTopicRows": 0
+  },
+  "grading": [
+    {
+      "key": "fn:string_only@0x9000",
+      "value": {
+        "name": "string_only",
+        "address": "0x9000",
+        "lines": 1,
+        "c": "int string_only(void){ const char *s=\"printf\"; return 0; }",
+        "annotations": [
+          {
+            "annotation": "The model mentions printf."
+          }
+        ],
+        "importHits": [
+          "printf"
+        ],
+        "compileStatus": null
+      },
+      "grade": "verified",
+      "confidence": 0.9
+    }
+  ],
+  "seals": {
+    "bare": {
+      "status": "valid",
+      "detail": "Seal matches file manifest"
+    },
+    "twoColumn": {
+      "status": "invalid",
+      "detail": "Seal mismatch: expected f2694d18f38b22ee..., computed f2694d18f38b22ee..."
+    },
+    "engineHash": "f2694d18f38b22eedd7d06d405ab86903df192f1b2ba79a56b8a84004e8d0f07",
+    "shellManifestDigest": "8ffcc5bd7b7fd6c6ac876f8ff2fcc6e2e1f75c5472c0859f800b18df2358d13e",
+    "producerRecipe": "shasum -a 256 file rows piped to shasum -a 256; producer also includes dossier.seal state from redirection; original manifest required"
+  },
+  "identity": {
+    "aFound": false,
+    "bFound": true,
+    "functionRows": 1,
+    "summaryFunctionMemories": 0
+  },
+  "queryOnly": {
+    "error": "At least one of binarySha, functionName, or query required"
+  },
+  "pagination": {
+    "storedFunctions": 136,
+    "reportedTotal": 99,
+    "returned": 99
+  },
+  "compilation": {
+    "missing": {
+      "binary": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "total": 1,
+      "compiled": 0,
+      "failed": 1,
+      "compileRate": 0,
+      "sampleErrors": [
+        {
+          "name": "shared",
+          "address": "0x1000",
+          "error": "clang not found"
+        }
+      ]
+    },
+    "available": {
+      "binary": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "total": 1,
+      "compiled": 1,
+      "failed": 0,
+      "compileRate": 100,
+      "sampleErrors": []
+    },
+    "commands": [
+      {
+        "command": "clang -fsyntax-only -w \"C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-phase3-review-jpH5bB\\binary-a\\_compile_test_shared.c\"",
+        "timeout": 10000
+      },
+      {
+        "command": "clang -fsyntax-only -w \"C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-phase3-review-jpH5bB\\binary-a\\_compile_test_shared.c\"",
+        "timeout": 10000
+      },
+      {
+        "command": "clang -fsyntax-only -w \"C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-phase3-review-jpH5bB\\outside_forensic_record.c\"",
+        "timeout": 10000
+      }
+    ],
+    "interceptedWrites": [
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-phase3-review-jpH5bB\\binary-a\\_compile_test_shared.c",
+        "existed": true
+      },
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-phase3-review-jpH5bB\\binary-a\\_compile_test_shared.c",
+        "existed": false
+      },
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-phase3-review-jpH5bB\\outside_forensic_record.c",
+        "existed": true
+      }
+    ],
+    "interceptedDeletes": [
+      "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-phase3-review-jpH5bB\\binary-a\\_compile_test_shared.c",
+      "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-phase3-review-jpH5bB\\binary-a\\_compile_test_shared.c",
+      "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-phase3-review-jpH5bB\\outside_forensic_record.c"
+    ],
+    "preexistingArtifactRemoved": true,
+    "storedCompileStatus": null,
+    "storedCompileRate": null,
+    "traversal": {
+      "markerName": "../../../outside_forensic_record",
+      "dossierDir": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-phase3-review-jpH5bB\\compiler-path-traversal",
+      "target": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-phase3-review-jpH5bB\\outside_forensic_record.c",
+      "escaped": true,
+      "result": {
+        "binary": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "total": 1,
+        "compiled": 1,
+        "failed": 0,
+        "compileRate": 100,
+        "sampleErrors": []
+      },
+      "outsideRecordRemoved": true
+    }
+  },
+  "prediction": {
+    "result": {
+      "binary": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "totalFunctions": 1,
+      "importCount": 0,
+      "sampleSize": 1,
+      "prediction": {
+        "predictedRate": 900,
+        "confidence": "high",
+        "reasoning": "fixture model opinion"
+      },
+      "note": "This is an LLM opinion, NOT a compiler measurement. Use re.compile_rate_measure for ground truth."
+    },
+    "modelCalls": 1,
+    "storedPredictions": 0
+  },
+  "api": {
+    "declaredProcessStatus": 404,
+    "actualIngestStatus": 200,
+    "result": {
+      "parsed": {
+        "binary": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "functionCount": 1,
+        "importCount": 0,
+        "sealStatus": "unverifiable",
+        "annotationCoverage": 0
+      },
+      "graded": {
+        "measured": 1
+      },
+      "stored": {
+        "stored": 2,
+        "skipped": 0,
+        "errors": []
+      },
+      "busEvents": 1
+    },
+    "listCount": 1,
+    "functionName": "shared",
+    "runtimeWiring": true
+  },
+  "gateResults": [
+    {
+      "id": "RE-P3-G1",
+      "status": "FAIL",
+      "detail": "Real upstream: 136 markers, parser extracts 0."
+    },
+    {
+      "id": "RE-P3-G2",
+      "status": "FAIL",
+      "detail": "Real annotation/import evidence not parsed; string-literal mention can be verified."
+    },
+    {
+      "id": "RE-P3-G3",
+      "status": "FAIL",
+      "detail": "Binary identities overwrite and bounded query windows omit stored functions."
+    },
+    {
+      "id": "RE-P3-G4",
+      "status": "FAIL",
+      "detail": "Actual bus rejects wrong arity; returned busEvents remains 1."
+    },
+    {
+      "id": "RE-P3-G5",
+      "status": "PARTIAL",
+      "detail": "Synthetic actual routes work; declared process route absent and query completeness fails."
+    },
+    {
+      "id": "RE-P3-G6",
+      "status": "FAIL",
+      "detail": "Seal format/recipe mismatch and missing-original-file evidence incorrectly invalid."
+    },
+    {
+      "id": "RE-P2B-G1",
+      "status": "FAIL",
+      "detail": "Tool is wired, but actual dossier stores no function facts and binary identities collide."
+    },
+    {
+      "id": "RE-P2B-G2",
+      "status": "FAIL",
+      "detail": "Function-name-only query fails and binary query data is overwritten/truncated."
+    },
+    {
+      "id": "RE-P2B-G3",
+      "status": "FAIL",
+      "detail": "Missing compiler reported as failed compilation rather than not measured; results not persisted."
+    },
+    {
+      "id": "RE-P2B-G4",
+      "status": "PARTIAL",
+      "detail": "Opinion note exists; structured type/confidence/provenance and validation are absent."
+    }
+  ],
+  "summary": {
+    "phase3": {
+      "passes": 0,
+      "failures": 5,
+      "partial": 1
+    },
+    "phase2B": {
+      "passes": 0,
+      "failures": 3,
+      "partial": 1
+    },
+    "independentlyAcceptedPhases": 0
+  }
+}

@@ -20,6 +20,8 @@
 
 > **Phase 2A authentic-source/migration recheck of `b999ed7` — 2026-11-05:** [Source and preservation fixes confirmed; acceptance still open](reviews/2026-11-05-phase2a-migration-review.md). All eighteen source identities/provenance, actual legacy 36-to-18 migration, verified cross-category/history preservation and the 142-tool registry are confirmed. Fourteen author subchecks reproduce. Registry construction still does not exercise the declared task/response gate; new RE2A-05 requires ownership checks before mutating/deleting non-seed local notes. Current 2A: 2 scoped passes, 3 partial, 1 unverified; 0/7 phases accepted.
 
+> **Phase 3 / Phase 2B independent review of `5f7f17a` — 2026-11-05:** [Changes requested](reviews/2026-11-05-phase3-independent-review.md). Exact upstream dossier blobs reproduce zero parsed functions/imports/annotations, wrong seal classification, binary-memory collisions and missing processed bus events. Controlled compiler boundaries show path escape/overwrite and missing compiler misreported as a zero measurement; opinion evidence remains incomplete. Phase 3: 5 failed criteria, 1 partial; 2B: 3 failed criteria, 1 partial. No live DB/compiler/model used. Later Phase 4 commits are outside this review; 0/7 phases independently accepted.
+
 ---
 
 ## Table of Contents
