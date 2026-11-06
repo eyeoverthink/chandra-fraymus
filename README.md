@@ -202,6 +202,13 @@ No cloud AI subscriptions. No API rate-limit anxiety. **Your hardware. Your mode
   <img src="docs/screenshots/2026-11/agent-fleet-grid.jpg" alt="Agent Fleet — 33 agent selection grid" width="32%" />
 </p>
 
+### Phase B Fusion — Manifold Terrain & Constellation Particles (2026-11-06)
+
+<p align="center">
+  <img src="docs/screenshots/phase-b/manifold-terrain.jpg" alt="Manifold — Region-coded CTRNN neural terrain with 16 functional regions" width="48%" />
+  <img src="docs/screenshots/phase-b/constellation-particles.jpg" alt="Constellation — Data-flow particles along active edges" width="48%" />
+</p>
+
 > **Full system audit:** [docs/SYSTEM-AUDIT.md](docs/SYSTEM-AUDIT.md) — live endpoint data, 79-feature inventory, verified endpoints, security summary, architecture diagram
 >
 > **Perspective Agent docs:** [docs/PERSPECTIVE-AGENT.md](docs/PERSPECTIVE-AGENT.md) — the meta-cognitive bartender, arena mode, lens toggle, continuity plasmid
@@ -254,6 +261,7 @@ The intelligence stack was merged from two proprietary repos (`fraynix-continuit
 | **72** | DB Persistence & Daemon Auto-Start — WAL checkpoint on startup, process.on('exit') safety net, daemon engine auto-starts with autonomy (dream consolidation, prompt evolution, state fossils, chain findings, goal generation, ouroboros RSI all now run automatically) |
 | **B** | **FRAYNIX Strength Synthesis** — 15 battle-tested governance patterns ported from FRAYNIX-DREAMER: self-healing watchdog, plasmid disaster recovery, state-seek-on-boot, fossil evolution, anti-invention evidence seals, negative control verification, consciousness falsification, Akashic structured record, hash-chained record, Strix budget laws, salvage-on-crash, replay engine, guard tasks, writ-governed tool execution, clock-honesty tagging |
 | **P** | **Perspective Agent** — Meta-cognitive "bartender" with 6 lenses (Human/Engineer/Creative/Strategic/Meta/Adversarial), 4th-wall instance awareness, arena mode (competitive multi-agent evaluation with playbook learning), Human/Machine lens toggle, Perspective-aware command routing (3s TAG-not-BLOCK), continuity plasmid (full state → DNA-encoded circular plasmid), 13 REST endpoints, 13 fleet tools |
+| **B·F** | **Fusion Architecture** — Region-coded CTRNN terrain ([ManifestationPlane](client/src/nexus/ManifestationPlane.jsx): 16 functional regions color-mapped to neural rows, O(1) indexed grid lookup, injection point indicators at 15 documented coordinates, hover-to-isolate legend), data-flow particles ([ConstellationView](client/src/nexus/ConstellationView.jsx): SVG animateMotion along active edges with staggered 3-particle streams), HUD layer ([ActivityPulseStrip](client/src/hud/ActivityPulseStrip.jsx), [NudgeToast](client/src/hud/NudgeToast.jsx), [ProtocolSelector](client/src/hud/ProtocolSelector.jsx)), User Awareness layer ([awareness routes](server/awareness/): user sensorium, proactive nudge engine, protocol engine, context harvester) |
 
 ### API Verification — 2026-10-31
 
