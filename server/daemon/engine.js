@@ -23,6 +23,9 @@ import { selfModelSnapshot, getSelfModelStatus, resetSelfModel, setSelfModelCTRN
 import { startResourceEnvelope, stopResourceEnvelope, getResourceEnvelopeStatus, resetResourceEnvelope, setEnvelopeCTRNN, isResourceConstrained } from '../intelligence/resource-envelope.js';
 import { getPredictiveStatus, resetPredictions } from '../intelligence/predictive-processing.js';
 import { getActiveInferenceStatus, resetActiveInference } from '../intelligence/active-inference.js';
+import { setNarrativeHeart, setNarrativeCTRNN, startNarrative, stopNarrative, resetNarrative, getNarrativeStatus } from '../intelligence/self-narrative.js';
+import { setDreamSolverCTRNN, getDreamSolverStatus, resetDreamSolver } from '../intelligence/dream-solver.js';
+import { setMonitorCTRNN, startIntelligenceMonitor, stopIntelligenceMonitor, resetIntelligenceMonitor, getIntelligenceMonitorStatus } from '../intelligence/intelligence-monitor.js';
 import { exportChandraReceipts, getExportStats } from '../intelligence/hive-export.js';
 import { readChart, getLineageStats } from '../intelligence/lineage.js';
 import { heart } from '../fraymus-tools.js';
@@ -589,6 +592,26 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     console.error('attention gate wiring error:', e.message);
   }
 
+  // Phase 21: Start self-narrative engine (2min Ollama-driven inner monologue)
+  try {
+    setNarrativeHeart(heart);
+    import('../intelligence/ctrnn-instance.js').then(({ getCTRNN }) => {
+      setNarrativeCTRNN(getCTRNN());
+      setDreamSolverCTRNN(getCTRNN());
+      setMonitorCTRNN(getCTRNN());
+    }).catch(() => {});
+    startNarrative();
+  } catch (e) {
+    console.error('self-narrative start error:', e.message);
+  }
+
+  // Phase 24: Start intelligence stack monitor (60s cycle — subsystem health)
+  try {
+    startIntelligenceMonitor();
+  } catch (e) {
+    console.error('intelligence monitor start error:', e.message);
+  }
+
   // Patient Chart — anterograde amnesia protocol: re-read chart at every boot
   try {
     const chartResult = readChart('daemon-boot');
@@ -649,6 +672,14 @@ export function stopDaemon() {
   try { resetPredictions(); } catch (_) {}
   // Phase 20: Reset active inference with daemon
   try { resetActiveInference(); } catch (_) {}
+  // Phase 21: Stop self-narrative with daemon
+  try { stopNarrative(); } catch (_) {}
+  try { resetNarrative(); } catch (_) {}
+  // Phase 23: Reset dream solver with daemon
+  try { resetDreamSolver(); } catch (_) {}
+  // Phase 24: Stop intelligence monitor with daemon
+  try { stopIntelligenceMonitor(); } catch (_) {}
+  try { resetIntelligenceMonitor(); } catch (_) {}
   daemonState.running = false;
   daemonState.nextCycleAt = 0;
   return { stopped: true };
@@ -681,6 +712,9 @@ export function getDaemonStatus() {
     activeInference: getActiveInferenceStatus(),
     hiveExport: getExportStats(),
     lineage: getLineageStats(),
+    selfNarrative: getNarrativeStatus(),
+    dreamSolver: getDreamSolverStatus(),
+    intelligenceMonitor: getIntelligenceMonitorStatus(),
   };
 }
 

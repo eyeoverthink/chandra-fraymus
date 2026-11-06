@@ -23,6 +23,9 @@ import { getSelfModelStatus, getSystemMap, lookupSubsystem, buildSpatialContext,
 import { getResourceEnvelopeStatus, getResourcePressure, isResourceConstrained, triggerEnvelopeCycle } from '../intelligence/resource-envelope.js';
 import { getPredictiveStatus, getPredictiveHistory } from '../intelligence/predictive-processing.js';
 import { getActiveInferenceStatus, getActiveInferenceHistory } from '../intelligence/active-inference.js';
+import { getNarrativeStatus, narrateNow } from '../intelligence/self-narrative.js';
+import { getDreamSolverStatus, solveDream } from '../intelligence/dream-solver.js';
+import { getIntelligenceMonitorStatus, assessNow as assessIntelligence } from '../intelligence/intelligence-monitor.js';
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
@@ -510,6 +513,63 @@ export function createFleetTools({ workflowStore }) {
         }
         const status = getActiveInferenceStatus();
         ledger.record('active-inference.read', { drive: status.lastInferenceDrive, effectiveness: status.effectiveness, tier: status.gateTier }, 'fleet');
+        return status;
+      },
+    },
+    {
+      name: 'self_narrative_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Read the self-narrative engine (Phase 21): inner monologue, coherence/awareness scores, mood, consciousness tier, running state. Use "generate" mode to produce a new narrative on demand.',
+      parameters: object({
+        mode: { type: 'string', description: 'Optional: "generate" triggers a new narrative via Ollama' },
+      }),
+      execute: async (params) => {
+        if (params.mode === 'generate') {
+          const result = await narrateNow('fleet');
+          ledger.record('narrative.generate', { mood: result.mood, tier: result.tier, coherence: result.coherenceScore }, 'fleet');
+          return result;
+        }
+        const status = getNarrativeStatus();
+        ledger.record('narrative.read', { running: status.running, tier: status.gateTier }, 'fleet');
+        return status;
+      },
+    },
+    {
+      name: 'dream_solver',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Creative dream solver (Phase 23): solve a problem via cross-domain associative dreaming at high Ollama temperature. Retrieves agent memories, recent dreams, bus topics, and reflection insights, then produces novel solutions. Without a problem, returns status.',
+      parameters: object({
+        problem: { type: 'string', description: 'The problem or goal to dream-solve (required for solving)' },
+      }),
+      execute: async (params) => {
+        if (params.problem && typeof params.problem === 'string' && params.problem.length >= 5) {
+          const result = await solveDream(params.problem, { trigger: 'fleet' });
+          ledger.record('dream-solve.run', { novelty: result.noveltyScore, feasibility: result.feasibilityScore, tier: result.gateTier }, 'fleet');
+          return result;
+        }
+        const status = getDreamSolverStatus();
+        ledger.record('dream-solve.read', { sessions: status.totalSessions, tier: status.gateTier }, 'fleet');
+        return status;
+      },
+    },
+    {
+      name: 'intelligence_monitor_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Intelligence stack monitor (Phase 24): reads health scores for all 12 intelligence subsystems, composite intelligence score, degraded subsystem list, and recommendations. Use "assess" mode for a fresh assessment.',
+      parameters: object({
+        mode: { type: 'string', description: 'Optional: "assess" runs a fresh health assessment now' },
+      }),
+      execute: async (params) => {
+        if (params.mode === 'assess') {
+          const result = assessIntelligence('fleet');
+          ledger.record('intelligence-monitor.assess', { score: result.intelligenceScore, degraded: result.degraded?.length, tier: result.gateTier }, 'fleet');
+          return result;
+        }
+        const status = getIntelligenceMonitorStatus();
+        ledger.record('intelligence-monitor.read', { running: status.running, tier: status.gateTier }, 'fleet');
         return status;
       },
     },

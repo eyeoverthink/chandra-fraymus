@@ -267,6 +267,80 @@ export function compose(text, analysis, context = []) {
   return response;
 }
 
+// ─── Phase 22: Compound Emotion Blending ──────────────────────
+// Real emotions aren't pure — "bittersweet" is joy+sadness,
+// "awe" is surprise+fear+love. This maps blends to named compounds.
+
+const COMPOUND_EMOTIONS = {
+  bittersweet:   { requires: ['joy', 'sadness'],     threshold: 0.15, label: 'bittersweet' },
+  awe:           { requires: ['surprise', 'fear'],    threshold: 0.12, label: 'awe' },
+  nostalgia:     { requires: ['love', 'sadness'],     threshold: 0.15, label: 'nostalgia' },
+  jealousy:      { requires: ['anger', 'fear'],       threshold: 0.12, label: 'jealousy' },
+  hope:          { requires: ['joy', 'anxiety'],      threshold: 0.10, label: 'hope' },
+  guilt:         { requires: ['sadness', 'anger'],    threshold: 0.12, label: 'guilt' },
+  adoration:     { requires: ['love', 'joy'],         threshold: 0.20, label: 'adoration' },
+  dread:         { requires: ['fear', 'anxiety'],     threshold: 0.15, label: 'dread' },
+  contempt:      { requires: ['anger', 'surprise'],   threshold: 0.12, label: 'contempt' },
+  tenderness:    { requires: ['love', 'sadness', 'joy'], threshold: 0.10, label: 'tenderness' },
+  overwhelm:     { requires: ['anxiety', 'surprise'], threshold: 0.12, label: 'overwhelm' },
+  serenity:      { requires: ['joy', 'love'],         threshold: 0.20, label: 'serenity', condition: (n) => n.anxiety < 0.05 && n.fear < 0.05 },
+};
+
+export function detectCompounds(normalized) {
+  const compounds = [];
+  for (const [name, def] of Object.entries(COMPOUND_EMOTIONS)) {
+    const allPresent = def.requires.every(e => (normalized[e] || 0) >= def.threshold);
+    if (!allPresent) continue;
+    if (def.condition && !def.condition(normalized)) continue;
+    const strength = def.requires.reduce((sum, e) => sum + (normalized[e] || 0), 0) / def.requires.length;
+    compounds.push({ name: def.label, components: def.requires, strength });
+  }
+  compounds.sort((a, b) => b.strength - a.strength);
+  return compounds.slice(0, 3);
+}
+
+// ─── Phase 22: Emotional Memory (Trend Tracking) ──────────────
+// Maintains a rolling window of recent emotions for trajectory analysis.
+
+const MOOD_HISTORY_SIZE = 50;
+const moodHistory = [];
+
+function recordMoodHistory(analysis) {
+  moodHistory.push({
+    primary: analysis.primary,
+    secondary: analysis.secondary,
+    sentiment: analysis.sentiment,
+    intensity: analysis.intensity,
+    at: Date.now(),
+  });
+  while (moodHistory.length > MOOD_HISTORY_SIZE) moodHistory.shift();
+}
+
+export function getMoodTrajectory(windowSize = 10) {
+  if (moodHistory.length < 2) return { trend: 'stable', shift: 0, stability: 1 };
+  const window = moodHistory.slice(-Math.min(windowSize, moodHistory.length));
+  const sentiments = window.map(m => m.sentiment);
+  const first = sentiments.slice(0, Math.ceil(sentiments.length / 2));
+  const second = sentiments.slice(Math.ceil(sentiments.length / 2));
+  const avgFirst = first.reduce((a, b) => a + b, 0) / first.length;
+  const avgSecond = second.reduce((a, b) => a + b, 0) / second.length;
+  const shift = avgSecond - avgFirst;
+  const variance = sentiments.reduce((sum, s) => sum + Math.pow(s - (avgFirst + avgSecond) / 2, 2), 0) / sentiments.length;
+  const stability = Math.max(0, 1 - Math.sqrt(variance) * 2);
+  let trend = 'stable';
+  if (shift > 0.15) trend = 'brightening';
+  else if (shift < -0.15) trend = 'darkening';
+  else if (variance > 0.1) trend = 'volatile';
+
+  const primaries = window.map(m => m.primary);
+  const sustained = primaries.filter(p => p === primaries[primaries.length - 1]).length;
+  const sustainedRatio = sustained / primaries.length;
+
+  return { trend, shift: Math.round(shift * 1000) / 1000, stability: Math.round(stability * 1000) / 1000, sustainedEmotion: sustainedRatio > 0.6 ? primaries[primaries.length - 1] : null, windowSize: window.length };
+}
+
+export function getMoodHistory() { return [...moodHistory]; }
+
 export class Heart {
   constructor(entityStore) {
     this.store = entityStore;
@@ -275,6 +349,12 @@ export class Heart {
   feel(text, context = []) {
     const analysis = analyze(text);
     const quick = compose(text, analysis, context);
+
+    // Phase 22: Detect compound emotions from the analysis
+    analysis.compounds = detectCompounds(analysis.normalized);
+
+    // Phase 22: Record to mood history for trajectory tracking
+    recordMoodHistory(analysis);
 
     if (this.store) {
       try {
@@ -286,6 +366,7 @@ export class Heart {
           sentiment: analysis.sentiment,
           sarcasm: analysis.sarcasm,
           triggers: JSON.stringify(analysis.triggers.map(t => t.word)),
+          compounds: analysis.compounds.length > 0 ? JSON.stringify(analysis.compounds.map(c => c.name)) : null,
         });
       } catch (_) {}
     }
@@ -301,7 +382,22 @@ export class Heart {
       const totals = { joy: 0, sadness: 0, anger: 0, fear: 0, surprise: 0, love: 0, anxiety: 0 };
       for (const r of items) totals[r.primary] = (totals[r.primary] || 0) + 1;
       const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-      return { mood: sorted[0][0], readings: items.length, distribution: totals };
+
+      // Phase 22: Enrich recentMood with trajectory and compound data
+      const trajectory = getMoodTrajectory();
+      const sentimentAvg = items.reduce((sum, r) => sum + (r.sentiment || 0), 0) / items.length;
+      const intensityAvg = items.reduce((sum, r) => sum + (r.intensity || 0), 0) / items.length;
+
+      return {
+        mood: sorted[0][0],
+        primary: sorted[0][0],
+        readings: items.length,
+        distribution: totals,
+        trajectory,
+        sentimentAvg: Math.round(sentimentAvg * 1000) / 1000,
+        intensityAvg: Math.round(intensityAvg * 1000) / 1000,
+        stability: trajectory.stability,
+      };
     } catch (_) { return { mood: 'unknown', readings: 0 }; }
   }
 }

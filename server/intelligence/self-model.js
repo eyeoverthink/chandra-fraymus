@@ -432,6 +432,75 @@ const SYSTEM_MAP = [
       description: 'Vertiso Panel shows memory stats, recall search, RSI evolve/reflect/genome controls.',
     },
   },
+  // ─── Phase 21-24 Intelligence Extensions ──────────────────────
+  {
+    id: 'self-narrative',
+    name: 'Self-Narrative Engine',
+    category: 'intelligence',
+    backend: {
+      module: 'intelligence/self-narrative.js',
+      functions: ['narrateNow', 'startNarrative', 'stopNarrative', 'getNarrativeStatus'],
+      endpoints: ['/api/intelligence/narrative', '/api/intelligence/narrative/history', '/api/intelligence/narrative/generate'],
+    },
+    frontend: {
+      view: null,
+      widget: null,
+      panel: null,
+      constellationNode: 'Narrative',
+      description: 'Inner monologue engine — generates first-person self-narrative from system signals via Ollama. CTRNN Row 2 injection (coherence + awareness).',
+    },
+  },
+  {
+    id: 'heart-compounds',
+    name: 'Heart Emotion Refinement',
+    category: 'intelligence',
+    backend: {
+      module: 'fraymus/intelligence/heart.js',
+      functions: ['detectCompounds', 'getMoodTrajectory', 'getMoodHistory'],
+      endpoints: [],
+    },
+    frontend: {
+      view: null,
+      widget: null,
+      panel: 'IntelligencePanel',
+      constellationNode: 'Heart',
+      description: 'Compound emotion detection (12 types: bittersweet, awe, nostalgia, etc.) + mood trajectory tracking (50-frame history with trend/stability analysis).',
+    },
+  },
+  {
+    id: 'dream-solver',
+    name: 'Creative Dream Solver',
+    category: 'intelligence',
+    backend: {
+      module: 'intelligence/dream-solver.js',
+      functions: ['solveDream', 'getDreamSolverStatus', 'resetDreamSolver'],
+      endpoints: ['/api/intelligence/dream-solver', '/api/intelligence/dream-solver/history', '/api/intelligence/dream-solver/solve'],
+    },
+    frontend: {
+      view: null,
+      widget: null,
+      panel: null,
+      constellationNode: 'DreamSolver',
+      description: 'Cross-domain associative problem-solving at high Ollama temperature. Retrieves agent memories and dreams for creative recombination. CTRNN Row 7 injection.',
+    },
+  },
+  {
+    id: 'intelligence-monitor',
+    name: 'Intelligence Stack Monitor',
+    category: 'intelligence',
+    backend: {
+      module: 'intelligence/intelligence-monitor.js',
+      functions: ['assessNow', 'startIntelligenceMonitor', 'stopIntelligenceMonitor', 'getIntelligenceMonitorStatus'],
+      endpoints: ['/api/intelligence/monitor', '/api/intelligence/monitor/assess', '/api/intelligence/monitor/history'],
+    },
+    frontend: {
+      view: null,
+      widget: null,
+      panel: null,
+      constellationNode: 'Monitor',
+      description: 'Cognitive health dashboard — aggregates 12 subsystem scores into composite intelligence score, detects degradation, publishes alerts. CTRNN Row 15 injection.',
+    },
+  },
   // ─── UI-level views (meta-awareness) ──────────────────────────
   {
     id: 'command-center',
