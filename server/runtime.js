@@ -79,6 +79,9 @@ import { installRecoveryRoutes, startRecoveryMonitor } from './resilience/recove
 import { requestProfiler, installRequestProfilerRoutes } from './profiling/request-profiler.js';
 import { installQueryProfilerRoutes } from './profiling/query-profiler.js';
 import { installMemoryTrackerRoutes, startMemoryTracking } from './profiling/memory-tracker.js';
+import { installCacheRoutes, startCacheSnapshots } from './caching/lru-cache.js';
+import { compression, installCompressionRoutes } from './caching/compression.js';
+import { etag, installETagRoutes } from './caching/etag.js';
 import { initBus } from './fleet/bus.js';
 import { installBusRoutes } from './fleet/bus-routes.js';
 import { initTriggers, installTriggerRoutes } from './fleet/bus-triggers.js';
@@ -270,6 +273,12 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installQueryProfilerRoutes(app);
   installMemoryTrackerRoutes(app);
   startMemoryTracking();
+  app.use(compression());
+  app.use(etag());
+  installCacheRoutes(app);
+  installCompressionRoutes(app);
+  installETagRoutes(app);
+  startCacheSnapshots();
 
   installFraymusRoutes(app, { autonomy, broadcast, memoryBridge });
   installSynthesisRoutes(app);

@@ -53,6 +53,7 @@ import ContentNexusPanel from '../panels/ContentNexusPanel.jsx';
 import ObservabilityPanel from '../panels/ObservabilityPanel.jsx';
 import ResiliencePanel from '../panels/ResiliencePanel.jsx';
 import PerformancePanel from '../panels/PerformancePanel.jsx';
+import CachingPanel from '../panels/CachingPanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -108,6 +109,7 @@ const PANELS = {
   observability: { component: ObservabilityPanel, label: 'Observability' },
   resilience: { component: ResiliencePanel, label: 'Resilience & Recovery' },
   performance: { component: PerformancePanel, label: 'Performance & Profiling' },
+  caching: { component: CachingPanel, label: 'Caching & Optimization' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health, onOpenPanel }) {

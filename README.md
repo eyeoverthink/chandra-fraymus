@@ -1529,6 +1529,19 @@ Full-stack performance instrumentation: request profiler middleware (hrtime.bigi
 - 4-tab Performance panel (Endpoints, Queries, Memory, Slow Log) with SVG heap sparkline, stat cards, start/stop/snapshot controls
 - 15 REST endpoints across 3 profiling modules: requests (5), queries (4), memory (6)
 
+### Phase I: Caching & Optimization (2026-11-06)
+
+> **LRU response caching, gzip compression, ETag conditional requests, and a unified caching dashboard. Phase H found the bottlenecks, Phase I fixes them.**
+
+Full-stack optimization layer: LRU cache with O(1) doubly-linked list (configurable capacity, per-key TTL, pattern-based invalidation, `cachedEndpoint()` higher-order wrapper for transparent response caching with `X-Cache` headers), gzip/deflate response compression (content-type detection, 1KB threshold, compression ratio tracking, graceful fallback on error), and ETag conditional request support (MD5-based entity tags, `If-None-Match` → 304 Not Modified, `Cache-Control: no-cache` revalidation pattern).
+
+**Shipped:**
+- LRU cache: O(1) get/set via doubly-linked list, TTL expiration, pattern invalidation, `cachedEndpoint()` middleware wrapper, 60s stat snapshots
+- Gzip compression: content-type whitelist, 1KB minimum threshold, compression ratio stats, Vary header, error fallback
+- ETag support: MD5 hash generation, If-None-Match matching, 304 responses for unchanged data, hit/miss rate tracking
+- 4-tab Caching panel (Overview, Cache Stores, Transfer, History) with utilization bars, SVG hit-count sparkline, purge controls
+- 7 REST endpoints across 3 caching modules: cache (4), compression (1), etag (1), history (1)
+
 ### Forecast: System Growth Trajectory
 
 | Metric | Current (Nov 2026) | Target (Q1 2027) | Target (Q2 2027) |

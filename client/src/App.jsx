@@ -74,6 +74,7 @@ const NAV_GROUPS = [
       { panel: 'observability', title: 'Observability', icon: '🔍', label: 'Observability' },
       { panel: 'resilience', title: 'Resilience & Recovery', icon: '🛡', label: 'Resilience' },
       { panel: 'performance', title: 'Performance & Profiling', icon: '⚡', label: 'Performance' },
+      { panel: 'caching', title: 'Caching & Optimization', icon: '💾', label: 'Caching' },
     ],
   },
 ];
@@ -203,6 +204,7 @@ export default function App() {
     if (action === 'observability') { setDrawer({ panel: 'observability', title: 'Observability' }); return; }
     if (action === 'resilience') { setDrawer({ panel: 'resilience', title: 'Resilience & Recovery' }); return; }
     if (action === 'performance') { setDrawer({ panel: 'performance', title: 'Performance & Profiling' }); return; }
+    if (action === 'caching') { setDrawer({ panel: 'caching', title: 'Caching & Optimization' }); return; }
     if (action.startsWith('view:')) {
       setView(action.slice(5));
       setDrawer(null);
