@@ -73,6 +73,7 @@ const NAV_GROUPS = [
       { panel: 'content-nexus', title: 'Content Nexus', icon: '📡', label: 'Content Nexus' },
       { panel: 'observability', title: 'Observability', icon: '🔍', label: 'Observability' },
       { panel: 'resilience', title: 'Resilience & Recovery', icon: '🛡', label: 'Resilience' },
+      { panel: 'performance', title: 'Performance & Profiling', icon: '⚡', label: 'Performance' },
     ],
   },
 ];
@@ -201,6 +202,7 @@ export default function App() {
     if (action === 'ouroboros-lineage') { setDrawer({ panel: 'ouroboros-lineage', title: 'Ouroboros Lineage' }); return; }
     if (action === 'observability') { setDrawer({ panel: 'observability', title: 'Observability' }); return; }
     if (action === 'resilience') { setDrawer({ panel: 'resilience', title: 'Resilience & Recovery' }); return; }
+    if (action === 'performance') { setDrawer({ panel: 'performance', title: 'Performance & Profiling' }); return; }
     if (action.startsWith('view:')) {
       setView(action.slice(5));
       setDrawer(null);

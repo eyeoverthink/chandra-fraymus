@@ -1516,6 +1516,19 @@ Production resilience stack: circuit breaker pattern (closed/half-open/open stat
 - 4-tab Resilience panel (Overview, Circuits, Backups, Recovery) with live stat cards and CRUD controls
 - 11 REST endpoints across 3 resilience modules: backups (4), circuits (2), recovery (5)
 
+### Phase H: Performance & Profiling (2026-11-06)
+
+> **Request profiling, slow query detection, memory tracking, and a unified performance dashboard. Now you know WHY it's slow.**
+
+Full-stack performance instrumentation: request profiler middleware (hrtime.bigint() per-endpoint timing, path normalization for numeric/UUID params, percentile distributions p50/p95/p99, volume tracking across 4 time windows), slow query detector (wraps better-sqlite3 statements, tracks queries over 50ms threshold, in-memory aggregate stats by SQL pattern, top-N by total time), and memory/GC pressure tracker (30s heap snapshots, event loop lag measurement via setImmediate, heap trend detection via thirds comparison, CPU usage tracking).
+
+**Shipped:**
+- Request profiler: hrtime.bigint() middleware, path normalization (numeric→:id, UUID→:uuid), p50/p95/p99 percentiles, 4-window volume (1m/5m/1h/24h)
+- Query profiler: statement wrapping (run/get/all), 50ms slow threshold, in-memory stats aggregation, top-N by total time, caller tracking
+- Memory tracker: 30s heap snapshots, event loop lag (setImmediate delta), heap trend analysis (growing/stable/shrinking), high-usage alerts (400MB heap, 600MB RSS)
+- 4-tab Performance panel (Endpoints, Queries, Memory, Slow Log) with SVG heap sparkline, stat cards, start/stop/snapshot controls
+- 15 REST endpoints across 3 profiling modules: requests (5), queries (4), memory (6)
+
 ### Forecast: System Growth Trajectory
 
 | Metric | Current (Nov 2026) | Target (Q1 2027) | Target (Q2 2027) |

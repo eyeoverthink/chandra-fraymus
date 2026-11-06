@@ -76,6 +76,9 @@ import { installAlertWebhookRoutes } from './observability/alert-webhook.js';
 import { installBackupRoutes, startScheduledBackups } from './resilience/backup.js';
 import { installCircuitBreakerRoutes } from './resilience/circuit-breaker.js';
 import { installRecoveryRoutes, startRecoveryMonitor } from './resilience/recovery.js';
+import { requestProfiler, installRequestProfilerRoutes } from './profiling/request-profiler.js';
+import { installQueryProfilerRoutes } from './profiling/query-profiler.js';
+import { installMemoryTrackerRoutes, startMemoryTracking } from './profiling/memory-tracker.js';
 import { initBus } from './fleet/bus.js';
 import { installBusRoutes } from './fleet/bus-routes.js';
 import { initTriggers, installTriggerRoutes } from './fleet/bus-triggers.js';
@@ -262,6 +265,11 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installRecoveryRoutes(app);
   startScheduledBackups();
   startRecoveryMonitor();
+  app.use(requestProfiler());
+  installRequestProfilerRoutes(app);
+  installQueryProfilerRoutes(app);
+  installMemoryTrackerRoutes(app);
+  startMemoryTracking();
 
   installFraymusRoutes(app, { autonomy, broadcast, memoryBridge });
   installSynthesisRoutes(app);
