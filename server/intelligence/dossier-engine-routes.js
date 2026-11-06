@@ -1,6 +1,9 @@
 import {
   ensureDossierTable,
   processDossier,
+  parseDossier,
+  gradeDossier,
+  debateDossierFunctions,
   listDossiers,
   getDossier,
   getDossierFunctions,
@@ -62,6 +65,24 @@ export function installDossierRoutes(app) {
     try {
       const result = getDossierFunction(req.params.sha, req.params.name);
       if (!result) return res.status(404).json({ error: 'Function not found in dossier' });
+      res.json(result);
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  // POST /api/intelligence/dossier/debate — run adversarial debate on top dossier functions
+  app.post('/api/intelligence/dossier/debate', async (req, res, next) => {
+    try {
+      const { dossierPath, maxFunctions } = req.body;
+      if (!dossierPath || typeof dossierPath !== 'string') {
+        return res.status(400).json({ error: 'dossierPath required' });
+      }
+      const parsed = parseDossier(dossierPath);
+      const graded = gradeDossier(parsed);
+      const opts = {};
+      if (maxFunctions) opts.maxFunctions = Math.min(20, Math.max(1, parseInt(maxFunctions) || 10));
+      const result = await debateDossierFunctions(parsed, graded, opts);
       res.json(result);
     } catch (e) {
       next(e);

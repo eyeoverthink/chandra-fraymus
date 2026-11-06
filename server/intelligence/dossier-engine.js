@@ -4,6 +4,7 @@ import { join, resolve, basename } from 'node:path';
 import { db } from '../db.js';
 import { storeMemory, recallMemories } from '../fleet/agent-memory.js';
 import { publish } from '../fleet/bus.js';
+import { debateBinaryAnnotation } from './debate.js';
 
 const RE_AGENT_ID = 're-analyst';
 
@@ -445,6 +446,86 @@ export function processDossier(dossierDir) {
     stored: storage,
     busEvents: 1,
   };
+}
+
+// ─── Debate Pipeline (Phase 4) ────────────────────────────────
+// After ingestion, top functions by line count (8-90 lines, same filter
+// as fra-annotate.py) are submitted to adversarial debate. Verdicts
+// update agent_memory confidence: CONFIRMED +0.1, CHALLENGED -0.2.
+
+const DEBATE_LINE_MIN = 8;
+const DEBATE_LINE_MAX = 90;
+const DEBATE_TOP_N = 10;
+
+export async function debateDossierFunctions(parsed, graded, opts = {}) {
+  const debatable = graded.facts
+    .filter(f => f.value.lines >= DEBATE_LINE_MIN && f.value.lines <= DEBATE_LINE_MAX)
+    .sort((a, b) => b.value.lines - a.value.lines)
+    .slice(0, opts.maxFunctions || DEBATE_TOP_N);
+
+  if (debatable.length === 0) {
+    return { debated: 0, results: [], skipped: 'No functions in 8-90 line range' };
+  }
+
+  const results = [];
+
+  for (const fact of debatable) {
+    try {
+      const debateResult = await debateBinaryAnnotation({
+        name: fact.value.name,
+        address: fact.value.address,
+        lines: fact.value.lines,
+        body: fact.value.c,
+        annotations: fact.value.annotations,
+        importHits: fact.value.importHits,
+      }, opts);
+
+      // Update confidence based on verdict
+      const confidenceDelta = debateResult.verdict === 'CONFIRMED' ? 0.1
+        : debateResult.verdict === 'CHALLENGED' ? -0.2
+        : 0;
+
+      if (confidenceDelta !== 0) {
+        const newConfidence = Math.max(0, Math.min(1, fact.confidence + confidenceDelta));
+        try {
+          storeMemory(RE_AGENT_ID, 'binary_dossier', fact.key, JSON.stringify({
+            ...fact.value,
+            debateVerdict: debateResult.verdict,
+            debateChallenges: debateResult.challengedClaims,
+          }), {
+            confidence: newConfidence,
+            source: `dossier:${parsed.binary}:debate:${debateResult.verdict.toLowerCase()}`,
+          });
+        } catch (_) {}
+      }
+
+      results.push(debateResult);
+    } catch (e) {
+      results.push({
+        functionName: fact.value.name,
+        address: fact.value.address,
+        verdict: 'ERROR',
+        error: e.message,
+      });
+    }
+  }
+
+  const summary = {
+    debated: results.length,
+    confirmed: results.filter(r => r.verdict === 'CONFIRMED').length,
+    challenged: results.filter(r => r.verdict === 'CHALLENGED').length,
+    split: results.filter(r => r.verdict === 'SPLIT').length,
+    errors: results.filter(r => r.verdict === 'ERROR').length,
+  };
+
+  try {
+    publish('system.re.dossier.debated', {
+      binary: parsed.binary,
+      ...summary,
+    });
+  } catch (_) {}
+
+  return { ...summary, results };
 }
 
 // ─── Query Helpers ────────────────────────────────────────────

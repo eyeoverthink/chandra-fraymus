@@ -230,6 +230,132 @@ export async function runDebate({ topic, proposition, config = {}, source = 'api
   };
 }
 
+// ─── Binary Annotation Debate ─────────────────────────────────
+// Phase 4: Feed RE Agent's red/blue annotation scores into Chandra's
+// adversarial debate engine. Proponent defends the annotation, opponent
+// challenges unverified imports, vague descriptions, missing edge cases.
+
+const BINARY_PROMPTS = {
+  proponent: (fn) =>
+    `You are analyzing a decompiled function from binary reverse engineering.\n\nFunction: ${fn.name} @ ${fn.address}\nLines: ${fn.lines}\n\nDecompiled C:\n\`\`\`c\n${fn.body.slice(0, 2000)}\n\`\`\`\n\nAnnotations:\n${fn.annotations.map(a => a.annotation || '(empty)').join('\n') || '(none)'}\n\nImport hits: ${fn.importHits?.join(', ') || '(none)'}\n\nARGUE FOR this interpretation: "This function does what the annotations claim based on the following evidence." Build the strongest case using the decompiled code, import references, and structural patterns.\n\nReturn JSON: { "thesis": "...", "points": ["...", "..."], "implications": "..." }`,
+
+  opponent: (fn) =>
+    `You are a skeptical reverse engineer reviewing a decompiled function analysis.\n\nFunction: ${fn.name} @ ${fn.address}\nLines: ${fn.lines}\n\nDecompiled C:\n\`\`\`c\n${fn.body.slice(0, 2000)}\n\`\`\`\n\nAnnotations:\n${fn.annotations.map(a => a.annotation || '(empty)').join('\n') || '(none)'}\n\nImport hits: ${fn.importHits?.join(', ') || '(none)'}\n\nARGUE AGAINST: Challenge the annotation claims. Look for: unverified imports, vague descriptions, missing edge cases, Ghidra decompilation artifacts that could mislead, type confusion, buffer handling issues.\n\nReturn JSON: { "thesis": "...", "points": ["...", "..."], "implications": "..." }`,
+
+  judge: (fn, proArgs, oppArgs) =>
+    `You are judging a debate about a decompiled function's annotation accuracy.\n\nFunction: ${fn.name} @ ${fn.address} (${fn.lines} lines)\n\nPROPONENT (defending annotations):\nThesis: ${proArgs.opening.thesis}\nRebuttal: ${(proArgs.latestRebuttal?.counters || []).join('; ')}\nStrengthened: ${proArgs.latestRebuttal?.strengthened_position || ''}\n\nOPPONENT (challenging annotations):\nThesis: ${oppArgs.opening.thesis}\nRebuttal: ${(oppArgs.latestRebuttal?.counters || []).join('; ')}\nStrengthened: ${oppArgs.latestRebuttal?.strengthened_position || ''}\n\nVerdict: Is the annotation accurate and trustworthy? Consider: code evidence, annotation specificity, unresolved challenges.\n\nReturn JSON: { "verdict": "CONFIRMED|CHALLENGED|SPLIT", "verdict_reasoning": "...", "confidence": 0.0-1.0, "challenged_claims": ["...", "..."], "proponent_score": 0.0-1.0, "opponent_score": 0.0-1.0 }`,
+};
+
+export async function debateBinaryAnnotation(functionData, opts = {}) {
+  ensureTable();
+
+  const gateMods = getAutonomyModifiers();
+  const rebuttalRounds = Math.min(3, Math.max(1, Math.round(BASE_REBUTTAL_ROUNDS * gateMods.evolutionRate)));
+  const totalRounds = 1 + rebuttalRounds + 1;
+
+  const debateId = `debate-binary-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const DEBATE_ROLES = getDebateRoles();
+  const proRole = DEBATE_ROLES.proponent;
+  const oppRole = DEBATE_ROLES.opponent;
+  const judgeRole = DEBATE_ROLES.judge;
+  const config = opts.config || {};
+  const started = Date.now();
+
+  // Empty annotations are auto-CHALLENGED per spec (qwen3.5 think-block issue)
+  const hasAnnotation = functionData.annotations?.some(a => a.annotation && a.annotation.length > 10);
+  if (!hasAnnotation) {
+    const result = {
+      functionName: functionData.name,
+      address: functionData.address,
+      verdict: 'CHALLENGED',
+      rounds: 0,
+      proponentScore: 0,
+      opponentScore: 1,
+      challengedClaims: ['Empty or missing annotation — likely qwen3.5 think-block artifact'],
+      gateTier: gateMods.tier,
+      totalRounds: 0,
+    };
+
+    try { publish('system.debate.binary', { type: 'debate.binary.empty', debateId, ...result }); } catch {}
+    return result;
+  }
+
+  const topic = `Binary annotation accuracy: ${functionData.name} @ ${functionData.address}`;
+  const proposition = `The annotations for function ${functionData.name} accurately describe its behavior`;
+
+  db.prepare(`INSERT INTO debates (id, topic, proposition, proponent_agent, opponent_agent, judge_agent, status, model, source, created_at) VALUES (?, ?, ?, ?, ?, ?, 'running', ?, 'binary_annotation', ?)`).run(
+    debateId, topic, proposition, proRole.agentId, oppRole.agentId, judgeRole.agentId, config.model || 'llama3.1:8b', started,
+  );
+
+  try { publish('system.debate.binary', { type: 'debate.binary.start', debateId, functionName: functionData.name, address: functionData.address, gateTier: gateMods.tier }); } catch {}
+
+  const rounds = { opening: {}, rebuttals: [], synthesis: null };
+
+  // Opening
+  const proOpening = await runRound('opening', BINARY_PROMPTS.proponent(functionData), proRole, config);
+  const oppOpening = await runRound('opening', BINARY_PROMPTS.opponent(functionData), oppRole, config);
+
+  rounds.opening.proponent = proOpening.parsed || { thesis: proOpening.raw?.slice(0, 500), points: [], implications: '' };
+  rounds.opening.opponent = oppOpening.parsed || { thesis: oppOpening.raw?.slice(0, 500), points: [], implications: '' };
+
+  // Rebuttals
+  let proPrev = rounds.opening.opponent;
+  let oppPrev = rounds.opening.proponent;
+
+  for (let r = 1; r <= rebuttalRounds; r++) {
+    const proRebuttal = await runRound('rebuttal', ROUND_PROMPTS.rebuttal(topic, proposition, 'proponent', proPrev, r), proRole, config);
+    const oppRebuttal = await runRound('rebuttal', ROUND_PROMPTS.rebuttal(topic, proposition, 'opponent', oppPrev, r), oppRole, config);
+
+    const proResult = proRebuttal.parsed || { weaknesses_found: [], counters: [], strengthened_position: '' };
+    const oppResult = oppRebuttal.parsed || { weaknesses_found: [], counters: [], strengthened_position: '' };
+
+    rounds.rebuttals.push({ round: r, proponent: proResult, opponent: oppResult });
+    proPrev = oppResult;
+    oppPrev = proResult;
+  }
+
+  // Synthesis
+  const latestRebuttal = rounds.rebuttals[rounds.rebuttals.length - 1] || { proponent: {}, opponent: {} };
+  const proArgs = { opening: rounds.opening.proponent, latestRebuttal: latestRebuttal.proponent };
+  const oppArgs = { opening: rounds.opening.opponent, latestRebuttal: latestRebuttal.opponent };
+
+  const synthesis = await runRound('synthesis', BINARY_PROMPTS.judge(functionData, proArgs, oppArgs), judgeRole, config);
+
+  const judgeResult = synthesis.parsed || {
+    verdict: 'SPLIT', verdict_reasoning: synthesis.raw?.slice(0, 500) || 'Judge failed to parse',
+    confidence: 0, challenged_claims: [], proponent_score: 0.5, opponent_score: 0.5,
+  };
+
+  const durationMs = Date.now() - started;
+  const verdict = ['CONFIRMED', 'CHALLENGED', 'SPLIT'].includes(judgeResult.verdict) ? judgeResult.verdict : 'SPLIT';
+  const verdictReasoning = String(judgeResult.verdict_reasoning || '').slice(0, 2000);
+  const confidence = Math.max(0, Math.min(1, parseFloat(judgeResult.confidence) || 0));
+
+  db.prepare(`UPDATE debates SET status = 'completed', rounds = ?, verdict = ?, verdict_reasoning = ?, confidence = ?, duration_ms = ? WHERE id = ?`).run(
+    JSON.stringify(rounds), verdict, verdictReasoning, confidence, durationMs, debateId,
+  );
+
+  fossilizeVerdict(debateId, topic, verdict, verdictReasoning, confidence);
+
+  const result = {
+    functionName: functionData.name,
+    address: functionData.address,
+    verdict,
+    rounds: totalRounds,
+    proponentScore: Math.max(0, Math.min(1, parseFloat(judgeResult.proponent_score) || 0.5)),
+    opponentScore: Math.max(0, Math.min(1, parseFloat(judgeResult.opponent_score) || 0.5)),
+    challengedClaims: Array.isArray(judgeResult.challenged_claims) ? judgeResult.challenged_claims : [],
+    gateTier: gateMods.tier,
+    totalRounds,
+    debateId,
+    durationMs,
+  };
+
+  try { publish('system.debate.binary', { type: 'debate.binary.complete', ...result }); } catch {}
+
+  return result;
+}
+
 export function listDebates({ status, limit = 20 } = {}) {
   ensureTable();
   const lim = Math.min(100, Math.max(1, parseInt(limit) || 20));
