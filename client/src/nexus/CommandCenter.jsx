@@ -152,6 +152,18 @@ export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigat
     fetch('/api/debates?limit=1').then(r => r.json()).then(d => setData(p => ({ ...p, debateCount: d.total ?? (d.debates || []).length }))).catch(() => {});
     fetch('/api/goals/proposals?limit=1').then(r => r.json()).then(d => setData(p => ({ ...p, goalCount: d.total ?? (d.proposals || []).length }))).catch(() => {});
     fetch('/api/model-router/stats').then(r => r.json()).then(d => setData(p => ({ ...p, routingCount: d.totalRouted || 0 }))).catch(() => {});
+    fetch('/api/fleet/bus/stats').then(r => r.json()).then(d => setData(p => ({ ...p, busStats: d }))).catch(() => {});
+    fetch('/api/health/stats').then(r => r.json()).then(d => setData(p => ({ ...p, healthStats: d }))).catch(() => {});
+    fetch('/api/fleet/forge/history').then(r => r.json()).then(d => setData(p => ({ ...p, forgeData: d.forged || [] }))).catch(() => {});
+    fetch('/api/deploy/catalog').then(r => r.json()).then(d => setData(p => ({ ...p, deployData: d.endpoints || [] }))).catch(() => {});
+    fetch('/api/intelligence/ouroboros-cycle/stats').then(r => r.json()).then(d => setData(p => ({ ...p, ouroborosStats: d }))).catch(() => {});
+    fetch('/api/daemon/status').then(r => r.json()).then(d => setData(p => ({ ...p, daemonStatus: d }))).catch(() => {});
+    fetch('/api/verify/loops?limit=1').then(r => r.json()).then(d => setData(p => ({ ...p, verifyLoops: d.loops || [] }))).catch(() => {});
+    fetch('/api/intelligence/adaptive-strategy').then(r => r.json()).then(d => setData(p => ({ ...p, strategyData: d }))).catch(() => {});
+    fetch('/api/intelligence/narrative').then(r => r.json()).then(d => setData(p => ({ ...p, narrativeData: d }))).catch(() => {});
+    fetch('/api/intelligence/reflections?limit=1').then(r => r.json()).then(d => setData(p => ({ ...p, reflectionData: d }))).catch(() => {});
+    fetch('/api/streaming/artifacts').then(r => r.json()).then(d => setData(p => ({ ...p, streamingData: d.artifacts || d || [] }))).catch(() => {});
+    fetch('/api/integrity/status').then(r => r.json()).then(d => setData(p => ({ ...p, integrityData: d }))).catch(() => {});
   };
 
   useEffect(() => {
@@ -196,9 +208,34 @@ export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigat
       case 'media': return '5 engines';
       case 'nerve-center': return f?.intelligence?.mood?.mood || 'neutral';
       case 'observatory': return 'Intel Report';
-      case 'debate': return data.debateCount != null ? `${data.debateCount} debates` : '—';
+      case 'debate': return data.debateCount != null ? `${data.debateCount} debate${data.debateCount === 1 ? '' : 's'}` : '—';
       case 'goals': return data.goalCount != null ? `${data.goalCount} proposals` : '—';
       case 'model-router': return data.routingCount != null ? `${data.routingCount} routed` : '—';
+      case 'deploy': return data.deployData ? `${data.deployData.length} deployed` : '—';
+      case 'bus': return data.busStats ? `${data.busStats.topics || 0} topics` : '—';
+      case 'health': return data.healthStats != null ? (data.healthStats.activeAlerts ? `${data.healthStats.activeAlerts} alerts` : 'All Clear') : '—';
+      case 'forge': return data.forgeData ? `${data.forgeData.length} forged` : '—';
+      case 'creation': return Array.isArray(data.streamingData) ? `${data.streamingData.length} artifacts` : 'Streaming + Mint';
+      case 'distribution': return data.deployData ? `${data.deployData.length} endpoints` : 'Multi-channel';
+      case 'analytics': return data.busStats ? `${data.busStats.total || 0} events` : 'System Metrics';
+      case 'learning-loop': {
+        const rCount = data.reflectionData?.reflections?.length ?? data.reflectionData?.total;
+        return rCount != null ? `${rCount} reflection${rCount === 1 ? '' : 's'}` : (data.daemonStatus?.running ? 'Active' : 'Idle');
+      }
+      case 'calendar': return `${(data.automations || []).length} scheduled`;
+      case 'ab-testing': return data.verifyLoops ? `${data.verifyLoops.length} loops` : '—';
+      case 'trend-radar': return 'Outlier Intel';
+      case 'audience': return 'Audience Intel';
+      case 'repurpose': return 'Content Remix';
+      case 'chain': return 'FRAYMUS Logic';
+      case 'ouroboros-cycle': return data.ouroborosStats?.cycles ? `${data.ouroborosStats.cycles.total || 0} cycles` : '—';
+      case 'ouroboros-lineage': return data.ouroborosStats?.proposals ? `${data.ouroborosStats.proposals.total || 0} proposals` : '—';
+      case 'perspective': return 'Meta-cognitive';
+      case 'swarm': return `${(data.fleet || []).length} coordinated`;
+      case 'strategy': return data.strategyData?.strategy || 'nominal';
+      case 'trust': return data.integrityData?.tracked != null ? `${data.integrityData.tracked} files` : 'Integrity Engine';
+      case 'subconscious': return data.narrativeData?.running ? 'Narrating' : (data.daemonStatus?.running ? 'Dreaming' : 'Dormant');
+      case 'settings': return 'Configure';
       default: return '—';
     }
   };
@@ -210,6 +247,18 @@ export default function CommandCenter({ health, wsEvent, onOpenDrawer, onNavigat
       case 'intelligence': return f?.intelligence ? `Dreams: ${f.intelligence.dreamerState?.dreamCount || 0} · Ledger: ${f.intelligence.ledgerIntegrity?.checked || 0}` : '';
       case 'fleet': return [...new Set((data.fleet || []).map(a => a.model).filter(Boolean))].join(', ');
       case 'memory': return data.memory ? `${data.memory.totalConsolidations || 0} consolidations` : '';
+      case 'bus': return data.busStats ? `${data.busStats.total || 0} total · ${data.busStats.today || 0} today` : '';
+      case 'health': return data.healthStats?.ollama != null ? `Ollama: ${data.healthStats.ollama || 'ok'}` : '';
+      case 'forge': return data.forgeData?.length ? `Latest: ${data.forgeData[0]?.agent_id || 'agent'}` : '';
+      case 'deploy': return data.deployData?.length ? `Latest: /${data.deployData[0]?.slug || ''}` : '';
+      case 'ouroboros-cycle': return data.ouroborosStats?.cycles ? `${data.ouroborosStats.cycles.completed || 0} complete · ${data.ouroborosStats.cycles.failed || 0} failed` : '';
+      case 'ouroboros-lineage': return data.ouroborosStats?.proposals ? `${data.ouroborosStats.proposals.accepted || 0} accepted · ${data.ouroborosStats.proposals.rejected || 0} rejected` : '';
+      case 'strategy': return data.strategyData?.effectiveness != null ? `Effectiveness: ${(data.strategyData.effectiveness * 100).toFixed(0)}%` : '';
+      case 'subconscious': return data.narrativeData?.mood ? `Mood: ${data.narrativeData.mood} · Tier: ${data.narrativeData.tier || '?'}` : '';
+      case 'trust': return data.integrityData?.tamperEvents != null ? `${data.integrityData.tamperEvents || 0} tamper events` : '';
+      case 'debate': return data.debateCount > 0 ? 'Adversarial reasoning' : '';
+      case 'goals': return data.goalCount > 0 ? 'OPEG-gated generation' : '';
+      case 'nerve-center': return f?.intelligence ? `Proofs: ${f.intelligence.consciousnessState?.proofsPassed ?? '?'}/4` : '';
       default: return '';
     }
   };
