@@ -1,5 +1,7 @@
 # CHANDRA Intelligence Phases Registry
 
+> **Independent review — November 6, 2026:** Phases 21–24 at `862e1ad` are implemented with **changes requested; 0/4 independently accepted**. [Review and closure criteria](docs/reviews/2026-11-06-phases21-24-review.md), [25-assertion diagnostic probe](docs/reviews/2026-11-06-phases21-24-probe.mjs), [evidence](docs/reviews/2026-11-06-phases21-24-evidence.json). Eight changed JavaScript files parse; live status endpoints and Vite respond. Actual neural/tool/lifecycle contracts and six data/outcome findings remain. Names and biological analogies below describe design intent; availability and model self-ratings do not establish measured cognitive competence. Tag: `review/intelligence-phases21-24-2026-11-06`.
+
 Sequential build log of the intelligence stack. Each phase adds a cognitive subsystem to the 256-neuron CTRNN organism, wired through the daemon engine and consciousness gate.
 
 ---

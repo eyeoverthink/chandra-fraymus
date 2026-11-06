@@ -1,0 +1,552 @@
+{
+  "reviewedRef": "862e1ad551027dd12894048b8b5e2843bbba4a67",
+  "generatedAt": "2026-11-06T13:41:53.017Z",
+  "sourceHashes": {
+    "server/db-migrate.js": "6a3eb642bbd64c564d83232bdfc0c0f8caa30293c3ef098a87d335d47d79950c",
+    "server/intelligence/sensory-bridge.js": "e51c35d0303b7eb144ada31310917b10ec7b2741b3d63cf4c9dbbf7ec7c537c7",
+    "server/intelligence/emotional-feedback.js": "39a74bd6e9c261eb29a693db37313591730b8b74ecd81346e4c3d83a516013ea",
+    "server/intelligence/motor-output.js": "bfd9af3674454c92b94dd965b5a5b714004700f03013a0c34704842cc9e59be3",
+    "server/intelligence/attention-gate.js": "4cab387d8e016e2a25f6e4c7de86f5c36ca51c154475a3dbf652b84c6726a8f1",
+    "server/intelligence/habituation.js": "4f572ee52e1b0eb03fb712224a42a416e62256df31414a658f4d6d4cc85d53a8",
+    "server/intelligence/working-memory.js": "ebe1a07970780ce2e1e7f4739bbd973fd2f2a7239c5e512e9d9aafdc9cadead9",
+    "server/intelligence/metacognitive-monitor.js": "c35c267b763301242ecf307062e626e519b7d54244e6bb1356326586fb337886",
+    "server/intelligence/adaptive-strategy.js": "0d1479df436bd283296da0f950c250c34379c448ea71bb819cf77befda977408",
+    "server/intelligence/self-model.js": "79ce6d159a1b57391be4bc4f259ed72b077ceede778c2e4f9acae87a24876c02",
+    "server/intelligence/resource-envelope.js": "a16aa69aebba5346380175fad3a7919a34651f30f13c77b78a9ef2cdc5160792",
+    "server/intelligence/predictive-processing.js": "e437e698b06e7983431cbf95e87899279413c24f80844531849fd95397d11bc7",
+    "server/intelligence/active-inference.js": "08f107490062bc2f2e330c632a621660972b1fb3a9d5996f88eb90fc10e2c7cd",
+    "server/fleet/bus.js": "93b12941f183c20b16db624ffcb1942b8c12a01b86310b19baa5c7c80bc1ad43",
+    "server/intelligence/self-narrative.js": "55a73cd7717729c5e1a9307311a7958bc0db4cd3ea25c182cb44f9a81c02c7e7",
+    "server/intelligence/dream-solver.js": "54323d9816c03d0c3ccfe3e83daff60a39b1178e18b03179cab422bf6f196d98",
+    "server/intelligence/intelligence-monitor.js": "1f79e5578fc28175c7174fd89f163f701851d703074140b3f31779a662a95fba",
+    "server/intelligence/ctrnn.js": "ebfbb5bc05167423878e8c1856117d2e9f8aa581edac5944037400d51ec0d5e1",
+    "server/fraymus/intelligence/heart.js": "e25003d358f783085704cfb3fe0038899d46e1e898ba2b65379f89721df625d6",
+    "server/fleet/tools.js": "7636a604639d85ac4d49257972920e96db7aa05051e920ffb507136cee3cfc0e",
+    "server/fleet/runtime.js": "aff013889f1a53e38b97c5ea33a423654db73d641f6285e6c59941a0c391ab33",
+    "server/daemon/engine.js": "82b0b903b6c2a4aca2fb38d0da43a8ce0b9a701924dbafebc269d631fe7da6ac",
+    "server/runtime.js": "f2fa9a4aae856779dd9a70ede18643c281f80082dd8b403a0108d3664af3b227"
+  },
+  "syntaxChecks": [
+    "server/daemon/engine.js",
+    "server/fleet/tools.js",
+    "server/fraymus/intelligence/heart.js",
+    "server/intelligence/dream-solver.js",
+    "server/intelligence/intelligence-monitor.js",
+    "server/intelligence/self-model.js",
+    "server/intelligence/self-narrative.js",
+    "server/runtime.js"
+  ],
+  "diagnosticAssertions": 25,
+  "checks": [
+    "three status routes work before any narrative, solve or assessment",
+    "start registers intended 120s and 60s intervals",
+    "actual CTRNN exposes inject but no injectGaussian",
+    "all three modules return while actual neural input stays unchanged",
+    "actual CTRNN public inject is a working positive control",
+    "new modules also reverse width/amplitude relative to public CTRNN inject signature",
+    "actual fleet dispatch silently returns status for all new action modes",
+    "bare parameter call explains why direct tool tests miss dispatch defect",
+    "snapshotsStored counters count calls before any snapshot is stored",
+    "zero-lexicon neutral text generates named compound emotions",
+    "explicit joy/sadness blend detects bittersweet",
+    "actual Heart tracks at most 50 frames",
+    "narrative drops Heart averages and top-level proof count",
+    "one-frame trajectory window produces nonfinite statistics",
+    "monitor reads actual-schema fresh records as active",
+    "180-second-old records are called stale despite 300s+ producer snapshot periods",
+    "known zero effectiveness becomes healthy 0.5 instead of degraded",
+    "interval allows overlapping model requests while first is unresolved",
+    "stopped and reset narrative is repopulated by pending completions",
+    "normal REST solve creates no signed dream reference",
+    "explicit dependency injection enables dream recording as a positive control",
+    "legitimate zero model ratings are replaced with 0.5",
+    "model failure is recorded/published as a solved session without queue entry",
+    "failed dream persistence is silent while ordinary success event is published",
+    "actual action/history route positive controls respond"
+  ],
+  "methodology": "Pinned source via git show, VM-isolated actual bodies, in-memory SQLite with actual producer schemas, actual CTRNN public object (no start/workers), actual fleet executeTool/bus/Express. Model responses and timers are controlled fixtures. No live state-changing calls, real model/compiler/daemon starts, live database writes or deletions. Optional live mode sends only three status GETs and the Vite root GET. Passing diagnostic assertions include reproductions of defects.",
+  "readiness": {
+    "narrative": {
+      "status": 200,
+      "body": {
+        "running": false,
+        "lastNarrative": null,
+        "coherenceScore": null,
+        "awarenessScore": null,
+        "mood": null,
+        "tier": null,
+        "sensitivity": 0.5,
+        "lastGeneratedAt": null,
+        "lastDurationMs": null,
+        "gateTier": "AWAKENING",
+        "snapshotsStored": 0
+      }
+    },
+    "dream-solver": {
+      "status": 200,
+      "body": {
+        "lastSolution": null,
+        "totalSessions": 0,
+        "gateTier": "AWAKENING"
+      }
+    },
+    "monitor": {
+      "status": 200,
+      "body": {
+        "running": false,
+        "lastAssessment": null,
+        "gateTier": "AWAKENING",
+        "snapshotsStored": 0
+      }
+    }
+  },
+  "wiring": {
+    "narrativeStart": true,
+    "monitorStart": true,
+    "stopHooks": true,
+    "dreamerNotPassedByDefault": true,
+    "routeInstallers": true,
+    "inspectionOnly": true
+  },
+  "live": [
+    {
+      "label": "narrative",
+      "status": 200,
+      "running": true,
+      "tier": "AWAKENING",
+      "hasLastNarrative": true,
+      "hasLastSolution": false,
+      "assessment": null
+    },
+    {
+      "label": "dream-solver",
+      "status": 200,
+      "running": null,
+      "tier": "AWAKENING",
+      "hasLastNarrative": false,
+      "hasLastSolution": false,
+      "assessment": null
+    },
+    {
+      "label": "monitor",
+      "status": 200,
+      "running": true,
+      "tier": "AWAKENING",
+      "hasLastNarrative": false,
+      "hasLastSolution": false,
+      "assessment": {
+        "score": 0.282,
+        "activeCount": 0,
+        "totalCount": 12,
+        "degradedCount": 12
+      }
+    },
+    {
+      "label": "vite",
+      "status": 200,
+      "title": "Chandra-FRAYMUS"
+    }
+  ],
+  "neural": {
+    "publicMethods": [
+      "tick",
+      "running",
+      "config",
+      "initialize",
+      "step",
+      "start",
+      "stop",
+      "inject",
+      "modulatePlasticity",
+      "baseConfig",
+      "state",
+      "weights",
+      "metrics",
+      "stats",
+      "history",
+      "snapshot",
+      "restore"
+    ],
+    "inputNonzeroBeforeControl": 0,
+    "attemptedCallsAgainstHypotheticalAlias": [
+      [
+        2,
+        8,
+        0.6000000000000001,
+        2.5
+      ],
+      [
+        2,
+        12,
+        0.36,
+        2
+      ],
+      [
+        7,
+        4,
+        0.6000000000000001,
+        2
+      ],
+      [
+        7,
+        12,
+        0.12,
+        2
+      ],
+      [
+        15,
+        4,
+        0.2820000000000001,
+        3
+      ],
+      [
+        15,
+        12,
+        -0.75,
+        2
+      ],
+      [
+        7,
+        4,
+        0.6000000000000001,
+        2
+      ],
+      [
+        7,
+        12,
+        0.12,
+        2
+      ]
+    ],
+    "selfNarrativeReportedScores": {
+      "coherence": 0.8,
+      "awareness": 0.6
+    }
+  },
+  "toolResults": {
+    "self_narrative_status": {
+      "running": true,
+      "lastNarrative": "Fixture grounded narrative.",
+      "coherenceScore": 0.8,
+      "awarenessScore": 0.6,
+      "mood": "neutral",
+      "tier": "AWAKENING",
+      "sensitivity": 0.5,
+      "lastGeneratedAt": 1800000000000,
+      "lastDurationMs": null,
+      "gateTier": "AWAKENING",
+      "snapshotsStored": 2
+    },
+    "dream_solver": {
+      "lastSolution": {
+        "problem": "Improve local memory retrieval",
+        "solution": "Fixture solution.",
+        "novelty": 0.8,
+        "feasibility": 0.6,
+        "associations": 1,
+        "dreamNumber": null,
+        "durationMs": 0,
+        "solvedAt": 1800000000000
+      },
+      "totalSessions": 2,
+      "gateTier": "AWAKENING"
+    },
+    "intelligence_monitor_status": {
+      "running": true,
+      "lastAssessment": {
+        "intelligenceScore": 0.282,
+        "activeCount": 0,
+        "totalCount": 12,
+        "degradedCount": 12,
+        "degraded": [
+          "sensoryBridge",
+          "emotionalFeedback",
+          "motorOutput",
+          "attentionGate",
+          "habituation",
+          "workingMemory",
+          "metacognitive",
+          "adaptiveStrategy",
+          "selfModel",
+          "resourceEnvelope",
+          "predictiveProcessing",
+          "activeInference"
+        ],
+        "recommendations": [
+          "sensoryBridge: data is stale — verify daemon is running and subsystem interval is active",
+          "emotionalFeedback: data is stale — verify daemon is running and subsystem interval is active",
+          "motorOutput: idle — may need external stimulus or lower activation thresholds",
+          "attentionGate: data is stale — verify daemon is running and subsystem interval is active",
+          "habituation: data is stale — verify daemon is running and subsystem interval is active",
+          "workingMemory: data is stale — verify daemon is running and subsystem interval is active",
+          "metacognitive: data is stale — verify daemon is running and subsystem interval is active",
+          "adaptiveStrategy: data is stale — verify daemon is running and subsystem interval is active",
+          "selfModel: data is stale — verify daemon is running and subsystem interval is active",
+          "resourceEnvelope: data is stale — verify daemon is running and subsystem interval is active",
+          "predictiveProcessing: data is stale — verify daemon is running and subsystem interval is active",
+          "activeInference: data is stale — verify daemon is running and subsystem interval is active"
+        ],
+        "assessedAt": 1800000000000
+      },
+      "gateTier": "AWAKENING",
+      "snapshotsStored": 2
+    }
+  },
+  "snapshotCounts": {
+    "narrativeReported": 2,
+    "narrativeRows": 0,
+    "monitorReported": 2,
+    "monitorRows": 0
+  },
+  "heart": {
+    "neutral": {
+      "primary": "neutral",
+      "normalized": {
+        "joy": 0.12,
+        "sadness": 0.12,
+        "anger": 0.12,
+        "fear": 0.12,
+        "surprise": 0.12,
+        "love": 0.12,
+        "anxiety": 0.12
+      },
+      "compounds": [
+        {
+          "name": "awe",
+          "components": [
+            "surprise",
+            "fear"
+          ],
+          "strength": 0.12
+        },
+        {
+          "name": "jealousy",
+          "components": [
+            "anger",
+            "fear"
+          ],
+          "strength": 0.12
+        },
+        {
+          "name": "hope",
+          "components": [
+            "joy",
+            "anxiety"
+          ],
+          "strength": 0.12
+        }
+      ]
+    },
+    "positiveBlend": [
+      {
+        "name": "bittersweet",
+        "components": [
+          "joy",
+          "sadness"
+        ],
+        "strength": 0.5
+      }
+    ],
+    "historySize": 50,
+    "oneFrameTrajectory": {
+      "shiftFinite": false,
+      "stabilityFinite": false
+    },
+    "actualMood": {
+      "mood": "joy",
+      "primary": "joy",
+      "readings": 20,
+      "distribution": {
+        "joy": 20,
+        "sadness": 0,
+        "anger": 0,
+        "fear": 0,
+        "surprise": 0,
+        "love": 0,
+        "anxiety": 0
+      },
+      "trajectory": {
+        "trend": "stable",
+        "shift": 0,
+        "stability": 1,
+        "sustainedEmotion": "joy",
+        "windowSize": 10
+      },
+      "sentimentAvg": 1,
+      "intensityAvg": 0.788,
+      "stability": 1
+    },
+    "narrativeSignals": {
+      "consciousness": {
+        "tier": "AWAKENING",
+        "proofsPassed": 0,
+        "phi": 0.9,
+        "stale": false,
+        "evolutionRate": 1
+      },
+      "emotion": {
+        "primary": "joy",
+        "intensity": 0,
+        "distribution": {
+          "joy": 20,
+          "sadness": 0,
+          "anger": 0,
+          "fear": 0,
+          "surprise": 0,
+          "love": 0,
+          "anxiety": 0
+        },
+        "sentiment": 0
+      },
+      "temporalTrends": {
+        "trend": 0,
+        "volatility": 0,
+        "coherence": 0
+      },
+      "resources": {
+        "pressure": 0,
+        "fatigue": 0
+      },
+      "body": {
+        "activeSubsystems": 0,
+        "totalSubsystems": 27
+      },
+      "metacognition": {
+        "effectiveness": 0,
+        "stuckScore": 0,
+        "confidence": 0,
+        "strategy": "nominal"
+      },
+      "activity": {
+        "agentRuns": 0,
+        "busMessages": 0
+      }
+    }
+  },
+  "monitor": {
+    "fresh": {
+      "activeCount": 12,
+      "score": 0.861
+    },
+    "threeMinutes": {
+      "activeCount": 2,
+      "degraded": [
+        {
+          "subsystem": "sensoryBridge",
+          "score": 0.2,
+          "status": "stale",
+          "detail": "No recent sensory data"
+        },
+        {
+          "subsystem": "emotionalFeedback",
+          "score": 0.2,
+          "status": "stale",
+          "detail": "No recent emotional data"
+        },
+        {
+          "subsystem": "attentionGate",
+          "score": 0.3,
+          "status": "stale"
+        },
+        {
+          "subsystem": "habituation",
+          "score": 0.3,
+          "status": "stale"
+        },
+        {
+          "subsystem": "workingMemory",
+          "score": 0.3,
+          "status": "stale"
+        },
+        {
+          "subsystem": "metacognitive",
+          "score": 0.3,
+          "status": "stale"
+        },
+        {
+          "subsystem": "adaptiveStrategy",
+          "score": 0.3,
+          "status": "stale"
+        },
+        {
+          "subsystem": "resourceEnvelope",
+          "score": 0.3,
+          "status": "stale"
+        },
+        {
+          "subsystem": "predictiveProcessing",
+          "score": 0.3,
+          "status": "stale"
+        },
+        {
+          "subsystem": "activeInference",
+          "score": 0.3,
+          "status": "stale"
+        }
+      ]
+    },
+    "zeroEffectiveness": {
+      "score": 0.5,
+      "status": "active",
+      "detail": "Strategy: focused, effectiveness: 0"
+    }
+  },
+  "lifecycle": {
+    "requestsPendingBeforeStop": 2,
+    "stoppedBefore": {
+      "running": false,
+      "lastNarrative": null,
+      "coherenceScore": null,
+      "awarenessScore": null,
+      "mood": null,
+      "tier": null,
+      "sensitivity": 0.5,
+      "lastGeneratedAt": null,
+      "lastDurationMs": null,
+      "gateTier": "AWAKENING",
+      "snapshotsStored": 0
+    },
+    "stoppedAfter": {
+      "running": false,
+      "lastNarrative": "Completed after stop.",
+      "coherenceScore": 0.8,
+      "awarenessScore": 0.6,
+      "mood": "neutral",
+      "tier": "AWAKENING",
+      "sensitivity": 0.5,
+      "lastGeneratedAt": 1800000120000,
+      "lastDurationMs": null,
+      "gateTier": "AWAKENING",
+      "snapshotsStored": 2
+    },
+    "lateBusEvents": 2
+  },
+  "dreams": {
+    "defaultRoute": {
+      "status": 200,
+      "dreamNumber": null
+    },
+    "explicitSignerControl": {
+      "dreamNumber": 17
+    },
+    "zeroRatings": {
+      "novelty": 0.5,
+      "feasibility": 0.5,
+      "coherence": 0.5,
+      "awareness": 0.5
+    },
+    "fallback": {
+      "id": "80724d81-f617-499d-abd1-4a8beb494e1c",
+      "solution": "Dream-solving encountered turbulence: fixture Ollama unavailable. The problem \"Improve local memory retrieval\" remains in the dream queue.",
+      "novelty": 0.2,
+      "error": null
+    },
+    "unsaved": {
+      "returnedId": "990a0baf-4d9c-4dbf-aa71-702462ed5e4d",
+      "stored": false,
+      "eventPublished": true
+    }
+  },
+  "logs": [],
+  "summary": "Implemented, changes requested. Status responses and direct controls do not establish fleet action, neural injection, lifecycle cancellation, durable success, calibrated emotions or model competence."
+}
