@@ -105,6 +105,7 @@ import { installPredictiveRoutes } from './intelligence/predictive-processing.js
 import { installActiveInferenceRoutes } from './intelligence/active-inference.js';
 import { installNarrativeRoutes } from './intelligence/self-narrative.js';
 import { installDreamSolverRoutes } from './intelligence/dream-solver.js';
+import { installCipherRoutes } from './intelligence/cipher.js';
 import { installIntelligenceMonitorRoutes } from './intelligence/intelligence-monitor.js';
 import { installHiveBridgeRoutes } from './intelligence/hive-bridge-routes.js';
 import { installHiveExportRoutes } from './intelligence/hive-export-routes.js';
@@ -283,6 +284,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installActiveInferenceRoutes(app);
   installNarrativeRoutes(app);
   installDreamSolverRoutes(app);
+  installCipherRoutes(app);
   installIntelligenceMonitorRoutes(app);
   installHiveBridgeRoutes(app);
   installHiveExportRoutes(app);

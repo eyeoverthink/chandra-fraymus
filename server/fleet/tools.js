@@ -25,6 +25,7 @@ import { getPredictiveStatus, getPredictiveHistory } from '../intelligence/predi
 import { getActiveInferenceStatus, getActiveInferenceHistory } from '../intelligence/active-inference.js';
 import { getNarrativeStatus, narrateNow } from '../intelligence/self-narrative.js';
 import { getDreamSolverStatus, solveDream } from '../intelligence/dream-solver.js';
+import { composeCipher, runCipher, evolveCipher, nestCipher, getCipher, listCiphers, getCipherStats, deactivateCipher } from '../intelligence/cipher.js';
 import { getIntelligenceMonitorStatus, assessNow as assessIntelligence } from '../intelligence/intelligence-monitor.js';
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
@@ -552,6 +553,96 @@ export function createFleetTools({ workflowStore }) {
         const status = getDreamSolverStatus();
         ledger.record('dream-solve.read', { sessions: status.totalSessions, tier: status.gateTier }, 'fleet');
         return status;
+      },
+    },
+    {
+      name: 'cipher_compose',
+      group: 'intelligence',
+      risk: 'approval_required',
+      description: 'Agent Cipher: compose a new persistent team from a natural language goal. Uses trust scores, emotional tone analysis (Heart engine), and LLM-driven team design to select agents, assign roles (lead/specialist/critic/synthesizer), and set communication topology (chain/mesh/hub-spoke/pipeline). Returns saved cipher recipe.',
+      parameters: object({
+        goal: { type: 'string', description: 'Natural language description of what the team should accomplish (required)' },
+        context: { type: 'string', description: 'Optional additional context for team composition' },
+      }),
+      execute: async ({ args }) => {
+        if (!args.goal) return { error: 'goal is required' };
+        const result = await composeCipher(args.goal, { context: args.context, composedBy: 'fleet' });
+        ledger.record('cipher.compose', { cipher: result.name, members: result.members?.length, topology: result.topology, emotion: result.emotionalTone?.primary }, 'fleet');
+        return result;
+      },
+    },
+    {
+      name: 'cipher_run',
+      group: 'intelligence',
+      risk: 'approval_required',
+      description: 'Agent Cipher: run an existing cipher team on a task. The team executes using its saved topology (chain/mesh/hub-spoke/pipeline), with Heart analyzing the emotional tone of the task and the output. Returns contributions from each member plus synthesized output.',
+      parameters: object({
+        cipher: { type: 'string', description: 'Cipher name or ID (required)' },
+        task: { type: 'string', description: 'The task for the team to work on (required)' },
+      }),
+      execute: async ({ args }) => {
+        if (!args.cipher || !args.task) return { error: 'cipher and task are required' };
+        const result = await runCipher(args.cipher, args.task);
+        ledger.record('cipher.run', { cipher: result.cipherName, quality: result.quality, status: result.status, taskEmotion: result.emotionalTone?.task?.primary }, 'fleet');
+        return result;
+      },
+    },
+    {
+      name: 'cipher_evolve',
+      group: 'intelligence',
+      risk: 'approval_required',
+      description: 'Agent Cipher: evolve an existing cipher team based on performance history. Mutations include: replace weakest agent, add a critic, change topology, or tune parameters. Requires at least 2 prior runs.',
+      parameters: object({
+        cipher: { type: 'string', description: 'Cipher name or ID to evolve (required)' },
+        reason: { type: 'string', description: 'Optional reason for evolution' },
+      }),
+      execute: async ({ args }) => {
+        if (!args.cipher) return { error: 'cipher is required' };
+        const result = await evolveCipher(args.cipher, { reason: args.reason });
+        ledger.record('cipher.evolve', { cipher: result.name, mutation: result.mutationType, version: result.toVersion }, 'fleet');
+        return result;
+      },
+    },
+    {
+      name: 'cipher_nest',
+      group: 'intelligence',
+      risk: 'approval_required',
+      description: 'Agent Cipher: nest one cipher as a sub-team of another, creating teams-of-teams hierarchical composition. Prevents circular nesting.',
+      parameters: object({
+        parent: { type: 'string', description: 'Parent cipher name or ID (required)' },
+        child: { type: 'string', description: 'Child cipher name or ID to nest (required)' },
+      }),
+      execute: async ({ args }) => {
+        if (!args.parent || !args.child) return { error: 'parent and child are required' };
+        const result = nestCipher(args.parent, args.child);
+        ledger.record('cipher.nest', { parent: result.parentName, child: result.childName }, 'fleet');
+        return result;
+      },
+    },
+    {
+      name: 'cipher_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Agent Cipher: list saved cipher teams, get a specific cipher, or get aggregate stats. Without a cipher name, returns stats overview.',
+      parameters: object({
+        cipher: { type: 'string', description: 'Optional cipher name or ID for detail view' },
+        mode: { type: 'string', description: 'Optional: "list" lists all active ciphers, "stats" for aggregate stats' },
+      }),
+      execute: async ({ args }) => {
+        if (args.cipher) {
+          const c = getCipher(args.cipher);
+          if (!c) return { error: 'Cipher not found' };
+          ledger.record('cipher.read', { cipher: c.name, version: c.version, runs: c.total_runs }, 'fleet');
+          return { ...c, members: JSON.parse(c.members), sub_ciphers: JSON.parse(c.sub_ciphers || '[]') };
+        }
+        if (args.mode === 'list') {
+          const teams = listCiphers();
+          ledger.record('cipher.list', { count: teams.length }, 'fleet');
+          return { teams };
+        }
+        const stats = getCipherStats();
+        ledger.record('cipher.stats', { total: stats.total, totalRuns: stats.totalRuns }, 'fleet');
+        return stats;
       },
     },
     {

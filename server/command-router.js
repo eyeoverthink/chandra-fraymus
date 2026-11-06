@@ -75,6 +75,9 @@ const PIPELINE_ALIASES = {
   'challenge': 'arena',
   'swarm': 'swarm',
   'hive': 'swarm',
+  'cipher': 'cipher',
+  'team': 'cipher',
+  'compose-team': 'cipher',
   'perspective': 'perspective',
   'workspace': 'workspace',
   'docs': 'workspace',
@@ -105,6 +108,7 @@ const PIPELINE_ENDPOINTS = {
   'model-router': '/api/model-router/select',
   arena: '/api/perspective/arena',
   swarm: '/api/swarm/initiate',
+  cipher: '/api/intelligence/cipher/compose',
   perspective: '/api/perspective/assess',
   workspace: '/api/workspace/generate',
 };
@@ -189,6 +193,7 @@ export function installCommandRouter(app, { broadcast }) {
             : pipeline === 'swarm' ? { task: arg }
             : pipeline === 'perspective' ? { task: arg, context: 'command-router' }
             : pipeline === 'workspace' ? (arg ? { outputDir: arg } : {})
+            : pipeline === 'cipher' ? { goal: arg }
             : {};
           const method = pipeline === 'observatory' ? 'GET' : 'POST';
           const fetchOpts = method === 'GET'
