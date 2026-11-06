@@ -50,6 +50,7 @@ import OuroborosLineagePanel from '../panels/OuroborosLineagePanel.jsx';
 import IntegrityPanel from '../panels/IntegrityPanel.jsx';
 import CrossTabPanel from '../panels/CrossTabPanel.jsx';
 import ContentNexusPanel from '../panels/ContentNexusPanel.jsx';
+import ObservabilityPanel from '../panels/ObservabilityPanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -102,6 +103,7 @@ const PANELS = {
   integrity: { component: IntegrityPanel, label: 'System Integrity' },
   'cross-tab': { component: CrossTabPanel, label: 'Cross-Tab Intelligence' },
   'content-nexus': { component: ContentNexusPanel, label: 'Content Nexus' },
+  observability: { component: ObservabilityPanel, label: 'Observability' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health, onOpenPanel }) {

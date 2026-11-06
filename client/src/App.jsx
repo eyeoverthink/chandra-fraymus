@@ -71,6 +71,7 @@ const NAV_GROUPS = [
       { panel: 'memory', title: 'Memory Browser', icon: '💭', label: 'Memory' },
       { panel: 'integrity', title: 'System Integrity', icon: '🔒', label: 'Integrity' },
       { panel: 'content-nexus', title: 'Content Nexus', icon: '📡', label: 'Content Nexus' },
+      { panel: 'observability', title: 'Observability', icon: '🔍', label: 'Observability' },
     ],
   },
 ];
@@ -197,6 +198,7 @@ export default function App() {
     if (action === 'subconscious') { setDrawer({ panel: 'subconscious', title: 'Subconscious Engine' }); return; }
     if (action === 'ouroboros-cycle') { setDrawer({ panel: 'ouroboros-cycle', title: 'Ouroboros RSI' }); return; }
     if (action === 'ouroboros-lineage') { setDrawer({ panel: 'ouroboros-lineage', title: 'Ouroboros Lineage' }); return; }
+    if (action === 'observability') { setDrawer({ panel: 'observability', title: 'Observability' }); return; }
     if (action.startsWith('view:')) {
       setView(action.slice(5));
       setDrawer(null);

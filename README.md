@@ -1488,6 +1488,20 @@ Full deployment stack: multi-stage Docker build with health checks, nginx revers
 - Gateway analytics: hourly/daily stats, top paths, top API keys, log pruning
 - 2 gateway endpoints: `GET /api/gateway/stats`, `POST /api/gateway/prune`
 
+### Phase F: Structured Observability (2026-11-06)
+
+> **Structured JSON logging, Prometheus metrics, alert webhooks, and a full observability panel. The system can now be monitored.**
+
+Production observability stack: structured JSON logger with 50MB file rotation and buffered async writes, Prometheus-compatible metrics export with P99 latency via SQL OFFSET, alert webhook delivery with per-hook severity filtering, and a 4-tab Observability panel (Gateway, Metrics, Webhooks, Config) with live stat cards, traffic bar charts, webhook CRUD, and runtime log level control.
+
+**Shipped:**
+- Structured JSON logger: file rotation (50MB, 5 files), buffered 1s flush, request correlation via X-Request-Id, log level hierarchy (debug→fatal)
+- Prometheus metrics: process/gateway/fleet/bus/intelligence/health/db collectors, `text/plain; version=0.0.4` export, P99 via SQL OFFSET
+- Alert webhooks: severity filtering (info/warning/critical ranking), X-Webhook-Secret header, 10s timeout, delivery audit trail
+- Observability panel: 4-tab UI (Gateway traffic + top paths, Metrics dashboard, Webhook CRUD + test, Config with log level + system info)
+- Request logging middleware: auto-logs method/path/status/duration/requestId on every response
+- 12 REST endpoints across logger (3), metrics (3), webhooks (6)
+
 ### Forecast: System Growth Trajectory
 
 | Metric | Current (Nov 2026) | Target (Q1 2027) | Target (Q2 2027) |

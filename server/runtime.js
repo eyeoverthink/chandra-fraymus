@@ -70,6 +70,9 @@ import { installCommandRouter } from './command-router.js';
 import { installWorkspaceRoutes } from './workspace/routes.js';
 import { installDeployRoutes } from './deploy-api/routes.js';
 import { gatewayMiddleware, apiVersionRouter, installGatewayRoutes } from './deploy-api/gateway.js';
+import { installLoggerRoutes, requestLogger } from './observability/logger.js';
+import { installMetricsExportRoutes } from './observability/metrics-export.js';
+import { installAlertWebhookRoutes } from './observability/alert-webhook.js';
 import { initBus } from './fleet/bus.js';
 import { installBusRoutes } from './fleet/bus-routes.js';
 import { initTriggers, installTriggerRoutes } from './fleet/bus-triggers.js';
@@ -247,6 +250,10 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   app.use(gatewayMiddleware());
   app.use(apiVersionRouter());
   installGatewayRoutes(app);
+  app.use(requestLogger());
+  installLoggerRoutes(app);
+  installMetricsExportRoutes(app);
+  installAlertWebhookRoutes(app);
 
   installFraymusRoutes(app, { autonomy, broadcast, memoryBridge });
   installSynthesisRoutes(app);
