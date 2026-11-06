@@ -1555,6 +1555,19 @@ Full-stack database optimization layer: automated index analyzer with heuristic-
 - 4-tab DB Optimize panel (Tables, Indexes, WAL, Retention) with expandable table inspector, severity-coded recommendations, WAL stats, retention preview
 - 22 REST endpoints across 3 modules: index-analyzer (6), wal-tuner (8), retention (8)
 
+### Phase K: Process Supervisor & Auto-Healing (2026-11-06)
+
+> **Node.js process monitoring, auto-healing from stuck states, and subsystem health orchestration. Phase J optimized the data layer, Phase K ensures the runtime itself stays healthy under autonomous operation.**
+
+Full-stack process supervision layer: real-time Node.js internals monitoring via perf_hooks (event loop delay histogram with p50/p99/max, heap memory trend analysis with 6-sample rolling window, RSS tracking, active handles/requests counting), persistent snapshots to SQLite. Auto-healer with 5 detection checks (event loop lag > 500ms, heap pressure > 512MB, sustained heap growth, handle leak > 500, self-pruning) and recovery actions (force GC, WAL checkpoint, warning escalation). Health orchestrator with 7 subsystem checks (database connectivity, Ollama availability, schema integrity, WAL health, disk space, process memory, event loop responsiveness), Kubernetes-style readiness/liveness probes returning 200/503 status codes, and check history.
+
+**Shipped:**
+- Process monitor: event loop delay histogram (p50/p99/max via monitorEventLoopDelay), heap trend detection (growing/stable/shrinking), handle/request counting, SVG sparkline
+- Auto-healer: 5 detection checks with severity levels (info/warning/critical), automatic GC forcing, WAL passive checkpoint on memory pressure, 7-day event auto-pruning
+- Health orchestrator: 7 subsystem checks (database, Ollama, schema, WAL, disk, memory, event loop), readiness + liveness probes, full check history
+- 3-tab Supervisor panel (Process, Healer, Orchestrator) with live stat cards, heap trend sparkline, healing event timeline, subsystem results grid, probe status
+- 16 REST endpoints across 3 modules: process-monitor (5), auto-healer (5), health-orchestrator (6)
+
 ### Forecast: System Growth Trajectory
 
 | Metric | Current (Nov 2026) | Target (Q1 2027) | Target (Q2 2027) |

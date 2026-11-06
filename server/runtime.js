@@ -85,6 +85,9 @@ import { etag, installETagRoutes } from './caching/etag.js';
 import { installIndexAnalyzerRoutes } from './db-optimize/index-analyzer.js';
 import { installWalTunerRoutes, startScheduledMaintenance } from './db-optimize/wal-tuner.js';
 import { installRetentionRoutes, startScheduledRetention } from './db-optimize/retention.js';
+import { installProcessMonitorRoutes, startProcessMonitor } from './supervisor/process-monitor.js';
+import { installAutoHealerRoutes, startAutoHealer } from './supervisor/auto-healer.js';
+import { installHealthOrchestratorRoutes } from './supervisor/health-orchestrator.js';
 import { initBus } from './fleet/bus.js';
 import { installBusRoutes } from './fleet/bus-routes.js';
 import { initTriggers, installTriggerRoutes } from './fleet/bus-triggers.js';
@@ -288,6 +291,12 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installRetentionRoutes(app);
   startScheduledMaintenance();
   startScheduledRetention();
+
+  installProcessMonitorRoutes(app);
+  installAutoHealerRoutes(app);
+  installHealthOrchestratorRoutes(app);
+  startProcessMonitor();
+  startAutoHealer();
 
   installFraymusRoutes(app, { autonomy, broadcast, memoryBridge });
   installSynthesisRoutes(app);
