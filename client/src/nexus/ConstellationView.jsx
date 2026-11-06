@@ -312,6 +312,26 @@ export default function ConstellationView({ wsEvent, onOpenDrawer, onNavigate })
           );
         })}
 
+        {/* Data-flow particles — animated dots traveling along active edges */}
+        {EDGES.map(([a, b], i) => {
+          const pa = positions[a]; const pb = positions[b];
+          if (!pa || !pb) return null;
+          if (!edgeActive(a, b)) return null;
+          const nodeA = NODES.find(n => n.id === a);
+          const color = nodeA?.color || '#a78bfa';
+          const pathD = `M${pa.x.toFixed(1)},${pa.y.toFixed(1)} L${pb.x.toFixed(1)},${pb.y.toFixed(1)}`;
+          const glow = Math.max(glowIntensity(a), glowIntensity(b));
+          return (
+            <g key={`flow-${a}-${b}`} opacity={0.5 + glow * 0.4}>
+              {[0, 0.7, 1.4].map((delay, pi) => (
+                <circle key={pi} r={2.5 - pi * 0.3} fill={color} opacity={0.8 - pi * 0.15}>
+                  <animateMotion dur="2s" repeatCount="indefinite" begin={`${delay}s`} path={pathD} />
+                </circle>
+              ))}
+            </g>
+          );
+        })}
+
         {NODES.filter(n => n.ring <= 2).map(n => {
           const p = positions[n.id];
           const active = isActive(n.id);
