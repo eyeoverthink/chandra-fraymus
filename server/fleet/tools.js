@@ -27,6 +27,7 @@ import { getNarrativeStatus, narrateNow } from '../intelligence/self-narrative.j
 import { getDreamSolverStatus, solveDream } from '../intelligence/dream-solver.js';
 import { composeCipher, runCipher, evolveCipher, nestCipher, getCipher, listCiphers, getCipherStats, deactivateCipher } from '../intelligence/cipher.js';
 import { getIntelligenceMonitorStatus, assessNow as assessIntelligence } from '../intelligence/intelligence-monitor.js';
+import { searchNodes, contextualRecall, getStats as getKnowledgeGraphStats, consolidateGraph, findClusters } from '../intelligence/knowledge-graph.js';
 import { generateGoals, listProposals, updateProposalStatus } from '../intelligence/goal-engine.js';
 import { runDebate, listDebates } from '../intelligence/debate.js';
 import { selectModel, routingStats, logRouting } from '../intelligence/model-router.js';
@@ -2304,6 +2305,48 @@ export function createFleetTools({ workflowStore }) {
         const { generateWorkspaceDocs } = await import('../workspace/doc-generator.js');
         const outputDir = args.outputDir || './data/workspace';
         return generateWorkspaceDocs(outputDir);
+      },
+    },
+
+    {
+      name: 'knowledge_graph_query',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Phase C: Second Brain Knowledge Graph — query the semantic graph of memories, reflections, fossils, and agents. Modes: default (stats), "search" (text search nodes), "recall" (contextual recall with BFS traversal), "clusters" (find connected clusters), "consolidate" (trigger full re-index of memories/reflections/fossils into graph with semantic edge building).',
+      parameters: object({
+        mode: { type: 'string', description: 'Query mode: "search", "recall", "clusters", "consolidate", or omit for stats' },
+        query: { type: 'string', description: 'Search text (for search/recall modes)' },
+        limit: { type: 'number', description: 'Max results (default 10)' },
+        type: { type: 'string', description: 'Filter by node type: memory, reflection, fossil, agent' },
+      }),
+      execute: async ({ args }) => {
+        const mode = (args.mode || '').toLowerCase();
+        const limit = Math.min(50, Math.max(1, parseInt(args.limit) || 10));
+        if (mode === 'search') {
+          if (!args.query) return { error: 'query parameter required for search mode' };
+          const results = searchNodes(args.query, { type: args.type, limit });
+          ledger.record('knowledge-graph.search', { query: args.query.slice(0, 80), hits: results.length }, 'fleet');
+          return { results, count: results.length };
+        }
+        if (mode === 'recall') {
+          if (!args.query) return { error: 'query parameter required for recall mode' };
+          const results = contextualRecall(args.query, { limit });
+          ledger.record('knowledge-graph.recall', { query: args.query.slice(0, 80), hits: results.length }, 'fleet');
+          return { results, count: results.length };
+        }
+        if (mode === 'clusters') {
+          const clusters = findClusters();
+          ledger.record('knowledge-graph.clusters', { clusterCount: clusters.length }, 'fleet');
+          return { clusters, count: clusters.length };
+        }
+        if (mode === 'consolidate') {
+          const result = consolidateGraph();
+          ledger.record('knowledge-graph.consolidate', { nodes: result.stats.nodeCount, edges: result.stats.edgeCount, pruned: result.pruned }, 'fleet');
+          return result;
+        }
+        const stats = getKnowledgeGraphStats();
+        ledger.record('knowledge-graph.status', { nodes: stats.nodeCount, edges: stats.edgeCount }, 'fleet');
+        return stats;
       },
     },
   ];

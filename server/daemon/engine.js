@@ -27,6 +27,7 @@ import { setNarrativeHeart, setNarrativeCTRNN, startNarrative, stopNarrative, re
 import { setDreamSolverCTRNN, setDreamSolverDreamer, getDreamSolverStatus, resetDreamSolver } from '../intelligence/dream-solver.js';
 import { setMonitorCTRNN, startIntelligenceMonitor, stopIntelligenceMonitor, resetIntelligenceMonitor, getIntelligenceMonitorStatus } from '../intelligence/intelligence-monitor.js';
 import { exportChandraReceipts, getExportStats } from '../intelligence/hive-export.js';
+import { consolidateGraph, getStats as getKnowledgeGraphStats } from '../intelligence/knowledge-graph.js';
 import { readChart, getLineageStats } from '../intelligence/lineage.js';
 import { startUserSensorium, stopUserSensorium, resetUserSensorium, getUserSensoriumStatus } from '../awareness/user-sensorium.js';
 import { startNudgeEngine, stopNudgeEngine, getNudgeStatus } from '../awareness/proactive-nudge.js';
@@ -462,6 +463,14 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
       stepResults.hiveExport = { error: e.message };
     }
 
+    // Step 13: Knowledge Graph — consolidate memories/reflections/fossils into semantic graph
+    try {
+      const kgResult = consolidateGraph();
+      stepResults.knowledgeGraph = { nodes: kgResult.stats.nodeCount, edges: kgResult.stats.edgeCount, pruned: kgResult.pruned, durationMs: kgResult.durationMs };
+    } catch (e) {
+      stepResults.knowledgeGraph = { error: e.message };
+    }
+
     const duration = now() - t0;
 
     db.prepare(
@@ -493,6 +502,8 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
         resourcePressure: stepResults.resourceEnvelope?.pressure ?? 0,
         resourceFatigue: stepResults.resourceEnvelope?.fatigue ?? 0,
         resourceLevel: stepResults.resourceEnvelope?.level ?? 'LOW',
+        knowledgeGraphNodes: stepResults.knowledgeGraph?.nodes ?? 0,
+        knowledgeGraphEdges: stepResults.knowledgeGraph?.edges ?? 0,
         hiveExported: stepResults.hiveExport?.exported ?? 0,
         hiveChainLength: stepResults.hiveExport?.chainLength ?? 0,
         durationMs: duration, at: t0,

@@ -20,6 +20,7 @@ import { buildPromptContext as akashicPromptContext } from '../intelligence/akas
 import { record as replayRecord } from '../intelligence/replay-engine.js';
 import { buildSpatialContext } from '../intelligence/self-model.js';
 import { buildLineageContext } from '../intelligence/lineage.js';
+import { contextualRecall } from '../intelligence/knowledge-graph.js';
 
 const MAX_STEPS = 8;
 const MAX_HISTORY = 40;
@@ -199,7 +200,16 @@ async function systemPrompt(agent, userId) {
     lineageBlock = buildLineageContext();
   } catch (_) {}
 
-  return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}${intelligenceBlock}${bridgeBlock}${agentMemBlock}${akashicBlock}${perspectiveBlock}${consciousnessBlock}${selfModelBlock}${lineageBlock}`;
+  // Knowledge Graph — semantic recall from the second brain
+  let graphBlock = '';
+  try {
+    const graphResults = contextualRecall(agent.name + ' ' + (agent.role || ''), { agentId: agent.id, limit: 3 });
+    if (graphResults.length) {
+      graphBlock = `\n\nKnowledge graph: ${graphResults.map(r => `[${r.type}] ${r.label}: ${String(r.content).slice(0, 80)}`).join(' | ')}`;
+    }
+  } catch (_) {}
+
+  return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}${intelligenceBlock}${bridgeBlock}${agentMemBlock}${akashicBlock}${perspectiveBlock}${consciousnessBlock}${selfModelBlock}${lineageBlock}${graphBlock}`;
 }
 
 async function chat(messages, tools, model) {

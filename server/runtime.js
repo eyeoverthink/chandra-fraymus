@@ -111,6 +111,7 @@ import { installHiveBridgeRoutes } from './intelligence/hive-bridge-routes.js';
 import { installHiveExportRoutes } from './intelligence/hive-export-routes.js';
 import { installLineageRoutes } from './intelligence/lineage-routes.js';
 import { installDossierRoutes } from './intelligence/dossier-engine-routes.js';
+import { migrateKnowledgeGraph, installKnowledgeGraphRoutes } from './intelligence/knowledge-graph.js';
 import { installUserSensoriumRoutes } from './awareness/user-sensorium.js';
 import { installNudgeRoutes, setNudgeBroadcast } from './awareness/proactive-nudge.js';
 import { installProtocolRoutes } from './awareness/protocol-engine.js';
@@ -299,6 +300,8 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installHiveExportRoutes(app);
   installLineageRoutes(app);
   installDossierRoutes(app);
+  try { migrateKnowledgeGraph(); } catch (e) { console.error('[knowledge-graph] migration failed (non-fatal):', e.message); }
+  installKnowledgeGraphRoutes(app);
   installIntegrityRoutes(app);
   installPlasmidRoutes(app);
   installGovernanceRoutes(app, { broadcast, dreamer, remembered, ledger, ouroboros });
