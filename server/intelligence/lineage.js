@@ -98,9 +98,16 @@ const AGE_TIERS = [
         const disc = b * b - 4 * a * c;
         if (disc < 0) return { real: false, discriminant: disc };
         const sqrtD = Math.sqrt(disc);
-        const q = -0.5 * (b + Math.sign(b || 1) * sqrtD);
-        const x1 = q / a;
-        const x2 = c / q;
+        let x1, x2;
+        if (b === 0) {
+          // No cancellation risk when b=0; standard formula is exact
+          x1 = sqrtD / (2 * a);
+          x2 = -sqrtD / (2 * a);
+        } else {
+          const q = -0.5 * (b + Math.sign(b) * sqrtD);
+          x1 = q / a;
+          x2 = c / q;
+        }
         return {
           real: true,
           discriminant: disc,

@@ -213,8 +213,9 @@ export function createRETools() {
         if (!path) throw new Error('dossierPath required');
         const parsed = parseDossier(path);
         const { execFileSync } = await import('node:child_process');
-        const { writeFileSync, unlinkSync, mkdirSync, rmSync } = await import('node:fs');
-        const { join, resolve } = await import('node:path');
+        const { writeFileSync, mkdirSync, mkdtempSync, rmSync } = await import('node:fs');
+        const { join } = await import('node:path');
+        const { tmpdir } = await import('node:os');
 
         // Detect compiler availability before attempting compilation
         let compilerAvailable = false;
@@ -237,9 +238,8 @@ export function createRETools() {
           };
         }
 
-        // Use a dedicated temp directory outside the dossier to prevent path traversal
-        const tmpDir = resolve(path, '..', `_compile_test_${Date.now()}`);
-        mkdirSync(tmpDir, { recursive: true });
+        // Use OS temp with cryptographic randomness to prevent collisions
+        const tmpDir = mkdtempSync(join(tmpdir(), 'chandra-compile-'));
 
         let compiled = 0;
         let failed = 0;

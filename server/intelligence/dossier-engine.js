@@ -164,29 +164,41 @@ export function parseImports(text) {
     }
 
     // Whitespace-column format from upstream rabin2 -i:
-    //   1    GLOBAL FUNC   libSystem.B.dylib printf
-    // Pattern: ordinal, bind, type, lib, name separated by whitespace
-    const wsMatch = trimmed.match(/^(\d+)\s+(GLOBAL|LOCAL|WEAK|NONE)\s+(FUNC|OBJECT|NOTYPE|TLS)\s+(\S+)\s+(\S+)/i);
-    if (wsMatch) {
+    // Columns vary by platform and rabin2 version. Rather than
+    // allowlisting specific bind/type values, split on whitespace
+    // and take the last column as the name, second-to-last as lib.
+    const wsCols = trimmed.split(/\s+/);
+    if (wsCols.length >= 5 && /^\d+$/.test(wsCols[0])) {
       imports.push({
-        ordinal: parseInt(wsMatch[1]) || 0,
-        bind: wsMatch[2],
-        type: wsMatch[3],
-        lib: wsMatch[4],
-        name: wsMatch[5],
+        ordinal: parseInt(wsCols[0]) || 0,
+        bind: wsCols[1],
+        type: wsCols[2],
+        lib: wsCols[wsCols.length - 2],
+        name: wsCols[wsCols.length - 1],
+      });
+      continue;
+    }
+
+    // 3-4 column variant: ordinal bind/type name (no lib)
+    if (wsCols.length >= 3 && wsCols.length < 5 && /^\d+$/.test(wsCols[0])) {
+      imports.push({
+        ordinal: parseInt(wsCols[0]) || 0,
+        bind: wsCols.length >= 4 ? wsCols[1] : 'GLOBAL',
+        type: wsCols.length >= 4 ? wsCols[2] : wsCols[1],
+        lib: '',
+        name: wsCols[wsCols.length - 1],
       });
       continue;
     }
 
     // Simpler whitespace-column: ordinal name (no bind/type/lib)
-    const simpleWs = trimmed.match(/^(\d+)\s+(\S+)\s*$/);
-    if (simpleWs) {
+    if (wsCols.length === 2 && /^\d+$/.test(wsCols[0])) {
       imports.push({
-        ordinal: parseInt(simpleWs[1]) || 0,
+        ordinal: parseInt(wsCols[0]) || 0,
         bind: 'GLOBAL',
         type: 'FUNC',
         lib: '',
-        name: simpleWs[2],
+        name: wsCols[1],
       });
     }
   }
@@ -278,12 +290,6 @@ export function verifyDossierSeal(dossierDir) {
     return { status: 'valid', detail: 'Seal matches file manifest (name:hash format)' };
   }
 
-  // If the dossier is a subset (e.g., ghidra.log absent), we cannot reconstruct
-  // the original sealed manifest — return unverifiable, not invalid
-  if (fileHashes.size < 5) {
-    return { status: 'unverifiable', detail: `Only ${fileHashes.size} files present; original sealed file list may be larger. Cannot reconstruct original manifest.` };
-  }
-
   return { status: 'invalid', detail: `Seal mismatch: seal ${sealHex.slice(0, 16)}..., shasum-format ${shasumComputed.slice(0, 16)}..., name:hash-format ${origComputed.slice(0, 16)}...` };
 }
 
@@ -319,9 +325,12 @@ export function gradeEvidence(parsedFunctions, annotations, imports, binarySha =
     let grade = 'measured';
     let confidence = GRADE_CONFIDENCE.measured;
 
-    // Check if the function's imports have been verified
+    // Check if the function's imports are called (word-boundary match, not substring)
     const importHits = imports
-      .filter(imp => fn.body.includes(imp.name))
+      .filter(imp => {
+        const escaped = imp.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return new RegExp(`\\b${escaped}\\s*\\(`).test(fn.body);
+      })
       .map(imp => imp.name);
 
     const verifiedHits = importHits.filter(n => verifiedImportNames.has(n));
