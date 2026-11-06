@@ -139,7 +139,31 @@ function collectState() {
     } catch (_) { return { mood: 'unknown', readings: 0, distribution: {} }; }
   })();
 
-  return { memoryStats, workflowStats, healthStats, busStats, forgeStats, synthesisStats, debateStats, goalStats, chainStats, routingStats, perspectiveStats, emotionStats, collectedAt: now() };
+  const reAgentStats = (() => {
+    try {
+      const dossierCount = db.prepare(
+        `SELECT COUNT(*) as c FROM agent_memories WHERE agent_id = 're-analyst' AND category = 'binary_dossier'`
+      ).get()?.c || 0;
+      const recentDossiers = db.prepare(
+        `SELECT COUNT(*) as c FROM agent_memories WHERE agent_id = 're-analyst' AND category = 'binary_dossier' AND updated_at > ?`
+      ).get(now() - 3_600_000)?.c || 0;
+      const debateTotal = db.prepare(
+        `SELECT COUNT(*) as c FROM agent_memories WHERE agent_id = 're-analyst' AND category = 'binary_dossier' AND key LIKE 'debate_%'`
+      ).get()?.c || 0;
+      const debateConfirmed = db.prepare(
+        `SELECT COUNT(*) as c FROM agent_memories WHERE agent_id = 're-analyst' AND category = 'binary_dossier' AND key LIKE 'debate_%' AND value LIKE '%CONFIRMED%'`
+      ).get()?.c || 0;
+      const debateChallenged = db.prepare(
+        `SELECT COUNT(*) as c FROM agent_memories WHERE agent_id = 're-analyst' AND category = 'binary_dossier' AND key LIKE 'debate_%' AND value LIKE '%CHALLENGED%'`
+      ).get()?.c || 0;
+      const lowConfidence = db.prepare(
+        `SELECT COUNT(*) as c FROM agent_memories WHERE agent_id = 're-analyst' AND category = 'binary_dossier' AND confidence < 0.5`
+      ).get()?.c || 0;
+      return { dossierCount, recentDossiers, debateTotal, debateConfirmed, debateChallenged, lowConfidence };
+    } catch (_) { return { dossierCount: 0, recentDossiers: 0, debateTotal: 0, debateConfirmed: 0, debateChallenged: 0, lowConfidence: 0 }; }
+  })();
+
+  return { memoryStats, workflowStats, healthStats, busStats, forgeStats, synthesisStats, debateStats, goalStats, chainStats, routingStats, perspectiveStats, emotionStats, reAgentStats, collectedAt: now() };
 }
 
 function buildReflectionPrompt(maxActions, gateTier) {
@@ -154,6 +178,7 @@ You can take these actions (max ${maxActions} per cycle):
 4. synthesize_workflow: {"action": "synthesize_workflow", "goal": "..."} — create a new workflow for a recurring need
 5. publish_insight: {"action": "publish_insight", "topic": "...", "insight": "..."} — share a finding with other agents
 6. run_debate: {"action": "run_debate", "topic": "...", "proposition": "..."} — trigger an adversarial debate between agents on a controversial or uncertain proposition. Use when you see conflicting evidence, a decision with unclear trade-offs, or an assumption that should be stress-tested.
+7. re_analyze: {"action": "re_analyze", "binaryKey": "...", "reason": "..."} — trigger re-analysis of a previously ingested binary dossier when low-confidence annotations or new tools are available. Check reAgentStats for low-confidence dossiers.
 
 Rules:
 - Only take actions when there's clear evidence from the data
@@ -240,6 +265,20 @@ async function executeAction(action) {
           source: 'reflection',
         });
         return { ok: true, action: 'run_debate', debateId: debateResult.id, verdict: debateResult.verdict, confidence: debateResult.confidence };
+      }
+      case 're_analyze': {
+        if (!action.binaryKey) return { ok: false, error: 'binaryKey required' };
+        const opegResult = await opegPipeline({
+          type: 're_reanalysis',
+          hypothesis: `Re-analyzing binary dossier '${action.binaryKey}' may improve analysis quality. Reason: ${action.reason || 'low confidence annotations detected'}`,
+          params: { binaryKey: action.binaryKey, triggeredBy: 'reflection' },
+          source: 'reflection',
+          executeFn: async (p) => {
+            publish('reflection', 'system.re.reanalyze', JSON.stringify({ binaryKey: p.binaryKey, source: 'reflection' }));
+            return { ok: true, published: true, topic: 'system.re.reanalyze' };
+          },
+        });
+        return { ok: opegResult.approved, action: 're_analyze', opeg: opegResult.proposalId, approved: opegResult.approved, binaryKey: action.binaryKey };
       }
       default:
         return { ok: false, error: `unknown action: ${action.action}` };

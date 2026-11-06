@@ -34,6 +34,7 @@ const MODIFICATION_TYPES = [
   'verify_memory',
   'publish_insight',
   'neurogenesis',
+  're_reanalysis',
 ];
 
 function ensureTable() {

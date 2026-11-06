@@ -134,11 +134,27 @@ async function fireAction(regionKey, activation, gateMods) {
 
   try {
     switch (region.action) {
-      case 'reflect':
+      case 'reflect': {
         if (reflectFn) {
           result = await reflectFn({ trigger: 'motor' });
         }
+        try {
+          const lowConfCount = db.prepare(
+            `SELECT COUNT(*) as c FROM agent_memories WHERE agent_id = 're-analyst' AND category = 'binary_dossier' AND confidence < 0.5`
+          ).get()?.c || 0;
+          if (lowConfCount > 0) {
+            publish('motor-cortex', 'system.re.motor-review', JSON.stringify({
+              request: 'dossier_review',
+              lowConfidenceDossiers: lowConfCount,
+              activation: Math.round(activation * 1000) / 1000,
+              tier: gateMods.tier,
+              ts: now(),
+            }));
+            result = { ...result, reReview: { triggered: true, lowConfCount } };
+          }
+        } catch (_) {}
         break;
+      }
 
       case 'neurogenesis':
         if (neurogenesisFn) {
@@ -172,11 +188,27 @@ async function fireAction(regionKey, activation, gateMods) {
         result = { published: true, topic: 'system.motor.impulse' };
         break;
 
-      case 'goals':
+      case 'goals': {
         if (goalsFn) {
           result = await goalsFn({ trigger: 'motor' });
         }
+        try {
+          const uningestedCount = db.prepare(
+            `SELECT COUNT(*) as c FROM agent_memories WHERE agent_id = 're-analyst' AND category = 'binary_dossier' AND key LIKE 'pending_%'`
+          ).get()?.c || 0;
+          if (uningestedCount > 0) {
+            publish('motor-cortex', 'system.re.motor-goal', JSON.stringify({
+              request: 'binary_analysis_goal',
+              pendingDossiers: uningestedCount,
+              activation: Math.round(activation * 1000) / 1000,
+              tier: gateMods.tier,
+              ts: now(),
+            }));
+            result = { ...result, reGoal: { proposed: true, pendingDossiers: uningestedCount } };
+          }
+        } catch (_) {}
         break;
+      }
     }
   } catch (e) {
     console.error(`Motor fire error [${regionKey}]: ${e.message}`);

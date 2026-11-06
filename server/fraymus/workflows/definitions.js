@@ -310,6 +310,57 @@ export const WORKFLOWS = {
     ],
   },
 
+  // ═══ RE Agent — Dossier Analysis Pipeline ═══
+  DossierAnalysis: {
+    trigger: { source: 'bus', event: 'hive.fra-pipeline:dossier' },
+    function: 'reAgentPipeline',
+    action: 'dossier_analysis',
+    description: 'Parse Dossier → Recall Prior → Debate Annotations → Generate Report → Publish Result: RE Agent binary analysis pipeline',
+    canvas_nodes: [
+      { id: 'da1', type: 'llm', position: { x: 100, y: 200 }, data: { type: 'llm', label: 'Parse Dossier', prompt: 'Parse and grade the dossier. Input: {{input}}', model: 'llama3' } },
+      { id: 'da2', type: 'memory_recall', position: { x: 350, y: 200 }, data: { type: 'memory_recall', label: 'Recall Prior', query: 'binary_dossier' } },
+      { id: 'da3', type: 'debate_run', position: { x: 600, y: 200 }, data: { type: 'debate_run', label: 'Debate Annotations', topic: 'binary_annotation' } },
+      { id: 'da4', type: 'llm', position: { x: 850, y: 200 }, data: { type: 'llm', label: 'Generate Report', prompt: 'Compare new analysis with prior knowledge: {{recall.output}}. Debate result: {{debate.output}}', model: 'llama3' } },
+      { id: 'da5', type: 'bus_publish', position: { x: 1100, y: 200 }, data: { type: 'bus_publish', label: 'Publish Result', topic: 'system.re.dossier.analyzed' } },
+    ],
+    canvas_edges: [
+      { id: 'dae1', source: 'da1', target: 'da2' },
+      { id: 'dae2', source: 'da2', target: 'da3' },
+      { id: 'dae3', source: 'da3', target: 'da4' },
+      { id: 'dae4', source: 'da4', target: 'da5' },
+    ],
+  },
+
+  // ═══ RE Agent — Reflection Trigger (thin wrapper for bus trigger) ═══
+  REReflectionTrigger: {
+    trigger: { source: 'bus', event: 'system.re.dossier.processed' },
+    function: 'reReflectionWrapper',
+    action: 'trigger_reflection',
+    description: 'Thin LLM workflow triggered by dossier processing — invokes reflection via /api/intelligence/reflect',
+    canvas_nodes: [
+      { id: 'rr1', type: 'llm', position: { x: 100, y: 200 }, data: { type: 'llm', label: 'Summarize Dossier Event', prompt: 'A dossier was processed. Summarize the event for reflection: {{input}}', model: 'llama3' } },
+      { id: 'rr2', type: 'bus_publish', position: { x: 400, y: 200 }, data: { type: 'bus_publish', label: 'Trigger Reflection', topic: 'system.reflection.request' } },
+    ],
+    canvas_edges: [
+      { id: 'rre1', source: 'rr1', target: 'rr2' },
+    ],
+  },
+
+  // ═══ RE Agent — Debate Alert Workflow (checks verdict, publishes alert) ═══
+  REDebateAlert: {
+    trigger: { source: 'bus', event: 'system.debate.binary' },
+    function: 'reDebateAlert',
+    action: 'check_verdict',
+    description: 'LLM inspects debate verdict text — publishes system.alert if CHALLENGED',
+    canvas_nodes: [
+      { id: 'rd1', type: 'llm', position: { x: 100, y: 200 }, data: { type: 'llm', label: 'Check Verdict', prompt: 'Inspect the following debate result. If the verdict is CHALLENGED, output ALERT with reason. Otherwise output OK. Input: {{input}}', model: 'llama3' } },
+      { id: 'rd2', type: 'bus_publish', position: { x: 400, y: 200 }, data: { type: 'bus_publish', label: 'Publish Alert', topic: 'system.alert' } },
+    ],
+    canvas_edges: [
+      { id: 'rde1', source: 'rd1', target: 'rd2' },
+    ],
+  },
+
   // ═══ External Integration ═══
   GoogleCalendarRealtimeSync: {
     trigger: { source: 'google_calendar', event: 'webhook' },
@@ -319,6 +370,60 @@ export const WORKFLOWS = {
 };
 
 export const WORKFLOW_NAMES = Object.keys(WORKFLOWS);
+
+const RE_WORKFLOW_DEFS = [
+  {
+    id: 'DossierAnalysis',
+    name: 'Dossier Analysis Pipeline',
+    def: WORKFLOWS.DossierAnalysis,
+  },
+  {
+    id: 'REReflectionTrigger',
+    name: 'RE Reflection Trigger',
+    def: WORKFLOWS.REReflectionTrigger,
+  },
+  {
+    id: 'REDebateAlert',
+    name: 'RE Debate Alert',
+    def: WORKFLOWS.REDebateAlert,
+  },
+];
+
+export function installDossierWorkflow(database) {
+  for (const { id, name, def } of RE_WORKFLOW_DEFS) {
+    const existing = database.prepare(`SELECT id FROM workflows WHERE id = ?`).get(id);
+    const nodes = JSON.stringify(def.canvas_nodes || []);
+    const edges = JSON.stringify(def.canvas_edges || []);
+    if (existing) {
+      database.prepare(
+        `UPDATE workflows SET name = ?, description = ?, nodes = ?, edges = ?, updated_at = ? WHERE id = ?`
+      ).run(name, def.description || '', nodes, edges, Date.now(), id);
+    } else {
+      database.prepare(
+        `INSERT INTO workflows (id, user_id, name, description, nodes, edges, created_at, updated_at) VALUES (?, 'system', ?, ?, ?, ?, ?, ?)`
+      ).run(id, name, def.description || '', nodes, edges, Date.now(), Date.now());
+    }
+  }
+  return { installed: RE_WORKFLOW_DEFS.length };
+}
+
+export function installRETriggers(database, createTriggerFn) {
+  const existing = database.prepare(`SELECT topic, workflow_id FROM bus_triggers`).all();
+  const existingMap = new Map(existing.map(r => [`${r.topic}:${r.workflow_id}`, true]));
+  const triggers = [
+    { topic: 'hive.fra-pipeline:dossier', workflowId: 'DossierAnalysis', label: 'RE: Dossier → DossierAnalysis' },
+    { topic: 'system.re.dossier.processed', workflowId: 'REReflectionTrigger', label: 'RE: Processed → Reflection' },
+    { topic: 'system.debate.binary', workflowId: 'REDebateAlert', label: 'RE: Debate → Alert check' },
+  ];
+  let created = 0;
+  for (const t of triggers) {
+    if (!existingMap.has(`${t.topic}:${t.workflowId}`)) {
+      createTriggerFn(t.topic, t.workflowId, t.label);
+      created++;
+    }
+  }
+  return { checked: triggers.length, created };
+}
 
 export function getWorkflow(name) {
   return WORKFLOWS[name] || null;
