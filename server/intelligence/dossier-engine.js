@@ -541,6 +541,72 @@ export function processDossier(dossierDir) {
   };
 }
 
+// ─── Persist Compile Results ─────────────────────────────────
+// Called by re.compile_rate_measure after actual clang measurement.
+// Updates three storage layers: per-function memories, binary summary, and dossier_ingestions.
+
+export function persistCompileResults(binarySha, functionResults, compileRate) {
+  const shaPrefix = (binarySha || 'unknown').slice(0, 16);
+  let updated = 0;
+  const errors = [];
+
+  for (const { name, address, compiled } of functionResults) {
+    const key = `fn:${shaPrefix}:${name}@${address}`;
+    try {
+      const row = db.prepare(
+        `SELECT id, value FROM agent_memories WHERE agent_id = ? AND key = ?`
+      ).get(RE_AGENT_ID, key);
+      if (row) {
+        const val = JSON.parse(row.value);
+        val.compileStatus = compiled;
+        db.prepare(`UPDATE agent_memories SET value = ?, updated_at = ? WHERE id = ?`)
+          .run(JSON.stringify(val), Date.now(), row.id);
+        updated++;
+      }
+    } catch (e) {
+      errors.push({ key, error: e.message });
+    }
+  }
+
+  // Update binary summary memory
+  const summaryKey = `binary:${shaPrefix}`;
+  try {
+    const summaryRow = db.prepare(
+      `SELECT id, value FROM agent_memories WHERE agent_id = ? AND key = ?`
+    ).get(RE_AGENT_ID, summaryKey);
+    if (summaryRow) {
+      const val = JSON.parse(summaryRow.value);
+      val.compileRate = compileRate;
+      db.prepare(`UPDATE agent_memories SET value = ?, updated_at = ? WHERE id = ?`)
+        .run(JSON.stringify(val), Date.now(), summaryRow.id);
+      updated++;
+    }
+  } catch (e) {
+    errors.push({ key: summaryKey, error: e.message });
+  }
+
+  // Update dossier_ingestions table
+  try {
+    db.prepare(
+      `UPDATE dossier_ingestions SET compile_rate = ? WHERE binary_sha256 = ? AND compile_rate IS NULL ORDER BY created_at DESC LIMIT 1`
+    ).run(compileRate, binarySha);
+  } catch (e) {
+    // SQLite may not support ORDER BY in UPDATE on all builds; fall back
+    try {
+      const row = db.prepare(
+        `SELECT id FROM dossier_ingestions WHERE binary_sha256 = ? ORDER BY created_at DESC LIMIT 1`
+      ).get(binarySha);
+      if (row) {
+        db.prepare(`UPDATE dossier_ingestions SET compile_rate = ? WHERE id = ?`).run(compileRate, row.id);
+      }
+    } catch (e2) {
+      errors.push({ key: 'dossier_ingestions', error: e2.message });
+    }
+  }
+
+  return { updated, errors };
+}
+
 // ─── Debate Pipeline (Phase 4) ────────────────────────────────
 // After ingestion, top functions by line count (8-90 lines, same filter
 // as fra-annotate.py) are submitted to adversarial debate. Verdicts

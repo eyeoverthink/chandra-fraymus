@@ -1,7 +1,7 @@
 import { verifyHiveChain } from '../intelligence/hive-bridge.js';
 import { recallMemories, storeMemory } from './agent-memory.js';
 import { db } from '../db.js';
-import { processDossier, getDossier, getDossierFunctions, getDossierFunction, parseDossier } from '../intelligence/dossier-engine.js';
+import { processDossier, getDossier, getDossierFunctions, getDossierFunction, parseDossier, persistCompileResults } from '../intelligence/dossier-engine.js';
 
 const RE_AGENT_ID = 're-analyst';
 
@@ -244,31 +244,37 @@ export function createRETools() {
         let compiled = 0;
         let failed = 0;
         const errors = [];
-        const createdFiles = [];
+        const functionResults = [];
 
         try {
           for (let i = 0; i < parsed.functions.length; i++) {
             const fn = parsed.functions[i];
-            // Sanitized filename: index-based, no user-controlled path components
             const safeFile = join(tmpDir, `fn_${i}.c`);
-            createdFiles.push(safeFile);
             try {
               writeFileSync(safeFile, fn.body);
-              // Spawn with argument vector — no shell interpolation
               execFileSync('clang', ['-fsyntax-only', '-w', safeFile], { timeout: 10_000, stdio: 'pipe' });
               compiled++;
+              functionResults.push({ name: fn.name, address: fn.address, compiled: true });
             } catch (e) {
               failed++;
               errors.push({ name: fn.name, address: fn.address, error: e.stderr?.toString().slice(0, 200) || e.message });
+              functionResults.push({ name: fn.name, address: fn.address, compiled: false });
             }
           }
         } finally {
-          // Clean up only files we created, in our own temp directory
           try { rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
         }
 
         const total = parsed.functions.length;
         const rate = total > 0 ? Math.round((compiled / total) * 10000) / 100 : 0;
+
+        // Persist results back to function memories and dossier_ingestions
+        let persisted = { updated: 0, errors: [] };
+        try {
+          persisted = persistCompileResults(parsed.binary, functionResults, rate);
+        } catch (e) {
+          console.error('[re-tools] compile result persistence failed:', e.message);
+        }
 
         return {
           binary: parsed.binary,
@@ -278,6 +284,7 @@ export function createRETools() {
           compileRate: rate,
           compiler: 'clang',
           sampleErrors: errors.slice(0, 5),
+          persisted: { memoriesUpdated: persisted.updated, errors: persisted.errors.length },
         };
       },
     },
