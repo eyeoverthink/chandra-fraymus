@@ -54,11 +54,29 @@ try {
 // ─── Subsystem Health Checks ──────────────────────────────────
 // Each checker reads the subsystem's latest state and returns 0.0-1.0
 
+// Freshness bounds derived from each producer's actual snapshot cadence.
+// snapshot_interval × snapshot_every + grace. Prevents false staleness.
+const FRESHNESS_BOUNDS = {
+  sensoryBridge:       360_000,  // 5s × 60 ticks = 300s + 60s grace
+  emotionalFeedback:   360_000,  // 10s × 30 ticks = 300s + 60s grace
+  motorOutput:         600_000,  // motor fires are event-driven, 10min grace
+  attentionGate:       360_000,  // synced with sensory (60th call)
+  habituation:         360_000,  // synced with sensory (60th call)
+  workingMemory:       360_000,  // synced with sensory (60th call)
+  metacognitive:       960_000,  // 30s × 30 = 900s + 60s grace
+  adaptiveStrategy:    960_000,  // synced with metacognitive
+  selfModel:           600_000,  // every 20th daemon call, 10min grace
+  resourceEnvelope:    360_000,  // 10s × 30 = 300s + 60s grace
+  predictiveProcessing:360_000,  // synced with sensory (60th call)
+  activeInference:     360_000,  // synced with sensory (60th call)
+};
+
 const SUBSYSTEM_CHECKS = {
   sensoryBridge: () => {
     try {
       const row = db.prepare(`SELECT * FROM sensory_bridge_events ORDER BY created_at DESC LIMIT 1`).get();
-      if (!row || now() - row.created_at > 120_000) return { score: 0.2, status: 'stale', detail: 'No recent sensory data' };
+      if (!row) return { score: 0.2, status: 'idle', detail: 'No sensory data yet' };
+      if (now() - row.created_at > FRESHNESS_BOUNDS.sensoryBridge) return { score: 0.2, status: 'stale', detail: 'Sensory data older than expected cadence' };
       return { score: 0.9, status: 'active', detail: `Tick ${row.tick}, sensitivity ${row.sensitivity}` };
     } catch (_) { return { score: 0, status: 'error' }; }
   },
@@ -66,7 +84,8 @@ const SUBSYSTEM_CHECKS = {
   emotionalFeedback: () => {
     try {
       const row = db.prepare(`SELECT * FROM emotional_feedback_events ORDER BY created_at DESC LIMIT 1`).get();
-      if (!row || now() - row.created_at > 120_000) return { score: 0.2, status: 'stale', detail: 'No recent emotional data' };
+      if (!row) return { score: 0.2, status: 'idle', detail: 'No emotional data yet' };
+      if (now() - row.created_at > FRESHNESS_BOUNDS.emotionalFeedback) return { score: 0.2, status: 'stale', detail: 'Emotional data older than expected cadence' };
       return { score: 0.85, status: 'active', detail: `Emotion: ${row.primary_emotion}, tier: ${row.gate_tier}` };
     } catch (_) { return { score: 0, status: 'error' }; }
   },
@@ -74,7 +93,8 @@ const SUBSYSTEM_CHECKS = {
   motorOutput: () => {
     try {
       const row = db.prepare(`SELECT * FROM motor_output_events ORDER BY created_at DESC LIMIT 1`).get();
-      if (!row || now() - row.created_at > 300_000) return { score: 0.3, status: 'idle', detail: 'Motor cortex quiet' };
+      if (!row) return { score: 0.5, status: 'idle', detail: 'Motor cortex quiet — no firings yet' };
+      if (now() - row.created_at > FRESHNESS_BOUNDS.motorOutput) return { score: 0.3, status: 'idle', detail: 'Motor cortex quiet' };
       return { score: 0.8, status: 'active', detail: `Region: ${row.region}, activation: ${row.activation}` };
     } catch (_) { return { score: 0, status: 'error' }; }
   },
@@ -82,7 +102,8 @@ const SUBSYSTEM_CHECKS = {
   attentionGate: () => {
     try {
       const row = db.prepare(`SELECT * FROM attention_gate_events ORDER BY created_at DESC LIMIT 1`).get();
-      if (!row || now() - row.created_at > 120_000) return { score: 0.3, status: 'stale' };
+      if (!row) return { score: 0.3, status: 'idle', detail: 'No attention data yet' };
+      if (now() - row.created_at > FRESHNESS_BOUNDS.attentionGate) return { score: 0.3, status: 'stale' };
       return { score: 0.85, status: 'active', detail: `Dynamic range: ${row.dynamic_range}` };
     } catch (_) { return { score: 0, status: 'error' }; }
   },
@@ -90,7 +111,8 @@ const SUBSYSTEM_CHECKS = {
   habituation: () => {
     try {
       const row = db.prepare(`SELECT * FROM habituation_events ORDER BY created_at DESC LIMIT 1`).get();
-      if (!row || now() - row.created_at > 120_000) return { score: 0.3, status: 'stale' };
+      if (!row) return { score: 0.3, status: 'idle', detail: 'No habituation data yet' };
+      if (now() - row.created_at > FRESHNESS_BOUNDS.habituation) return { score: 0.3, status: 'stale' };
       const spikes = row.spikes ? JSON.parse(row.spikes) : [];
       return { score: 0.85, status: 'active', detail: `Spikes: ${spikes.length}` };
     } catch (_) { return { score: 0, status: 'error' }; }
@@ -99,7 +121,8 @@ const SUBSYSTEM_CHECKS = {
   workingMemory: () => {
     try {
       const row = db.prepare(`SELECT * FROM working_memory_events ORDER BY created_at DESC LIMIT 1`).get();
-      if (!row || now() - row.created_at > 120_000) return { score: 0.3, status: 'stale' };
+      if (!row) return { score: 0.3, status: 'idle', detail: 'No working memory data yet' };
+      if (now() - row.created_at > FRESHNESS_BOUNDS.workingMemory) return { score: 0.3, status: 'stale' };
       return { score: 0.85, status: 'active', detail: `Volatility: ${row.volatility}, coherence: ${row.coherence}` };
     } catch (_) { return { score: 0, status: 'error' }; }
   },
@@ -107,15 +130,18 @@ const SUBSYSTEM_CHECKS = {
   metacognitive: () => {
     try {
       const row = db.prepare(`SELECT * FROM metacognitive_events ORDER BY created_at DESC LIMIT 1`).get();
-      if (!row || now() - row.created_at > 120_000) return { score: 0.3, status: 'stale' };
-      return { score: Math.max(0.3, row.effectiveness || 0.5), status: 'active', detail: `Strategy: ${row.strategy}, effectiveness: ${row.effectiveness}` };
+      if (!row) return { score: 0.3, status: 'idle', detail: 'No metacognitive data yet' };
+      if (now() - row.created_at > FRESHNESS_BOUNDS.metacognitive) return { score: 0.3, status: 'stale' };
+      const eff = typeof row.effectiveness === 'number' ? row.effectiveness : null;
+      return { score: Math.max(0.3, eff ?? 0.3), status: 'active', detail: `Strategy: ${row.strategy}, effectiveness: ${eff}` };
     } catch (_) { return { score: 0, status: 'error' }; }
   },
 
   adaptiveStrategy: () => {
     try {
       const row = db.prepare(`SELECT * FROM adaptive_strategy_events ORDER BY created_at DESC LIMIT 1`).get();
-      if (!row || now() - row.created_at > 120_000) return { score: 0.3, status: 'stale' };
+      if (!row) return { score: 0.3, status: 'idle', detail: 'No adaptive strategy data yet' };
+      if (now() - row.created_at > FRESHNESS_BOUNDS.adaptiveStrategy) return { score: 0.3, status: 'stale' };
       return { score: 0.8, status: 'active', detail: `Strategy: ${row.strategy}` };
     } catch (_) { return { score: 0, status: 'error' }; }
   },
@@ -123,7 +149,8 @@ const SUBSYSTEM_CHECKS = {
   selfModel: () => {
     try {
       const row = db.prepare(`SELECT * FROM self_model_snapshots ORDER BY created_at DESC LIMIT 1`).get();
-      if (!row || now() - row.created_at > 300_000) return { score: 0.3, status: 'stale' };
+      if (!row) return { score: 0.3, status: 'idle', detail: 'No self-model data yet' };
+      if (now() - row.created_at > FRESHNESS_BOUNDS.selfModel) return { score: 0.3, status: 'stale' };
       const ratio = (row.active_count || 0) / Math.max(1, row.subsystem_count || 27);
       return { score: Math.max(0.3, ratio), status: 'active', detail: `${row.active_count}/${row.subsystem_count} active` };
     } catch (_) { return { score: 0, status: 'error' }; }
@@ -132,7 +159,8 @@ const SUBSYSTEM_CHECKS = {
   resourceEnvelope: () => {
     try {
       const row = db.prepare(`SELECT * FROM resource_envelope_events ORDER BY created_at DESC LIMIT 1`).get();
-      if (!row || now() - row.created_at > 120_000) return { score: 0.3, status: 'stale' };
+      if (!row) return { score: 0.3, status: 'idle', detail: 'No resource data yet' };
+      if (now() - row.created_at > FRESHNESS_BOUNDS.resourceEnvelope) return { score: 0.3, status: 'stale' };
       const health = 1.0 - (row.pressure || 0);
       return { score: Math.max(0.1, health), status: 'active', detail: `Pressure: ${row.pressure}, fatigue: ${row.fatigue}` };
     } catch (_) { return { score: 0, status: 'error' }; }
@@ -141,16 +169,20 @@ const SUBSYSTEM_CHECKS = {
   predictiveProcessing: () => {
     try {
       const row = db.prepare(`SELECT * FROM predictive_processing_events ORDER BY created_at DESC LIMIT 1`).get();
-      if (!row || now() - row.created_at > 120_000) return { score: 0.3, status: 'stale' };
-      return { score: Math.max(0.3, row.confidence || 0.5), status: 'active', detail: `Confidence: ${row.confidence}, surprise: ${row.surprise}` };
+      if (!row) return { score: 0.3, status: 'idle', detail: 'No predictive data yet' };
+      if (now() - row.created_at > FRESHNESS_BOUNDS.predictiveProcessing) return { score: 0.3, status: 'stale' };
+      const conf = typeof row.confidence === 'number' ? row.confidence : null;
+      return { score: Math.max(0.3, conf ?? 0.3), status: 'active', detail: `Confidence: ${conf}, surprise: ${row.surprise}` };
     } catch (_) { return { score: 0, status: 'error' }; }
   },
 
   activeInference: () => {
     try {
       const row = db.prepare(`SELECT * FROM active_inference_events ORDER BY created_at DESC LIMIT 1`).get();
-      if (!row || now() - row.created_at > 120_000) return { score: 0.3, status: 'stale' };
-      return { score: Math.max(0.3, row.effectiveness || 0.5), status: 'active', detail: `Drive: ${row.inference_drive}, effectiveness: ${row.effectiveness}` };
+      if (!row) return { score: 0.3, status: 'idle', detail: 'No active inference data yet' };
+      if (now() - row.created_at > FRESHNESS_BOUNDS.activeInference) return { score: 0.3, status: 'stale' };
+      const eff = typeof row.effectiveness === 'number' ? row.effectiveness : null;
+      return { score: Math.max(0.3, eff ?? 0.3), status: 'active', detail: `Drive: ${row.inference_drive}, effectiveness: ${eff}` };
     } catch (_) { return { score: 0, status: 'error' }; }
   },
 };
@@ -211,18 +243,20 @@ function assessIntelligence(trigger = 'scheduled') {
   if (monitorCTRNN) {
     try {
       injections = [];
-      // Intelligence health → Row 15, Col 4 (broad excitatory)
+      // Intelligence health → Row 15, Col 4 (inject API: x, y, sigma, amplitude)
       const healthAmp = intelligenceScore * sensitivity * 2.0;
-      monitorCTRNN.injectGaussian(15, 4, healthAmp, 3.0);
-      injections.push({ region: 'intelligence_health', row: 15, col: 4, amp: healthAmp });
+      monitorCTRNN.inject(15, 4, 3.0, healthAmp);
+      injections.push({ region: 'intelligence_health', row: 15, col: 4, amp: healthAmp, sigma: 3.0 });
 
       // Degradation alert → Row 15, Col 12 (inhibitory when degraded)
       if (degraded.length > 0) {
         const degradeAmp = -(degraded.length / 12) * sensitivity * 1.5;
-        monitorCTRNN.injectGaussian(15, 12, degradeAmp, 2.0);
-        injections.push({ region: 'degradation_alert', row: 15, col: 12, amp: degradeAmp });
+        monitorCTRNN.inject(15, 12, 2.0, degradeAmp);
+        injections.push({ region: 'degradation_alert', row: 15, col: 12, amp: degradeAmp, sigma: 2.0 });
       }
-    } catch (_) {}
+    } catch (e) {
+      console.error('[intelligence-monitor] CTRNN injection failed:', e.message);
+    }
   }
 
   lastAssessment = {

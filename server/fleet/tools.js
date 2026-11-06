@@ -524,8 +524,8 @@ export function createFleetTools({ workflowStore }) {
       parameters: object({
         mode: { type: 'string', description: 'Optional: "generate" triggers a new narrative via Ollama' },
       }),
-      execute: async (params) => {
-        if (params.mode === 'generate') {
+      execute: async ({ args }) => {
+        if (args.mode === 'generate') {
           const result = await narrateNow('fleet');
           ledger.record('narrative.generate', { mood: result.mood, tier: result.tier, coherence: result.coherenceScore }, 'fleet');
           return result;
@@ -543,9 +543,9 @@ export function createFleetTools({ workflowStore }) {
       parameters: object({
         problem: { type: 'string', description: 'The problem or goal to dream-solve (required for solving)' },
       }),
-      execute: async (params) => {
-        if (params.problem && typeof params.problem === 'string' && params.problem.length >= 5) {
-          const result = await solveDream(params.problem, { trigger: 'fleet' });
+      execute: async ({ args }) => {
+        if (args.problem && typeof args.problem === 'string' && args.problem.length >= 5) {
+          const result = await solveDream(args.problem, { trigger: 'fleet' });
           ledger.record('dream-solve.run', { novelty: result.noveltyScore, feasibility: result.feasibilityScore, tier: result.gateTier }, 'fleet');
           return result;
         }
@@ -562,8 +562,8 @@ export function createFleetTools({ workflowStore }) {
       parameters: object({
         mode: { type: 'string', description: 'Optional: "assess" runs a fresh health assessment now' },
       }),
-      execute: async (params) => {
-        if (params.mode === 'assess') {
+      execute: async ({ args }) => {
+        if (args.mode === 'assess') {
           const result = assessIntelligence('fleet');
           ledger.record('intelligence-monitor.assess', { score: result.intelligenceScore, degraded: result.degraded?.length, tier: result.gateTier }, 'fleet');
           return result;

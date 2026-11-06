@@ -33,6 +33,7 @@ const BASE_DREAM_SENSITIVITY = 0.5;
 const SNAPSHOT_EVERY = 5;
 let callCount = 0;
 let dreamSolverCTRNN = null;
+let dreamSolverDreamer = null;
 let lastSolution = null;
 
 // ─── DB Migration ─────────────────────────────────────────────
@@ -148,6 +149,8 @@ Output JSON only, no markdown fences:
 // ─── Core Solver ──────────────────────────────────────────────
 
 export async function solveDream(problem, { trigger = 'api', dreamer = null } = {}) {
+  // Use explicitly passed dreamer, fall back to module-level singleton
+  const activeDreamer = dreamer || dreamSolverDreamer;
   const t0 = now();
   const mods = getAutonomyModifiers();
   const sensitivity = Math.max(0.2, Math.min(1.2,
@@ -169,11 +172,13 @@ export async function solveDream(problem, { trigger = 'api', dreamer = null } = 
     solution = parsed.solution || raw;
     associations = Array.isArray(parsed.associations) ? parsed.associations : [];
     keyInsight = parsed.keyInsight || '';
-    noveltyScore = Math.max(0, Math.min(1, parseFloat(parsed.novelty) || 0.5));
-    feasibilityScore = Math.max(0, Math.min(1, parseFloat(parsed.feasibility) || 0.5));
+    const rawNovelty = parseFloat(parsed.novelty);
+    noveltyScore = Math.max(0, Math.min(1, Number.isFinite(rawNovelty) ? rawNovelty : 0.5));
+    const rawFeasibility = parseFloat(parsed.feasibility);
+    feasibilityScore = Math.max(0, Math.min(1, Number.isFinite(rawFeasibility) ? rawFeasibility : 0.5));
     dreamNarrative = parsed.dreamNarrative || '';
   } catch (e) {
-    solution = `Dream-solving encountered turbulence: ${e.message}. The problem "${problem.slice(0, 100)}" remains in the dream queue.`;
+    solution = `Dream-solving encountered turbulence: ${e.message}`;
     associations = [];
     keyInsight = '';
     noveltyScore = 0.2;
@@ -181,26 +186,32 @@ export async function solveDream(problem, { trigger = 'api', dreamer = null } = 
     dreamNarrative = '';
   }
 
+  const llmFailed = noveltyScore === 0.2 && feasibilityScore === 0.1 && associations.length === 0;
+
   const duration = now() - t0;
 
   // Record as a signed dream file if dreamer is available
   let dreamNumber = null;
-  if (dreamer) {
+  if (activeDreamer) {
     try {
       const dreamContent = `DREAM-SOLVE: ${problem}\n\nSOLUTION: ${solution}\n\nKEY INSIGHT: ${keyInsight}\n\nASSOCIATIONS:\n${associations.map(a => `  - ${a}`).join('\n')}\n\n${dreamNarrative}`;
-      const dreamResult = await dreamer.dream(dreamContent, ['dream-solver', trigger], 'creative-solve');
+      const dreamResult = await activeDreamer.dream(dreamContent, ['dream-solver', trigger], 'creative-solve');
       dreamNumber = dreamResult.number;
-    } catch (_) {}
+    } catch (e) {
+      console.error('[dream-solver] dreamer.dream() failed:', e.message);
+    }
   }
 
   // CTRNN injection
   if (dreamSolverCTRNN) {
     try {
       const sparkAmp = noveltyScore * sensitivity * 1.5;
-      dreamSolverCTRNN.injectGaussian(7, 4, sparkAmp, 2.0);
+      dreamSolverCTRNN.inject(7, 4, 2.0, sparkAmp);
       const depthAmp = (associations.length / 5) * sensitivity * 1.2;
-      dreamSolverCTRNN.injectGaussian(7, 12, depthAmp, 2.0);
-    } catch (_) {}
+      dreamSolverCTRNN.inject(7, 12, 2.0, depthAmp);
+    } catch (e) {
+      console.error('[dream-solver] CTRNN injection failed:', e.message);
+    }
   }
 
   const sessionId = randomUUID();
@@ -228,6 +239,7 @@ export async function solveDream(problem, { trigger = 'api', dreamer = null } = 
 
   // Store to DB
   callCount++;
+  let stored = false;
   try {
     db.prepare(`INSERT INTO dream_solver_sessions (id, problem, context_sources, solution, associations, novelty_score, feasibility_score, dream_number, gate_tier, temperature, duration_ms, trigger, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
       sessionId,
@@ -244,9 +256,12 @@ export async function solveDream(problem, { trigger = 'api', dreamer = null } = 
       trigger,
       now(),
     );
-  } catch (_) {}
+    stored = true;
+  } catch (e) {
+    console.error('[dream-solver] DB storage failed:', e.message);
+  }
 
-  // Publish to bus
+  // Publish to bus — distinguish success from failure
   try {
     publish('system', 'system.dream-solve', JSON.stringify({
       problem: problem.slice(0, 200),
@@ -255,8 +270,14 @@ export async function solveDream(problem, { trigger = 'api', dreamer = null } = 
       associations: associations.length,
       dreamNumber,
       durationMs: duration,
+      stored,
+      llmFailed,
     }));
   } catch (_) {}
+
+  if (!stored || llmFailed) {
+    lastSolution.status = llmFailed ? 'llm_failed' : 'storage_failed';
+  }
 
   return lastSolution;
 }
@@ -264,6 +285,7 @@ export async function solveDream(problem, { trigger = 'api', dreamer = null } = 
 // ─── Status & Config ──────────────────────────────────────────
 
 export function setDreamSolverCTRNN(ctrnn) { dreamSolverCTRNN = ctrnn; }
+export function setDreamSolverDreamer(d) { dreamSolverDreamer = d; }
 
 export function getDreamSolverStatus() {
   const mods = getAutonomyModifiers();

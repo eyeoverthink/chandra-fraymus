@@ -24,11 +24,11 @@ import { startResourceEnvelope, stopResourceEnvelope, getResourceEnvelopeStatus,
 import { getPredictiveStatus, resetPredictions } from '../intelligence/predictive-processing.js';
 import { getActiveInferenceStatus, resetActiveInference } from '../intelligence/active-inference.js';
 import { setNarrativeHeart, setNarrativeCTRNN, startNarrative, stopNarrative, resetNarrative, getNarrativeStatus } from '../intelligence/self-narrative.js';
-import { setDreamSolverCTRNN, getDreamSolverStatus, resetDreamSolver } from '../intelligence/dream-solver.js';
+import { setDreamSolverCTRNN, setDreamSolverDreamer, getDreamSolverStatus, resetDreamSolver } from '../intelligence/dream-solver.js';
 import { setMonitorCTRNN, startIntelligenceMonitor, stopIntelligenceMonitor, resetIntelligenceMonitor, getIntelligenceMonitorStatus } from '../intelligence/intelligence-monitor.js';
 import { exportChandraReceipts, getExportStats } from '../intelligence/hive-export.js';
 import { readChart, getLineageStats } from '../intelligence/lineage.js';
-import { heart } from '../fraymus-tools.js';
+import { heart, dreamer } from '../fraymus-tools.js';
 
 const now = () => Date.now();
 const DEFAULT_CYCLE_MS = 30 * 60 * 1000;
@@ -595,6 +595,7 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
   // Phase 21: Start self-narrative engine (2min Ollama-driven inner monologue)
   try {
     setNarrativeHeart(heart);
+    setDreamSolverDreamer(dreamer);
     import('../intelligence/ctrnn-instance.js').then(({ getCTRNN }) => {
       setNarrativeCTRNN(getCTRNN());
       setDreamSolverCTRNN(getCTRNN());

@@ -287,6 +287,11 @@ const COMPOUND_EMOTIONS = {
 };
 
 export function detectCompounds(normalized) {
+  // Guard: neutral text gets ~0.12 per emotion from fallback scoring.
+  // Skip compound detection when there is no real emotional signal.
+  const totalScore = Object.values(normalized).reduce((s, v) => s + (v || 0), 0);
+  if (totalScore < 0.15) return [];
+
   const compounds = [];
   for (const [name, def] of Object.entries(COMPOUND_EMOTIONS)) {
     const allPresent = def.requires.every(e => (normalized[e] || 0) >= def.threshold);
@@ -319,9 +324,12 @@ function recordMoodHistory(analysis) {
 export function getMoodTrajectory(windowSize = 10) {
   if (moodHistory.length < 2) return { trend: 'stable', shift: 0, stability: 1 };
   const window = moodHistory.slice(-Math.min(windowSize, moodHistory.length));
+  if (window.length < 2) return { trend: 'stable', shift: 0, stability: 1, windowSize: window.length };
   const sentiments = window.map(m => m.sentiment);
-  const first = sentiments.slice(0, Math.ceil(sentiments.length / 2));
-  const second = sentiments.slice(Math.ceil(sentiments.length / 2));
+  const midpoint = Math.ceil(sentiments.length / 2);
+  const first = sentiments.slice(0, midpoint);
+  const second = sentiments.slice(midpoint);
+  if (second.length === 0) return { trend: 'stable', shift: 0, stability: 1, windowSize: window.length };
   const avgFirst = first.reduce((a, b) => a + b, 0) / first.length;
   const avgSecond = second.reduce((a, b) => a + b, 0) / second.length;
   const shift = avgSecond - avgFirst;

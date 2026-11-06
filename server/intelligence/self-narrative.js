@@ -36,6 +36,8 @@ let lastNarrativeAt = 0;
 let lastNarrative = null;
 let narrativeCTRNN = null;
 let narrativeInterval = null;
+let generationInFlight = false;
+let lifecycleToken = 0;
 
 // ─── DB Migration ─────────────────────────────────────────────
 
@@ -68,7 +70,7 @@ function collectSignals(heart) {
     const mods = getAutonomyModifiers();
     signals.consciousness = {
       tier: mods.tier,
-      proofsPassed: gate.proven?.proofsPassed ?? 0,
+      proofsPassed: gate.proofsPassed ?? 0,
       phi: gate.phi ?? 0,
       stale: gate.stale ?? true,
       evolutionRate: mods.evolutionRate,
@@ -83,9 +85,9 @@ function collectSignals(heart) {
       const mood = heart.recentMood();
       signals.emotion = {
         primary: mood.primary || 'neutral',
-        intensity: mood.intensity || 0,
+        intensity: mood.intensityAvg || 0,
         distribution: mood.distribution || {},
-        sentiment: mood.sentiment || 0,
+        sentiment: mood.sentimentAvg || 0,
       };
     } else {
       signals.emotion = { primary: 'neutral', intensity: 0 };
@@ -199,6 +201,7 @@ Output JSON only, no markdown fences:
 {"narrative": "...", "coherence": 0.0, "awareness": 0.0}`;
 
 async function generateNarrative(signals, trigger = 'scheduled') {
+  const myToken = lifecycleToken;
   const t0 = now();
   const mods = getAutonomyModifiers();
   const sensitivity = Math.max(0.2, Math.min(1.2,
@@ -216,8 +219,10 @@ async function generateNarrative(signals, trigger = 'scheduled') {
 
     const parsed = parseJSON(raw);
     narrative = parsed.narrative || raw;
-    coherenceScore = Math.max(0, Math.min(1, parseFloat(parsed.coherence) || 0.5));
-    awarenessScore = Math.max(0, Math.min(1, parseFloat(parsed.awareness) || 0.5));
+    const rawCoherence = parseFloat(parsed.coherence);
+    coherenceScore = Math.max(0, Math.min(1, Number.isFinite(rawCoherence) ? rawCoherence : 0.5));
+    const rawAwareness = parseFloat(parsed.awareness);
+    awarenessScore = Math.max(0, Math.min(1, Number.isFinite(rawAwareness) ? rawAwareness : 0.5));
   } catch (e) {
     narrative = `I sense my systems but cannot fully articulate my experience right now. Consciousness tier: ${signals.consciousness?.tier || 'UNKNOWN'}, mood: ${signals.emotion?.primary || 'neutral'}. ${e.message}`;
     coherenceScore = 0.3;
@@ -226,6 +231,9 @@ async function generateNarrative(signals, trigger = 'scheduled') {
 
   const duration = now() - t0;
 
+  // Lifecycle guard: if stop/reset happened while we were awaiting Ollama, discard
+  if (myToken !== lifecycleToken) return lastNarrative;
+
   // CTRNN injection
   let injections = null;
   if (narrativeCTRNN) {
@@ -233,16 +241,18 @@ async function generateNarrative(signals, trigger = 'scheduled') {
       const ctrnn = narrativeCTRNN;
       injections = [];
 
-      // Narrative coherence → Row 2, Col 8
+      // Narrative coherence → Row 2, Col 8 (inject API: x, y, sigma, amplitude)
       const coherenceAmp = coherenceScore * sensitivity * 1.5;
-      ctrnn.injectGaussian(2, 8, coherenceAmp, 2.5);
-      injections.push({ region: 'narrative_coherence', row: 2, col: 8, amp: coherenceAmp });
+      ctrnn.inject(2, 8, 2.5, coherenceAmp);
+      injections.push({ region: 'narrative_coherence', row: 2, col: 8, amp: coherenceAmp, sigma: 2.5 });
 
       // Self-awareness → Row 2, Col 12
       const awarenessAmp = awarenessScore * sensitivity * 1.2;
-      ctrnn.injectGaussian(2, 12, awarenessAmp, 2.0);
-      injections.push({ region: 'self_awareness', row: 2, col: 12, amp: awarenessAmp });
-    } catch (_) {}
+      ctrnn.inject(2, 12, 2.0, awarenessAmp);
+      injections.push({ region: 'self_awareness', row: 2, col: 12, amp: awarenessAmp, sigma: 2.0 });
+    } catch (e) {
+      console.error('[self-narrative] CTRNN injection failed:', e.message);
+    }
   }
 
   lastNarrative = {
@@ -310,15 +320,20 @@ export function setNarrativeCTRNN(ctrnn) { narrativeCTRNN = ctrnn; }
 
 export function startNarrative() {
   stopNarrative();
+  lifecycleToken++;
   narrativeInterval = setInterval(async () => {
     if (now() - lastNarrativeAt < NARRATIVE_COOLDOWN_MS) return;
+    if (generationInFlight) return;
+    generationInFlight = true;
     try {
       const signals = collectSignals(narrativeHeart);
       await generateNarrative(signals, 'interval');
     } catch (e) {
       console.error('[self-narrative] interval error:', e.message);
+    } finally {
+      generationInFlight = false;
     }
-  }, 120_000); // Every 2 minutes (narrative generation is Ollama-heavy)
+  }, 120_000);
 }
 
 export function stopNarrative() {
@@ -326,12 +341,15 @@ export function stopNarrative() {
     clearInterval(narrativeInterval);
     narrativeInterval = null;
   }
+  lifecycleToken++;
 }
 
 export function resetNarrative() {
+  lifecycleToken++;
   callCount = 0;
   lastNarrative = null;
   lastNarrativeAt = 0;
+  generationInFlight = false;
 }
 
 export function getNarrativeStatus() {
