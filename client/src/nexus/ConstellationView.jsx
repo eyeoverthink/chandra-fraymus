@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 const NODES = [
+  // Ring 1 — Intelligence Core
   { id: 'heart', label: 'Heart', icon: '♥', ring: 1, color: '#f59e0b', panel: 'intelligence' },
   { id: 'dreamer', label: 'Dreamer', icon: '☾', ring: 1, color: '#8b5cf6', panel: 'intelligence' },
   { id: 'ledger', label: 'Ledger', icon: '⟐', ring: 1, color: '#06b6d4', panel: 'intelligence' },
@@ -8,32 +9,101 @@ const NODES = [
   { id: 'consciousness', label: 'Ouroboros', icon: '∞', ring: 1, color: '#ec4899', panel: 'intelligence' },
   { id: 'membridge', label: 'Memory Bridge', icon: '⊶', ring: 1, color: '#a78bfa', panel: 'vertiso' },
 
-  { id: 'fleet', label: 'Agent Fleet', icon: '⚡', ring: 2, color: '#6366f1', panel: 'fleet' },
-  { id: 'commerce', label: 'Commerce', icon: '◆', ring: 2, color: '#ec4899', panel: 'commerce' },
-  { id: 'canvas', label: 'Workflows', icon: '⬡', ring: 2, color: '#8b5cf6', action: 'canvas' },
-  { id: 'automations', label: 'Automations', icon: '⟳', ring: 2, color: '#06b6d4', panel: 'automations' },
-  { id: 'mcp', label: 'MCP Gateway', icon: '⬢', ring: 2, color: '#10b981', panel: 'mcp' },
-  { id: 'browser', label: 'Browser', icon: '◉', ring: 2, color: '#7c3aed', panel: 'browser' },
-  { id: 'vertiso', label: 'Vertiso', icon: '◇', ring: 2, color: '#a78bfa', panel: 'vertiso' },
-  { id: 'outlier', label: 'Outlier', icon: '◎', ring: 2, color: '#eab308', panel: 'outlier' },
+  // Ring 2 — Intelligence Substrate
+  { id: 'ctrnn', label: 'CTRNN', icon: '◬', ring: 2, color: '#c084fc', action: 'manifold' },
+  { id: 'sensory', label: 'Sensory', icon: '◐', ring: 2, color: '#34d399', panel: 'nerve-center' },
+  { id: 'motor', label: 'Motor', icon: '⊕', ring: 2, color: '#fb923c', panel: 'nerve-center' },
+  { id: 'predictive', label: 'Prediction', icon: '⊗', ring: 2, color: '#38bdf8', panel: 'nerve-center' },
+  { id: 'health', label: 'Health', icon: '⊘', ring: 2, color: '#f87171', panel: 'pulse' },
+  { id: 'bus', label: 'Live Bus', icon: '⊞', ring: 2, color: '#a3e635', panel: 'nerve-center' },
+  { id: 'narrative', label: 'Narrative', icon: '⊜', ring: 2, color: '#e879f9', panel: 'subconscious' },
+  { id: 'resource', label: 'Resources', icon: '⊡', ring: 2, color: '#fbbf24', panel: 'pulse' },
+
+  // Ring 3 — Capabilities
+  { id: 'fleet', label: 'Agent Fleet', icon: '⚡', ring: 3, color: '#6366f1', panel: 'fleet' },
+  { id: 'commerce', label: 'Commerce', icon: '◆', ring: 3, color: '#ec4899', panel: 'commerce' },
+  { id: 'canvas', label: 'Workflows', icon: '⬡', ring: 3, color: '#8b5cf6', action: 'canvas' },
+  { id: 'automations', label: 'Automations', icon: '⟳', ring: 3, color: '#06b6d4', panel: 'automations' },
+  { id: 'mcp', label: 'MCP Gateway', icon: '⬢', ring: 3, color: '#10b981', panel: 'mcp' },
+  { id: 'browser', label: 'Browser', icon: '◉', ring: 3, color: '#7c3aed', panel: 'browser' },
+  { id: 'vertiso', label: 'Vertiso', icon: '◇', ring: 3, color: '#a78bfa', panel: 'vertiso' },
+  { id: 'outlier', label: 'Outlier', icon: '◎', ring: 3, color: '#eab308', panel: 'outlier' },
 ];
 
 const EDGES = [
+  // Intelligence Core → Substrate
+  ['heart', 'ctrnn'], ['heart', 'sensory'],
+  ['dreamer', 'ctrnn'], ['dreamer', 'cognition'],
+  ['ledger', 'health'], ['ledger', 'bus'],
+  ['cognition', 'ctrnn'], ['cognition', 'predictive'],
+  ['consciousness', 'ctrnn'], ['consciousness', 'cognition'],
+  ['membridge', 'sensory'], ['membridge', 'narrative'],
+  // Substrate interconnections
+  ['ctrnn', 'sensory'], ['ctrnn', 'motor'], ['ctrnn', 'predictive'],
+  ['sensory', 'motor'], ['sensory', 'predictive'],
+  ['motor', 'fleet'], ['motor', 'bus'],
+  ['predictive', 'narrative'],
+  ['health', 'resource'], ['health', 'ctrnn'],
+  ['bus', 'fleet'], ['bus', 'sensory'],
+  ['narrative', 'ctrnn'],
+  ['resource', 'ctrnn'],
+  // Substrate → Capabilities
   ['heart', 'fleet'], ['heart', 'commerce'],
-  ['dreamer', 'fleet'], ['dreamer', 'cognition'],
-  ['ledger', 'fleet'], ['ledger', 'automations'],
   ['cognition', 'fleet'], ['cognition', 'commerce'],
-  ['consciousness', 'cognition'], ['consciousness', 'dreamer'],
   ['membridge', 'fleet'], ['membridge', 'commerce'], ['membridge', 'vertiso'],
-  ['membridge', 'automations'], ['membridge', 'outlier'],
+  ['bus', 'automations'],
+  ['health', 'automations'],
 ];
 
 const EVENT_TO_NODES = {
+  // Fleet & agents
   agents: ['fleet'],
   agent: ['fleet'],
-  memory: ['membridge', 'vertiso'],
+  mail: ['fleet'],
+  deploy: ['fleet'],
+  // FRAYMUS intelligence stack
   v3: ['heart', 'dreamer', 'ledger', 'cognition', 'consciousness', 'membridge'],
+  heart: ['heart', 'sensory'],
+  dreamer: ['dreamer', 'ctrnn'],
+  ledger: ['ledger'],
+  cognition: ['cognition', 'predictive'],
+  consciousness: ['consciousness', 'ctrnn'],
+  remembered: ['membridge'],
+  intelligence: ['ctrnn', 'sensory', 'motor'],
+  // Memory
+  memory: ['membridge', 'vertiso'],
+  // Autonomy & neural
+  autonomy: ['ctrnn', 'consciousness'],
+  ctrnn: ['ctrnn'],
+  neurogenesis: ['ctrnn', 'health'],
+  ep3: ['predictive', 'ctrnn'],
+  state: ['ctrnn', 'narrative'],
+  motor: ['motor', 'ctrnn'],
+  needle: ['ctrnn', 'fleet'],
+  // Infrastructure
   tasks: ['automations'],
+  integrity: ['health', 'ledger'],
+  // Commerce & content
+  commerce: ['commerce'],
+  creation: ['commerce'],
+  analytics: ['commerce'],
+  streaming: ['commerce'],
+  ab_testing: ['commerce'],
+  audience: ['commerce'],
+  trend_radar: ['commerce'],
+  repurpose: ['commerce'],
+  // Workflows & automations
+  workflow: ['canvas'],
+  calendar: ['automations'],
+  // Protocols & systems
+  chain: ['cognition', 'fleet'],
+  'cross-tab': ['ctrnn', 'bus'],
+  cross_tab: ['ctrnn', 'bus'],
+  nexus: ['cognition', 'narrative'],
+  bus: ['bus'],
+  // Intelligence subsystems
+  rsi: ['consciousness', 'ctrnn'],
+  perspective: ['cognition'],
 };
 
 function eventToNodes(ev) {
@@ -44,13 +114,16 @@ function eventToNodes(ev) {
     const src = ev.payload?.source;
     if (src === 'pipeline') return ['commerce'];
     if (src === 'workflow') return ['canvas'];
+    if (src === 'bus') return ['bus'];
     return ['heart'];
   }
   return [];
 }
 
+const RING_RADII = { 1: 110, 2: 195, 3: 275 };
+
 function nodePos(node, cx, cy) {
-  const r = node.ring === 1 ? 130 : 260;
+  const r = RING_RADII[node.ring] || 260;
   const ringNodes = NODES.filter(n => n.ring === node.ring);
   const idx = ringNodes.indexOf(node);
   const angle = (2 * Math.PI * idx) / ringNodes.length - Math.PI / 2;
@@ -100,16 +173,35 @@ export default function ConstellationView({ wsEvent, onOpenDrawer, onNavigate })
         vertiso: `${d.totalConsolidations || 0} consolidated`,
       }));
     }).catch(() => {});
+    fetch('/api/fraymus/ctrnn/stats').then(r => r.json()).then(d => {
+      setStatus(prev => ({
+        ...prev,
+        ctrnn: d.running ? `Tick ${d.tick || 0}` : 'Stopped',
+        sensory: d.active_synapses != null ? `${d.active_synapses} syn` : '—',
+      }));
+    }).catch(() => {});
+    fetch('/api/health').then(r => r.json()).then(d => {
+      const alerts = d.alerts?.filter(a => a.status === 'active')?.length || 0;
+      setStatus(prev => ({
+        ...prev,
+        health: alerts > 0 ? `${alerts} alerts` : 'Healthy',
+        resource: d.metrics?.heap ? `${Math.round(d.metrics.heap / 1048576)}MB` : '—',
+      }));
+    }).catch(() => {});
+    fetch('/api/fleet/bus/stats').then(r => r.json()).then(d => {
+      setStatus(prev => ({
+        ...prev,
+        bus: `${d.totalMessages || d.total || 0} msgs`,
+      }));
+    }).catch(() => {});
   }, []);
 
   useEffect(() => { loadStatus(); }, [loadStatus]);
 
   const lastStatusRef = useRef(0);
   useEffect(() => {
-    if (!wsEvent?.type || wsEvent.type === 'hello' || wsEvent.type === 'ctrnn') return;
-    if (Date.now() - lastStatusRef.current < 5000) return;
-    lastStatusRef.current = Date.now();
-    loadStatus();
+    if (!wsEvent?.type || wsEvent.type === 'hello') return;
+    // Activity glow — always fires immediately, no throttle
     const nodes = eventToNodes(wsEvent);
     if (nodes.length > 0) {
       const now = Date.now();
@@ -118,6 +210,11 @@ export default function ConstellationView({ wsEvent, onOpenDrawer, onNavigate })
         nodes.forEach(id => { next[id] = now; });
         return next;
       });
+    }
+    // Status data refresh — throttled to 2s
+    if (wsEvent.type !== 'ctrnn' && Date.now() - lastStatusRef.current > 2000) {
+      lastStatusRef.current = Date.now();
+      loadStatus();
     }
   }, [wsEvent, loadStatus]);
 
@@ -215,14 +312,15 @@ export default function ConstellationView({ wsEvent, onOpenDrawer, onNavigate })
           );
         })}
 
-        {NODES.filter(n => n.ring === 1).map(n => {
+        {NODES.filter(n => n.ring <= 2).map(n => {
           const p = positions[n.id];
           const active = isActive(n.id);
+          const isRing2 = n.ring === 2;
           return (
             <line key={`hub-${n.id}`} x1={cx} y1={cy} x2={p.x} y2={p.y}
-              stroke={active ? n.color : hover === n.id ? n.color : '#333'}
-              strokeWidth={active ? 1.5 : hover === n.id ? 1.5 : 0.5}
-              opacity={active ? 0.7 : 0.5} strokeDasharray="4 4"
+              stroke={active ? n.color : hover === n.id ? n.color : '#222'}
+              strokeWidth={active ? 1.5 : hover === n.id ? 1.2 : isRing2 ? 0.3 : 0.5}
+              opacity={active ? 0.6 : isRing2 ? 0.2 : 0.4} strokeDasharray={isRing2 ? '2 6' : '4 4'}
               style={active ? { animation: 'edgeFlow 2s linear infinite' } : {}}
             />
           );
@@ -242,7 +340,7 @@ export default function ConstellationView({ wsEvent, onOpenDrawer, onNavigate })
 
         {NODES.map(n => {
           const p = positions[n.id];
-          const r = n.ring === 1 ? 26 : 30;
+          const r = n.ring === 1 ? 24 : n.ring === 2 ? 20 : 28;
           const hovered = hover === n.id;
           const connected = isConnected(n.id);
           const active = isActive(n.id);
@@ -256,10 +354,10 @@ export default function ConstellationView({ wsEvent, onOpenDrawer, onNavigate })
               filter={active ? `url(#glow-${n.id})` : 'none'}
             >
               {active && (
-                <circle cx={p.x} cy={p.y} r={r + 6}
+                <circle cx={p.x} cy={p.y} r={r + 4}
                   fill="none" stroke={n.color}
                   strokeWidth={1} opacity={glow * 0.4}
-                  style={{ animation: 'nodeRipple 2s ease-out infinite' }}
+                  style={{ transformOrigin: `${p.x}px ${p.y}px`, animation: 'nodeRipple 2s ease-out infinite' }}
                 />
               )}
               <circle cx={p.x} cy={p.y} r={r}
@@ -303,8 +401,8 @@ export default function ConstellationView({ wsEvent, onOpenDrawer, onNavigate })
           to { stroke-dashoffset: 0; }
         }
         @keyframes nodeRipple {
-          0% { r: ${26}; opacity: 0.4; }
-          100% { r: ${40}; opacity: 0; }
+          0% { transform: scale(1); opacity: 0.4; }
+          100% { transform: scale(1.8); opacity: 0; }
         }
       `}</style>
     </div>
