@@ -73,6 +73,9 @@ import { gatewayMiddleware, apiVersionRouter, installGatewayRoutes } from './dep
 import { installLoggerRoutes, requestLogger } from './observability/logger.js';
 import { installMetricsExportRoutes } from './observability/metrics-export.js';
 import { installAlertWebhookRoutes } from './observability/alert-webhook.js';
+import { installBackupRoutes, startScheduledBackups } from './resilience/backup.js';
+import { installCircuitBreakerRoutes } from './resilience/circuit-breaker.js';
+import { installRecoveryRoutes, startRecoveryMonitor } from './resilience/recovery.js';
 import { initBus } from './fleet/bus.js';
 import { installBusRoutes } from './fleet/bus-routes.js';
 import { initTriggers, installTriggerRoutes } from './fleet/bus-triggers.js';
@@ -254,6 +257,11 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installLoggerRoutes(app);
   installMetricsExportRoutes(app);
   installAlertWebhookRoutes(app);
+  installBackupRoutes(app);
+  installCircuitBreakerRoutes(app);
+  installRecoveryRoutes(app);
+  startScheduledBackups();
+  startRecoveryMonitor();
 
   installFraymusRoutes(app, { autonomy, broadcast, memoryBridge });
   installSynthesisRoutes(app);

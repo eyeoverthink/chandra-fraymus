@@ -1502,6 +1502,20 @@ Production observability stack: structured JSON logger with 50MB file rotation a
 - Request logging middleware: auto-logs method/path/status/duration/requestId on every response
 - 12 REST endpoints across logger (3), metrics (3), webhooks (6)
 
+### Phase G: Resilience & Recovery (2026-11-06)
+
+> **Circuit breakers, SQLite backups, auto-recovery monitoring, and a resilience dashboard. The system can now survive failures.**
+
+Production resilience stack: circuit breaker pattern (closed/half-open/open states) for external service calls with failure counting and auto-recovery, SQLite backup engine with WAL checkpoint, configurable retention (10 backups), and scheduled 6-hour automated backups, plus a recovery monitor that watches health alerts and takes corrective actions with 2-minute cooldown.
+
+**Shipped:**
+- SQLite backup engine: WAL checkpoint before copy, 50MB rotation, 10-backup retention, scheduled (6h default) + on-demand
+- Circuit breaker: 3-state machine (closed→open→half-open), failure threshold (5), reset timeout (30s), half-open probe calls (2)
+- Auto-recovery monitor: health alert scanning, subsystem recovery actions with 2-min cooldown, success rate tracking
+- Resilience dashboard: aggregated status (healthy/degraded), circuit states, backup inventory, recovery event log
+- 4-tab Resilience panel (Overview, Circuits, Backups, Recovery) with live stat cards and CRUD controls
+- 11 REST endpoints across 3 resilience modules: backups (4), circuits (2), recovery (5)
+
 ### Forecast: System Growth Trajectory
 
 | Metric | Current (Nov 2026) | Target (Q1 2027) | Target (Q2 2027) |

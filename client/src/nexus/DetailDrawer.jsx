@@ -51,6 +51,7 @@ import IntegrityPanel from '../panels/IntegrityPanel.jsx';
 import CrossTabPanel from '../panels/CrossTabPanel.jsx';
 import ContentNexusPanel from '../panels/ContentNexusPanel.jsx';
 import ObservabilityPanel from '../panels/ObservabilityPanel.jsx';
+import ResiliencePanel from '../panels/ResiliencePanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -104,6 +105,7 @@ const PANELS = {
   'cross-tab': { component: CrossTabPanel, label: 'Cross-Tab Intelligence' },
   'content-nexus': { component: ContentNexusPanel, label: 'Content Nexus' },
   observability: { component: ObservabilityPanel, label: 'Observability' },
+  resilience: { component: ResiliencePanel, label: 'Resilience & Recovery' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health, onOpenPanel }) {
