@@ -39,6 +39,7 @@ const WS_MAP = {
   analytics:     { variant: 'success', fmt: p => `Analytics: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.count ? ` (${p.count} insights)` : ''}` },
   music:         { variant: 'info',    fmt: p => `Music: ${p?.type?.replace(/_/g, ' ') || 'generated'}` },
   commerce:      { variant: 'success', fmt: p => `Commerce: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.order_id ? ` — order ${p.order_id}` : ''}` },
+  protocol:      { variant: 'system',  fmt: p => `Protocol: ${(p?.protocol || 'sentinel').replace(/_/g, ' ')}${p?.previous ? ` (was ${p.previous.replace(/_/g, ' ')})` : ''}` },
   calendar:      { variant: 'info',    fmt: p => `Calendar: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.topic ? ` — ${p.topic.slice(0, 40)}` : ''}` },
   mail:          { variant: 'info',    fmt: () => 'New mail received' },
   ab_testing:    { variant: 'info',    fmt: p => `A/B Test: ${p?.type?.replace(/_/g, ' ') || 'event'}${p?.id ? ` — ${p.id.slice(0, 12)}` : ''}` },

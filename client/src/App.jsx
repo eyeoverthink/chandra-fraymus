@@ -5,6 +5,9 @@ import ToastProvider from './ToastProvider.jsx';
 import GlobalSearch from './GlobalSearch.jsx';
 import useKeyboardShortcuts from './useKeyboardShortcuts.js';
 import ShortcutHelp from './ShortcutHelp.jsx';
+import ActivityPulseStrip from './hud/ActivityPulseStrip.jsx';
+import NudgeToast from './hud/NudgeToast.jsx';
+import ProtocolSelector from './hud/ProtocolSelector.jsx';
 import WorkflowCanvas from './panels/WorkflowCanvas.jsx';
 import CommandCenter from './nexus/CommandCenter.jsx';
 import ConstellationView from './nexus/ConstellationView.jsx';
@@ -241,6 +244,7 @@ export default function App() {
         </div>
 
         <div className="nav-panels" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <ProtocolSelector />
           <GlobalSearch onOpenDrawer={openDrawer} onNavigate={setView} externalOpen={searchOpen} onExternalClose={() => setSearchOpen(false)} />
           {NAV_GROUPS.map(g => (
             <NavGroup key={g.id} group={g} openDrawer={openDrawer}
@@ -267,6 +271,8 @@ export default function App() {
           {health ? `Port 8787 · ${health.features?.length || 0} features` : 'Connecting...'}
         </div>
       </nav>
+
+      <ActivityPulseStrip wsEvent={wsEvent} />
 
       <main style={{ flex: 1, overflow: 'auto', background: '#0a0a0f', position: 'relative' }}>
         {view === 'command' && (
@@ -311,6 +317,7 @@ export default function App() {
         </>
       )}
       {showHelp && <ShortcutHelp onClose={() => setShowHelp(false)} />}
+      <NudgeToast wsEvent={wsEvent} />
     </div>
     </ToastProvider>
   );
