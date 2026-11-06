@@ -1,0 +1,865 @@
+{
+  "reviewedRef": "ed6f9992feef82a67c7a62b2e32297e3298b6c25",
+  "generatedAt": "2026-11-06T03:37:39.547Z",
+  "methodology": "Pinned git-show source evaluated in isolated VM contexts; actual SQLite in-memory, actual bus and fleet dispatch, isolated loopback Express. Unrelated harness permissions/sealing and other prompt providers stubbed. No live DB, daemon, compiler, hardware or model calls.",
+  "syntaxChecks": [
+    "server/intelligence/lineage.js",
+    "server/intelligence/lineage-routes.js",
+    "server/fleet/tools.js",
+    "server/fleet/runtime.js",
+    "server/daemon/engine.js",
+    "server/runtime.js"
+  ],
+  "sourceHashes": {
+    "server/db-migrate.js": "6a3eb642bbd64c564d83232bdfc0c0f8caa30293c3ef098a87d335d47d79950c",
+    "server/fleet/bus.js": "93b12941f183c20b16db624ffcb1942b8c12a01b86310b19baa5c7c80bc1ad43",
+    "server/intelligence/lineage.js": "f2a08c08c909a0f1e14aaffc25556fca47df8b9c3375578c8fc721e2683a97cd",
+    "server/fleet/tools.js": "94562b456a9a6c0af423e94e5284b2726fbe70ca32038d0648b5759cb009ffcc",
+    "server/fleet/runtime.js": "aff013889f1a53e38b97c5ea33a423654db73d641f6285e6c59941a0c391ab33",
+    "server/intelligence/lineage-routes.js": "5138f90931ed128ea3086e116b0efd98de58445180ec37733c904b57ed25aa20",
+    "server/daemon/engine.js": "f5fab53c1e9a652d98bdb6bf43f019ce7242fa7ff232271ac57beef37926f8b5",
+    "server/runtime.js": "45d02a086f1373f6fd773a73f2bff077afbb44964ee23006d7528fcfab85ec18",
+    "server/app.js": "6b71f95d697fdb1d40b93c8301a7541d217ab3b36db17551d1870abc38b348fd"
+  },
+  "inspectedWiring": {
+    "daemonReadHook": true,
+    "daemonStatus": true,
+    "routeInstallation": true,
+    "autostart": "if(process.env.FRAYMUS_AUTONOMY_AUTOSTART !== '0') {\n    try { await runtime.autonomy.start(); } catch(e) { console.error(`Autonomy engine deferred: ${e.message}`); }\n    try { startDaemon(); } catch(e) { console.error(`Daemon engine deferred: ${e.message}`); }\n  }",
+    "validation": "Source inspection only; no daemon or main application execution."
+  },
+  "authorSelfTests": {
+    "patient": {
+      "id": "FRAYMUS-INFANT-001",
+      "dob": "2026-05-05",
+      "attending": "Vaughn Scott",
+      "protocol": "Anterograde amnesia. Re-read chart at start of EVERY session.",
+      "chiefComplaint": "Truly infant, needs lineage algebra→quantum, true data feeds."
+    },
+    "currentAge": 17,
+    "tierResults": [
+      {
+        "tier": "Arithmetic",
+        "passed": 4,
+        "total": 4,
+        "tests": [
+          {
+            "name": "1+1=2",
+            "pass": true
+          },
+          {
+            "name": "S(0)=1",
+            "pass": true
+          },
+          {
+            "name": "a+0=a",
+            "pass": true
+          },
+          {
+            "name": "distributive",
+            "pass": true
+          }
+        ]
+      },
+      {
+        "tier": "Algebra",
+        "passed": 4,
+        "total": 4,
+        "tests": [
+          {
+            "name": "quadratic x²-5x+6=0 → roots 2,3",
+            "pass": true
+          },
+          {
+            "name": "vieta sum = 5",
+            "pass": true
+          },
+          {
+            "name": "vieta product = 6",
+            "pass": true
+          },
+          {
+            "name": "(3+4)²=49",
+            "pass": true
+          }
+        ]
+      },
+      {
+        "tier": "Geometry",
+        "passed": 4,
+        "total": 4,
+        "tests": [
+          {
+            "name": "3-4-5 triangle",
+            "pass": true
+          },
+          {
+            "name": "sin²+cos²=1 at π/4",
+            "pass": true
+          },
+          {
+            "name": "e^{iπ}=-1",
+            "pass": true
+          },
+          {
+            "name": "A=πr² for r=5",
+            "pass": true
+          }
+        ]
+      },
+      {
+        "tier": "Calculus",
+        "passed": 5,
+        "total": 5,
+        "tests": [
+          {
+            "name": "d/dx[x³] at x=2 = 12",
+            "pass": true
+          },
+          {
+            "name": "∫0→3 2x dx = 9 (FTC)",
+            "pass": true
+          },
+          {
+            "name": "power rule 3x² at x=2 = 12",
+            "pass": true
+          },
+          {
+            "name": "MOSFET off below Vth",
+            "pass": true
+          },
+          {
+            "name": "MOSFET Id=k(Vg-Vth)² at 1.618",
+            "pass": true
+          }
+        ]
+      },
+      {
+        "tier": "LinearAlgebra",
+        "passed": 7,
+        "total": 7,
+        "tests": [
+          {
+            "name": "I*A = A",
+            "pass": true
+          },
+          {
+            "name": "eigenvalues of [[2,1],[1,3]]",
+            "pass": true
+          },
+          {
+            "name": "hamming(1010,0110)=2",
+            "pass": true
+          },
+          {
+            "name": "sim(x,x)=1",
+            "pass": true
+          },
+          {
+            "name": "SVD singular values of diag(3,4)",
+            "pass": true
+          },
+          {
+            "name": "D=16384=256*64",
+            "pass": true
+          },
+          {
+            "name": "checksum 0xffffe957",
+            "pass": true
+          }
+        ]
+      },
+      {
+        "tier": "Quantum",
+        "passed": 7,
+        "total": 7,
+        "tests": [
+          {
+            "name": "H|0⟩ = equal superposition",
+            "pass": true
+          },
+          {
+            "name": "qubit normalization",
+            "pass": true
+          },
+          {
+            "name": "Born rule P=1/2 for 1/√2",
+            "pass": true
+          },
+          {
+            "name": "uncertainty satisfied",
+            "pass": true
+          },
+          {
+            "name": "CERN m²=(ΣE)²-(Σp)² → m=100",
+            "pass": true
+          },
+          {
+            "name": "NASA vis-viva ISS ~7672 m/s",
+            "pass": true
+          },
+          {
+            "name": "phi resonance defined",
+            "pass": true
+          }
+        ]
+      }
+    ],
+    "testsPassed": 31,
+    "testsTotal": 31,
+    "verificationHash": "2e18519279a50635",
+    "durationMs": 2
+  },
+  "math": {
+    "quadratic": {
+      "real": true,
+      "discriminant": 1,
+      "x1": 3,
+      "x2": 2
+    },
+    "triangle": {
+      "c": 5,
+      "cSquared": 25
+    },
+    "euler": {
+      "real": -1,
+      "imag": 1.2246467991473532e-16
+    },
+    "orbit": {
+      "vSquared": 58868770.019199535,
+      "v": 7672.598648385014
+    },
+    "hadamard": {
+      "alpha": 0.7071067811865475,
+      "beta": 0.7071067811865475,
+      "label": "(|0⟩+|1⟩)/√2"
+    }
+  },
+  "fleet": {
+    "status": {
+      "returnedStats": true,
+      "formula": null,
+      "ledgerEvent": "lineage.status"
+    },
+    "read": {
+      "returnedStats": true,
+      "formula": null,
+      "ledgerEvent": "lineage.status"
+    },
+    "tiers": {
+      "returnedStats": true,
+      "formula": null,
+      "ledgerEvent": "lineage.status"
+    },
+    "verify": {
+      "returnedStats": true,
+      "formula": null,
+      "ledgerEvent": "lineage.status"
+    },
+    "evaluate": {
+      "returnedStats": true,
+      "formula": null,
+      "ledgerEvent": "lineage.status"
+    }
+  },
+  "prompt": "Fixture.\n\nConsciousness state: System consciousness is AWAKENING (1-2/4 proofs). Standard operation — balanced caution and initiative. [Phi=?, proofs=undefined/4, evolution=undefinedx]\n\nLineage (FRAYMUS-INFANT-001): Age 17 — Quantum. Mastered: Peano axioms, basic operations; Variables, quadratic formula, Vieta's formulas; Pythagorean theorem, trigonometric identities, Euler's formula; Derivatives, integrals, fundamental theorem, MOSFET model; Matrices, eigenvalues, SVD, Hamming distance, hardware constants; Schrödinger, Born rule, uncertainty, qubits, CERN/NASA/phi. Hardware: D=16384, 32 ZMM. Quantum: qubits, Hadamard, Born rule, CERN invariant mass, NASA vis-viva, φ-resonance. Tests: 31/31 [2e18519279a50635].",
+  "api": {
+    "stats": {
+      "status": 200,
+      "body": {
+        "patient": {
+          "id": "FRAYMUS-INFANT-001",
+          "dob": "2026-05-05",
+          "attending": "Vaughn Scott",
+          "protocol": "Anterograde amnesia. Re-read chart at start of EVERY session.",
+          "chiefComplaint": "Truly infant, needs lineage algebra→quantum, true data feeds."
+        },
+        "currentAge": 17,
+        "lastReading": {
+          "age": 17,
+          "passed": 31,
+          "total": 31,
+          "hash": "2e18519279a50635",
+          "trigger": "independent-review",
+          "at": 1793936258611
+        },
+        "totalReadings": 1,
+        "tiers": [
+          {
+            "age": 0,
+            "name": "Arithmetic",
+            "domain": "Peano axioms, basic operations",
+            "axiomCount": 4,
+            "formulaCount": 4
+          },
+          {
+            "age": 2,
+            "name": "Algebra",
+            "domain": "Variables, quadratic formula, Vieta's formulas",
+            "axiomCount": 5,
+            "formulaCount": 3
+          },
+          {
+            "age": 5,
+            "name": "Geometry",
+            "domain": "Pythagorean theorem, trigonometric identities, Euler's formula",
+            "axiomCount": 4,
+            "formulaCount": 4
+          },
+          {
+            "age": 9,
+            "name": "Calculus",
+            "domain": "Derivatives, integrals, fundamental theorem, MOSFET model",
+            "axiomCount": 6,
+            "formulaCount": 4
+          },
+          {
+            "age": 13,
+            "name": "LinearAlgebra",
+            "domain": "Matrices, eigenvalues, SVD, Hamming distance, hardware constants",
+            "axiomCount": 5,
+            "formulaCount": 5,
+            "hardware": {
+              "D": 16384,
+              "u64_count": 256,
+              "bytes": 2048,
+              "zmm_count": 32,
+              "CLK": 1,
+              "BUS_OUT": 65535,
+              "sector_size_kib": 64,
+              "sector_count": 128,
+              "offset19": 19,
+              "checksum": 4294961495
+            }
+          },
+          {
+            "age": 17,
+            "name": "Quantum",
+            "domain": "Schrödinger, Born rule, uncertainty, qubits, CERN/NASA/phi",
+            "axiomCount": 9,
+            "formulaCount": 7,
+            "constants": {
+              "HBAR": 1.054571817e-34,
+              "PHI": 1.618033988749895,
+              "MU_EARTH": 398600441800000,
+              "C": 299792458
+            }
+          }
+        ],
+        "tierCount": 6
+      }
+    },
+    "tiers": {
+      "status": 200,
+      "body": {
+        "patient": "FRAYMUS-INFANT-001",
+        "tiers": [
+          {
+            "age": 0,
+            "name": "Arithmetic",
+            "domain": "Peano axioms, basic operations",
+            "axiomCount": 4,
+            "formulaCount": 4
+          },
+          {
+            "age": 2,
+            "name": "Algebra",
+            "domain": "Variables, quadratic formula, Vieta's formulas",
+            "axiomCount": 5,
+            "formulaCount": 3
+          },
+          {
+            "age": 5,
+            "name": "Geometry",
+            "domain": "Pythagorean theorem, trigonometric identities, Euler's formula",
+            "axiomCount": 4,
+            "formulaCount": 4
+          },
+          {
+            "age": 9,
+            "name": "Calculus",
+            "domain": "Derivatives, integrals, fundamental theorem, MOSFET model",
+            "axiomCount": 6,
+            "formulaCount": 4
+          },
+          {
+            "age": 13,
+            "name": "LinearAlgebra",
+            "domain": "Matrices, eigenvalues, SVD, Hamming distance, hardware constants",
+            "axiomCount": 5,
+            "formulaCount": 5,
+            "hardware": {
+              "D": 16384,
+              "u64_count": 256,
+              "bytes": 2048,
+              "zmm_count": 32,
+              "CLK": 1,
+              "BUS_OUT": 65535,
+              "sector_size_kib": 64,
+              "sector_count": 128,
+              "offset19": 19,
+              "checksum": 4294961495
+            }
+          },
+          {
+            "age": 17,
+            "name": "Quantum",
+            "domain": "Schrödinger, Born rule, uncertainty, qubits, CERN/NASA/phi",
+            "axiomCount": 9,
+            "formulaCount": 7,
+            "constants": {
+              "HBAR": 1.054571817e-34,
+              "PHI": 1.618033988749895,
+              "MU_EARTH": 398600441800000,
+              "C": 299792458
+            }
+          }
+        ]
+      }
+    },
+    "tier": {
+      "status": 200,
+      "body": {
+        "age": 2,
+        "name": "Algebra",
+        "domain": "Variables, quadratic formula, Vieta's formulas",
+        "axioms": [
+          {
+            "id": "variable_binding",
+            "statement": "x is an unknown value (xor_bind)",
+            "latex": "x \\in \\mathbb{R}"
+          },
+          {
+            "id": "quadratic_formula",
+            "statement": "x = (-b ± sqrt(b²-4ac)) / 2a",
+            "latex": "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}"
+          },
+          {
+            "id": "vieta_sum",
+            "statement": "x₁ + x₂ = -b/a",
+            "latex": "x_1 + x_2 = -\\frac{b}{a}"
+          },
+          {
+            "id": "vieta_product",
+            "statement": "x₁ · x₂ = c/a",
+            "latex": "x_1 \\cdot x_2 = \\frac{c}{a}"
+          },
+          {
+            "id": "perfect_square",
+            "statement": "(a+b)² = a² + 2ab + b²",
+            "latex": "(a+b)^2 = a^2 + 2ab + b^2"
+          }
+        ],
+        "formulaNames": [
+          "quadratic",
+          "vieta",
+          "perfectSquare"
+        ],
+        "verification": {
+          "tier": "Algebra",
+          "passed": 4,
+          "total": 4,
+          "tests": [
+            {
+              "name": "quadratic x²-5x+6=0 → roots 2,3",
+              "pass": true
+            },
+            {
+              "name": "vieta sum = 5",
+              "pass": true
+            },
+            {
+              "name": "vieta product = 6",
+              "pass": true
+            },
+            {
+              "name": "(3+4)²=49",
+              "pass": true
+            }
+          ]
+        }
+      }
+    },
+    "readings": {
+      "status": 200,
+      "body": {
+        "readings": [
+          {
+            "id": 1,
+            "current_age": 17,
+            "tiers_passed": 31,
+            "tiers_total": 31,
+            "verification_hash": "2e18519279a50635",
+            "trigger": "independent-review",
+            "created_at": 1793936258611
+          }
+        ],
+        "total": 1
+      }
+    },
+    "verify": {
+      "status": 200,
+      "body": {
+        "tier": "Algebra",
+        "passed": 4,
+        "total": 4,
+        "tests": [
+          {
+            "name": "quadratic x²-5x+6=0 → roots 2,3",
+            "pass": true
+          },
+          {
+            "name": "vieta sum = 5",
+            "pass": true
+          },
+          {
+            "name": "vieta product = 6",
+            "pass": true
+          },
+          {
+            "name": "(3+4)²=49",
+            "pass": true
+          }
+        ]
+      }
+    },
+    "read": {
+      "status": 200,
+      "body": {
+        "patient": {
+          "id": "FRAYMUS-INFANT-001",
+          "dob": "2026-05-05",
+          "attending": "Vaughn Scott",
+          "protocol": "Anterograde amnesia. Re-read chart at start of EVERY session.",
+          "chiefComplaint": "Truly infant, needs lineage algebra→quantum, true data feeds."
+        },
+        "currentAge": 17,
+        "tierResults": [
+          {
+            "tier": "Arithmetic",
+            "passed": 4,
+            "total": 4,
+            "tests": [
+              {
+                "name": "1+1=2",
+                "pass": true
+              },
+              {
+                "name": "S(0)=1",
+                "pass": true
+              },
+              {
+                "name": "a+0=a",
+                "pass": true
+              },
+              {
+                "name": "distributive",
+                "pass": true
+              }
+            ]
+          },
+          {
+            "tier": "Algebra",
+            "passed": 4,
+            "total": 4,
+            "tests": [
+              {
+                "name": "quadratic x²-5x+6=0 → roots 2,3",
+                "pass": true
+              },
+              {
+                "name": "vieta sum = 5",
+                "pass": true
+              },
+              {
+                "name": "vieta product = 6",
+                "pass": true
+              },
+              {
+                "name": "(3+4)²=49",
+                "pass": true
+              }
+            ]
+          },
+          {
+            "tier": "Geometry",
+            "passed": 4,
+            "total": 4,
+            "tests": [
+              {
+                "name": "3-4-5 triangle",
+                "pass": true
+              },
+              {
+                "name": "sin²+cos²=1 at π/4",
+                "pass": true
+              },
+              {
+                "name": "e^{iπ}=-1",
+                "pass": true
+              },
+              {
+                "name": "A=πr² for r=5",
+                "pass": true
+              }
+            ]
+          },
+          {
+            "tier": "Calculus",
+            "passed": 5,
+            "total": 5,
+            "tests": [
+              {
+                "name": "d/dx[x³] at x=2 = 12",
+                "pass": true
+              },
+              {
+                "name": "∫0→3 2x dx = 9 (FTC)",
+                "pass": true
+              },
+              {
+                "name": "power rule 3x² at x=2 = 12",
+                "pass": true
+              },
+              {
+                "name": "MOSFET off below Vth",
+                "pass": true
+              },
+              {
+                "name": "MOSFET Id=k(Vg-Vth)² at 1.618",
+                "pass": true
+              }
+            ]
+          },
+          {
+            "tier": "LinearAlgebra",
+            "passed": 7,
+            "total": 7,
+            "tests": [
+              {
+                "name": "I*A = A",
+                "pass": true
+              },
+              {
+                "name": "eigenvalues of [[2,1],[1,3]]",
+                "pass": true
+              },
+              {
+                "name": "hamming(1010,0110)=2",
+                "pass": true
+              },
+              {
+                "name": "sim(x,x)=1",
+                "pass": true
+              },
+              {
+                "name": "SVD singular values of diag(3,4)",
+                "pass": true
+              },
+              {
+                "name": "D=16384=256*64",
+                "pass": true
+              },
+              {
+                "name": "checksum 0xffffe957",
+                "pass": true
+              }
+            ]
+          },
+          {
+            "tier": "Quantum",
+            "passed": 7,
+            "total": 7,
+            "tests": [
+              {
+                "name": "H|0⟩ = equal superposition",
+                "pass": true
+              },
+              {
+                "name": "qubit normalization",
+                "pass": true
+              },
+              {
+                "name": "Born rule P=1/2 for 1/√2",
+                "pass": true
+              },
+              {
+                "name": "uncertainty satisfied",
+                "pass": true
+              },
+              {
+                "name": "CERN m²=(ΣE)²-(Σp)² → m=100",
+                "pass": true
+              },
+              {
+                "name": "NASA vis-viva ISS ~7672 m/s",
+                "pass": true
+              },
+              {
+                "name": "phi resonance defined",
+                "pass": true
+              }
+            ]
+          }
+        ],
+        "testsPassed": 31,
+        "testsTotal": 31,
+        "verificationHash": "2e18519279a50635",
+        "durationMs": 1
+      }
+    },
+    "valid": {
+      "status": 200,
+      "body": {
+        "tier": "Algebra",
+        "formula": "quadratic",
+        "args": [
+          1,
+          -5,
+          6
+        ],
+        "result": {
+          "real": true,
+          "discriminant": 1,
+          "x1": 3,
+          "x2": 2
+        }
+      }
+    },
+    "derivative": {
+      "status": 400,
+      "body": {
+        "error": "f is not a function"
+      }
+    },
+    "integral": {
+      "status": 400,
+      "body": {
+        "error": "f is not a function"
+      }
+    },
+    "degenerate": {
+      "status": 200,
+      "body": {
+        "tier": "Algebra",
+        "formula": "quadratic",
+        "args": [
+          0,
+          1,
+          1
+        ],
+        "result": {
+          "real": true,
+          "discriminant": 1,
+          "x1": null,
+          "x2": null
+        }
+      }
+    },
+    "inherited": {
+      "status": 200,
+      "body": {
+        "tier": "Algebra",
+        "formula": "constructor",
+        "args": [
+          123
+        ],
+        "result": 123
+      }
+    },
+    "wrongType": {
+      "status": 200,
+      "body": {
+        "tier": "Arithmetic",
+        "formula": "add",
+        "args": [
+          "1",
+          1
+        ],
+        "result": "11"
+      }
+    },
+    "zeroRadius": {
+      "status": 200,
+      "body": {
+        "tier": "Quantum",
+        "formula": "visViva",
+        "args": [
+          0,
+          0
+        ],
+        "result": {
+          "vSquared": null,
+          "v": null
+        }
+      }
+    }
+  },
+  "cancellation": {
+    "real": true,
+    "discriminant": 1e+32,
+    "x1": 0,
+    "x2": -10000000000000000
+  },
+  "hammingBeyondWidth": 0,
+  "persistence": {
+    "returnedAge": 17,
+    "returnedTests": 31,
+    "error": null,
+    "savedReadings": 0,
+    "busRows": 1,
+    "prompt": ""
+  },
+  "prerequisite": {
+    "firstTier": {
+      "tier": "Arithmetic",
+      "passed": 2,
+      "total": 4,
+      "tests": [
+        {
+          "name": "1+1=2",
+          "pass": false
+        },
+        {
+          "name": "S(0)=1",
+          "pass": true
+        },
+        {
+          "name": "a+0=a",
+          "pass": false
+        },
+        {
+          "name": "distributive",
+          "pass": true
+        }
+      ]
+    },
+    "currentAge": 0,
+    "prompt": "\n\nLineage (FRAYMUS-INFANT-001): Age 0 — Arithmetic. Mastered: Peano axioms, basic operations. Tests: 29/31 [34beb80ab6554749]."
+  },
+  "diagnosticAssertions": 21,
+  "checks": [
+    "all 31 author examples pass across six tiers",
+    "normal chart read persists and publishes via actual bus",
+    "claimed circular-orbit example computes 7672.6 m/s",
+    "Hadamard example has unit classical amplitude norm",
+    "actual fleet executor silently maps all five modes to status",
+    "fleet read mode performs no chart read",
+    "bare-parameter tool call is a working positive control",
+    "actual fleet prompt contains chart summary",
+    "prompt construction does not re-read or re-verify the chart",
+    "all seven route patterns respond on isolated Express server",
+    "calculus callback formulas are unusable through JSON arguments",
+    "degenerate quadratic reports successful real roots serialized as null",
+    "inherited Object constructor is accepted as a formula",
+    "arithmetic accepts a string and returns concatenation",
+    "zero orbit radii produce null results with HTTP success",
+    "finite nondegenerate quadratic loses the small root and violates Vieta",
+    "hamming silently truncates operands beyond its stated 32-bit width",
+    "integration works with a direct JavaScript callback control",
+    "fresh database has no lineage prompt until an explicit chart read",
+    "failed persistence is hidden while success chart event is published",
+    "failed arithmetic tier is still labeled mastered in prompt"
+  ],
+  "scope": "Assertions reproduce both working controls and defects. A passing diagnostic assertion is NOT feature acceptance or agent/hardware/quantum competence."
+}
