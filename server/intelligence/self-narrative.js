@@ -36,7 +36,7 @@ let lastNarrativeAt = 0;
 let lastNarrative = null;
 let narrativeCTRNN = null;
 let narrativeInterval = null;
-let generationInFlight = false;
+let inflightOwner = -1;  // lifecycleToken of the generation that owns the lock; -1 = no lock
 let lifecycleToken = 0;
 
 // ─── DB Migration ─────────────────────────────────────────────
@@ -241,12 +241,12 @@ async function generateNarrative(signals, trigger = 'scheduled') {
       const ctrnn = narrativeCTRNN;
       injections = [];
 
-      // Narrative coherence → Row 2, Col 8 (inject API: x, y, sigma, amplitude)
+      // Narrative coherence → grid (2, 8) σ=2.5
       const coherenceAmp = coherenceScore * sensitivity * 1.5;
       ctrnn.inject(2, 8, 2.5, coherenceAmp);
       injections.push({ region: 'narrative_coherence', row: 2, col: 8, amp: coherenceAmp, sigma: 2.5 });
 
-      // Self-awareness → Row 2, Col 12
+      // Self-awareness → grid (2, 12) σ=2.0
       const awarenessAmp = awarenessScore * sensitivity * 1.2;
       ctrnn.inject(2, 12, 2.0, awarenessAmp);
       injections.push({ region: 'self_awareness', row: 2, col: 12, amp: awarenessAmp, sigma: 2.0 });
@@ -321,17 +321,19 @@ export function setNarrativeCTRNN(ctrnn) { narrativeCTRNN = ctrnn; }
 export function startNarrative() {
   stopNarrative();
   lifecycleToken++;
+  const myLifecycle = lifecycleToken;
   narrativeInterval = setInterval(async () => {
     if (now() - lastNarrativeAt < NARRATIVE_COOLDOWN_MS) return;
-    if (generationInFlight) return;
-    generationInFlight = true;
+    if (inflightOwner >= 0) return;  // another generation owns the lock
+    inflightOwner = myLifecycle;
     try {
       const signals = collectSignals(narrativeHeart);
       await generateNarrative(signals, 'interval');
     } catch (e) {
       console.error('[self-narrative] interval error:', e.message);
     } finally {
-      generationInFlight = false;
+      // Only release if we still own the lock — stop/restart may have reassigned it
+      if (inflightOwner === myLifecycle) inflightOwner = -1;
     }
   }, 120_000);
 }
@@ -342,14 +344,15 @@ export function stopNarrative() {
     narrativeInterval = null;
   }
   lifecycleToken++;
+  inflightOwner = -1;  // release any pending lock from the old lifecycle
 }
 
 export function resetNarrative() {
   lifecycleToken++;
+  inflightOwner = -1;
   callCount = 0;
   lastNarrative = null;
   lastNarrativeAt = 0;
-  generationInFlight = false;
 }
 
 export function getNarrativeStatus() {
@@ -365,7 +368,7 @@ export function getNarrativeStatus() {
     lastGeneratedAt: lastNarrative?.generatedAt || null,
     lastDurationMs: lastNarrative?.durationMs || null,
     gateTier: mods.tier,
-    snapshotsStored: callCount,
+    callCount,
   };
 }
 

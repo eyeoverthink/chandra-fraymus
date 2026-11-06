@@ -24,6 +24,7 @@ import { db } from '../db.js';
 import { publish } from '../fleet/bus.js';
 import { randomUUID } from 'node:crypto';
 import { getAutonomyModifiers } from './consciousness-gate.js';
+import { getSelfModelStatus } from './self-model.js';
 
 const now = () => Date.now();
 const BASE_MONITOR_SENSITIVITY = 0.5;
@@ -147,13 +148,21 @@ const SUBSYSTEM_CHECKS = {
   },
 
   selfModel: () => {
+    // Self-model persists only every 20th daemon call (~10h at base cadence).
+    // Use live query via getSelfModelStatus() which calls collectVisualState().
     try {
-      const row = db.prepare(`SELECT * FROM self_model_snapshots ORDER BY created_at DESC LIMIT 1`).get();
-      if (!row) return { score: 0.3, status: 'idle', detail: 'No self-model data yet' };
-      if (now() - row.created_at > FRESHNESS_BOUNDS.selfModel) return { score: 0.3, status: 'stale' };
-      const ratio = (row.active_count || 0) / Math.max(1, row.subsystem_count || 27);
-      return { score: Math.max(0.3, ratio), status: 'active', detail: `${row.active_count}/${row.subsystem_count} active` };
-    } catch (_) { return { score: 0, status: 'error' }; }
+      const live = getSelfModelStatus();
+      const ratio = (live.activeCount || 0) / Math.max(1, live.subsystemCount || 27);
+      return { score: Math.max(0.3, ratio), status: 'active', detail: `${live.activeCount}/${live.subsystemCount} active (live)` };
+    } catch (_) {
+      // Fallback to persisted snapshot if live query fails
+      try {
+        const row = db.prepare(`SELECT * FROM self_model_snapshots ORDER BY created_at DESC LIMIT 1`).get();
+        if (!row) return { score: 0.3, status: 'idle', detail: 'No self-model data yet' };
+        const ratio = (row.active_count || 0) / Math.max(1, row.subsystem_count || 27);
+        return { score: Math.max(0.3, ratio), status: 'active', detail: `${row.active_count}/${row.subsystem_count} active (snapshot)` };
+      } catch (__) { return { score: 0, status: 'error' }; }
+    }
   },
 
   resourceEnvelope: () => {
@@ -243,12 +252,12 @@ function assessIntelligence(trigger = 'scheduled') {
   if (monitorCTRNN) {
     try {
       injections = [];
-      // Intelligence health → Row 15, Col 4 (inject API: x, y, sigma, amplitude)
+      // Intelligence health → grid (15, 4) σ=3.0
       const healthAmp = intelligenceScore * sensitivity * 2.0;
       monitorCTRNN.inject(15, 4, 3.0, healthAmp);
       injections.push({ region: 'intelligence_health', row: 15, col: 4, amp: healthAmp, sigma: 3.0 });
 
-      // Degradation alert → Row 15, Col 12 (inhibitory when degraded)
+      // Degradation alert → grid (15, 12) σ=2.0 (inhibitory when degraded)
       if (degraded.length > 0) {
         const degradeAmp = -(degraded.length / 12) * sensitivity * 1.5;
         monitorCTRNN.inject(15, 12, 2.0, degradeAmp);

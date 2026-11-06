@@ -286,11 +286,10 @@ const COMPOUND_EMOTIONS = {
   serenity:      { requires: ['joy', 'love'],         threshold: 0.20, label: 'serenity', condition: (n) => n.anxiety < 0.05 && n.fear < 0.05 },
 };
 
-export function detectCompounds(normalized) {
-  // Guard: neutral text gets ~0.12 per emotion from fallback scoring.
-  // Skip compound detection when there is no real emotional signal.
-  const totalScore = Object.values(normalized).reduce((s, v) => s + (v || 0), 0);
-  if (totalScore < 0.15) return [];
+export function detectCompounds(normalized, { primary, rawTotal } = {}) {
+  // Guard: neutral text gets ~0.12 per emotion from uniform fallback.
+  // Gate on actual lexicon evidence, not the normalized vector sum.
+  if (primary === 'neutral' || (typeof rawTotal === 'number' && rawTotal === 0)) return [];
 
   const compounds = [];
   for (const [name, def] of Object.entries(COMPOUND_EMOTIONS)) {
@@ -359,7 +358,8 @@ export class Heart {
     const quick = compose(text, analysis, context);
 
     // Phase 22: Detect compound emotions from the analysis
-    analysis.compounds = detectCompounds(analysis.normalized);
+    const rawTotal = Object.values(analysis.scores).reduce((a, b) => a + b, 0);
+    analysis.compounds = detectCompounds(analysis.normalized, { primary: analysis.primary, rawTotal });
 
     // Phase 22: Record to mood history for trajectory tracking
     recordMoodHistory(analysis);

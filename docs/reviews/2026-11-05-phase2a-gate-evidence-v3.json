@@ -1,0 +1,102 @@
+{
+  "phase": "2A",
+  "title": "RE Agent Manifest + Fleet Tools — Gate Acceptance",
+  "timestamp": "2026-11-05T23:22:24.484Z",
+  "databaseIsolation": true,
+  "disposableDir": "F:\\Fraymus-Skill-Lab\\chandra-fraymus\\.test-2a-36259a33",
+  "gates": [
+    {
+      "id": "RE-P2A-G1",
+      "status": "PASS",
+      "detail": "Manifest has id=\"re-analyst\" with exactly 10 tools: [re.ingest_dossier, re.verify_chain, re.query_dossier, re.build_gate_lookup, re.compile_rate_measure, re.compile_rate_predict, bus_publish, bus_read, agent_remember, agent_recall]",
+      "timestamp": "2026-11-05T23:22:21.724Z"
+    },
+    {
+      "id": "RE-P2A-G2a",
+      "status": "PASS_ISOLATED",
+      "detail": "Raw receipt file not present on this machine — tool function verified via import",
+      "timestamp": "2026-11-05T23:22:21.742Z"
+    },
+    {
+      "id": "RE-P2A-G2b",
+      "status": "PASS",
+      "detail": "Projection correctly unverifiable: \"Chain verification impossible for projection format — chain fields (prev, self) are absent\"",
+      "timestamp": "2026-11-05T23:22:21.743Z"
+    },
+    {
+      "id": "RE-P2A-G3-reseed",
+      "status": "PASS",
+      "detail": "Reseed is non-destructive: 18 skipped, 0 seeded on second call",
+      "timestamp": "2026-11-05T23:22:22.127Z"
+    },
+    {
+      "id": "RE-P2A-G3-JDK",
+      "status": "PASS",
+      "detail": "Keyword \"JDK\" → 2 gate(s): [10, 3], source=\"BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)\"",
+      "timestamp": "2026-11-05T23:22:22.168Z"
+    },
+    {
+      "id": "RE-P2A-G3-dylib",
+      "status": "PASS",
+      "detail": "Keyword \"dylib\" → 2 gate(s): [18, 2], source=\"BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)\"",
+      "timestamp": "2026-11-05T23:22:22.210Z"
+    },
+    {
+      "id": "RE-P2A-G3-npm",
+      "status": "PASS",
+      "detail": "Keyword \"npm\" → 3 gate(s): [9, 7, 5], source=\"BUILD-GATES.md at upstream 2f75cee7 (blob 43377715)\"",
+      "timestamp": "2026-11-05T23:22:22.273Z"
+    },
+    {
+      "id": "RE-P2A-G4a",
+      "status": "PASS",
+      "detail": "18 build_gate memories stored, all at confidence 0.9, upstream keys (1..18), source pinned to 2f75cee7",
+      "timestamp": "2026-11-05T23:22:22.656Z"
+    },
+    {
+      "id": "RE-P2A-G4b",
+      "status": "PASS",
+      "detail": "Verified entry preserved byte-for-byte on reseed",
+      "timestamp": "2026-11-05T23:22:22.698Z"
+    },
+    {
+      "id": "RE-P2A-G4c",
+      "status": "PASS",
+      "detail": "Recategorized verified entry preserved across seed — identity scope correct",
+      "timestamp": "2026-11-05T23:22:22.740Z"
+    },
+    {
+      "id": "RE-P2A-G4d",
+      "status": "PASS",
+      "detail": "Unverified L-prefixed orphans cleaned up on seed",
+      "timestamp": "2026-11-05T23:22:22.781Z"
+    },
+    {
+      "id": "RE-P2A-G5",
+      "status": "PASS",
+      "detail": "Tycho rea_analyst preserved: id=\"rea_analyst\", name=\"Tycho\", separate from re-analyst",
+      "timestamp": "2026-11-05T23:22:22.782Z"
+    },
+    {
+      "id": "RE-P2A-G6a",
+      "status": "PASS",
+      "detail": "6 RE tools registered: 2 Gate-2A working, 4 Gate-2B stubs correctly require Phase 3",
+      "timestamp": "2026-11-05T23:22:22.782Z"
+    },
+    {
+      "id": "RE-P2A-G6b",
+      "status": "PASS",
+      "detail": "Fleet manifest discovers re-analyst with 10 tools; all 6 RE tools present in fleet registry (142 total tools)",
+      "timestamp": "2026-11-05T23:22:24.484Z"
+    }
+  ],
+  "summary": {
+    "passed": 14,
+    "failed": 0,
+    "total": 14
+  },
+  "limitations": [
+    "G2a/b: raw receipt files not present on this machine (PASS_ISOLATED)",
+    "G6b: fleet taskability verified via manifest loader + tool registry, not full POST /api/fleet/runs (no server boot)"
+  ]
+}

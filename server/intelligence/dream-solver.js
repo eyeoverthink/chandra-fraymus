@@ -161,6 +161,7 @@ export async function solveDream(problem, { trigger = 'api', dreamer = null } = 
   const temperature = Math.min(1.0, 0.85 + sensitivity * 0.1);
 
   let solution, associations, noveltyScore, feasibilityScore, keyInsight, dreamNarrative;
+  let modelError = false;
 
   try {
     const raw = await chatOllama([
@@ -178,6 +179,7 @@ export async function solveDream(problem, { trigger = 'api', dreamer = null } = 
     feasibilityScore = Math.max(0, Math.min(1, Number.isFinite(rawFeasibility) ? rawFeasibility : 0.5));
     dreamNarrative = parsed.dreamNarrative || '';
   } catch (e) {
+    modelError = true;
     solution = `Dream-solving encountered turbulence: ${e.message}`;
     associations = [];
     keyInsight = '';
@@ -186,24 +188,24 @@ export async function solveDream(problem, { trigger = 'api', dreamer = null } = 
     dreamNarrative = '';
   }
 
-  const llmFailed = noveltyScore === 0.2 && feasibilityScore === 0.1 && associations.length === 0;
-
   const duration = now() - t0;
 
   // Record as a signed dream file if dreamer is available
   let dreamNumber = null;
-  if (activeDreamer) {
+  let signed = false;
+  if (activeDreamer && !modelError) {
     try {
       const dreamContent = `DREAM-SOLVE: ${problem}\n\nSOLUTION: ${solution}\n\nKEY INSIGHT: ${keyInsight}\n\nASSOCIATIONS:\n${associations.map(a => `  - ${a}`).join('\n')}\n\n${dreamNarrative}`;
       const dreamResult = await activeDreamer.dream(dreamContent, ['dream-solver', trigger], 'creative-solve');
       dreamNumber = dreamResult.number;
+      signed = dreamResult.signed === true;
     } catch (e) {
       console.error('[dream-solver] dreamer.dream() failed:', e.message);
     }
   }
 
-  // CTRNN injection
-  if (dreamSolverCTRNN) {
+  // CTRNN injection — suppress on model error to avoid reinforcing failure
+  if (dreamSolverCTRNN && !modelError) {
     try {
       const sparkAmp = noveltyScore * sensitivity * 1.5;
       dreamSolverCTRNN.inject(7, 4, 2.0, sparkAmp);
@@ -225,6 +227,8 @@ export async function solveDream(problem, { trigger = 'api', dreamer = null } = 
     feasibilityScore,
     dreamNarrative,
     dreamNumber,
+    signed,
+    modelError,
     contextSources: {
       memories: context.memories.length,
       dreams: context.dreams.length,
@@ -269,14 +273,15 @@ export async function solveDream(problem, { trigger = 'api', dreamer = null } = 
       feasibility: feasibilityScore,
       associations: associations.length,
       dreamNumber,
+      signed,
       durationMs: duration,
       stored,
-      llmFailed,
+      modelError,
     }));
   } catch (_) {}
 
-  if (!stored || llmFailed) {
-    lastSolution.status = llmFailed ? 'llm_failed' : 'storage_failed';
+  if (!stored || modelError) {
+    lastSolution.status = modelError ? 'model_error' : 'storage_failed';
   }
 
   return lastSolution;
@@ -297,10 +302,13 @@ export function getDreamSolverStatus() {
       feasibility: lastSolution.feasibilityScore,
       associations: lastSolution.associations?.length ?? 0,
       dreamNumber: lastSolution.dreamNumber,
+      signed: lastSolution.signed ?? false,
+      status: lastSolution.status || 'ok',
+      modelError: lastSolution.modelError ?? false,
       durationMs: lastSolution.durationMs,
       solvedAt: lastSolution.solvedAt,
     } : null,
-    totalSessions: callCount,
+    callCount,
     gateTier: mods.tier,
   };
 }
