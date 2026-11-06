@@ -21,46 +21,107 @@ const VIEWS = [
   { id: 'manifold', label: 'Manifold', icon: '◬' },
 ];
 
-const NAV_BUTTONS = [
-  { panel: 'chat', title: 'Agent Chat', icon: '💬', label: 'Chat', color: '#a78bfa' },
-  { panel: 'timeline', title: 'Activity Timeline', icon: '📜', label: 'Timeline', color: '#34d399' },
-  { panel: 'metrics', title: 'System Metrics', icon: '📊', label: 'Metrics', color: '#60a5fa' },
-  { panel: 'profiles', title: 'Agent Profiles', icon: '🤖', label: 'Profiles', color: '#f59e0b' },
-  { panel: 'memory', title: 'Memory Browser', icon: '💭', label: 'Memory', color: '#10b981' },
-  { panel: 'run-history', title: 'Run History', icon: '▶️', label: 'Runs', color: '#f87171' },
-  { panel: 'evolution', title: 'Evolution Log', icon: '🔬', label: 'Evo', color: '#a78bfa' },
-  { panel: 'pulse', title: 'System Pulse', icon: '💓', label: 'Pulse', color: '#34d399' },
-  { panel: 'leaderboard', title: 'Agent Leaderboard', icon: '🏆', label: 'Board', color: '#f59e0b' },
-  { panel: 'collab', title: 'Agent Collaboration', icon: '🤝', label: 'Collab', color: '#7c3aed' },
-  { panel: 'nerve-center', title: 'Nerve Center', icon: '⚡', label: 'Nerve', color: '#ef4444' },
-  { panel: 'chain', title: 'Logic Chain', icon: '⛓️', label: 'Chain', color: '#7c3aed' },
-  { panel: 'observatory', title: 'Intelligence Observatory', icon: '🔭', label: 'Observe', color: '#0d9488' },
-  { panel: 'debate', title: 'Debate Protocol', icon: '⚔️', label: 'Debate', color: '#dc2626' },
-  { panel: 'swarm', title: 'Swarm Protocol', icon: '🐝', label: 'Swarm', color: '#f59e0b' },
-  { panel: 'strategy', title: 'Strategy Engine', icon: '🧭', label: 'Strategy', color: '#0d9488' },
-  { panel: 'trust', title: 'Trust Engine', icon: '🛡', label: 'Trust', color: '#dc2626' },
-  { panel: 'subconscious', title: 'Subconscious Engine', icon: '🧠', label: 'Subcon', color: '#7c3aed' },
-  { panel: 'ouroboros-cycle', title: 'Ouroboros RSI', icon: '🐍', label: 'Ouroboros', color: '#059669' },
-  { panel: 'ouroboros-lineage', title: 'Ouroboros Lineage', icon: '🧬', label: 'Lineage', color: '#10b981' },
-  { panel: 'integrity', title: 'System Integrity', icon: '🔒', label: 'Integrity', color: '#ef4444' },
-  { panel: 'cross-tab', title: 'Cross-Tab Intelligence', icon: '🌐', label: 'CrossTab', color: '#06b6d4' },
-  { panel: 'content-nexus', title: 'Content Nexus', icon: '📡', label: 'Nexus', color: '#8b5cf6' },
+const NAV_GROUPS = [
+  {
+    id: 'intelligence', label: 'Intelligence', icon: '⚡', color: '#c084fc',
+    items: [
+      { panel: 'nerve-center', title: 'Nerve Center', icon: '⚡', label: 'Nerve Center' },
+      { panel: 'subconscious', title: 'Subconscious Engine', icon: '🧠', label: 'Subconscious' },
+      { panel: 'observatory', title: 'Intelligence Observatory', icon: '🔭', label: 'Observatory' },
+      { panel: 'strategy', title: 'Strategy Engine', icon: '🧭', label: 'Strategy' },
+      { panel: 'cross-tab', title: 'Cross-Tab Intelligence', icon: '🌐', label: 'Cross-Tab' },
+      { panel: 'ouroboros-cycle', title: 'Ouroboros RSI', icon: '🐍', label: 'Ouroboros RSI' },
+      { panel: 'ouroboros-lineage', title: 'Ouroboros Lineage', icon: '🧬', label: 'Lineage' },
+    ],
+  },
+  {
+    id: 'fleet', label: 'Fleet', icon: '🤖', color: '#6366f1',
+    items: [
+      { panel: 'chat', title: 'Agent Chat', icon: '💬', label: 'Agent Chat' },
+      { panel: 'profiles', title: 'Agent Profiles', icon: '🤖', label: 'Profiles' },
+      { panel: 'leaderboard', title: 'Agent Leaderboard', icon: '🏆', label: 'Leaderboard' },
+      { panel: 'collab', title: 'Agent Collaboration', icon: '🤝', label: 'Collaboration' },
+      { panel: 'trust', title: 'Trust Engine', icon: '🛡', label: 'Trust' },
+    ],
+  },
+  {
+    id: 'ops', label: 'Ops', icon: '📊', color: '#34d399',
+    items: [
+      { panel: 'timeline', title: 'Activity Timeline', icon: '📜', label: 'Timeline' },
+      { panel: 'metrics', title: 'System Metrics', icon: '📊', label: 'Metrics' },
+      { panel: 'run-history', title: 'Run History', icon: '▶️', label: 'Run History' },
+      { panel: 'pulse', title: 'System Pulse', icon: '💓', label: 'Pulse' },
+      { panel: 'evolution', title: 'Evolution Log', icon: '🔬', label: 'Evolution' },
+    ],
+  },
+  {
+    id: 'protocols', label: 'Protocols', icon: '⛓️', color: '#f59e0b',
+    items: [
+      { panel: 'chain', title: 'Logic Chain', icon: '⛓️', label: 'Logic Chain' },
+      { panel: 'debate', title: 'Debate Protocol', icon: '⚔️', label: 'Debate' },
+      { panel: 'swarm', title: 'Swarm Protocol', icon: '🐝', label: 'Swarm' },
+    ],
+  },
+  {
+    id: 'system', label: 'System', icon: '🔒', color: '#f87171',
+    items: [
+      { panel: 'memory', title: 'Memory Browser', icon: '💭', label: 'Memory' },
+      { panel: 'integrity', title: 'System Integrity', icon: '🔒', label: 'Integrity' },
+      { panel: 'content-nexus', title: 'Content Nexus', icon: '📡', label: 'Content Nexus' },
+    ],
+  },
 ];
 
-function NavButton({ btn, openDrawer }) {
+function NavGroup({ group, openDrawer, isOpen, onToggle, onClose }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isOpen, onClose]);
+
   return (
-    <button onClick={() => openDrawer(btn.panel, btn.title)} className="nav-btn" style={{
-      background: 'none', border: '1px solid #444', borderRadius: 6,
-      color: '#aaa', fontSize: 13, padding: '4px 10px', cursor: 'pointer',
-      display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
-      whiteSpace: 'nowrap',
-    }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = btn.color; e.currentTarget.style.color = btn.color; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = '#444'; e.currentTarget.style.color = '#aaa'; }}
-    >
-      <span style={{ fontSize: 12 }}>{btn.icon}</span>
-      <span className="nav-btn-label">{btn.label}</span>
-    </button>
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button onClick={onToggle} className="nav-btn" style={{
+        background: isOpen ? `${group.color}15` : 'none',
+        border: `1px solid ${isOpen ? group.color : '#444'}`, borderRadius: 6,
+        color: isOpen ? group.color : '#aaa', fontSize: 13, padding: '4px 10px',
+        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+        transition: 'all 0.15s', whiteSpace: 'nowrap',
+      }}
+        onMouseEnter={e => { if (!isOpen) { e.currentTarget.style.borderColor = group.color; e.currentTarget.style.color = group.color; }}}
+        onMouseLeave={e => { if (!isOpen) { e.currentTarget.style.borderColor = '#444'; e.currentTarget.style.color = '#aaa'; }}}
+      >
+        <span style={{ fontSize: 12 }}>{group.icon}</span>
+        <span className="nav-btn-label">{group.label}</span>
+        <span style={{ fontSize: 8, marginLeft: 2, opacity: 0.5 }}>{isOpen ? '▲' : '▼'}</span>
+      </button>
+      {isOpen && (
+        <div style={{
+          position: 'absolute', top: '100%', right: 0, marginTop: 4,
+          background: '#151520', border: '1px solid #333', borderRadius: 8,
+          padding: '4px 0', minWidth: 190, zIndex: 100,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+        }}>
+          {group.items.map(item => (
+            <button key={item.panel} onClick={() => { openDrawer(item.panel, item.title); onClose(); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                padding: '8px 14px', border: 'none', background: 'transparent',
+                color: '#ccc', fontSize: 13, cursor: 'pointer', textAlign: 'left',
+                transition: 'background 0.1s, color 0.1s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = `${group.color}15`; e.currentTarget.style.color = group.color; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ccc'; }}
+            >
+              <span style={{ fontSize: 14, width: 20, textAlign: 'center' }}>{item.icon}</span>
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -98,6 +159,7 @@ export default function App() {
   const [drawer, setDrawer] = useState(null);
   const [showHelp, setShowHelp] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [openGroup, setOpenGroup] = useState(null);
   const { lastEvent: wsEvent, wsStatus } = useWebSocket();
 
   const handleShortcut = useCallback((action) => {
@@ -180,7 +242,13 @@ export default function App() {
 
         <div className="nav-panels" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           <GlobalSearch onOpenDrawer={openDrawer} onNavigate={setView} externalOpen={searchOpen} onExternalClose={() => setSearchOpen(false)} />
-          {NAV_BUTTONS.map(btn => <NavButton key={btn.panel} btn={btn} openDrawer={openDrawer} />)}
+          {NAV_GROUPS.map(g => (
+            <NavGroup key={g.id} group={g} openDrawer={openDrawer}
+              isOpen={openGroup === g.id}
+              onToggle={() => setOpenGroup(prev => prev === g.id ? null : g.id)}
+              onClose={() => setOpenGroup(null)}
+            />
+          ))}
         </div>
         <div className="nav-status" style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: '#555', flexShrink: 0 }}>
           {wsStatus !== 'connected' && (
