@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
+import { watch, existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { DATA_DIR, OLLAMA_URL } from '../config.js';
 import { db } from '../db.js';
 import { loadManifests, writeOverride, removeOverride } from './manifest.js';
-import { OLLAMA_URL } from '../config.js';
 import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
 import { sanitizeOllamaContent, sanitizeDeep } from '../fraymus/intelligence/ollama-sanitize.js';
 import { setMemoryBridgeRef } from './tools.js';
@@ -21,6 +23,7 @@ import { record as replayRecord } from '../intelligence/replay-engine.js';
 import { buildSpatialContext } from '../intelligence/self-model.js';
 import { buildLineageContext } from '../intelligence/lineage.js';
 import { contextualRecall } from '../intelligence/knowledge-graph.js';
+import { isResourceConstrained, getResourcePressure } from '../intelligence/resource-envelope.js';
 
 const MAX_STEPS = 8;
 const MAX_HISTORY = 40;
@@ -34,6 +37,8 @@ let vertisoRef = null;
 let rsiRef = null;
 let memoryBridgeRef = null;
 
+let manifestWatchers = [];
+
 export function initFleet({ broadcast, vertiso, rsi, memoryBridge }) {
   broadcastFn = broadcast || (() => {});
   vertisoRef = vertiso || null;
@@ -41,7 +46,38 @@ export function initFleet({ broadcast, vertiso, rsi, memoryBridge }) {
   memoryBridgeRef = memoryBridge || null;
   if (memoryBridgeRef) setMemoryBridgeRef(memoryBridgeRef);
   manifests = loadManifests();
+
+  // Phase D: hot-reload agent manifests on file changes
+  stopManifestWatch();
+  const dirs = [
+    resolve(DATA_DIR, '..', 'agents'),
+    resolve(DATA_DIR, 'agents'),
+  ];
+  let debounceTimer = null;
+  for (const dir of dirs) {
+    if (!existsSync(dir)) continue;
+    try {
+      const watcher = watch(dir, { persistent: false }, (eventType, filename) => {
+        if (!filename?.endsWith('.md')) return;
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          try {
+            manifests = loadManifests();
+            broadcastFn('fleet', { type: 'manifests_reloaded', agentCount: manifests.size, trigger: filename });
+            console.log(`[fleet] hot-reload: ${manifests.size} agents reloaded (${filename} changed)`);
+          } catch (e) { console.error('[fleet] hot-reload failed:', e.message); }
+        }, 500);
+      });
+      manifestWatchers.push(watcher);
+    } catch (e) { console.error(`[fleet] watch ${dir} failed:`, e.message); }
+  }
+
   return { agentCount: manifests.size };
+}
+
+export function stopManifestWatch() {
+  for (const w of manifestWatchers) try { w.close(); } catch (_) {}
+  manifestWatchers = [];
 }
 
 export function reloadManifests() {
@@ -212,17 +248,18 @@ async function systemPrompt(agent, userId) {
   return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}${intelligenceBlock}${bridgeBlock}${agentMemBlock}${akashicBlock}${perspectiveBlock}${consciousnessBlock}${selfModelBlock}${lineageBlock}${graphBlock}`;
 }
 
-async function chat(messages, tools, model) {
+async function chat(messages, tools, model, { runId, agentId } = {}) {
   const ollamaTools = tools.map(t => ({
     type: 'function',
     function: { name: t.name, description: t.description, parameters: t.parameters },
   }));
 
+  const resolvedModel = model || process.env.FRAYMUS_DEFAULT_MODEL || 'fraynix-dreamer-ultimate:8b';
   const body = {
-    model: model || process.env.FRAYMUS_DEFAULT_MODEL || 'fraynix-dreamer-ultimate:8b',
+    model: resolvedModel,
     messages,
     ...(ollamaTools.length ? { tools: ollamaTools } : {}),
-    stream: false,
+    stream: true,
   };
 
   const res = await fetch(`${OLLAMA_URL}/api/chat`, {
@@ -233,10 +270,45 @@ async function chat(messages, tools, model) {
   });
 
   if (!res.ok) throw new Error(`Ollama ${res.status}`);
-  const data = await res.json();
+
+  let contentParts = [];
+  let toolCalls = [];
+  let tokenCount = 0;
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      let chunk;
+      try { chunk = JSON.parse(line); } catch (_) { continue; }
+      if (chunk.message?.content) {
+        contentParts.push(chunk.message.content);
+        tokenCount++;
+        if (runId && tokenCount % 4 === 0) {
+          broadcastFn('fleet', { type: 'stream', runId, agentId, token: chunk.message.content, partial: contentParts.join('').slice(-200) });
+        }
+      }
+      if (chunk.message?.tool_calls?.length) {
+        toolCalls.push(...chunk.message.tool_calls);
+      }
+      if (chunk.done) {
+        if (runId) {
+          broadcastFn('fleet', { type: 'stream_end', runId, agentId, totalTokens: tokenCount });
+        }
+      }
+    }
+  }
+
   return {
-    content: sanitizeOllamaContent(data.message?.content || ''),
-    tool_calls: sanitizeDeep(data.message?.tool_calls || []),
+    content: sanitizeOllamaContent(contentParts.join('')),
+    tool_calls: sanitizeDeep(toolCalls),
   };
 }
 
@@ -414,7 +486,7 @@ async function drive(runId, depth = 0) {
 
     let res;
     try {
-      res = await chat(messages, tools, agent.model);
+      res = await chat(messages, tools, agent.model, { runId, agentId: agent.id });
     } catch (e) {
       // Harness Law 2: Salvage on crash — persist partial history before death
       salvageOnCrash(runId, agent.id, e, step, run.thread_id);
@@ -437,7 +509,14 @@ async function drive(runId, depth = 0) {
       return;
     }
 
-    for (const tc of res.tool_calls) {
+    // Phase D: parallel tool execution — safe tools with no approval run concurrently
+    const canParallel = res.tool_calls.length > 1 &&
+      res.tool_calls.every(tc => {
+        const t = toolRegistry.find(x => x.name === tc.function?.name);
+        return t && t.risk !== 'approval_required' && t.risk !== 'approval';
+      });
+
+    const executeOne = async (tc) => {
       const fn = tc.function;
       const ctx = {
         userId, agentId: agent.id, threadId: run.thread_id, runId, depth,
@@ -452,16 +531,13 @@ async function drive(runId, depth = 0) {
       try {
         result = await executeTool(fn.name, fn.arguments || {}, ctx);
       } catch (e) {
-        // Harness Law 2: Salvage partial work on tool crash
         salvageOnCrash(runId, agent.id, e, step, run.thread_id);
         result = sealRefusal(fn.name, `tool crash: ${e.message}`);
         persistEvidence(runId, step, result);
       }
 
-      // Record step in envelope for audit
       recordStep(envelope, step, fn.name, fn.arguments || {}, result);
 
-      // Append to hash-chained record (Akashic audit trail)
       try {
         chainAppend(agent.id, 'tool_call', {
           run_id: runId, step, tool: fn.name,
@@ -471,26 +547,50 @@ async function drive(runId, depth = 0) {
         });
       } catch (_) {}
 
+      return { tc, fn, result };
+    };
+
+    let toolResults;
+    if (canParallel) {
+      const settled = await Promise.allSettled(res.tool_calls.map(executeOne));
+      toolResults = settled.map(s => s.status === 'fulfilled' ? s.value : {
+        tc: {}, fn: { name: 'unknown' },
+        result: sealRefusal('unknown', `parallel exec failed: ${s.reason?.message || 'unknown'}`),
+      });
+      if (res.tool_calls.length > 1) {
+        broadcastFn('fleet', { type: 'parallel_tools', runId, count: res.tool_calls.length, tools: res.tool_calls.map(tc => tc.function?.name) });
+      }
+    } else {
+      toolResults = [];
+      for (const tc of res.tool_calls) {
+        toolResults.push(await executeOne(tc));
+      }
+    }
+
+    let awaitingApproval = false;
+    for (const { tc, fn, result } of toolResults) {
       if (result?.result?.awaiting_approval) {
         setRun(runId, { status: 'awaiting_approval' });
-        return;
+        awaitingApproval = true;
+        break;
       }
-
-      // Harness Law 4: Bound oversized results before storing
       const resultStr = JSON.stringify(result);
       const bounded = boundResult(resultStr, fn.name);
-
       addMsg(run.thread_id, runId, {
         role: 'tool', content: bounded.bounded.slice(0, 8000),
         tool_call_id: tc.id || fn.name, name: fn.name,
       });
     }
+    if (awaitingApproval) return;
   }
 
   setRun(runId, { status: 'done' });
   try { replayRecord(agent.id, 'max_steps_reached', agent.model, envelope.steps, 0.3, MAX_STEPS); } catch (_) {}
   if (depth === 0) try { recordOutcome({ success: true, summary: `${agent.id} hit max steps (${MAX_STEPS})` }); } catch (_) {}
 }
+
+const runQueue = [];
+let queueProcessing = false;
 
 export function startRun(userId, agentId, message, threadId) {
   const agent = getManifest(agentId);
@@ -508,10 +608,51 @@ export function startRun(userId, agentId, message, threadId) {
   db.prepare('INSERT INTO runs (id, thread_id, user_id, status, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .run(runId, tid, userId || 'local', 'running', `${agentId}:${agent.model || 'default'}`, now(), now());
 
-  broadcastFn('fleet', { type: 'run_started', runId, agentId });
-  drive(runId, 0).catch(e => setRun(runId, { status: 'error', error: e.message }));
+  // Phase D: resource-aware scheduling — queue runs when system is under pressure
+  let queued = false;
+  try {
+    if (isResourceConstrained()) {
+      const pressure = getResourcePressure();
+      runQueue.push({ runId, userId, agentId, queuedAt: now() });
+      broadcastFn('fleet', { type: 'run_queued', runId, agentId, queueLength: runQueue.length, pressure: pressure.level });
+      setRun(runId, { status: 'queued' });
+      queued = true;
+      if (!queueProcessing) processQueue();
+    }
+  } catch (_) {}
+
+  if (!queued) {
+    broadcastFn('fleet', { type: 'run_started', runId, agentId });
+    drive(runId, 0).catch(e => setRun(runId, { status: 'error', error: e.message }));
+  }
 
   return { runId, threadId: tid };
+}
+
+async function processQueue() {
+  if (queueProcessing) return;
+  queueProcessing = true;
+  while (runQueue.length > 0) {
+    try {
+      if (isResourceConstrained()) {
+        await new Promise(r => setTimeout(r, 5000));
+        continue;
+      }
+    } catch (_) {}
+    const item = runQueue.shift();
+    if (!item) break;
+    const run = db.prepare('SELECT status FROM runs WHERE id = ?').get(item.runId);
+    if (!run || run.status !== 'queued') continue;
+    setRun(item.runId, { status: 'running' });
+    broadcastFn('fleet', { type: 'run_dequeued', runId: item.runId, agentId: item.agentId, waitMs: now() - item.queuedAt });
+    drive(item.runId, 0).catch(e => setRun(item.runId, { status: 'error', error: e.message }));
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  queueProcessing = false;
+}
+
+export function getQueueStatus() {
+  return { queued: runQueue.length, processing: queueProcessing };
 }
 
 async function delegateRun(userId, agentId, task, depth) {

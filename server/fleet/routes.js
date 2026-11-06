@@ -1,6 +1,7 @@
 import {
   startRun, decideApproval, listAgents, getAgent,
   saveAgentManifest, resetAgentManifest, listThreads, getThread,
+  getQueueStatus, reloadManifests,
 } from './runtime.js';
 
 export function installFleetRoutes(app) {
@@ -54,5 +55,24 @@ export function installFleetRoutes(app) {
   app.post('/api/fleet/approvals/:id', route((req, res) => {
     const result = decideApproval(req.body?.userId || 'local', req.params.id, req.body?.approve !== false);
     res.json(result);
+  }));
+
+  // Phase D: runtime status — queue depth, streaming, hot-reload
+  app.get('/api/fleet/runtime', route((req, res) => {
+    const queue = getQueueStatus();
+    const agents = listAgents(req.query.userId || 'local');
+    res.json({
+      streaming: true,
+      parallelTools: true,
+      hotReload: true,
+      queue,
+      agentCount: agents.length,
+    });
+  }));
+
+  app.post('/api/fleet/reload', route((req, res) => {
+    reloadManifests();
+    const agents = listAgents(req.query.userId || 'local');
+    res.json({ reloaded: true, agentCount: agents.length });
   }));
 }
