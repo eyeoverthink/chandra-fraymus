@@ -69,6 +69,7 @@ import { getObsBridge } from './streaming/overlay.js';
 import { installCommandRouter } from './command-router.js';
 import { installWorkspaceRoutes } from './workspace/routes.js';
 import { installDeployRoutes } from './deploy-api/routes.js';
+import { gatewayMiddleware, apiVersionRouter, installGatewayRoutes } from './deploy-api/gateway.js';
 import { initBus } from './fleet/bus.js';
 import { installBusRoutes } from './fleet/bus-routes.js';
 import { initTriggers, installTriggerRoutes } from './fleet/bus-triggers.js';
@@ -243,6 +244,10 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   const autonomy = createAutonomyEngine({ db, broadcast, agent: { get: id => agent.get(id) }, tasks, memoryBridge, logEvent: (kind, actor, detail) => {
     try { db.prepare('INSERT INTO events (kind, actor, detail, created_at) VALUES (?, ?, ?, ?)').run(kind, actor, detail, Date.now()); } catch (e) { console.error('runtime: event insert failed:', e.message); }
   }});
+  app.use(gatewayMiddleware());
+  app.use(apiVersionRouter());
+  installGatewayRoutes(app);
+
   installFraymusRoutes(app, { autonomy, broadcast, memoryBridge });
   installSynthesisRoutes(app);
   installWorkflowRoutes(app, { broadcast, memoryBridge });

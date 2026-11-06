@@ -1443,6 +1443,51 @@ A context collector that watches browsing patterns across tabs (via the existing
 - ✅ CrossTab detail panel (5 tabs: Overview, Visits, Insights, Clusters, Ingest)
 - ✅ 5-minute visit dedup, configurable retention pruning
 
+### Phase C: Second Brain Knowledge Graph (2026-11-06)
+
+> **Every memory, reflection, and fossil becomes a node in a semantic web. The system doesn't just remember — it connects.**
+
+SQLite-backed knowledge graph with Jaccard-similarity semantic edges, BFS contextual recall, and content-hash deduplication. Agents and the central brain now recall related concepts across memory types during reasoning.
+
+**Shipped (`2059f3e`):**
+- Jaccard keyword-similarity edge builder (no paid embeddings)
+- BFS graph traversal for contextual recall
+- Content hash dedup prevents duplicate nodes on re-indexing
+- Auto-indexes memories, reflections, and fossils into graph nodes
+- Cluster detection via connected components
+- Graph consolidation (prune weak edges, merge near-duplicates)
+- Fleet tool `knowledge_graph_query` (5 modes: search, recall, clusters, consolidate, stats)
+- Brain.js + fleet runtime injected with graph context
+- Daemon Step 13: periodic graph consolidation
+- 8 REST endpoints, 1 fleet tool
+
+### Phase D: Advanced Runtime (2026-11-06)
+
+> **Streaming tokens, parallel tools, hot-reload manifests, resource-aware scheduling. The fleet runtime becomes production-grade.**
+
+Fleet runtime upgraded from batch responses to NDJSON streaming with real-time token broadcast, parallel safe-tool execution via `Promise.allSettled`, fs.watch manifest hot-reload, and resource-envelope-aware run queuing.
+
+**Shipped (`eae0f6f`):**
+- NDJSON streaming chat with partial token broadcast (every 4th token)
+- Parallel tool execution for safe-classified tools (`Promise.allSettled`)
+- Hot-reload agent manifests via `fs.watch` with 500ms debounce
+- Resource-aware run queue (defers new runs when pressure > 0.6)
+- 2 new fleet endpoints: `GET /api/fleet/runtime`, `POST /api/fleet/reload`
+
+### Phase E: Deployment & Distribution (2026-11-06)
+
+> **Docker containers, nginx reverse proxy, API gateway with request tracking, VPS deployment. The system is production-deployable.**
+
+Full deployment stack: multi-stage Docker build with health checks, nginx reverse proxy with rate limiting and WebSocket upgrade, SSH-based VPS deploy script, and API gateway middleware with request logging, versioning, and external CORS.
+
+**Shipped:**
+- Docker Compose with health checks, memory limits (2G/512M), nginx production profile
+- Nginx reverse proxy: rate limiting (30r/s API, 10r/s WS), gzip, security headers, WebSocket upgrade
+- VPS deploy script (6-step SSH: Docker install → git clone → .env → build → start → health verify)
+- API gateway: request tracking (SQLite), API versioning (`/api/v1/`), external CORS, X-Request-Id headers
+- Gateway analytics: hourly/daily stats, top paths, top API keys, log pruning
+- 2 gateway endpoints: `GET /api/gateway/stats`, `POST /api/gateway/prune`
+
 ### Forecast: System Growth Trajectory
 
 | Metric | Current (Nov 2026) | Target (Q1 2027) | Target (Q2 2027) |
