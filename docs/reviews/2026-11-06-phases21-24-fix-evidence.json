@@ -1,0 +1,569 @@
+{
+  "reviewedRef": "19a598103f012ea5b6837f0bf67dd9be9f584cb2",
+  "generatedAt": "2026-11-06T14:04:47.224Z",
+  "sourceHashes": {
+    "server/db-migrate.js": "6a3eb642bbd64c564d83232bdfc0c0f8caa30293c3ef098a87d335d47d79950c",
+    "server/intelligence/sensory-bridge.js": "e51c35d0303b7eb144ada31310917b10ec7b2741b3d63cf4c9dbbf7ec7c537c7",
+    "server/intelligence/emotional-feedback.js": "39a74bd6e9c261eb29a693db37313591730b8b74ecd81346e4c3d83a516013ea",
+    "server/intelligence/motor-output.js": "bfd9af3674454c92b94dd965b5a5b714004700f03013a0c34704842cc9e59be3",
+    "server/intelligence/attention-gate.js": "4cab387d8e016e2a25f6e4c7de86f5c36ca51c154475a3dbf652b84c6726a8f1",
+    "server/intelligence/habituation.js": "4f572ee52e1b0eb03fb712224a42a416e62256df31414a658f4d6d4cc85d53a8",
+    "server/intelligence/working-memory.js": "ebe1a07970780ce2e1e7f4739bbd973fd2f2a7239c5e512e9d9aafdc9cadead9",
+    "server/intelligence/metacognitive-monitor.js": "c35c267b763301242ecf307062e626e519b7d54244e6bb1356326586fb337886",
+    "server/intelligence/adaptive-strategy.js": "0d1479df436bd283296da0f950c250c34379c448ea71bb819cf77befda977408",
+    "server/intelligence/self-model.js": "79ce6d159a1b57391be4bc4f259ed72b077ceede778c2e4f9acae87a24876c02",
+    "server/intelligence/resource-envelope.js": "a16aa69aebba5346380175fad3a7919a34651f30f13c77b78a9ef2cdc5160792",
+    "server/intelligence/predictive-processing.js": "e437e698b06e7983431cbf95e87899279413c24f80844531849fd95397d11bc7",
+    "server/intelligence/active-inference.js": "08f107490062bc2f2e330c632a621660972b1fb3a9d5996f88eb90fc10e2c7cd",
+    "server/fleet/bus.js": "93b12941f183c20b16db624ffcb1942b8c12a01b86310b19baa5c7c80bc1ad43",
+    "server/intelligence/self-narrative.js": "90ff5f6111fbc61de1ee0fd5f4512bf30ee28715d0dcf0b2d313b6c742a5b045",
+    "server/intelligence/dream-solver.js": "d6341faa403002c12f03c408cc673a24f32c47dfd67a0b643d2022ebead5b225",
+    "server/intelligence/intelligence-monitor.js": "070921a345d6d062ca96c7a43b20e697c8692c62e297192c3d542f73e5d5e42f",
+    "server/intelligence/ctrnn.js": "ebfbb5bc05167423878e8c1856117d2e9f8aa581edac5944037400d51ec0d5e1",
+    "server/fraymus/intelligence/heart.js": "7a9b54d7184c794787f06d73b178405a1c7eae6904b62b9f2ba0e72d82336da0",
+    "server/fleet/tools.js": "565547388527a451deada63b966f77ec644d3bd7ea3904a283ca5643eaef42bd",
+    "server/fleet/runtime.js": "aff013889f1a53e38b97c5ea33a423654db73d641f6285e6c59941a0c391ab33",
+    "server/fraymus/core/crypto.js": "9adc5875d913e088690f36c41c65a77d65e4930c86ce608028ce5b1c0bc85636",
+    "server/fraymus/core/identity.js": "fcd5e9a703e63612aae146295b609cf3ced3ff3d1c84d2f8140be2afe8d8f18f",
+    "server/fraymus/intelligence/dreamer.js": "ac9c5ac1698bca730f7ce421c56a39318ef24acb5094d1521f49d043d6d12dc7",
+    "server/daemon/engine.js": "24d52192f4b9384c3b5b284a219e20ea09d38139bfc0fb57001c28538a661597",
+    "server/fraymus-tools.js": "1432300dbe738817994288210d7172c46fbbaafd30fae43e937b9b7fac7dd261"
+  },
+  "syntaxChecks": [
+    "server/daemon/engine.js",
+    "server/fleet/tools.js",
+    "server/fraymus/intelligence/heart.js",
+    "server/intelligence/dream-solver.js",
+    "server/intelligence/intelligence-monitor.js",
+    "server/intelligence/self-narrative.js"
+  ],
+  "diagnosticAssertions": 25,
+  "checks": [
+    "all three modules now use the actual public CTRNN inject method",
+    "sigma/amplitude order and inhibitory sign are corrected",
+    "narrative field is still transposed relative to row 2 column 8 annotation",
+    "actual fleet dispatch executes all three requested actions",
+    "Heart averages and top-level proof count now reach narrative signals",
+    "neutral fallback still passes the new compound gate",
+    "single-element trajectory now returns finite stable statistics",
+    "explicit emotion blend remains supported",
+    "ordinary scheduled overlap is prevented while first request is pending",
+    "ordinary stop and reset now discard stale completions",
+    "old generation remains discarded after restart",
+    "old finally unlocks the new lifecycle and permits another overlap",
+    "new-lifecycle responses can commit out of order after stale unlock",
+    "previous 180-second staleness regressions are fixed",
+    "self-model still becomes stale at 601 seconds despite 20 daemon calls per snapshot",
+    "zero effectiveness now causes degradation instead of healthy 0.5",
+    "configured singleton produces real verifiable signatures through REST and fleet",
+    "signer failure still returns normal numbered solve without signature status",
+    "all four legitimate zero model ratings are now preserved",
+    "a valid score combination is falsely classified as model failure",
+    "real model failure is labeled but still drives a positive creative-spark signal",
+    "failed dream save now reports storage_failed and a non-durable event",
+    "status projection still discards the failed outcome flag",
+    "retry successfully saves its session",
+    "snapshot counters still report invocations instead of stored snapshots"
+  ],
+  "findingStatus": [
+    {
+      "id": "INT-21-01",
+      "status": "PARTIAL",
+      "detail": "Public method, sigma/amplitude and inhibitory sign fixed; declared row/column placement remains transposed."
+    },
+    {
+      "id": "INT-21-02",
+      "status": "PASS_ISOLATED",
+      "detail": "All three real fleet action paths execute."
+    },
+    {
+      "id": "INT-21-03",
+      "status": "PARTIAL",
+      "detail": "Ordinary overlap and stale commits fixed; old finally can unlock a new lifecycle."
+    },
+    {
+      "id": "INT-24-01",
+      "status": "PARTIAL",
+      "detail": "Common cadences/zero effectiveness fixed; self-model cadence still mismatches."
+    },
+    {
+      "id": "INT-21-04",
+      "status": "PASS_ISOLATED",
+      "detail": "Actual Heart averages and gate proof field reach collector."
+    },
+    {
+      "id": "INT-22-01",
+      "status": "PARTIAL",
+      "detail": "Single-element trajectory fixed; neutral fallback still triggers three compounds."
+    },
+    {
+      "id": "INT-23-01",
+      "status": "PARTIAL",
+      "detail": "Configured REST/fleet signatures verify; unsigned signer failure is not exposed."
+    },
+    {
+      "id": "INT-21-05",
+      "status": "PARTIAL",
+      "detail": "Zeros preserved and model errors flagged; valid scores misclassified and failed solve injects creative signal."
+    },
+    {
+      "id": "INT-23-02",
+      "status": "PARTIAL",
+      "detail": "Write failure logged/returned and bus marked; status loses failure and snapshot counts remain wrong."
+    }
+  ],
+  "methodology": "Pinned exact source; actual CTRNN public object without starting workers, actual fleet executor/bus/Express, actual producer schemas in SQLite memory. Fake model/timers and unrelated permission/result sealing. Actual Ed25519 identity/sign/verify and Dreamer bodies with ephemeral RAM key and intercepted artifact files; no private key recorded. No live app/DB, live requests, model/compiler/daemon starts or filesystem deletion.",
+  "neural": {
+    "calls": [
+      [
+        2,
+        8,
+        2.5,
+        0.6000000000000001
+      ],
+      [
+        2,
+        12,
+        2,
+        0.36
+      ],
+      [
+        7,
+        4,
+        2,
+        0.6000000000000001
+      ],
+      [
+        7,
+        12,
+        2,
+        0.12
+      ],
+      [
+        15,
+        4,
+        3,
+        0.2980000000000001
+      ],
+      [
+        15,
+        12,
+        2,
+        -0.6875
+      ],
+      [
+        2,
+        8,
+        2.5,
+        0.6000000000000001
+      ],
+      [
+        2,
+        12,
+        2,
+        0.36
+      ],
+      [
+        7,
+        4,
+        2,
+        0.6000000000000001
+      ],
+      [
+        7,
+        12,
+        2,
+        0.12
+      ],
+      [
+        15,
+        4,
+        3,
+        0.2980000000000001
+      ],
+      [
+        15,
+        12,
+        2,
+        -0.6875
+      ]
+    ],
+    "atRow8Col2": 0.6487207019651806,
+    "atRow2Col8": 0.0018906818628424528
+  },
+  "fleet": {
+    "narrativeGenerated": true,
+    "dreamCreated": true,
+    "monitorAssessed": true
+  },
+  "heart": {
+    "rawNeutralScores": {
+      "joy": 0,
+      "sadness": 0,
+      "anger": 0,
+      "fear": 0,
+      "surprise": 0,
+      "love": 0,
+      "anxiety": 0
+    },
+    "neutralNormalizedTotal": 0.84,
+    "neutralCompounds": [
+      {
+        "name": "awe",
+        "components": [
+          "surprise",
+          "fear"
+        ],
+        "strength": 0.12
+      },
+      {
+        "name": "jealousy",
+        "components": [
+          "anger",
+          "fear"
+        ],
+        "strength": 0.12
+      },
+      {
+        "name": "hope",
+        "components": [
+          "joy",
+          "anxiety"
+        ],
+        "strength": 0.12
+      }
+    ],
+    "trajectory": {
+      "trend": "stable",
+      "shift": 0,
+      "stability": 1,
+      "windowSize": 1
+    },
+    "actualMood": {
+      "mood": "joy",
+      "primary": "joy",
+      "readings": 2,
+      "distribution": {
+        "joy": 1,
+        "sadness": 0,
+        "anger": 0,
+        "fear": 0,
+        "surprise": 0,
+        "love": 0,
+        "anxiety": 0,
+        "neutral": 1
+      },
+      "trajectory": {
+        "trend": "brightening",
+        "shift": 1,
+        "stability": 0,
+        "sustainedEmotion": null,
+        "windowSize": 2
+      },
+      "sentimentAvg": 0.5,
+      "intensityAvg": 0.444,
+      "stability": 0
+    },
+    "collected": {
+      "consciousness": {
+        "tier": "AWAKENING",
+        "proofsPassed": 4,
+        "phi": 0.9,
+        "stale": false,
+        "evolutionRate": 1
+      },
+      "emotion": {
+        "primary": "joy",
+        "intensity": 0.444,
+        "distribution": {
+          "joy": 1,
+          "sadness": 0,
+          "anger": 0,
+          "fear": 0,
+          "surprise": 0,
+          "love": 0,
+          "anxiety": 0,
+          "neutral": 1
+        },
+        "sentiment": 0.5
+      },
+      "temporalTrends": {
+        "trend": 0,
+        "volatility": 0,
+        "coherence": 0
+      },
+      "resources": {
+        "pressure": 0,
+        "fatigue": 0
+      },
+      "body": {
+        "activeSubsystems": 0,
+        "totalSubsystems": 27
+      },
+      "metacognition": {
+        "effectiveness": 0,
+        "stuckScore": 0,
+        "confidence": 0,
+        "strategy": "nominal"
+      },
+      "activity": {
+        "agentRuns": 0,
+        "busMessages": 0
+      }
+    }
+  },
+  "lifecycle": {
+    "ordinaryStop": {
+      "running": false,
+      "lastNarrative": null,
+      "coherenceScore": null,
+      "awarenessScore": null,
+      "mood": null,
+      "tier": null,
+      "sensitivity": 0.5,
+      "lastGeneratedAt": null,
+      "lastDurationMs": null,
+      "gateTier": "AWAKENING",
+      "snapshotsStored": 0
+    },
+    "restartModelCalls": 3,
+    "restartLastNarrative": "Older new-lifecycle response",
+    "restartBusEvents": 2
+  },
+  "monitor": {
+    "threeMinutes": {
+      "sensoryBridge": {
+        "score": 0.9,
+        "status": "active",
+        "detail": "Tick 1, sensitivity 0.5"
+      },
+      "emotionalFeedback": {
+        "score": 0.85,
+        "status": "active",
+        "detail": "Emotion: null, tier: null"
+      },
+      "motorOutput": {
+        "score": 0.8,
+        "status": "active",
+        "detail": "Region: {}, activation: null"
+      },
+      "attentionGate": {
+        "score": 0.85,
+        "status": "active",
+        "detail": "Dynamic range: null"
+      },
+      "habituation": {
+        "score": 0.85,
+        "status": "active",
+        "detail": "Spikes: 0"
+      },
+      "workingMemory": {
+        "score": 0.85,
+        "status": "active",
+        "detail": "Volatility: null, coherence: null"
+      },
+      "metacognitive": {
+        "score": 0.9,
+        "status": "active",
+        "detail": "Strategy: null, effectiveness: 0.9"
+      },
+      "adaptiveStrategy": {
+        "score": 0.8,
+        "status": "active",
+        "detail": "Strategy: {}"
+      },
+      "selfModel": {
+        "score": 0.8064516129032258,
+        "status": "active",
+        "detail": "25/31 active"
+      },
+      "resourceEnvelope": {
+        "score": 0.9,
+        "status": "active",
+        "detail": "Pressure: 0.1, fatigue: null"
+      },
+      "predictiveProcessing": {
+        "score": 0.9,
+        "status": "active",
+        "detail": "Confidence: 0.9, surprise: null"
+      },
+      "activeInference": {
+        "score": 0.9,
+        "status": "active",
+        "detail": "Drive: null, effectiveness: 0.9"
+      }
+    },
+    "selfModelAt601s": {
+      "score": 0.3,
+      "status": "stale"
+    },
+    "selfModelSnapshotEvery": 20,
+    "daemonDefaultCycleMs": 1800000,
+    "defaultSelfModelSnapshotPeriodMs": 36000000,
+    "zeroEffectiveness": {
+      "score": 0.3,
+      "status": "active",
+      "detail": "Strategy: null, effectiveness: 0"
+    }
+  },
+  "signatures": {
+    "publicKey": "7a8a7905e6f2176a8a00df97ca28ffbef934d974019a5e99e0cdcfc0b8366076",
+    "results": [
+      {
+        "filename": "0001-dreamer-dream-solve-improve-local-memory-retriev.md.sig",
+        "body": "# Dream 1: DREAM-SOLVE: Improve local memory retrieval\n\nSOLUTION: Fixture solution.\n\nKEY INSIGHT: \n\nASSOCIATIONS:\n  - memory → code\n\n\n\n**Kind:** creative-solve\n**Dreamed:** 2026-11-06T14:04:46.780Z\n**Inputs:** dream-solver, api\n\n---\n\nDREAM-SOLVE: Improve local memory retrieval\n\nSOLUTION: Fixture solution.\n\nKEY INSIGHT: \n\nASSOCIATIONS:\n  - memory → code\n\n\n\n---\n*Signed by FRAYMUS Dreamer identity*",
+        "signature": "6fcfbc3adfaa9f4500254dd6d4d8cd6f3c233c9e829774ad2172a19ea6e62a082c9288d73f132e4bf845a23db49dddacec868b26bf09e9b334e4d16d0d487b07",
+        "valid": true
+      },
+      {
+        "filename": "0002-dreamer-dream-solve-improve-local-memory-retriev.md.sig",
+        "body": "# Dream 2: DREAM-SOLVE: Improve local memory retrieval\n\nSOLUTION: Fixture solution.\n\nKEY INSIGHT: \n\nASSOCIATIONS:\n  - memory → code\n\n\n\n**Kind:** creative-solve\n**Dreamed:** 2026-11-06T14:04:46.790Z\n**Inputs:** dream-solver, fleet\n\n---\n\nDREAM-SOLVE: Improve local memory retrieval\n\nSOLUTION: Fixture solution.\n\nKEY INSIGHT: \n\nASSOCIATIONS:\n  - memory → code\n\n\n\n---\n*Signed by FRAYMUS Dreamer identity*",
+        "signature": "b9274bec761c7fe57333c54f8b2def22ef37d354907b202dc1bb26b34adbd30bafe5ec226b5d06ef1250cebb5837139c98368cd1d6658cf918a5c6a71cdd150b",
+        "valid": true
+      }
+    ],
+    "unsignedReturnedNumber": 3,
+    "unsignedReturnedStatus": null,
+    "unsignedArtifactHasSignature": false
+  },
+  "outcomes": {
+    "zeros": {
+      "coherence": 0,
+      "awareness": 0,
+      "novelty": 0,
+      "feasibility": 0
+    },
+    "falseFailure": {
+      "id": "c88477e5-a76c-401f-b934-1aa7584c2957",
+      "problem": "Improve local memory retrieval",
+      "solution": "Valid low-scoring result",
+      "associations": [],
+      "keyInsight": "",
+      "noveltyScore": 0.2,
+      "feasibilityScore": 0.1,
+      "dreamNarrative": "",
+      "dreamNumber": null,
+      "contextSources": {
+        "memories": 0,
+        "dreams": 0,
+        "busTopics": 2,
+        "insights": 0
+      },
+      "gateTier": "AWAKENING",
+      "temperature": 0.9,
+      "durationMs": 0,
+      "solvedAt": 1800000000000,
+      "status": "llm_failed"
+    },
+    "modelFailure": {
+      "status": "llm_failed",
+      "injections": [
+        [
+          7,
+          4,
+          2,
+          0.15000000000000002
+        ],
+        [
+          7,
+          12,
+          2,
+          0
+        ],
+        [
+          7,
+          4,
+          2,
+          0.6000000000000001
+        ],
+        [
+          7,
+          12,
+          2,
+          0.12
+        ],
+        [
+          7,
+          4,
+          2,
+          0.6000000000000001
+        ],
+        [
+          7,
+          12,
+          2,
+          0.12
+        ]
+      ]
+    },
+    "failedSave": {
+      "status": 200,
+      "body": {
+        "id": "ce659cb7-2443-4668-a6fe-89d5a0d16806",
+        "problem": "Improve local memory retrieval",
+        "solution": "Valid stored retry",
+        "associations": [
+          "memory → code"
+        ],
+        "keyInsight": "",
+        "noveltyScore": 0.8,
+        "feasibilityScore": 0.6,
+        "dreamNarrative": "",
+        "dreamNumber": null,
+        "contextSources": {
+          "memories": 0,
+          "dreams": 0,
+          "busTopics": 2,
+          "insights": 0
+        },
+        "gateTier": "AWAKENING",
+        "temperature": 0.9,
+        "durationMs": 0,
+        "solvedAt": 1800000001000,
+        "status": "storage_failed"
+      }
+    },
+    "failedEvent": {
+      "problem": "Improve local memory retrieval",
+      "novelty": 0.8,
+      "feasibility": 0.6,
+      "associations": 1,
+      "dreamNumber": null,
+      "durationMs": 0,
+      "stored": false,
+      "llmFailed": false
+    },
+    "statusAfterFailure": {
+      "status": 200,
+      "body": {
+        "lastSolution": {
+          "problem": "Improve local memory retrieval",
+          "solution": "Valid stored retry",
+          "novelty": 0.8,
+          "feasibility": 0.6,
+          "associations": 1,
+          "dreamNumber": null,
+          "durationMs": 0,
+          "solvedAt": 1800000001000
+        },
+        "totalSessions": 4,
+        "gateTier": "AWAKENING"
+      }
+    },
+    "snapshotCounts": {
+      "narrativeReported": 2,
+      "narrativeRows": 0,
+      "monitorReported": 2,
+      "monitorRows": 0
+    }
+  },
+  "logs": [
+    "[dreamer] sign failed: Invalid keyData",
+    "[dream-solver] DB storage failed: fixture persistence rejected"
+  ],
+  "summary": {
+    "scopedClosures": 2,
+    "partial": 7,
+    "acceptedNewPhases": 0
+  }
+}
