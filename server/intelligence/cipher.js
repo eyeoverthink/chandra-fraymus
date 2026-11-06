@@ -168,7 +168,8 @@ export async function composeCipher(goal, { context, composedBy = 'system', user
   const goalEmotion = analyzeEmotion(goal);
 
   const catalog = agents.map(a => {
-    const trust = getAgentTrust(a.id);
+    const trustRows = getAgentTrust(a.id);
+    const trust = Array.isArray(trustRows) ? trustRows[0] : trustRows;
     return `- ${a.id} (${a.name}): ${a.role || 'general'} | trust: ${(trust?.score ?? 0.5).toFixed(2)} | runs: ${trust?.total_runs ?? 0}`;
   }).join('\n');
 
@@ -541,14 +542,18 @@ export async function evolveCipher(cipherIdOrName, { reason, trigger = 'manual' 
   if (failRate > 0.3) {
     mutationType = 'replace_weak';
     const weakest = members.reduce((w, m) => {
-      const trust = getAgentTrust(m.agent_id);
-      return (!w || (trust?.score ?? 0.5) < (getAgentTrust(w.agent_id)?.score ?? 0.5)) ? m : w;
+      const tRows = getAgentTrust(m.agent_id);
+      const t = Array.isArray(tRows) ? tRows[0] : tRows;
+      if (!w) return m;
+      const wRows = getAgentTrust(w.agent_id);
+      const wt = Array.isArray(wRows) ? wRows[0] : wRows;
+      return (t?.score ?? 0.5) < (wt?.score ?? 0.5) ? m : w;
     }, null);
-    const recommended = recommendAgents(cipher.goal, 3);
-    const replacement = recommended.find(r => !members.some(m => m.agent_id === r.agent_id));
+    const recommended = recommendAgents({ domain: 'general', count: 3 });
+    const replacement = recommended.find(r => !members.some(m => m.agent_id === r.agentId));
     if (weakest && replacement) {
-      mutationDetail = `Replaced ${weakest.agent_id} with ${replacement.agent_id}`;
-      weakest.agent_id = replacement.agent_id;
+      mutationDetail = `Replaced ${weakest.agent_id} with ${replacement.agentId}`;
+      weakest.agent_id = replacement.agentId;
     } else {
       mutationType = 'tune_params';
       params.timeout_ms = (params.timeout_ms || 120000) * 1.5;
@@ -557,15 +562,15 @@ export async function evolveCipher(cipherIdOrName, { reason, trigger = 'manual' 
   } else if (avgRecent < 0.5) {
     mutationType = 'add_critic';
     if (!members.some(m => m.role === 'critic') && members.length < 7) {
-      const recommended = recommendAgents('quality review critique verification', 1);
+      const recommended = recommendAgents({ domain: 'general', count: 1 });
       if (recommended.length) {
         members.push({
-          agent_id: recommended[0].agent_id,
+          agent_id: recommended[0].agentId,
           role: 'critic',
           stage: Math.max(...members.map(m => m.stage || 1)) + 1,
           prompt_override: 'Review and critique the team output. Rate quality 0-1 and suggest improvements.',
         });
-        mutationDetail = `Added ${recommended[0].agent_id} as critic`;
+        mutationDetail = `Added ${recommended[0].agentId} as critic`;
       }
     } else {
       mutationType = 'change_topology';
