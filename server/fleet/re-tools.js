@@ -179,6 +179,20 @@ export function createRETools() {
           if (!dossier) return { error: 'Dossier not found', binarySha: sha };
           return dossier;
         }
+        if (fnName) {
+          // Function name search across all binaries
+          const memories = recallMemories(RE_AGENT_ID, { category: 'binary_dossier', query: fnName, limit: 20 });
+          const matches = memories
+            .filter(m => m.key.startsWith('fn:') && m.key.includes(fnName))
+            .map(m => {
+              try {
+                const val = JSON.parse(m.value);
+                return { key: m.key, ...val, confidence: m.confidence, verified: !!m.verified_at, source: m.source };
+              } catch (_) { return null; }
+            })
+            .filter(Boolean);
+          return { functionName: fnName, matches: matches.length, results: matches };
+        }
         if (query) {
           const memories = recallMemories(RE_AGENT_ID, { category: 'binary_dossier', query, limit: 20 });
           return { query, matches: memories.length, results: memories };
@@ -198,26 +212,59 @@ export function createRETools() {
         const path = String(args.dossierPath || '').trim();
         if (!path) throw new Error('dossierPath required');
         const parsed = parseDossier(path);
-        const { execSync } = await import('node:child_process');
-        const { writeFileSync, unlinkSync } = await import('node:fs');
-        const { join } = await import('node:path');
+        const { execFileSync } = await import('node:child_process');
+        const { writeFileSync, unlinkSync, mkdirSync, rmSync } = await import('node:fs');
+        const { join, resolve } = await import('node:path');
+
+        // Detect compiler availability before attempting compilation
+        let compilerAvailable = false;
+        try {
+          execFileSync('clang', ['--version'], { timeout: 5_000, stdio: 'pipe' });
+          compilerAvailable = true;
+        } catch (_) {
+          // clang not found or not executable
+        }
+
+        if (!compilerAvailable) {
+          return {
+            binary: parsed.binary,
+            total: parsed.functions.length,
+            compiled: null,
+            failed: null,
+            compileRate: null,
+            compiler: 'not_available',
+            detail: 'clang not found in PATH — cannot measure compile rate',
+          };
+        }
+
+        // Use a dedicated temp directory outside the dossier to prevent path traversal
+        const tmpDir = resolve(path, '..', `_compile_test_${Date.now()}`);
+        mkdirSync(tmpDir, { recursive: true });
 
         let compiled = 0;
         let failed = 0;
         const errors = [];
+        const createdFiles = [];
 
-        for (const fn of parsed.functions) {
-          const tmpFile = join(path, `_compile_test_${fn.name}.c`);
-          try {
-            writeFileSync(tmpFile, fn.body);
-            execSync(`clang -fsyntax-only -w "${tmpFile}"`, { timeout: 10_000, stdio: 'pipe' });
-            compiled++;
-          } catch (e) {
-            failed++;
-            errors.push({ name: fn.name, address: fn.address, error: e.stderr?.toString().slice(0, 200) || e.message });
-          } finally {
-            try { unlinkSync(tmpFile); } catch (_) {}
+        try {
+          for (let i = 0; i < parsed.functions.length; i++) {
+            const fn = parsed.functions[i];
+            // Sanitized filename: index-based, no user-controlled path components
+            const safeFile = join(tmpDir, `fn_${i}.c`);
+            createdFiles.push(safeFile);
+            try {
+              writeFileSync(safeFile, fn.body);
+              // Spawn with argument vector — no shell interpolation
+              execFileSync('clang', ['-fsyntax-only', '-w', safeFile], { timeout: 10_000, stdio: 'pipe' });
+              compiled++;
+            } catch (e) {
+              failed++;
+              errors.push({ name: fn.name, address: fn.address, error: e.stderr?.toString().slice(0, 200) || e.message });
+            }
           }
+        } finally {
+          // Clean up only files we created, in our own temp directory
+          try { rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
         }
 
         const total = parsed.functions.length;
@@ -229,6 +276,7 @@ export function createRETools() {
           compiled,
           failed,
           compileRate: rate,
+          compiler: 'clang',
           sampleErrors: errors.slice(0, 5),
         };
       },
@@ -265,6 +313,12 @@ ${sample.map(s => `--- ${s.name} @ ${s.address} (${s.lines} lines) ---\n${s.snip
 
 Respond with JSON only: {"predictedRate": <number 0-100>, "confidence": <"low"|"medium"|"high">, "reasoning": "<one sentence>"}`;
 
+        let modelId = 'unknown';
+        try {
+          const { default: config } = await import('../config.js');
+          modelId = config.OLLAMA_MODEL || 'default';
+        } catch (_) {}
+
         const response = await chatOllama([{ role: 'user', content: prompt }], { temperature: 0.2 });
         let prediction;
         try {
@@ -274,11 +328,28 @@ Respond with JSON only: {"predictedRate": <number 0-100>, "confidence": <"low"|"
           prediction = { predictedRate: null, confidence: 'low', reasoning: 'LLM response was not valid JSON' };
         }
 
+        // Range validation: predictedRate must be 0-100
+        if (typeof prediction.predictedRate === 'number') {
+          if (prediction.predictedRate < 0 || prediction.predictedRate > 100) {
+            prediction.predictedRate = Math.max(0, Math.min(100, prediction.predictedRate));
+            prediction.reasoning = (prediction.reasoning || '') + ' [rate clamped to 0-100 range]';
+          }
+        }
+
+        // Validate confidence is one of the allowed values
+        const VALID_CONFIDENCES = ['low', 'medium', 'high'];
+        if (!VALID_CONFIDENCES.includes(prediction.confidence)) {
+          prediction.confidence = 'low';
+        }
+
         return {
           binary: parsed.binary,
           totalFunctions: parsed.functions.length,
           importCount: parsed.imports.length,
           sampleSize: sample.length,
+          evidence_type: 'llm_prediction',
+          model: modelId,
+          evidence_confidence: 0.4,
           prediction,
           note: 'This is an LLM opinion, NOT a compiler measurement. Use re.compile_rate_measure for ground truth.',
         };

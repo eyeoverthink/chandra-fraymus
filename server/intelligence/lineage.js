@@ -46,10 +46,22 @@ const AGE_TIERS = [
       { id: 'distributive', statement: 'a * (b + c) = a*b + a*c', latex: 'a(b+c) = ab + ac' },
     ],
     formulas: {
-      successor: n => n + 1,
-      add: (a, b) => a + b,
-      mul: (a, b) => a * b,
-      distribute: (a, b, c) => ({ left: a * (b + c), right: a * b + a * c }),
+      successor(n) {
+        if (typeof n !== 'number' || !Number.isFinite(n)) return { error: 'n must be a finite number' };
+        return n + 1;
+      },
+      add(a, b) {
+        if (typeof a !== 'number' || typeof b !== 'number') return { error: 'a and b must be numbers' };
+        return a + b;
+      },
+      mul(a, b) {
+        if (typeof a !== 'number' || typeof b !== 'number') return { error: 'a and b must be numbers' };
+        return a * b;
+      },
+      distribute(a, b, c) {
+        if (typeof a !== 'number' || typeof b !== 'number' || typeof c !== 'number') return { error: 'a, b, c must be numbers' };
+        return { left: a * (b + c), right: a * b + a * c };
+      },
     },
     verify() {
       const tests = [
@@ -76,14 +88,24 @@ const AGE_TIERS = [
     ],
     formulas: {
       quadratic(a, b, c) {
+        if (typeof a !== 'number' || typeof b !== 'number' || typeof c !== 'number') {
+          return { error: 'a, b, c must be finite numbers' };
+        }
+        if (!Number.isFinite(a) || !Number.isFinite(b) || !Number.isFinite(c)) {
+          return { error: 'a, b, c must be finite numbers' };
+        }
+        if (a === 0) return { error: 'a must be nonzero for a quadratic equation' };
         const disc = b * b - 4 * a * c;
         if (disc < 0) return { real: false, discriminant: disc };
         const sqrtD = Math.sqrt(disc);
+        const q = -0.5 * (b + Math.sign(b || 1) * sqrtD);
+        const x1 = q / a;
+        const x2 = c / q;
         return {
           real: true,
           discriminant: disc,
-          x1: (-b + sqrtD) / (2 * a),
-          x2: (-b - sqrtD) / (2 * a),
+          x1: Math.max(x1, x2),
+          x2: Math.min(x1, x2),
         };
       },
       vieta(a, b, c) {
@@ -163,12 +185,12 @@ const AGE_TIERS = [
       { id: 'mosfet', statement: 'Id = k(Vg-Vth)² when Vg ≥ 0.618', latex: 'I_d = k(V_g - V_{th})^2,\\; V_g \\geq 0.618' },
     ],
     formulas: {
-      // Numerical derivative via central difference
-      derivative(f, x, h = 1e-8) {
+      // Internal: numerical derivative via central difference (not JSON-safe — callback required)
+      _derivative(f, x, h = 1e-8) {
         return (f(x + h) - f(x - h)) / (2 * h);
       },
-      // Numerical integration via Simpson's rule
-      integrate(f, a, b, n = 1000) {
+      // Internal: numerical integration via Simpson's rule (not JSON-safe — callback required)
+      _integrate(f, a, b, n = 1000) {
         if (n % 2 !== 0) n++;
         const h = (b - a) / n;
         let sum = f(a) + f(b);
@@ -177,26 +199,55 @@ const AGE_TIERS = [
         }
         return (h / 3) * sum;
       },
+      // JSON-safe: evaluate polynomial p(x) = coeffs[0] + coeffs[1]*x + coeffs[2]*x² + ...
+      polynomialEval(coeffs, x) {
+        if (!Array.isArray(coeffs) || coeffs.length === 0) return { error: 'coeffs must be a nonempty array of numbers' };
+        let result = 0;
+        for (let i = coeffs.length - 1; i >= 0; i--) result = result * x + coeffs[i];
+        return result;
+      },
+      // JSON-safe: derivative of polynomial at x (analytical, no callback needed)
+      polynomialDerivative(coeffs, x) {
+        if (!Array.isArray(coeffs) || coeffs.length < 2) return { error: 'coeffs must have at least 2 terms for a derivative' };
+        const dCoeffs = coeffs.slice(1).map((c, i) => c * (i + 1));
+        let result = 0;
+        for (let i = dCoeffs.length - 1; i >= 0; i--) result = result * x + dCoeffs[i];
+        return { derivative: result, derivativeCoeffs: dCoeffs };
+      },
+      // JSON-safe: definite integral of polynomial from a to b (analytical)
+      polynomialIntegrate(coeffs, a, b) {
+        if (!Array.isArray(coeffs) || coeffs.length === 0) return { error: 'coeffs must be a nonempty array of numbers' };
+        if (typeof a !== 'number' || typeof b !== 'number') return { error: 'a and b must be numbers' };
+        const iCoeffs = [0, ...coeffs.map((c, i) => c / (i + 1))];
+        const evalAt = x => { let r = 0; for (let i = iCoeffs.length - 1; i >= 0; i--) r = r * x + iCoeffs[i]; return r; };
+        return { integral: evalAt(b) - evalAt(a), integralCoeffs: iCoeffs };
+      },
       // Power rule: derivative of x^n at point x
       powerRule(n, x) {
+        if (typeof n !== 'number' || typeof x !== 'number') return { error: 'n and x must be numbers' };
         return n * Math.pow(x, n - 1);
       },
       // MOSFET saturation current: Id = k(Vg-Vth)²
       mosfet(Vg, Vth = 0.618, k = 1) {
+        if (typeof Vg !== 'number' || !Number.isFinite(Vg)) return { error: 'Vg must be a finite number' };
         if (Vg < Vth) return 0;
         return k * (Vg - Vth) ** 2;
       },
     },
     verify() {
       const f = x => x * x * x; // x³
-      const dydx = this.formulas.derivative(f, 2); // should be 3*2²=12
-      const integral = this.formulas.integrate(x => 2 * x, 0, 3); // ∫0→3 2x dx = 9
+      const dydx = this.formulas._derivative(f, 2); // should be 3*2²=12
+      const integral = this.formulas._integrate(x => 2 * x, 0, 3); // ∫0→3 2x dx = 9
+      const polyD = this.formulas.polynomialDerivative([0, 0, 0, 1], 2); // d/dx[x³] at x=2
+      const polyI = this.formulas.polynomialIntegrate([0, 2], 0, 3); // ∫0→3 2x dx
       const pr = this.formulas.powerRule(3, 2); // 3*2²=12
       const mosfetOff = this.formulas.mosfet(0.3);
       const mosfetOn = this.formulas.mosfet(1.618);
       const tests = [
-        { name: 'd/dx[x³] at x=2 = 12', pass: Math.abs(dydx - 12) < 1e-4 },
-        { name: '∫0→3 2x dx = 9 (FTC)', pass: Math.abs(integral - 9) < 1e-4 },
+        { name: 'd/dx[x³] at x=2 = 12 (numerical)', pass: Math.abs(dydx - 12) < 1e-4 },
+        { name: 'd/dx[x³] at x=2 = 12 (polynomial)', pass: polyD.derivative !== undefined && Math.abs(polyD.derivative - 12) < 1e-10 },
+        { name: '∫0→3 2x dx = 9 (numerical)', pass: Math.abs(integral - 9) < 1e-4 },
+        { name: '∫0→3 2x dx = 9 (polynomial)', pass: polyI.integral !== undefined && Math.abs(polyI.integral - 9) < 1e-10 },
         { name: 'power rule 3x² at x=2 = 12', pass: Math.abs(pr - 12) < 1e-10 },
         { name: 'MOSFET off below Vth', pass: mosfetOff === 0 },
         { name: 'MOSFET Id=k(Vg-Vth)² at 1.618', pass: Math.abs(mosfetOn - 1) < 1e-10 },
@@ -253,8 +304,10 @@ const AGE_TIERS = [
           det,
         };
       },
-      // Hamming distance (bitwise for 32-bit numbers)
+      // Hamming distance (bitwise for 32-bit unsigned integers)
       hamming(a, b) {
+        if (typeof a !== 'number' || typeof b !== 'number') return { error: 'a and b must be numbers' };
+        if (a < 0 || a > 0xFFFFFFFF || b < 0 || b > 0xFFFFFFFF) return { error: 'a and b must be 32-bit unsigned integers (0 to 4294967295)' };
         let xor = (a ^ b) >>> 0;
         let count = 0;
         while (xor) { count += xor & 1; xor >>>= 1; }
@@ -431,8 +484,8 @@ export function readChart(trigger = 'boot') {
   const totalPassed = results.reduce((s, r) => s + r.passed, 0);
   const totalTests = results.reduce((s, r) => s + r.total, 0);
 
-  // Determine current developmental age
-  let currentAge = 0;
+  // Determine current developmental age: null means no tier fully verified
+  let currentAge = null;
   for (const tier of AGE_TIERS) {
     const result = results.find(r => r.tier === tier.name);
     if (result && result.passed === result.total) {
@@ -446,26 +499,38 @@ export function readChart(trigger = 'boot') {
   const verificationHash = createHash('sha256').update(detailJson).digest('hex').slice(0, 16);
   const duration = now() - t0;
 
-  // Persist reading
+  // Persist reading — track success/failure
+  let persisted = false;
+  let persistError = null;
   try {
     db.prepare(
       `INSERT INTO lineage_readings (current_age, tiers_passed, tiers_total, verification_hash, details, trigger, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(currentAge, totalPassed, totalTests, verificationHash, detailJson, trigger, t0);
-  } catch (_) {}
+    ).run(currentAge ?? -1, totalPassed, totalTests, verificationHash, detailJson, trigger, t0);
+    persisted = true;
+  } catch (e) {
+    persistError = e.message;
+    console.error('[lineage] chart persistence failed:', e.message);
+  }
 
-  // Bus event
-  try {
-    publish('system', 'system.lineage.chart-read', JSON.stringify({
-      patient: PATIENT.id,
-      currentAge,
-      testsPassed: totalPassed,
-      testsTotal: totalTests,
-      hash: verificationHash,
-      trigger,
-      durationMs: duration,
-    }));
-  } catch (_) {}
+  // Bus event — only publish on successful persistence
+  let busPublished = false;
+  if (persisted) {
+    try {
+      publish('system', 'system.lineage.chart-read', JSON.stringify({
+        patient: PATIENT.id,
+        currentAge,
+        testsPassed: totalPassed,
+        testsTotal: totalTests,
+        hash: verificationHash,
+        trigger,
+        durationMs: duration,
+      }));
+      busPublished = true;
+    } catch (e) {
+      console.error('[lineage] bus publish failed:', e.message);
+    }
+  }
 
   return {
     patient: PATIENT,
@@ -475,6 +540,9 @@ export function readChart(trigger = 'boot') {
     testsTotal: totalTests,
     verificationHash,
     durationMs: duration,
+    persisted,
+    ...(persistError ? { persistError } : {}),
+    busPublished,
   };
 }
 
@@ -486,9 +554,11 @@ export function getCurrentAge() {
     const row = db.prepare(
       `SELECT current_age FROM lineage_readings ORDER BY created_at DESC LIMIT 1`
     ).get();
-    return row?.current_age ?? 0;
-  } catch (_) {
-    return 0;
+    if (!row) return null;
+    return row.current_age === -1 ? null : row.current_age;
+  } catch (e) {
+    console.error('[lineage] getCurrentAge failed:', e.message);
+    return null;
   }
 }
 
@@ -521,10 +591,19 @@ export function getAllTiers() {
 export function evaluateFormula(age, formulaName, args = []) {
   const tier = AGE_TIERS.find(t => t.age === age);
   if (!tier) return { error: `No tier at age ${age}` };
+  if (!Object.hasOwn(tier.formulas, formulaName)) {
+    return { error: `No formula "${formulaName}" in tier ${tier.name}` };
+  }
+  if (formulaName.startsWith('_')) {
+    return { error: `Formula "${formulaName}" is internal and not available through the public API` };
+  }
   const fn = tier.formulas[formulaName];
   if (typeof fn !== 'function') return { error: `No formula "${formulaName}" in tier ${tier.name}` };
   try {
     const result = fn.call(tier.formulas, ...args);
+    if (result !== null && typeof result === 'object' && result.error) {
+      return { error: result.error };
+    }
     return { tier: tier.name, formula: formulaName, args, result };
   } catch (e) {
     return { error: e.message };
@@ -553,11 +632,20 @@ export function buildLineageContext() {
 
     if (!lastReading) return '';
 
-    const age = lastReading.current_age;
-    const tier = AGE_TIERS.find(t => t.age === age);
-    const tierName = tier?.name || 'Pre-Arithmetic';
+    const storedAge = lastReading.current_age;
+    const age = storedAge === -1 ? null : storedAge;
 
-    // Find highest mastered tier's domain knowledge
+    // null means no tier fully verified — distinct from age 0 (Arithmetic passed)
+    if (age === null) {
+      const staleMin = Math.round((now() - lastReading.created_at) / 60000);
+      const staleNote = staleMin > 60 ? ` [chart ${staleMin}m stale — re-read recommended]` : '';
+      return `\n\nLineage (${PATIENT.id}): No verified tier. Tests: ${lastReading.tiers_passed}/${lastReading.tiers_total} [${lastReading.verification_hash}].${staleNote}`;
+    }
+
+    const tier = AGE_TIERS.find(t => t.age === age);
+    const tierName = tier?.name || 'Unknown';
+
+    // Derive mastered domains only from tiers with age <= verified age
     const masteredTiers = AGE_TIERS.filter(t => t.age <= age);
     const domains = masteredTiers.map(t => t.domain).join('; ');
 
@@ -567,7 +655,8 @@ export function buildLineageContext() {
     const staleNote = staleMin > 60 ? ` [chart ${staleMin}m stale — re-read recommended]` : '';
 
     return `\n\nLineage (${PATIENT.id}): Age ${age} — ${tierName}. Mastered: ${domains}.${hwNote}${qNote} Tests: ${lastReading.tiers_passed}/${lastReading.tiers_total} [${lastReading.verification_hash}].${staleNote}`;
-  } catch (_) {
+  } catch (e) {
+    console.error('[lineage] buildLineageContext failed:', e.message);
     return '';
   }
 }

@@ -2115,8 +2115,8 @@ export function createFleetTools({ workflowStore }) {
         formula: { type: 'string', description: 'For evaluate: formula name (e.g. "quadratic", "pythagorean", "hadamard")' },
         args: { type: 'array', description: 'For evaluate: arguments array for the formula' },
       }),
-      execute: async (params) => {
-        const mode = params.mode || 'status';
+      execute: async ({ args }) => {
+        const mode = args.mode || 'status';
         if (mode === 'read') {
           const result = readChart('agent');
           ledger.record('lineage.chart-read', { age: result.currentAge, passed: result.testsPassed, total: result.testsTotal }, 'fleet');
@@ -2126,15 +2126,15 @@ export function createFleetTools({ workflowStore }) {
           return { patient: PATIENT.id, tiers: getAllTiers() };
         }
         if (mode === 'verify') {
-          if (params.age === undefined) return { error: 'age parameter required for verify mode' };
-          const result = verifyTier(params.age);
-          ledger.record('lineage.verify', { age: params.age, passed: result.passed, total: result.total }, 'fleet');
+          if (args.age === undefined) return { error: 'age parameter required for verify mode' };
+          const result = verifyTier(args.age);
+          ledger.record('lineage.verify', { age: args.age, passed: result.passed, total: result.total }, 'fleet');
           return result;
         }
         if (mode === 'evaluate') {
-          if (params.age === undefined || !params.formula) return { error: 'age and formula parameters required for evaluate mode' };
-          const result = evaluateFormula(params.age, params.formula, Array.isArray(params.args) ? params.args : []);
-          ledger.record('lineage.evaluate', { age: params.age, formula: params.formula }, 'fleet');
+          if (args.age === undefined || !args.formula) return { error: 'age and formula parameters required for evaluate mode' };
+          const result = evaluateFormula(args.age, args.formula, Array.isArray(args.args) ? args.args : []);
+          ledger.record('lineage.evaluate', { age: args.age, formula: args.formula }, 'fleet');
           return result;
         }
         const stats = getLineageStats();

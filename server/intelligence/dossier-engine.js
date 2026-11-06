@@ -35,13 +35,15 @@ export function ensureDossierTable() {
 export function parseDecompiledC(text) {
   if (!text || typeof text !== 'string') return [];
 
-  const MARKER = /\/\/\s*====\s*(.+?)\s*@\s*(0x[0-9a-fA-F]+)\s*====/g;
+  // Support both 0x-prefixed and bare hex addresses from upstream Ghidra output
+  const MARKER = /\/\/\s*====\s*(.+?)\s*@\s*((?:0x)?[0-9a-fA-F]+)\s*====/g;
   const functions = [];
   const markers = [];
 
   let match;
   while ((match = MARKER.exec(text)) !== null) {
-    markers.push({ name: match[1].trim(), addr: match[2], index: match.index, end: match.index + match[0].length });
+    const addr = match[2].startsWith('0x') ? match[2] : `0x${match[2]}`;
+    markers.push({ name: match[1].trim(), addr, index: match.index, end: match.index + match[0].length });
   }
 
   for (let i = 0; i < markers.length; i++) {
@@ -71,19 +73,24 @@ export function parseAnnotations(text) {
 
   const result = { functions: {}, importVerification: {}, redBlueScores: {} };
 
-  // Per-function annotation blocks: ## function_name @ 0xADDR
-  const FUNC_BLOCK = /##\s+(.+?)\s*@\s*(0x[0-9a-fA-F]+)\s*\n([\s\S]*?)(?=\n##\s|\n---|\n$|$)/g;
+  // Per-function annotation blocks: supports both formats:
+  //   ## function_name @ 0xADDR            (original)
+  //   ## function_name @ ADDR (N lines)    (upstream fra-annotate.py)
+  const FUNC_BLOCK = /##\s+(.+?)\s*@\s*((?:0x)?[0-9a-fA-F]+)(?:\s*\(\d+\s*lines?\))?\s*\n([\s\S]*?)(?=\n##\s|\n---|\n$|$)/g;
   let match;
   while ((match = FUNC_BLOCK.exec(text)) !== null) {
-    const key = `${match[1].trim()}@${match[2]}`;
+    const addr = match[2].startsWith('0x') ? match[2] : `0x${match[2]}`;
+    const key = `${match[1].trim()}@${addr}`;
     result.functions[key] = {
       name: match[1].trim(),
-      address: match[2],
+      address: addr,
       annotation: match[3].trim(),
     };
   }
 
-  // Import verification: lines like "VERIFIED: printf (libc)" or "UNVERIFIED: custom_func"
+  // Import verification — two formats:
+  //   VERIFIED: printf (libc)                     (original)
+  //   - import verification: N verified -> name1, name2   (upstream)
   const IMPORT_LINE = /^(VERIFIED|UNVERIFIED):\s+(\S+)(?:\s+\((.+)\))?/gm;
   while ((match = IMPORT_LINE.exec(text)) !== null) {
     result.importVerification[match[2]] = {
@@ -91,9 +98,22 @@ export function parseAnnotations(text) {
       library: match[3] || null,
     };
   }
+  // Upstream: "- import verification: 3 verified -> printf, putchar, strlen"
+  const UPSTREAM_IMPORT = /import\s+verification:\s*(\d+)\s+verified\s*->\s*(.+)/gi;
+  while ((match = UPSTREAM_IMPORT.exec(text)) !== null) {
+    const names = match[2].split(',').map(n => n.trim()).filter(Boolean);
+    for (const name of names) {
+      if (!result.importVerification[name]) {
+        result.importVerification[name] = { status: 'verified', library: null };
+      }
+    }
+  }
 
-  // Red/blue scores: "Agreement: 0.73 (Jaccard)" or "Red: 0.8 Blue: 0.6"
-  const AGREEMENT = /Agreement:\s*([\d.]+)/g;
+  // Red/blue scores — two formats:
+  //   Agreement: 0.73 (Jaccard)                  (original)
+  //   - red/blue agreement: 0.73                 (upstream)
+  //   Red: 0.8 Blue: 0.6                         (original)
+  const AGREEMENT = /(?:Agreement|red\/blue\s+agreement):\s*([\d.]+)/gi;
   while ((match = AGREEMENT.exec(text)) !== null) {
     result.redBlueScores._aggregate = parseFloat(match[1]);
   }
@@ -117,26 +137,56 @@ export function parseImports(text) {
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('[')) continue;
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('[') || trimmed.startsWith('---')) continue;
 
     // pipe-delimited: ordinal|bind|type|lib|name
-    const parts = trimmed.split('|').map(p => p.trim());
-    if (parts.length >= 5) {
+    if (trimmed.includes('|')) {
+      const parts = trimmed.split('|').map(p => p.trim());
+      if (parts.length >= 5) {
+        imports.push({
+          ordinal: parseInt(parts[0]) || 0,
+          bind: parts[1],
+          type: parts[2],
+          lib: parts[3],
+          name: parts[4],
+        });
+        continue;
+      } else if (parts.length >= 2) {
+        imports.push({
+          ordinal: 0,
+          bind: 'GLOBAL',
+          type: 'FUNC',
+          lib: parts[1] || '',
+          name: parts[0],
+        });
+        continue;
+      }
+    }
+
+    // Whitespace-column format from upstream rabin2 -i:
+    //   1    GLOBAL FUNC   libSystem.B.dylib printf
+    // Pattern: ordinal, bind, type, lib, name separated by whitespace
+    const wsMatch = trimmed.match(/^(\d+)\s+(GLOBAL|LOCAL|WEAK|NONE)\s+(FUNC|OBJECT|NOTYPE|TLS)\s+(\S+)\s+(\S+)/i);
+    if (wsMatch) {
       imports.push({
-        ordinal: parseInt(parts[0]) || 0,
-        bind: parts[1],
-        type: parts[2],
-        lib: parts[3],
-        name: parts[4],
+        ordinal: parseInt(wsMatch[1]) || 0,
+        bind: wsMatch[2],
+        type: wsMatch[3],
+        lib: wsMatch[4],
+        name: wsMatch[5],
       });
-    } else if (parts.length >= 2) {
-      // Fallback for simpler formats (name only or name|lib)
+      continue;
+    }
+
+    // Simpler whitespace-column: ordinal name (no bind/type/lib)
+    const simpleWs = trimmed.match(/^(\d+)\s+(\S+)\s*$/);
+    if (simpleWs) {
       imports.push({
-        ordinal: 0,
+        ordinal: parseInt(simpleWs[1]) || 0,
         bind: 'GLOBAL',
         type: 'FUNC',
-        lib: parts[1] || '',
-        name: parts[0],
+        lib: '',
+        name: simpleWs[2],
       });
     }
   }
@@ -175,8 +225,14 @@ export function verifyDossierSeal(dossierDir) {
     return { status: 'unverifiable', detail: 'No files to verify against seal' };
   }
 
-  // Compute SHA-256 of sorted file manifest (name:sha256 pairs)
-  const hash = createHash('sha256');
+  // Parse seal: upstream format is "HEX_DIGEST  -" (shasum output), also accept bare hex
+  const sealHex = sealContent.replace(/\s+-.{0,2}$/, '').trim();
+  if (!/^[0-9a-fA-F]{64}$/.test(sealHex)) {
+    return { status: 'unverifiable', detail: `Seal file does not contain a valid SHA-256 digest` };
+  }
+
+  // Build file hashes for both manifest formats
+  const fileHashes = new Map();
   let allReadable = true;
 
   for (const file of files) {
@@ -185,7 +241,7 @@ export function verifyDossierSeal(dossierDir) {
       const stat = statSync(filePath);
       if (!stat.isFile()) continue;
       const fileHash = createHash('sha256').update(readFileSync(filePath)).digest('hex');
-      hash.update(`${file}:${fileHash}\n`);
+      fileHashes.set(file, fileHash);
     } catch (_) {
       allReadable = false;
     }
@@ -195,15 +251,40 @@ export function verifyDossierSeal(dossierDir) {
     return { status: 'unverifiable', detail: 'Some files could not be read for seal verification' };
   }
 
-  const computed = hash.digest('hex');
-
-  if (computed === sealContent) {
-    return { status: 'valid', detail: 'Seal matches file manifest' };
+  if (fileHashes.size === 0) {
+    return { status: 'unverifiable', detail: 'No files to verify against seal' };
   }
 
-  // The pipeline seals every file including ghidra.log and potentially stale seal files.
-  // A subset of files may not reproduce the original seal — this is not necessarily tampering.
-  return { status: 'invalid', detail: `Seal mismatch: expected ${sealContent.slice(0, 16)}..., computed ${computed.slice(0, 16)}...` };
+  // Try both manifest formats:
+  // Format 1 (upstream shasum): hash each "HEX_DIGEST  filename\n" row, then hash the manifest
+  const shasumManifest = createHash('sha256');
+  for (const [file, hash] of [...fileHashes.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+    shasumManifest.update(`${hash}  ${file}\n`);
+  }
+  const shasumComputed = shasumManifest.digest('hex');
+
+  if (shasumComputed === sealHex) {
+    return { status: 'valid', detail: 'Seal matches file manifest (shasum format)' };
+  }
+
+  // Format 2 (original): "filename:hash\n" pairs
+  const origManifest = createHash('sha256');
+  for (const [file, hash] of [...fileHashes.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+    origManifest.update(`${file}:${hash}\n`);
+  }
+  const origComputed = origManifest.digest('hex');
+
+  if (origComputed === sealHex) {
+    return { status: 'valid', detail: 'Seal matches file manifest (name:hash format)' };
+  }
+
+  // If the dossier is a subset (e.g., ghidra.log absent), we cannot reconstruct
+  // the original sealed manifest — return unverifiable, not invalid
+  if (fileHashes.size < 5) {
+    return { status: 'unverifiable', detail: `Only ${fileHashes.size} files present; original sealed file list may be larger. Cannot reconstruct original manifest.` };
+  }
+
+  return { status: 'invalid', detail: `Seal mismatch: seal ${sealHex.slice(0, 16)}..., shasum-format ${shasumComputed.slice(0, 16)}..., name:hash-format ${origComputed.slice(0, 16)}...` };
 }
 
 // ─── Evidence Grading ─────────────────────────────────────────
@@ -217,7 +298,7 @@ const GRADE_CONFIDENCE = {
   unverified: 0.4,
 };
 
-export function gradeEvidence(parsedFunctions, annotations, imports) {
+export function gradeEvidence(parsedFunctions, annotations, imports, binarySha = 'unknown') {
   const facts = [];
   const verifiedImportNames = new Set();
 
@@ -229,7 +310,8 @@ export function gradeEvidence(parsedFunctions, annotations, imports) {
   }
 
   for (const fn of parsedFunctions) {
-    const key = `fn:${fn.name}@${fn.address}`;
+    const binaryPrefix = (binarySha || 'unknown').slice(0, 16);
+    const key = `fn:${binaryPrefix}:${fn.name}@${fn.address}`;
     const annotationKey = `${fn.name}@${fn.address}`;
     const annotation = annotations?.functions?.[annotationKey];
 
@@ -341,7 +423,7 @@ export function parseDossier(dossierDir) {
 
 export function gradeDossier(parsed) {
   return {
-    facts: gradeEvidence(parsed.functions, parsed.annotations, parsed.imports),
+    facts: gradeEvidence(parsed.functions, parsed.annotations, parsed.imports, parsed.binary),
   };
 }
 
@@ -417,7 +499,7 @@ export function processDossier(dossierDir) {
     Date.now(),
   );
 
-  // Publish bus event
+  // Publish bus event with correct 3-argument arity: (fromAgent, topic, payload)
   const busEvent = {
     binary: parsed.binary,
     functionCount: parsed.summary.functionCount,
@@ -428,10 +510,12 @@ export function processDossier(dossierDir) {
     grades: gradeBreakdown,
   };
 
+  let busPublished = false;
   try {
-    publish('system.re.dossier.processed', busEvent);
-  } catch (_) {
-    // Bus publish failure is non-fatal
+    publish(RE_AGENT_ID, 'system.re.dossier.processed', busEvent);
+    busPublished = true;
+  } catch (e) {
+    console.error('[dossier-engine] bus publish failed:', e.message);
   }
 
   return {
@@ -444,7 +528,7 @@ export function processDossier(dossierDir) {
     },
     graded: gradeBreakdown,
     stored: storage,
-    busEvents: 1,
+    busPublished,
   };
 }
 
@@ -519,11 +603,13 @@ export async function debateDossierFunctions(parsed, graded, opts = {}) {
   };
 
   try {
-    publish('system.re.dossier.debated', {
+    publish(RE_AGENT_ID, 'system.re.dossier.debated', {
       binary: parsed.binary,
       ...summary,
     });
-  } catch (_) {}
+  } catch (e) {
+    console.error('[dossier-engine] debate bus publish failed:', e.message);
+  }
 
   return { ...summary, results };
 }
@@ -545,25 +631,30 @@ export function getDossier(sha) {
   ).get(sha);
   if (!dossier) return null;
 
-  // Recall stored function memories for this binary
-  const memories = recallMemories(RE_AGENT_ID, {
-    category: 'binary_dossier',
-    query: sha.slice(0, 16),
-    limit: 100,
-  });
+  // Query function memories by source field (contains binary SHA) and binary-scoped key prefix
+  const shaPrefix = sha.slice(0, 16);
+  const memories = db.prepare(
+    `SELECT * FROM agent_memories WHERE agent_id = ? AND category = 'binary_dossier' AND source LIKE ? AND key LIKE ? ORDER BY created_at DESC`
+  ).all(RE_AGENT_ID, `%${shaPrefix}%`, `fn:${shaPrefix}:%`);
 
   return { dossier, memories };
 }
 
 export function getDossierFunctions(sha, { limit = 50, offset = 0 } = {}) {
-  const memories = recallMemories(RE_AGENT_ID, {
-    category: 'binary_dossier',
-    limit: 100,
-  });
+  const clamped = Math.min(500, Math.max(1, limit));
+  const clampedOffset = Math.max(0, offset);
+  const shaPrefix = sha.slice(0, 16);
 
-  // Filter to function entries for this binary
-  const functions = memories
-    .filter(m => m.key.startsWith('fn:') && m.source.includes(sha.slice(0, 16)))
+  // SQL-level filtering and pagination by binary-scoped key prefix
+  const total = db.prepare(
+    `SELECT COUNT(*) as c FROM agent_memories WHERE agent_id = ? AND category = 'binary_dossier' AND key LIKE ?`
+  ).get(RE_AGENT_ID, `fn:${shaPrefix}:%`);
+
+  const rows = db.prepare(
+    `SELECT * FROM agent_memories WHERE agent_id = ? AND category = 'binary_dossier' AND key LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?`
+  ).all(RE_AGENT_ID, `fn:${shaPrefix}:%`, clamped, clampedOffset);
+
+  const functions = rows
     .map(m => {
       try {
         const val = JSON.parse(m.value);
@@ -572,22 +663,16 @@ export function getDossierFunctions(sha, { limit = 50, offset = 0 } = {}) {
     })
     .filter(Boolean);
 
-  const sliced = functions.slice(offset, offset + limit);
-  return { functions: sliced, total: functions.length };
+  return { functions, total: total?.c || 0 };
 }
 
 export function getDossierFunction(sha, functionName) {
-  const memories = recallMemories(RE_AGENT_ID, {
-    category: 'binary_dossier',
-    query: functionName,
-    limit: 20,
-  });
+  const shaPrefix = sha.slice(0, 16);
 
-  const fn = memories.find(m =>
-    m.key.startsWith('fn:') &&
-    m.source.includes(sha.slice(0, 16)) &&
-    m.key.includes(functionName)
-  );
+  // Exact binary-scoped lookup: fn:<shaPrefix>:<functionName>@<addr>
+  const fn = db.prepare(
+    `SELECT * FROM agent_memories WHERE agent_id = ? AND category = 'binary_dossier' AND key LIKE ? LIMIT 1`
+  ).get(RE_AGENT_ID, `fn:${shaPrefix}:${functionName}@%`);
 
   if (!fn) return null;
 
