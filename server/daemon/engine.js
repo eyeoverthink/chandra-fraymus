@@ -23,6 +23,7 @@ import { selfModelSnapshot, getSelfModelStatus, resetSelfModel, setSelfModelCTRN
 import { startResourceEnvelope, stopResourceEnvelope, getResourceEnvelopeStatus, resetResourceEnvelope, setEnvelopeCTRNN, isResourceConstrained } from '../intelligence/resource-envelope.js';
 import { getPredictiveStatus, resetPredictions } from '../intelligence/predictive-processing.js';
 import { getActiveInferenceStatus, resetActiveInference } from '../intelligence/active-inference.js';
+import { exportChandraReceipts, getExportStats } from '../intelligence/hive-export.js';
 import { heart } from '../fraymus-tools.js';
 
 const now = () => Date.now();
@@ -445,6 +446,14 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
       stepResults.resourceEnvelope = { error: e.message };
     }
 
+    // Step 12: Hive Export — write Chandra intelligence to outbound ledger
+    try {
+      const hiveResult = exportChandraReceipts();
+      stepResults.hiveExport = { exported: hiveResult.exported, chainLength: hiveResult.chainLength, types: hiveResult.types, durationMs: hiveResult.durationMs };
+    } catch (e) {
+      stepResults.hiveExport = { error: e.message };
+    }
+
     const duration = now() - t0;
 
     db.prepare(
@@ -476,6 +485,8 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
         resourcePressure: stepResults.resourceEnvelope?.pressure ?? 0,
         resourceFatigue: stepResults.resourceEnvelope?.fatigue ?? 0,
         resourceLevel: stepResults.resourceEnvelope?.level ?? 'LOW',
+        hiveExported: stepResults.hiveExport?.exported ?? 0,
+        hiveChainLength: stepResults.hiveExport?.chainLength ?? 0,
         durationMs: duration, at: t0,
       }));
     } catch (_) {}
@@ -659,6 +670,7 @@ export function getDaemonStatus() {
     resourceEnvelope: getResourceEnvelopeStatus(),
     predictiveProcessing: getPredictiveStatus(),
     activeInference: getActiveInferenceStatus(),
+    hiveExport: getExportStats(),
   };
 }
 
