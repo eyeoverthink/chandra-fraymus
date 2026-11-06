@@ -28,6 +28,10 @@ import { setDreamSolverCTRNN, setDreamSolverDreamer, getDreamSolverStatus, reset
 import { setMonitorCTRNN, startIntelligenceMonitor, stopIntelligenceMonitor, resetIntelligenceMonitor, getIntelligenceMonitorStatus } from '../intelligence/intelligence-monitor.js';
 import { exportChandraReceipts, getExportStats } from '../intelligence/hive-export.js';
 import { readChart, getLineageStats } from '../intelligence/lineage.js';
+import { startUserSensorium, stopUserSensorium, resetUserSensorium, getUserSensoriumStatus } from '../awareness/user-sensorium.js';
+import { startNudgeEngine, stopNudgeEngine, getNudgeStatus } from '../awareness/proactive-nudge.js';
+import { getProtocolStatus, resetProtocol } from '../awareness/protocol-engine.js';
+import { startContextHarvester, stopContextHarvester, resetContextHarvester, getContextHarvesterStatus } from '../awareness/context-harvester.js';
 import { heart, dreamer } from '../fraymus-tools.js';
 
 const now = () => Date.now();
@@ -613,6 +617,23 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     console.error('intelligence monitor start error:', e.message);
   }
 
+  // Phase 25: Start awareness layer (user sensorium, nudge engine, context harvester)
+  try {
+    startUserSensorium();
+  } catch (e) {
+    console.error('user sensorium start error:', e.message);
+  }
+  try {
+    startNudgeEngine();
+  } catch (e) {
+    console.error('nudge engine start error:', e.message);
+  }
+  try {
+    startContextHarvester();
+  } catch (e) {
+    console.error('context harvester start error:', e.message);
+  }
+
   // Patient Chart — anterograde amnesia protocol: re-read chart at every boot
   try {
     const chartResult = readChart('daemon-boot');
@@ -681,6 +702,13 @@ export function stopDaemon() {
   // Phase 24: Stop intelligence monitor with daemon
   try { stopIntelligenceMonitor(); } catch (_) {}
   try { resetIntelligenceMonitor(); } catch (_) {}
+  // Phase 25: Stop awareness layer with daemon
+  try { stopUserSensorium(); } catch (_) {}
+  try { resetUserSensorium(); } catch (_) {}
+  try { stopNudgeEngine(); } catch (_) {}
+  try { stopContextHarvester(); } catch (_) {}
+  try { resetContextHarvester(); } catch (_) {}
+  try { resetProtocol(); } catch (_) {}
   daemonState.running = false;
   daemonState.nextCycleAt = 0;
   return { stopped: true };
@@ -716,6 +744,10 @@ export function getDaemonStatus() {
     selfNarrative: getNarrativeStatus(),
     dreamSolver: getDreamSolverStatus(),
     intelligenceMonitor: getIntelligenceMonitorStatus(),
+    userSensorium: getUserSensoriumStatus(),
+    nudgeEngine: getNudgeStatus(),
+    protocol: getProtocolStatus(),
+    contextHarvester: getContextHarvesterStatus(),
   };
 }
 
