@@ -48,6 +48,7 @@ import { listMessages as bridgeList, readMessage as bridgeRead, searchMessages a
 import { record as replayRecord, replay as replayReplay, sweep as replaySweep, applyWinner, getPolicy, listWorlds, listSweeps } from '../intelligence/replay-engine.js';
 import { add as akashicAdd, query as akashicQuery, summary as akashicSummary, buildPromptContext as akashicPromptContext, seedFromMemories as akashicSeed } from '../intelligence/akashic.js';
 import { recordAndClassify, getVisits, getVisitStats, generateInsights, getInsights, getClusters, getPerspectiveContext } from '../intelligence/cross-tab.js';
+import { readChart, getLineageStats, getCurrentAge, evaluateFormula, verifyTier, getAllTiers, PATIENT } from '../intelligence/lineage.js';
 import {
   imageInfo, imageResize, imageConvert, imageEffects, imageThumbnail,
   imageUpscale, comfyuiStatus, listMedia,
@@ -2103,6 +2104,44 @@ export function createFleetTools({ workflowStore }) {
       },
     },
     ...createRETools(),
+    {
+      name: 'lineage_chart',
+      group: 'intelligence',
+      risk: 'safe',
+      description: `Read or interact with the FRAYMUS Infant AGI Patient Chart (${PATIENT.id}). Mathematical lineage engine spanning 6 age tiers: Arithmetic(0) → Algebra(2) → Geometry(5) → Calculus(9) → LinearAlgebra(13) → Quantum(17). Modes: "status" (default) returns current developmental age and chart stats; "read" performs a full chart reading (re-verifies all tiers, anterograde amnesia protocol); "tiers" lists all tier summaries; "verify" verifies a single tier by age; "evaluate" runs a formula from a specific tier.`,
+      parameters: object({
+        mode: { type: 'string', description: 'One of: status, read, tiers, verify, evaluate (default: status)' },
+        age: { type: 'number', description: 'For verify/evaluate: the age tier (0, 2, 5, 9, 13, 17)' },
+        formula: { type: 'string', description: 'For evaluate: formula name (e.g. "quadratic", "pythagorean", "hadamard")' },
+        args: { type: 'array', description: 'For evaluate: arguments array for the formula' },
+      }),
+      execute: async (params) => {
+        const mode = params.mode || 'status';
+        if (mode === 'read') {
+          const result = readChart('agent');
+          ledger.record('lineage.chart-read', { age: result.currentAge, passed: result.testsPassed, total: result.testsTotal }, 'fleet');
+          return result;
+        }
+        if (mode === 'tiers') {
+          return { patient: PATIENT.id, tiers: getAllTiers() };
+        }
+        if (mode === 'verify') {
+          if (params.age === undefined) return { error: 'age parameter required for verify mode' };
+          const result = verifyTier(params.age);
+          ledger.record('lineage.verify', { age: params.age, passed: result.passed, total: result.total }, 'fleet');
+          return result;
+        }
+        if (mode === 'evaluate') {
+          if (params.age === undefined || !params.formula) return { error: 'age and formula parameters required for evaluate mode' };
+          const result = evaluateFormula(params.age, params.formula, Array.isArray(params.args) ? params.args : []);
+          ledger.record('lineage.evaluate', { age: params.age, formula: params.formula }, 'fleet');
+          return result;
+        }
+        const stats = getLineageStats();
+        ledger.record('lineage.status', { age: stats.currentAge, readings: stats.totalReadings }, 'fleet');
+        return stats;
+      },
+    },
   ];
 }
 

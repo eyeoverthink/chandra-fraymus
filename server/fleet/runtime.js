@@ -19,6 +19,7 @@ import { isClockTrusted, getLastVerdict } from '../integrity/clock-honesty.js';
 import { buildPromptContext as akashicPromptContext } from '../intelligence/akashic.js';
 import { record as replayRecord } from '../intelligence/replay-engine.js';
 import { buildSpatialContext } from '../intelligence/self-model.js';
+import { buildLineageContext } from '../intelligence/lineage.js';
 
 const MAX_STEPS = 8;
 const MAX_HISTORY = 40;
@@ -192,7 +193,13 @@ async function systemPrompt(agent, userId) {
     selfModelBlock = buildSpatialContext(agent.id);
   } catch (_) {}
 
-  return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}${intelligenceBlock}${bridgeBlock}${agentMemBlock}${akashicBlock}${perspectiveBlock}${consciousnessBlock}${selfModelBlock}`;
+  // Lineage — mathematical developmental age from the patient chart
+  let lineageBlock = '';
+  try {
+    lineageBlock = buildLineageContext();
+  } catch (_) {}
+
+  return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}${intelligenceBlock}${bridgeBlock}${agentMemBlock}${akashicBlock}${perspectiveBlock}${consciousnessBlock}${selfModelBlock}${lineageBlock}`;
 }
 
 async function chat(messages, tools, model) {

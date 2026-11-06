@@ -24,6 +24,7 @@ import { startResourceEnvelope, stopResourceEnvelope, getResourceEnvelopeStatus,
 import { getPredictiveStatus, resetPredictions } from '../intelligence/predictive-processing.js';
 import { getActiveInferenceStatus, resetActiveInference } from '../intelligence/active-inference.js';
 import { exportChandraReceipts, getExportStats } from '../intelligence/hive-export.js';
+import { readChart, getLineageStats } from '../intelligence/lineage.js';
 import { heart } from '../fraymus-tools.js';
 
 const now = () => Date.now();
@@ -588,6 +589,14 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     console.error('attention gate wiring error:', e.message);
   }
 
+  // Patient Chart — anterograde amnesia protocol: re-read chart at every boot
+  try {
+    const chartResult = readChart('daemon-boot');
+    console.log(`[daemon] Patient chart read: Age ${chartResult.currentAge}, ${chartResult.testsPassed}/${chartResult.testsTotal} tests [${chartResult.verificationHash}]`);
+  } catch (e) {
+    console.error('lineage chart read error:', e.message);
+  }
+
   function scheduleNext() {
     if (!daemonState.running) return;
     const mods = getAutonomyModifiers();
@@ -671,6 +680,7 @@ export function getDaemonStatus() {
     predictiveProcessing: getPredictiveStatus(),
     activeInference: getActiveInferenceStatus(),
     hiveExport: getExportStats(),
+    lineage: getLineageStats(),
   };
 }
 

@@ -104,6 +104,7 @@ import { installPredictiveRoutes } from './intelligence/predictive-processing.js
 import { installActiveInferenceRoutes } from './intelligence/active-inference.js';
 import { installHiveBridgeRoutes } from './intelligence/hive-bridge-routes.js';
 import { installHiveExportRoutes } from './intelligence/hive-export-routes.js';
+import { installLineageRoutes } from './intelligence/lineage-routes.js';
 import { installDossierRoutes } from './intelligence/dossier-engine-routes.js';
 import { installIntegrityRoutes, startWatchdog, verifyAll, autoTrackCriticalFiles } from './integrity/watchdog.js';
 import { installPlasmidRoutes } from './integrity/plasmid-backup.js';
@@ -278,6 +279,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installActiveInferenceRoutes(app);
   installHiveBridgeRoutes(app);
   installHiveExportRoutes(app);
+  installLineageRoutes(app);
   installDossierRoutes(app);
   installIntegrityRoutes(app);
   installPlasmidRoutes(app);
