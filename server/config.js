@@ -24,7 +24,7 @@ export const OLLAMA_URL = serviceUrl(process.env.OLLAMA_BASE_URL || 'http://127.
 export const VOICE_URL = serviceUrl(process.env.FRAYMUS_VOICE_URL || 'http://127.0.0.1:9099', 'FRAYMUS_VOICE_URL');
 export const HOST = process.env.HOST || '127.0.0.1';
 if (!PRODUCTION && !['localhost', '127.0.0.1', '::1'].includes(HOST)) throw new Error('This local deployment binds only to loopback');
-export const PORT = Number(process.env.PORT || 8787);
+export const PORT = Number(process.env.CHANDRA_PORT || process.env.PORT || 8787);
 if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) throw new Error('Invalid PORT');
 const ALLOWED_ORIGINS_ENV = process.env.ALLOWED_ORIGINS;
 export const LOCAL_ORIGINS = new Set([
