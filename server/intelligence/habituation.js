@@ -41,7 +41,7 @@ const BASE_NOVELTY_SCALE = 3.0;
 const SPIKE_THRESHOLD = 1.8;
 const SNAPSHOT_EVERY = 60;
 
-const SENSORY_KEYS = ['bus', 'memory', 'emotion', 'consciousness', 'agent', 'health', 'workflow', 'goals'];
+const SENSORY_KEYS = ['bus', 'memory', 'emotion', 'consciousness', 'agent', 'health', 'workflow', 'goals', 'binary_insight'];
 
 const signalHistory = {};
 for (const key of SENSORY_KEYS) signalHistory[key] = [];

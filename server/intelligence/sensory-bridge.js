@@ -18,6 +18,9 @@
  *     Workflow runs   (10, 10) σ=2.0  — pipeline activity
  *     Goals / RSI     (10, 14) σ=2.0  — self-directed ambition
  *
+ *   Temporal cortex band (Phase 5 — RE integration):
+ *     Binary insight  (6, 14)  σ=2.0  — RE analysis activity (dossier + compile + debate)
+ *
  * Runs on its own 5-second interval (Iext decays at 0.95/tick → ~1s half-life).
  * Consciousness-aware: gate modifiers scale overall sensitivity.
  */
@@ -45,7 +48,8 @@ const SENSORY_REGIONS = {
   agent:         { tx: 10, ty: 2,  sigma: 2.0, label: 'Agent activity' },
   health:        { tx: 10, ty: 6,  sigma: 2.0, label: 'Health status' },
   workflow:      { tx: 10, ty: 10, sigma: 2.0, label: 'Workflow runs' },
-  goals:         { tx: 10, ty: 14, sigma: 2.0, label: 'Goals / RSI' },
+  goals:           { tx: 10, ty: 14, sigma: 2.0, label: 'Goals / RSI' },
+  binary_insight:  { tx: 6,  ty: 14, sigma: 2.0, label: 'Binary insight (RE)' },
 };
 
 let bridgeTimer = null;
@@ -154,6 +158,50 @@ function collectSignals() {
         `SELECT COUNT(*) as c FROM goal_proposals WHERE status = 'proposed'`
       ).get()?.c || 0;
       return clamp01(count / 5);
+    } catch (_) { return 0; }
+  })();
+
+  signals.binary_insight = (() => {
+    try {
+      const oneHourAgo = now() - 3_600_000;
+
+      // Sub-signal 1: dossier ingestion activity in last 5 min
+      const dossierCount = db.prepare(
+        `SELECT COUNT(*) as c FROM agent_memories WHERE agent_id = 're-analyst' AND category = 'binary_dossier' AND updated_at > ?`
+      ).get(fiveMinAgo)?.c || 0;
+      const dossierActivity = clamp01(dossierCount / 3);
+
+      // Idle decay: check if any dossier was ingested in the last hour
+      const lastDossierRow = db.prepare(
+        `SELECT MAX(updated_at) as ts FROM agent_memories WHERE agent_id = 're-analyst' AND category = 'binary_dossier'`
+      ).get();
+      const lastDossierAt = lastDossierRow?.ts || 0;
+      const dossierStale = lastDossierAt < oneHourAgo;
+
+      // Sub-signal 2: compile quality (decays to 0 if no recent dossier)
+      let compileQuality = 0;
+      if (!dossierStale) {
+        const compileRow = db.prepare(
+          `SELECT value FROM agent_memories WHERE agent_id = 're-analyst' AND category = 'binary_dossier' AND key LIKE '%compile_rate%' ORDER BY updated_at DESC LIMIT 1`
+        ).get();
+        if (compileRow) {
+          try {
+            const parsed = JSON.parse(compileRow.value);
+            compileQuality = clamp01((parsed.compileRate || 0) / 100);
+          } catch (_) {}
+        }
+      }
+
+      // Sub-signal 3: debate confidence (fraction CONFIRMED in recent debates)
+      const debateTotal = db.prepare(
+        `SELECT COUNT(*) as c FROM agent_memories WHERE agent_id = 're-analyst' AND category = 'binary_dossier' AND key LIKE 'debate_%' AND updated_at > ?`
+      ).get(fiveMinAgo)?.c || 0;
+      const debateConfirmed = db.prepare(
+        `SELECT COUNT(*) as c FROM agent_memories WHERE agent_id = 're-analyst' AND category = 'binary_dossier' AND key LIKE 'debate_%' AND value LIKE '%CONFIRMED%' AND updated_at > ?`
+      ).get(fiveMinAgo)?.c || 0;
+      const debateConfidence = debateTotal > 0 ? clamp01(debateConfirmed / debateTotal) : 0;
+
+      return clamp01((dossierActivity + compileQuality + debateConfidence) / 3);
     } catch (_) { return 0; }
   })();
 

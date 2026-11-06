@@ -56,7 +56,8 @@ const INFERENCE_MAP = {
   agent:         [{ motor: 'goalSeek', weight: 0.5 }, { motor: 'communicate', weight: 0.3 }],
   health:        [{ motor: 'neurogenesis', weight: 0.6 }, { motor: 'selfAudit', weight: 0.3 }],
   workflow:      [{ motor: 'reflect', weight: 0.4 }, { motor: 'goalSeek', weight: 0.4 }],
-  goals:         [{ motor: 'goalSeek', weight: 0.7 }, { motor: 'reflect', weight: 0.2 }],
+  goals:           [{ motor: 'goalSeek', weight: 0.7 }, { motor: 'reflect', weight: 0.2 }],
+  binary_insight:  [{ motor: 'reflect', weight: 0.5 }, { motor: 'goalSeek', weight: 0.3 }],
 };
 
 const MOTOR_COORDS = {

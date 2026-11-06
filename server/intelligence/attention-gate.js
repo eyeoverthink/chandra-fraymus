@@ -41,15 +41,15 @@ const BASE_MOTOR_INFLUENCE = 0.8;
 const BASE_EMOTION_INFLUENCE = 0.4;
 
 const MOTOR_SENSORY_MAP = {
-  reflect:      { primary: ['memory', 'consciousness'], weight: 1.0 },
+  reflect:      { primary: ['memory', 'consciousness', 'binary_insight'], weight: 1.0 },
   neurogenesis: { primary: ['health', 'consciousness'], weight: 0.8 },
   dream:        { primary: ['emotion', 'memory'],       weight: 0.9 },
-  selfAudit:    { primary: ['consciousness', 'health'], weight: 0.7 },
+  selfAudit:    { primary: ['consciousness', 'health', 'binary_insight'], weight: 0.7 },
   communicate:  { primary: ['bus', 'agent'],            weight: 0.9 },
   goalSeek:     { primary: ['goals', 'workflow'],       weight: 1.0 },
 };
 
-const SENSORY_KEYS = ['bus', 'memory', 'emotion', 'consciousness', 'agent', 'health', 'workflow', 'goals'];
+const SENSORY_KEYS = ['bus', 'memory', 'emotion', 'consciousness', 'agent', 'health', 'workflow', 'goals', 'binary_insight'];
 
 let motorReadingsFn = null;
 let emotionReadingsFn = null;
