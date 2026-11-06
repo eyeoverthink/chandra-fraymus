@@ -1542,6 +1542,19 @@ Full-stack optimization layer: LRU cache with O(1) doubly-linked list (configura
 - 4-tab Caching panel (Overview, Cache Stores, Transfer, History) with utilization bars, SVG hit-count sparkline, purge controls
 - 7 REST endpoints across 3 caching modules: cache (4), compression (1), etag (1), history (1)
 
+### Phase J: Database Optimization (2026-11-06)
+
+> **SQLite index analysis, WAL tuning, vacuum scheduling, and data retention management. Phase I cached the hot paths, Phase J optimizes the data layer itself.**
+
+Full-stack database optimization layer: automated index analyzer with heuristic-based recommendations (unindexed timestamps, FK columns, status fields, empty tables), one-click index application, and EXPLAIN QUERY PLAN introspection. WAL tuner with checkpoint/vacuum/ANALYZE scheduling (1h/24h/4h defaults), pragma optimization (WAL mode, 8MB cache, NORMAL sync, 5s busy timeout, memory temp store), and operation history tracking. Data retention manager with per-table policies across 30+ tables (configurable 1-365 day retention, epoch and ISO timestamp format support), dry-run preview, custom overrides, and daily scheduled cleanup.
+
+**Shipped:**
+- Index analyzer: schema introspection via PRAGMA + dbstat, 4 heuristic checks, CREATE INDEX recommendations with apply button, EXPLAIN QUERY PLAN
+- WAL tuner: WAL status reporting, checkpoint (TRUNCATE), VACUUM with size delta, ANALYZE, pragma optimization, scheduled maintenance
+- Data retention: 30+ table policies (2-30 day defaults), preview before delete, custom overrides, daily scheduling, run history
+- 4-tab DB Optimize panel (Tables, Indexes, WAL, Retention) with expandable table inspector, severity-coded recommendations, WAL stats, retention preview
+- 22 REST endpoints across 3 modules: index-analyzer (6), wal-tuner (8), retention (8)
+
 ### Forecast: System Growth Trajectory
 
 | Metric | Current (Nov 2026) | Target (Q1 2027) | Target (Q2 2027) |

@@ -54,6 +54,7 @@ import ObservabilityPanel from '../panels/ObservabilityPanel.jsx';
 import ResiliencePanel from '../panels/ResiliencePanel.jsx';
 import PerformancePanel from '../panels/PerformancePanel.jsx';
 import CachingPanel from '../panels/CachingPanel.jsx';
+import DbOptimizePanel from '../panels/DbOptimizePanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -110,6 +111,7 @@ const PANELS = {
   resilience: { component: ResiliencePanel, label: 'Resilience & Recovery' },
   performance: { component: PerformancePanel, label: 'Performance & Profiling' },
   caching: { component: CachingPanel, label: 'Caching & Optimization' },
+  'db-optimize': { component: DbOptimizePanel, label: 'Database Optimization' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health, onOpenPanel }) {

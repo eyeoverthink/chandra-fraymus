@@ -82,6 +82,9 @@ import { installMemoryTrackerRoutes, startMemoryTracking } from './profiling/mem
 import { installCacheRoutes, startCacheSnapshots } from './caching/lru-cache.js';
 import { compression, installCompressionRoutes } from './caching/compression.js';
 import { etag, installETagRoutes } from './caching/etag.js';
+import { installIndexAnalyzerRoutes } from './db-optimize/index-analyzer.js';
+import { installWalTunerRoutes, startScheduledMaintenance } from './db-optimize/wal-tuner.js';
+import { installRetentionRoutes, startScheduledRetention } from './db-optimize/retention.js';
 import { initBus } from './fleet/bus.js';
 import { installBusRoutes } from './fleet/bus-routes.js';
 import { initTriggers, installTriggerRoutes } from './fleet/bus-triggers.js';
@@ -279,6 +282,12 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installCompressionRoutes(app);
   installETagRoutes(app);
   startCacheSnapshots();
+
+  installIndexAnalyzerRoutes(app);
+  installWalTunerRoutes(app);
+  installRetentionRoutes(app);
+  startScheduledMaintenance();
+  startScheduledRetention();
 
   installFraymusRoutes(app, { autonomy, broadcast, memoryBridge });
   installSynthesisRoutes(app);
