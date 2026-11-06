@@ -1,14 +1,14 @@
 # RE Agent integration progress
 
-Updated: 2026-11-05. Latest independent review: Phase 3 / Phase 2B at `5f7f17a5a8a64c296be6156c4e15bac61f105636`, progress claim `f2b6c2e`; changes requested. Later Phase 4–7 commits (`d1ad21a`, `1605307`, `aafc039`, `a226354`) are outside that review. Latest reviewed Phase 2A fix: `b999ed7`; Phase 1 fix: `4ba2c43`. Earlier implementations/spec corrections and evidence remain below. Upstream reviewed: `2f75cee7f54a4aa6bae219ec9241fc44f980c36b`.
+Updated: 2026-11-05. Latest independent fix recheck: `817ddfe4872318b1971c4239be8cfcf758450cbc`, covering lineage LCH-01–06 and dossier/Phase 2B RE3-01–07. Five findings have scoped closures; eight remain partial. [Recheck and evidence](reviews/2026-11-05-review-fixes-recheck.md). Phase 4–7 commits (`d1ad21a`, `1605307`, `aafc039`, `a226354`) remain outside independent review. Latest reviewed Phase 2A fix: `b999ed7`; Phase 1 fix: `4ba2c43`. Earlier baselines and author claims remain below. Upstream reviewed: `2f75cee7f54a4aa6bae219ec9241fc44f980c36b`.
 
-**Independently accepted: 0/7 phases. Phase 3: 5 failed criteria, 1 partial. Phase 2B: 3 failed criteria, 1 partial. Phase 2A: 2 scoped passes, 3 partial, 1 unverified. Phase 1: 6 scoped passes, 3 failures, 1 partial.** The [Phase 3 review](reviews/2026-11-05-phase3-independent-review.md) confirms implementation/wiring but reproduces incompatible upstream parsers, seal mismatch, binary-memory collisions, failed bus publication, unsafe compiler file handling and incomplete measurement/prediction contracts. A compatible synthetic route control works. The [Phase 2A fixes](reviews/2026-11-05-phase2a-migration-review.md) remain confirmed within their scope. Phase 4 implementation is author-reported and has not been independently reviewed. The estimate remains 8 new files, 14 existing modifications and 0 deletions; of 56 criteria, 26 now have independent dispositions and 30 remain unexercised.
+**Independently accepted: 0/7 phases. Phase 3: 2 scoped passes, 2 failures, 2 partial. Phase 2B: 1 scoped pass, 3 partial. Phase 2A: 2 scoped passes, 3 partial, 1 unverified. Phase 1: 6 scoped passes, 3 failures, 1 partial.** The [fix recheck](reviews/2026-11-05-review-fixes-recheck.md) confirms 136 parsed functions, correct dossier bus publication, normal binary separation/136-row pagination and unknown compiler absence. All 90 real import rows remain unparsed; evidence/seal/full-identity/legacy contracts, reused-directory cleanup, infrastructure measurement and stored opinion/results remain incomplete. The [original Phase 3 review](reviews/2026-11-05-phase3-independent-review.md) is retained as a baseline. Phase 2A fixes remain confirmed within their prior scope; Phase 4–7 are author-reported, not independently accepted. The estimate remains 8 new files, 14 existing modifications and 0 deletions; of 56 RE criteria, 26 have independent dispositions and 30 remain unexercised. Lineage's 33 examples and the recheck's 35 diagnostic assertions do not increase that criterion count.
 
 | Phase | Declared dependency | Independent gates passed | Current status | Required next evidence |
 | --- | --- | --- | --- | --- |
 | 1 — Hive Bus Bridge | Raw receipt transport/format agreement | 6 PASS_ISOLATED, 3 FAIL, 1 PARTIAL | IMPLEMENTED at `4ba2c43`; CHANGES REQUESTED | HIVE-01–05 need notification-after-commit, consistent invalid-input admission, enforced numeric domain, corrected-input promotion and legacy identity migration. HIVE-06: author recheck is not this reviewer's acceptance. |
-| 2 — RE manifest + tools | Phase 1; dossier tools need Phase 3 | 2A: 2 PASS_ISOLATED, 3 PARTIAL, 1 UNVERIFIED; 2B: 3 FAIL, 1 PARTIAL | 2B executors present at `5f7f17a`; CHANGES REQUESTED | Source/preservation fixes at `b999ed7` remain confirmed. RE2A-04/05 remain open; RE3-01–07 document the newly exercised dossier/query/compiler/prediction failures. |
-| 3 — Dossier engine | Phase 2A (standalone tools) | 5 FAIL, 1 PARTIAL; 0 accepted | IMPLEMENTED at `5f7f17a`; CHANGES REQUESTED | RE3-01–07: real producer formats, seal contract, binary-scoped persistence/querying, real bus signature, contained compiler files, unknown measurement state and opinion provenance. |
+| 2 — RE manifest + tools | Phase 1; dossier tools need Phase 3 | 2A: 2 PASS_ISOLATED, 3 PARTIAL, 1 UNVERIFIED; 2B: 1 PASS_ISOLATED, 3 PARTIAL | 2B fixes reviewed at `817ddfe`; CHANGES REQUESTED | Returned opinion labels and missing compiler state improve. Finish full-identity queries, exclusive temp ownership, infrastructure error classification and stored measured/opinion results. RE2A-04/05 remain open. |
+| 3 — Dossier engine | Phase 2A (standalone tools) | 2 PASS_ISOLATED, 2 FAIL, 2 PARTIAL; 0 accepted | Fixes reviewed at `817ddfe`; CHANGES REQUESTED | Real functions and bus pass. Finish 90-row import parsing, evidence grading, original seal manifest, full binary/exact function identities and legacy migration. |
 | 4 — Binary debate bridge | Phase 3 | 0/5 | IMPLEMENTED at `d1ad21a`; author acceptance OPEN | Binary-specific debate prompts, adversarial rounds with gate scaling, confidence adjustments (CONFIRMED +0.1, CHALLENGED -0.2), bus events on `system.debate.binary` and `system.re.dossier.debated`. Independent review needed. |
 | 5 — CTRNN sensory channel | Declared Phases 1–4 | 0/10 | IMPLEMENTED at `1605307`; author acceptance OPEN | binary_insight region at (6,14) with 3 sub-signals, SENSORY_KEYS updated in all 4 files, attention-gate motor mappings, active-inference entry, idle decay for stale compile rates. Independent review needed. |
 | 6 — Autonomous wiring | Phases 1–5 | 0/6 | IMPLEMENTED at `aafc039`; author acceptance OPEN | OPEG `re_reanalysis` type, reflection `re_analyze` action via OPEG pipeline, motor RE-awareness (reflect low-confidence check, goalSeek pending dossier check), 3 DB workflows (DossierAnalysis, REReflectionTrigger, REDebateAlert), 3 bus triggers via installRETriggers(). Independent review needed. |
@@ -136,7 +136,26 @@ Implementation: `dcb0658`; fixes: `e8410f3`, latest independently reviewed: `b99
 4. **RE2A-04 (fleet taskability)**: G6b verifies six RE names in the actual registry. This registration check is confirmed. The required POST/task/response remains UNVERIFIED, not PASS_ISOLATED.
 5. **Upgrade migration**: Known unverified seed rows reconcile from 36 to 18; verified history is preserved. New RE2A-05: unverified local/operator rows with overlapping names can be deleted or overwritten without testing seed ownership.
 
-## Phase 3 and Phase 2B independent gate ledger
+## Current Phase 3 / Phase 2B fix recheck at 817ddfe
+
+[Review](reviews/2026-11-05-review-fixes-recheck.md), [35-assertion diagnostic probe](reviews/2026-11-05-review-fixes-recheck.mjs), and [source hashes/observations](reviews/2026-11-05-review-fixes-evidence.json). Actual bus, memory, fleet dispatch and Express handlers use in-memory SQLite; compiler/model/filesystem removal boundaries are intercepted. No live DB, daemon, compiler, model or real deletion. Lineage is a separate module: LCH-01/02/05/06 have scoped closures; LCH-03/04 remain partial. Among dossier findings, RE3-04 has a scoped closure; RE3-01/02/03/05/06/07 remain partial.
+
+| Gate | Independent result | Observation |
+| --- | --- | --- |
+| RE-P3-G1 | PASS_ISOLATED | All 136 pinned upstream functions parse. |
+| RE-P3-G2 | FAIL | 0/90 actual imports; substring grading still produces false verification. |
+| RE-P3-G3 | PARTIAL | Normal storage and 136-row SQL pagination work; full identity/exact lookup/legacy continuity incomplete. |
+| RE-P3-G4 | PASS_ISOLATED | Actual bus publication and rejected-publication reporting work. |
+| RE-P3-G5 | PARTIAL | REST returns 136 functions; wildcard detail lookup and declared `/process` contract remain unresolved. |
+| RE-P3-G6 | FAIL | Seal completeness guessed by file count; original manifest absent. |
+| RE-P2B-G1 | PARTIAL | Real function ingestion works; import/evidence/seal defects remain. |
+| RE-P2B-G2 | PARTIAL | Normal SHA/name queries work; prefix aliases and legacy records remain unresolved. |
+| RE-P2B-G3 | PARTIAL | Missing compiler is unknown; reused temp cleanup, infrastructure failures and persistence remain incomplete. |
+| RE-P2B-G4 | PASS_ISOLATED | Controlled model response carries `llm_prediction`; broader schema/model/persistence finding remains partial. |
+
+Next: fix exclusive compiler-directory ownership first, then remaining producer/evidence/storage contracts. Normalize the zero-root quadratic and evaluator validation cases. This recheck does not accept later RE phases. Tag: `review/lineage-dossier-fixes-2026-11-05`.
+
+## Historical Phase 3 / Phase 2B baseline at 5f7f17a
 
 Reviewed implementation: `5f7f17a`; progress claim: `f2b6c2e`. Reviewer: Codex session `01a1a46f-ddc2-70c0-abde-3eaec155a571`. [Evidence](reviews/2026-11-05-phase3-independent-evidence.json) records production source hashes, exact upstream dossier blobs and 22 diagnostic assertions. Command: `node --experimental-vm-modules docs/reviews/2026-11-05-phase3-independent-probe.mjs --upstream PATH --output PATH`. Real bus and HTTP handlers use disposable SQLite. Compiler, writable-FS and model boundaries are intercepted; no actual shell/compiler/model/deletion occurs.
 

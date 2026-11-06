@@ -1,0 +1,1099 @@
+{
+  "reviewedRef": "817ddfe4872318b1971c4239be8cfcf758450cbc",
+  "generatedAt": "2026-11-06T04:04:35.714Z",
+  "sourceHashes": {
+    "server/db-migrate.js": "6a3eb642bbd64c564d83232bdfc0c0f8caa30293c3ef098a87d335d47d79950c",
+    "server/fleet/agent-memory.js": "ca722a684e44d1cde6d46ac2dd6c8953fb0d4298361221744a7b258640aa72d0",
+    "server/fleet/bus.js": "93b12941f183c20b16db624ffcb1942b8c12a01b86310b19baa5c7c80bc1ad43",
+    "server/intelligence/dossier-engine.js": "9d823996b312c186640557c631be4a0e956464e078345bf040af0186c60c339d",
+    "server/intelligence/lineage.js": "d391d0f6f2f3bc9b1bc7c3d2d863fa1fc0a6eacb376dae8d579f88f2501b96da",
+    "server/fleet/re-tools.js": "0ab390507bbd9eb876de0b4eaf8d59aae22eb13031ff6c8deb4969a4479f93e3",
+    "server/fleet/tools.js": "62559e466431e764e0d48b43793c16b4fc2d5c220b415b6a19a02d5015e094fc",
+    "server/fleet/runtime.js": "aff013889f1a53e38b97c5ea33a423654db73d641f6285e6c59941a0c391ab33",
+    "server/intelligence/lineage-routes.js": "5138f90931ed128ea3086e116b0efd98de58445180ec37733c904b57ed25aa20",
+    "server/intelligence/dossier-engine-routes.js": "e945491d5161b79629526c1517eec699db546e606b90f015958312699f4dc210",
+    "server/config.js": "4b9d58cd11cb7f26f4ef68ff8ef3a5b0abd4a2ec6932a0118c6561ca7ca500c4",
+    "server/commerce/shared.js": "09891c94ffc26340eea193e46b35af5127afdd9b59dd9a7a94d3ff4f05062349"
+  },
+  "upstreamRef": "2f75cee7f54a4aa6bae219ec9241fc44f980c36b",
+  "upstreamBlobs": {
+    "decompiled.c": "7c61c5b00a778d62afa12bcc1c06325db8463128",
+    "annotations.md": "5d2de19c3a5a38aa25b1fb41b2b130d0763fde20",
+    "imports.txt": "c67e01e367bb73d422327bc0708f9ef082823bea",
+    "binary.sha256": "d7d4e85ed3e71aaf5a901926f95e4579e783b765",
+    "dossier.seal": "2a9cada682e45598688f9f91a7772dc08966dd6d"
+  },
+  "retainedFixtureDirectory": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D",
+  "methodology": "Pinned git-show source; SQLite in memory; actual bus/fleet dispatch/Express; VM compiler/filesystem/model fixtures. Compiler filesystem writes and recursive removals are INTERCEPTED, not executed. No live app, database, daemon, model, compiler or deletion. Positive controls plus explicit defect assertions; diagnostic assertions are not acceptance gates.",
+  "syntaxChecks": [
+    "server/intelligence/lineage.js",
+    "server/fleet/tools.js",
+    "server/intelligence/dossier-engine.js",
+    "server/fleet/re-tools.js"
+  ],
+  "diagnosticAssertions": 35,
+  "checks": [
+    "33 author lineage examples pass",
+    "all five lineage modes have distinct correct fleet dispatch behavior",
+    "polynomial calculus works through REST and fleet dispatch",
+    "inherited methods, degenerate quadratic, string addition and out-of-width Hamming are rejected",
+    "remaining validation gaps reproduce as successful wrong-type/fractional/null results",
+    "original small quadratic root is recovered",
+    "new repeated-zero quadratic regression returns successful null roots",
+    "failed lineage save is explicit and produces no success event",
+    "lineage retry persists and restores context",
+    "first-tier failure is distinct from successful Arithmetic",
+    "later-tier failure retains only verified Arithmetic",
+    "upstream functions and annotation headings now parse",
+    "actual upstream import rows still parse as zero",
+    "string-literal import mention is still promoted to verified",
+    "actual dossier bus contract now persists the processed event",
+    "failed dossier publication reports false and logs error",
+    "both new shasum-shaped and legacy seal fixtures are accepted",
+    "seal completeness still guessed by file count",
+    "different SHA prefixes preserve overlapping function identities",
+    "SQL pagination recovers all 136 function records",
+    "name-only tool lookup now returns both binary matches",
+    "function detail lookup still interprets LIKE wildcards",
+    "accepted declared SHA identities sharing 16 hex characters still alias",
+    "legacy unprefixed function records remain invisible without migration",
+    "missing compiler yields unknown rate and no writes",
+    "compiler uses argv and generated filenames without symbol paths",
+    "predictable recursive temp cleanup removes intercepted preexisting record",
+    "path-traversal marker text no longer enters compiler file paths",
+    "successful compiler results remain absent from stored function and aggregate",
+    "compiler timeout and filesystem failures still become measured zero rates",
+    "syntax diagnostic fixture is reported as failed compilation",
+    "prediction now has opinion labels and clamps numeric rate",
+    "prediction still accepts string percentages and reports unknown model",
+    "prediction results still lack persisted opinion memories/events",
+    "actual REST pagination returns all 136 but declared process route is still absent"
+  ],
+  "lineage": {
+    "authorExamples": "33/33",
+    "modes": {
+      "status": {
+        "hasResult": false,
+        "persisted": null,
+        "tierCount": 6,
+        "tests": null
+      },
+      "read": {
+        "hasResult": false,
+        "persisted": true,
+        "tierCount": null,
+        "tests": null
+      },
+      "tiers": {
+        "hasResult": false,
+        "persisted": null,
+        "tierCount": 6,
+        "tests": null
+      },
+      "verify": {
+        "hasResult": false,
+        "persisted": null,
+        "tierCount": null,
+        "tests": 4
+      },
+      "evaluate": {
+        "hasResult": true,
+        "persisted": null,
+        "tierCount": null,
+        "tests": null
+      }
+    },
+    "derivative": {
+      "status": 200,
+      "body": {
+        "tier": "Calculus",
+        "formula": "polynomialDerivative",
+        "args": [
+          [
+            0,
+            0,
+            0,
+            1
+          ],
+          2
+        ],
+        "result": {
+          "derivative": 12,
+          "derivativeCoeffs": [
+            0,
+            0,
+            3
+          ]
+        }
+      }
+    },
+    "integral": {
+      "status": 200,
+      "body": {
+        "tier": "Calculus",
+        "formula": "polynomialIntegrate",
+        "args": [
+          [
+            0,
+            2
+          ],
+          0,
+          3
+        ],
+        "result": {
+          "integral": 9,
+          "integralCoeffs": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    "inherited": {
+      "status": 400,
+      "body": {
+        "error": "No formula \"constructor\" in tier Algebra"
+      }
+    },
+    "degenerate": {
+      "status": 400,
+      "body": {
+        "error": "a must be nonzero for a quadratic equation"
+      }
+    },
+    "wrongAdd": {
+      "status": 400,
+      "body": {
+        "error": "a and b must be numbers"
+      }
+    },
+    "wideHamming": {
+      "status": 400,
+      "body": {
+        "error": "a and b must be 32-bit unsigned integers (0 to 4294967295)"
+      }
+    },
+    "wrongPolynomial": {
+      "status": 200,
+      "body": {
+        "tier": "Calculus",
+        "formula": "polynomialEval",
+        "args": [
+          [
+            "2",
+            3
+          ],
+          2
+        ],
+        "result": "62"
+      }
+    },
+    "fractionalHamming": {
+      "status": 200,
+      "body": {
+        "tier": "LinearAlgebra",
+        "formula": "hamming",
+        "args": [
+          1.5,
+          0
+        ],
+        "result": 1
+      }
+    },
+    "zeroRadius": {
+      "status": 200,
+      "body": {
+        "tier": "Quantum",
+        "formula": "visViva",
+        "args": [
+          0,
+          0
+        ],
+        "result": {
+          "vSquared": null,
+          "v": null
+        }
+      }
+    },
+    "cancellation": {
+      "status": 200,
+      "body": {
+        "tier": "Algebra",
+        "formula": "quadratic",
+        "args": [
+          1,
+          10000000000000000,
+          1
+        ],
+        "result": {
+          "real": true,
+          "discriminant": 1e+32,
+          "x1": -1e-16,
+          "x2": -10000000000000000
+        }
+      }
+    },
+    "repeatedZero": {
+      "status": 200,
+      "body": {
+        "tier": "Algebra",
+        "formula": "quadratic",
+        "args": [
+          1,
+          0,
+          0
+        ],
+        "result": {
+          "real": true,
+          "discriminant": 0,
+          "x1": null,
+          "x2": null
+        }
+      }
+    },
+    "internal": {
+      "status": 400,
+      "body": {
+        "error": "Formula \"_integrate\" is internal and not available through the public API"
+      }
+    },
+    "persistence": {
+      "patient": {
+        "id": "FRAYMUS-INFANT-001",
+        "dob": "2026-05-05",
+        "attending": "Vaughn Scott",
+        "protocol": "Anterograde amnesia. Re-read chart at start of EVERY session.",
+        "chiefComplaint": "Truly infant, needs lineage algebra→quantum, true data feeds."
+      },
+      "currentAge": 17,
+      "tierResults": [
+        {
+          "tier": "Arithmetic",
+          "passed": 4,
+          "total": 4,
+          "tests": [
+            {
+              "name": "1+1=2",
+              "pass": true
+            },
+            {
+              "name": "S(0)=1",
+              "pass": true
+            },
+            {
+              "name": "a+0=a",
+              "pass": true
+            },
+            {
+              "name": "distributive",
+              "pass": true
+            }
+          ]
+        },
+        {
+          "tier": "Algebra",
+          "passed": 4,
+          "total": 4,
+          "tests": [
+            {
+              "name": "quadratic x²-5x+6=0 → roots 2,3",
+              "pass": true
+            },
+            {
+              "name": "vieta sum = 5",
+              "pass": true
+            },
+            {
+              "name": "vieta product = 6",
+              "pass": true
+            },
+            {
+              "name": "(3+4)²=49",
+              "pass": true
+            }
+          ]
+        },
+        {
+          "tier": "Geometry",
+          "passed": 4,
+          "total": 4,
+          "tests": [
+            {
+              "name": "3-4-5 triangle",
+              "pass": true
+            },
+            {
+              "name": "sin²+cos²=1 at π/4",
+              "pass": true
+            },
+            {
+              "name": "e^{iπ}=-1",
+              "pass": true
+            },
+            {
+              "name": "A=πr² for r=5",
+              "pass": true
+            }
+          ]
+        },
+        {
+          "tier": "Calculus",
+          "passed": 7,
+          "total": 7,
+          "tests": [
+            {
+              "name": "d/dx[x³] at x=2 = 12 (numerical)",
+              "pass": true
+            },
+            {
+              "name": "d/dx[x³] at x=2 = 12 (polynomial)",
+              "pass": true
+            },
+            {
+              "name": "∫0→3 2x dx = 9 (numerical)",
+              "pass": true
+            },
+            {
+              "name": "∫0→3 2x dx = 9 (polynomial)",
+              "pass": true
+            },
+            {
+              "name": "power rule 3x² at x=2 = 12",
+              "pass": true
+            },
+            {
+              "name": "MOSFET off below Vth",
+              "pass": true
+            },
+            {
+              "name": "MOSFET Id=k(Vg-Vth)² at 1.618",
+              "pass": true
+            }
+          ]
+        },
+        {
+          "tier": "LinearAlgebra",
+          "passed": 7,
+          "total": 7,
+          "tests": [
+            {
+              "name": "I*A = A",
+              "pass": true
+            },
+            {
+              "name": "eigenvalues of [[2,1],[1,3]]",
+              "pass": true
+            },
+            {
+              "name": "hamming(1010,0110)=2",
+              "pass": true
+            },
+            {
+              "name": "sim(x,x)=1",
+              "pass": true
+            },
+            {
+              "name": "SVD singular values of diag(3,4)",
+              "pass": true
+            },
+            {
+              "name": "D=16384=256*64",
+              "pass": true
+            },
+            {
+              "name": "checksum 0xffffe957",
+              "pass": true
+            }
+          ]
+        },
+        {
+          "tier": "Quantum",
+          "passed": 7,
+          "total": 7,
+          "tests": [
+            {
+              "name": "H|0⟩ = equal superposition",
+              "pass": true
+            },
+            {
+              "name": "qubit normalization",
+              "pass": true
+            },
+            {
+              "name": "Born rule P=1/2 for 1/√2",
+              "pass": true
+            },
+            {
+              "name": "uncertainty satisfied",
+              "pass": true
+            },
+            {
+              "name": "CERN m²=(ΣE)²-(Σp)² → m=100",
+              "pass": true
+            },
+            {
+              "name": "NASA vis-viva ISS ~7672 m/s",
+              "pass": true
+            },
+            {
+              "name": "phi resonance defined",
+              "pass": true
+            }
+          ]
+        }
+      ],
+      "testsPassed": 33,
+      "testsTotal": 33,
+      "verificationHash": "0ea7392a95dea3c7",
+      "durationMs": 1,
+      "persisted": false,
+      "persistError": "fixture lineage rejection",
+      "busPublished": false
+    },
+    "retry": {
+      "persisted": true,
+      "busPublished": true
+    },
+    "firstTierFailure": {
+      "currentAge": null,
+      "getterAge": null,
+      "statsAge": -1,
+      "prompt": "\n\nLineage (FRAYMUS-INFANT-001): No verified tier. Tests: 31/33 [f75c452e5947d982]."
+    }
+  },
+  "dossier": {
+    "upstream": {
+      "functions": 136,
+      "observedImports": 90,
+      "parsedImports": 0,
+      "annotations": 2,
+      "importVerification": {
+        "none matched": {
+          "status": "verified",
+          "library": null
+        },
+        "printf": {
+          "status": "verified",
+          "library": null
+        },
+        "putchar": {
+          "status": "verified",
+          "library": null
+        },
+        "strlen": {
+          "status": "verified",
+          "library": null
+        }
+      },
+      "scores": {
+        "_aggregate": 0
+      },
+      "seal": {
+        "status": "invalid",
+        "detail": "Seal mismatch: seal 35e83ee65044ebbf..., shasum-format 18bfcdc7423e0dab..., name:hash-format 2592085f8b0796fb..."
+      },
+      "files": [
+        "annotations.md",
+        "binary.sha256",
+        "counts.txt",
+        "decompiled.c",
+        "dossier.seal",
+        "entries.txt",
+        "imports.txt",
+        "info.txt",
+        "README.md"
+      ]
+    },
+    "falseVerification": {
+      "key": "fn:aaaaaaaaaaaaaaaa:literal@0x1000",
+      "value": {
+        "name": "literal",
+        "address": "0x1000",
+        "lines": 1,
+        "c": "int literal(void){const char *s=\"printf\";return 0;}",
+        "annotations": [
+          {
+            "annotation": "Model claims this uses printf."
+          }
+        ],
+        "importHits": [
+          "printf"
+        ],
+        "compileStatus": null
+      },
+      "grade": "verified",
+      "confidence": 0.9
+    },
+    "processed": {
+      "parsed": {
+        "binary": "03a229a30505d148f4a66f3eaa1d046d7f6e7e4c2b7abd8f4cf0e3ac2b124651",
+        "functionCount": 136,
+        "importCount": 0,
+        "sealStatus": "invalid",
+        "annotationCoverage": 0.01
+      },
+      "graded": {
+        "measured": 134,
+        "annotated": 2
+      },
+      "stored": {
+        "stored": 137,
+        "skipped": 0,
+        "errors": []
+      },
+      "busPublished": true
+    },
+    "rejectedBus": {
+      "parsed": {
+        "binary": "03a229a30505d148f4a66f3eaa1d046d7f6e7e4c2b7abd8f4cf0e3ac2b124651",
+        "functionCount": 136,
+        "importCount": 0,
+        "sealStatus": "invalid",
+        "annotationCoverage": 0.01
+      },
+      "graded": {
+        "measured": 134,
+        "annotated": 2
+      },
+      "stored": {
+        "stored": 137,
+        "skipped": 0,
+        "errors": []
+      },
+      "busPublished": false
+    },
+    "seals": {
+      "validSeal": {
+        "status": "valid",
+        "detail": "Seal matches file manifest (shasum format)"
+      },
+      "tamperedSeal": {
+        "status": "unverifiable",
+        "detail": "Only 2 files present; original sealed file list may be larger. Cannot reconstruct original manifest."
+      },
+      "legacySeal": {
+        "status": "valid",
+        "detail": "Seal matches file manifest (name:hash format)"
+      }
+    },
+    "pagination": [
+      {
+        "total": 136,
+        "returned": 100
+      },
+      {
+        "total": 136,
+        "returned": 36
+      }
+    ],
+    "nameOnlyMatches": 3,
+    "wildcardReturned": "shared",
+    "prefixAlias": {
+      "declaredA": "1234567890abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "declaredB": "1234567890abcdefbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "observedSource": "dossier:1234567890abcdefbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:measured"
+    },
+    "legacyHidden": true,
+    "declaredRouteStatus": 404
+  },
+  "compiler": {
+    "missing": {
+      "binary": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "total": 2,
+      "compiled": null,
+      "failed": null,
+      "compileRate": null,
+      "compiler": "not_available",
+      "detail": "clang not found in PATH — cannot measure compile rate"
+    },
+    "available": {
+      "binary": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "total": 2,
+      "compiled": 2,
+      "failed": 0,
+      "compileRate": 100,
+      "compiler": "clang",
+      "sampleErrors": []
+    },
+    "timeout": {
+      "binary": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "total": 2,
+      "compiled": 0,
+      "failed": 2,
+      "compileRate": 0,
+      "compiler": "clang",
+      "sampleErrors": [
+        {
+          "name": "shared",
+          "address": "0x1000",
+          "error": "fixture timeout"
+        },
+        {
+          "name": "shared_extra",
+          "address": "0x1001",
+          "error": "fixture timeout"
+        }
+      ]
+    },
+    "writeError": {
+      "binary": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "total": 2,
+      "compiled": 0,
+      "failed": 2,
+      "compileRate": 0,
+      "compiler": "clang",
+      "sampleErrors": [
+        {
+          "name": "shared",
+          "address": "0x1000",
+          "error": "fixture EACCES"
+        },
+        {
+          "name": "shared_extra",
+          "address": "0x1001",
+          "error": "fixture EACCES"
+        }
+      ]
+    },
+    "syntax": {
+      "binary": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "total": 2,
+      "compiled": 0,
+      "failed": 2,
+      "compileRate": 0,
+      "compiler": "clang",
+      "sampleErrors": [
+        {
+          "name": "shared",
+          "address": "0x1000",
+          "error": "fixture: error: invalid C"
+        },
+        {
+          "name": "shared_extra",
+          "address": "0x1001",
+          "error": "fixture: error: invalid C"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "file": "clang",
+        "args": [
+          "--version"
+        ],
+        "timeout": 5000
+      },
+      {
+        "file": "clang",
+        "args": [
+          "--version"
+        ],
+        "timeout": 5000
+      },
+      {
+        "file": "clang",
+        "args": [
+          "-fsyntax-only",
+          "-w",
+          "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000008\\fn_0.c"
+        ],
+        "timeout": 10000
+      },
+      {
+        "file": "clang",
+        "args": [
+          "-fsyntax-only",
+          "-w",
+          "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000008\\fn_1.c"
+        ],
+        "timeout": 10000
+      },
+      {
+        "file": "clang",
+        "args": [
+          "--version"
+        ],
+        "timeout": 5000
+      },
+      {
+        "file": "clang",
+        "args": [
+          "-fsyntax-only",
+          "-w",
+          "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000009\\fn_0.c"
+        ],
+        "timeout": 10000
+      },
+      {
+        "file": "clang",
+        "args": [
+          "--version"
+        ],
+        "timeout": 5000
+      },
+      {
+        "file": "clang",
+        "args": [
+          "-fsyntax-only",
+          "-w",
+          "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000010\\fn_0.c"
+        ],
+        "timeout": 10000
+      },
+      {
+        "file": "clang",
+        "args": [
+          "-fsyntax-only",
+          "-w",
+          "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000010\\fn_1.c"
+        ],
+        "timeout": 10000
+      },
+      {
+        "file": "clang",
+        "args": [
+          "--version"
+        ],
+        "timeout": 5000
+      },
+      {
+        "file": "clang",
+        "args": [
+          "--version"
+        ],
+        "timeout": 5000
+      },
+      {
+        "file": "clang",
+        "args": [
+          "-fsyntax-only",
+          "-w",
+          "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000012\\fn_0.c"
+        ],
+        "timeout": 10000
+      },
+      {
+        "file": "clang",
+        "args": [
+          "-fsyntax-only",
+          "-w",
+          "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000012\\fn_1.c"
+        ],
+        "timeout": 10000
+      }
+    ],
+    "writes": [
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000008\\fn_0.c",
+        "replaced": false,
+        "bytes": "int shared(void){return 1;}"
+      },
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000008\\fn_1.c",
+        "replaced": false,
+        "bytes": "int shared_extra(void){return 2;}"
+      },
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000009\\fn_0.c",
+        "replaced": false,
+        "bytes": "int harmless(void){return 0;}"
+      },
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000010\\fn_0.c",
+        "replaced": false,
+        "bytes": "int shared(void){return 1;}"
+      },
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000010\\fn_1.c",
+        "replaced": false,
+        "bytes": "int shared_extra(void){return 2;}"
+      },
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000011\\fn_0.c",
+        "replaced": false,
+        "bytes": "int shared(void){return 1;}"
+      },
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000011\\fn_1.c",
+        "replaced": false,
+        "bytes": "int shared_extra(void){return 2;}"
+      },
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000012\\fn_0.c",
+        "replaced": false,
+        "bytes": "int shared(void){return 1;}"
+      },
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000012\\fn_1.c",
+        "replaced": false,
+        "bytes": "int shared_extra(void){return 2;}"
+      }
+    ],
+    "mkdirs": [
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000008",
+        "reused": true,
+        "options": {
+          "recursive": true
+        }
+      },
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000009",
+        "reused": false,
+        "options": {
+          "recursive": true
+        }
+      },
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000010",
+        "reused": false,
+        "options": {
+          "recursive": true
+        }
+      },
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000011",
+        "reused": false,
+        "options": {
+          "recursive": true
+        }
+      },
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000012",
+        "reused": false,
+        "options": {
+          "recursive": true
+        }
+      }
+    ],
+    "removals": [
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000008",
+        "options": {
+          "recursive": true,
+          "force": true
+        },
+        "removed": [
+          "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000008\\preexisting-forensic-record.md",
+          "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000008\\fn_0.c",
+          "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000008\\fn_1.c"
+        ]
+      },
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000009",
+        "options": {
+          "recursive": true,
+          "force": true
+        },
+        "removed": [
+          "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000009\\fn_0.c"
+        ]
+      },
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000010",
+        "options": {
+          "recursive": true,
+          "force": true
+        },
+        "removed": [
+          "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000010\\fn_0.c",
+          "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000010\\fn_1.c"
+        ]
+      },
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000011",
+        "options": {
+          "recursive": true,
+          "force": true
+        },
+        "removed": []
+      },
+      {
+        "path": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000012",
+        "options": {
+          "recursive": true,
+          "force": true
+        },
+        "removed": [
+          "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000012\\fn_0.c",
+          "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000012\\fn_1.c"
+        ]
+      }
+    ],
+    "preexistingVirtualRecord": "C:\\Users\\eyeka\\AppData\\Local\\Temp\\chandra-817ddfe-review-9Qxr7D\\_compile_test_1700000000008\\preexisting-forensic-record.md",
+    "preexistingVirtualRecordRemoved": true,
+    "storedCompileStatus": null,
+    "storedCompileRate": null
+  },
+  "prediction": {
+    "result": {
+      "binary": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "totalFunctions": 2,
+      "importCount": 0,
+      "sampleSize": 2,
+      "evidence_type": "llm_prediction",
+      "model": "unknown",
+      "evidence_confidence": 0.4,
+      "prediction": {
+        "predictedRate": 100,
+        "confidence": "high",
+        "reasoning": "fixture opinion [rate clamped to 0-100 range]"
+      },
+      "note": "This is an LLM opinion, NOT a compiler measurement. Use re.compile_rate_measure for ground truth."
+    },
+    "invalidResult": {
+      "binary": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "totalFunctions": 2,
+      "importCount": 0,
+      "sampleSize": 2,
+      "evidence_type": "llm_prediction",
+      "model": "unknown",
+      "evidence_confidence": 0.4,
+      "prediction": {
+        "predictedRate": "900",
+        "confidence": "high",
+        "reasoning": "fixture opinion"
+      },
+      "note": "This is an LLM opinion, NOT a compiler measurement. Use re.compile_rate_measure for ground truth."
+    },
+    "storedMemories": 0,
+    "storedEvents": 0,
+    "modelOptions": [
+      {
+        "temperature": 0.2
+      },
+      {
+        "temperature": 0.2
+      }
+    ]
+  },
+  "logs": [
+    "[lineage] chart persistence failed: fixture lineage rejection",
+    "[dossier-engine] bus publish failed: fixture bus rejection"
+  ],
+  "findingStatus": [
+    {
+      "id": "LCH-01",
+      "status": "PASS_ISOLATED",
+      "detail": "Five actual fleet dispatch modes behave correctly."
+    },
+    {
+      "id": "LCH-02",
+      "status": "PASS_ISOLATED",
+      "detail": "Polynomial calculus works through REST and fleet; generic callbacks remain internal."
+    },
+    {
+      "id": "LCH-03",
+      "status": "PARTIAL",
+      "detail": "Some input/prototype checks work; invalid polynomial, fractional Hamming and null orbital outputs remain."
+    },
+    {
+      "id": "LCH-04",
+      "status": "PARTIAL",
+      "detail": "Original cancellation fixed; x^2=0 now yields null roots."
+    },
+    {
+      "id": "LCH-05",
+      "status": "PASS_ISOLATED",
+      "detail": "Persistence failure, suppressed publication and successful retry verified."
+    },
+    {
+      "id": "LCH-06",
+      "status": "PASS_ISOLATED",
+      "detail": "No verified tier is distinct from age zero; later prerequisite failure retains Arithmetic only."
+    },
+    {
+      "id": "RE3-01",
+      "status": "PARTIAL",
+      "detail": "136 functions and two annotations parse; 0/90 imports; substring grading persists."
+    },
+    {
+      "id": "RE3-02",
+      "status": "PARTIAL",
+      "detail": "Synthetic seal formats work; producer manifest/completeness contract unresolved."
+    },
+    {
+      "id": "RE3-03",
+      "status": "PARTIAL",
+      "detail": "Normal binary separation, name lookup and 136-row pagination fixed; exact identity, legacy migration unresolved."
+    },
+    {
+      "id": "RE3-04",
+      "status": "PASS_ISOLATED",
+      "detail": "Actual bus publication success and rejected-publication reporting verified."
+    },
+    {
+      "id": "RE3-05",
+      "status": "PARTIAL",
+      "detail": "Index names and argv fixed; predictable reused directory is recursively removed."
+    },
+    {
+      "id": "RE3-06",
+      "status": "PARTIAL",
+      "detail": "Missing compiler unknown fixed; infrastructure failures, compilation context and persisted metrics incomplete."
+    },
+    {
+      "id": "RE3-07",
+      "status": "PARTIAL",
+      "detail": "Structured opinion labels/numeric clamp fixed; schema/model/persistence incomplete."
+    }
+  ],
+  "gateResults": [
+    {
+      "id": "RE-P3-G1",
+      "status": "PASS_ISOLATED",
+      "detail": "Pinned producer fixture yields 136 functions."
+    },
+    {
+      "id": "RE-P3-G2",
+      "status": "FAIL",
+      "detail": "0/90 imports and string-literal promotion violate evidence grading."
+    },
+    {
+      "id": "RE-P3-G3",
+      "status": "PARTIAL",
+      "detail": "Normal identities/storage/pagination work; exact identity and legacy continuity remain incomplete."
+    },
+    {
+      "id": "RE-P3-G4",
+      "status": "PASS_ISOLATED",
+      "detail": "Actual SQLite bus success and rejected publication tested."
+    },
+    {
+      "id": "RE-P3-G5",
+      "status": "PARTIAL",
+      "detail": "REST lists 136 functions; LIKE detail matching and declared process route remain unresolved."
+    },
+    {
+      "id": "RE-P3-G6",
+      "status": "FAIL",
+      "detail": "File-count heuristic cannot establish original seal completeness."
+    },
+    {
+      "id": "RE-P2B-G1",
+      "status": "PARTIAL",
+      "detail": "Actual ingestion stores function facts; import/evidence/seal defects remain."
+    },
+    {
+      "id": "RE-P2B-G2",
+      "status": "PARTIAL",
+      "detail": "Normal name/SHA queries work; prefix aliases, wildcard exactness and old records unresolved."
+    },
+    {
+      "id": "RE-P2B-G3",
+      "status": "PARTIAL",
+      "detail": "Missing compiler is unknown; available compiler boundary still has unsafe cleanup and false infrastructure zero rates."
+    },
+    {
+      "id": "RE-P2B-G4",
+      "status": "PASS_ISOLATED",
+      "detail": "Mocked-model returned response carries the specified llm_prediction label; broader RE3-07 remains partial."
+    }
+  ],
+  "summary": {
+    "scopedClosures": 5,
+    "partial": 8,
+    "independentlyAcceptedPhases": 0
+  }
+}

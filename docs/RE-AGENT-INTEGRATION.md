@@ -22,6 +22,8 @@
 
 > **Phase 3 / Phase 2B independent review of `5f7f17a` — 2026-11-05:** [Changes requested](reviews/2026-11-05-phase3-independent-review.md). Exact upstream dossier blobs reproduce zero parsed functions/imports/annotations, wrong seal classification, binary-memory collisions and missing processed bus events. Controlled compiler boundaries show path escape/overwrite and missing compiler misreported as a zero measurement; opinion evidence remains incomplete. Phase 3: 5 failed criteria, 1 partial; 2B: 3 failed criteria, 1 partial. No live DB/compiler/model used. Later Phase 4 commits are outside this review; 0/7 phases independently accepted.
 
+> **Independent fix recheck of `817ddfe` — 2026-11-05:** [Five scoped closures; eight partial findings](reviews/2026-11-05-review-fixes-recheck.md) across lineage and dossier work. 33 lineage examples and 35 diagnostic assertions reproduce working fixes and remaining defects. Real functions parse and dossier bus publication works; 0/90 real imports still parse, compiler cleanup can remove a reused directory (intercepted only), and seal/identity/measurement/opinion contracts remain incomplete. Current Phase 3: 2 scoped passes, 2 failures, 2 partial; 2B: 1 scoped pass, 3 partial. No live DB/compiler/model/deletion. **0/7 RE phases independently accepted.** Earlier checkpoints remain historical; see the current progress tracker.
+
 ---
 
 ## Table of Contents
