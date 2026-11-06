@@ -50,13 +50,13 @@ const NAV_BUTTONS = [
 function NavButton({ btn, openDrawer }) {
   return (
     <button onClick={() => openDrawer(btn.panel, btn.title)} className="nav-btn" style={{
-      background: 'none', border: '1px solid #333', borderRadius: 6,
-      color: '#666', fontSize: 13, padding: '4px 10px', cursor: 'pointer',
+      background: 'none', border: '1px solid #444', borderRadius: 6,
+      color: '#aaa', fontSize: 13, padding: '4px 10px', cursor: 'pointer',
       display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
       whiteSpace: 'nowrap',
     }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = btn.color; e.currentTarget.style.color = btn.color; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#666'; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = '#444'; e.currentTarget.style.color = '#aaa'; }}
     >
       <span style={{ fontSize: 12 }}>{btn.icon}</span>
       <span className="nav-btn-label">{btn.label}</span>
