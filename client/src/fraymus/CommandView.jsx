@@ -142,12 +142,16 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
         setPhase('thinking');
         try {
           const blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' });
-          const dataUrl = await blobToDataUrl(blob);
-          const audioBase64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
-          const started = await api('/api/fraymus-os/command/voice', {
-            method: 'POST',
-            body: JSON.stringify({ audioBase64, sessionId: sessionId.current }),
-          });
+          const form = new FormData();
+          form.append('audio', blob, 'speech.webm');
+          if (sessionId.current) form.append('sessionId', sessionId.current);
+          const response = await fetch('/api/fraymus-os/command/voice', { method: 'POST', body: form });
+          const started = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            const error = new Error(started.error || 'Voice input failed');
+            error.body = started;
+            throw error;
+          }
           sessionId.current = started.sessionId;
           turnId.current = started.turnId;
           let latest = null;
@@ -336,13 +340,4 @@ function Meter({ label, value, note }) {
       <div className="track"><div style={{ width: `${width}%` }} /></div>
     </div>
   );
-}
-
-function blobToDataUrl(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
 }

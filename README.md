@@ -22,6 +22,7 @@
 </p>
 
 <p align="center">
+  <a href="#fraymus">F.R.A.Y.M.U.S.</a> ·
   <a href="#-quick-start">Quick Start</a> · 
   <a href="#content-nexus-agent-feed-2026-11-05">Latest Handoff</a> ·
   <a href="APP-STATUS.md">App Status</a> ·
@@ -423,7 +424,44 @@ npm run client
 
 The server starts at **`http://127.0.0.1:8787`** with WebSocket at `/ws`, the autonomy engine auto-started, and all features loaded.
 
-The frontend starts at **`http://localhost:5173`** with hot-reload and 9 tabs.
+The frontend starts at **`http://127.0.0.1:5173`**. The home view is **F.R.A.Y.M.U.S.** Chandra's Command Center, Constellation, Canvas, Library, and drawers stay in the same shell.
+
+---
+
+## F.R.A.Y.M.U.S.
+
+F.R.A.Y.M.U.S. (Fractal Reasoning, Adaptive Yield — Memory Unified System) is the local command surface on top of this Chandra runtime. It does not start a second backend. Command, second brain, create, and core all call `/api/fraymus-os/*`.
+
+```bash
+npm install
+npm run dev
+```
+
+Open `http://127.0.0.1:5173`. Talk or type in Command. Second brain draws notes, Vertiso memories, agent memories, fleet manifests, workflows, and saved artifacts from the existing stores. Create runs two Chandra creation stages and does not publish.
+
+Focused API tests:
+
+```bash
+node --test test/fraymus-os.test.js
+```
+
+### Environment
+
+| Variable | Meaning |
+|---|---|
+| `OLLAMA_BASE_URL` | Ollama origin. Loopback is labeled local, a private address is labeled private-network, anything else is public. Default `http://127.0.0.1:11434`. |
+| `FRAYMUS_DEFAULT_MODEL` | Model name the existing creation stages send to Ollama. F.R.A.Y.M.U.S. chat instead uses an installed model, preferring `fraynix-gpt` for reasoning and `fraynix-dna:8b` for fast turns. Names that are not installed are not shown. |
+| `FRAYMUS_VOICESTUDIO_URL` | OpenAI-style speech base. Speech is `POST /v1/audio/speech`. Unset means VoiceStudio is not configured. |
+| `FRAYMUS_VOICE_ID` | `vaughn-one` or `overlord`. Any other name is rejected. Piper is the local fallback and is not labeled as the owner voice. |
+| `FRAYMUS_PIPER_MODEL` | Piper voice model. Default `en_US-lessac-medium`. |
+| `FRAYMUS_OS_ALLOW_PUBLIC` | `1` allows calls to a public Ollama or VoiceStudio host. The default is off, and a blocked attempt sends no body. |
+| `FRAYMUS_VOICE_URL` | Existing Chandra voice proxy (`/speak` on loopback `:9099`). This is not the VoiceStudio adapter. |
+
+Telemetry (local, private, and public calls, bytes sent, token counts, tokens/sec, CPU, memory) is recorded from the requests and from `os`. A dash in the UI means the provider did not report that measurement.
+
+### MVP limits
+
+Push-to-talk sends one clip to the local STT engines and stops on cancel. It is not full-duplex and does not barge in. Research brief and short-video script call Chandra's creative-brief and script-writer stages and save a F.R.A.Y.M.U.S. artifact plus a `creation_pipeline_runs` row when that table exists. Propose skill writes a reviewable spec with no implementation. Approving publish or skill installation records the decision and does not execute it. Eyes, holo, focus, 3D, Fly render adapters, and the Java organism are not in this MVP.
 
 ---
 

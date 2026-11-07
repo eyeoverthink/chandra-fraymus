@@ -10,10 +10,12 @@ import CommandCenter from './nexus/CommandCenter.jsx';
 import ConstellationView from './nexus/ConstellationView.jsx';
 import LibraryView from './nexus/LibraryView.jsx';
 import DetailDrawer from './nexus/DetailDrawer.jsx';
+import FraymusApp from './fraymus/FraymusApp.jsx';
 
 const ManifestationPlane = lazy(() => import('./nexus/ManifestationPlane.jsx'));
 
 const VIEWS = [
+  { id: 'fraymus', label: 'F.R.A.Y.M.U.S.', icon: '◎' },
   { id: 'command', label: 'Command Center', icon: '◈' },
   { id: 'constellation', label: 'Constellation', icon: '✦' },
   { id: 'canvas', label: 'Canvas', icon: '⬡' },
@@ -154,7 +156,7 @@ const RESPONSIVE_CSS = `
 `;
 
 export default function App() {
-  const [view, setView] = useState('command');
+  const [view, setView] = useState('fraymus');
   const [health, setHealth] = useState(null);
   const [drawer, setDrawer] = useState(null);
   const [showHelp, setShowHelp] = useState(false);
@@ -269,6 +271,11 @@ export default function App() {
       </nav>
 
       <main style={{ flex: 1, overflow: 'auto', background: '#0a0a0f', position: 'relative' }}>
+        {view === 'fraymus' && (
+          <ErrorBoundary label="F.R.A.Y.M.U.S.">
+            <FraymusApp wsStatus={wsStatus} />
+          </ErrorBoundary>
+        )}
         {view === 'command' && (
           <ErrorBoundary label="Command Center">
             <CommandCenter health={health} wsEvent={wsEvent} onOpenDrawer={openDrawer} onNavigate={setView} />

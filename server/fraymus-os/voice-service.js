@@ -44,9 +44,13 @@ export function createVoiceService(options = {}) {
     return voice;
   }
 
+  let piperCache = { at: 0, value: null };
   async function piperAvailable() {
     if (typeof options.piperAvailable === 'function') return options.piperAvailable();
-    return defaultPiperAvailable();
+    if (piperCache.value != null && Date.now() - piperCache.at < 30_000) return piperCache.value;
+    const value = await defaultPiperAvailable();
+    piperCache = { at: Date.now(), value };
+    return value;
   }
 
   async function transcribe(audio, { signal } = {}) {
