@@ -78,6 +78,7 @@ const NAV_GROUPS = [
       { panel: 'db-optimize', title: 'Database Optimization', icon: '🗃️', label: 'DB Optimize' },
       { panel: 'supervisor', title: 'Process Supervisor', icon: '🏥', label: 'Supervisor' },
       { panel: 'gateway', title: 'API Gateway', icon: '🚪', label: 'Gateway' },
+      { panel: 'config', title: 'Configuration Management', icon: '⚙️', label: 'Config' },
     ],
   },
 ];

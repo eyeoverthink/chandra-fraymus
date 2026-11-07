@@ -82,7 +82,7 @@ export function globalRateLimiter() {
   ensureTable();
   return (req, res, next) => {
     if (req.method === 'OPTIONS') return next();
-    if (req.path.startsWith('/api/gateway/') || req.path.startsWith('/api/health') || req.path.startsWith('/api/supervisor/')) return next();
+    if (req.path.startsWith('/api/gateway/') || req.path.startsWith('/api/health') || req.path.startsWith('/api/supervisor/') || req.path.startsWith('/api/config-mgr/')) return next();
 
     const ip = req.ip || req.socket?.remoteAddress || 'unknown';
     const { prefix, maxRequests, windowMs } = getRouteLimit(req.path);

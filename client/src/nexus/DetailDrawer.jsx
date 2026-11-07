@@ -57,6 +57,7 @@ import CachingPanel from '../panels/CachingPanel.jsx';
 import DbOptimizePanel from '../panels/DbOptimizePanel.jsx';
 import SupervisorPanel from '../panels/SupervisorPanel.jsx';
 import GatewayPanel from '../panels/GatewayPanel.jsx';
+import ConfigPanel from '../panels/ConfigPanel.jsx';
 
 const PANELS = {
   dashboard: { component: DashboardPanel, label: 'System Dashboard', needsHealth: true },
@@ -116,6 +117,7 @@ const PANELS = {
   'db-optimize': { component: DbOptimizePanel, label: 'Database Optimization' },
   supervisor: { component: SupervisorPanel, label: 'Process Supervisor' },
   gateway: { component: GatewayPanel, label: 'API Gateway' },
+  config: { component: ConfigPanel, label: 'Configuration Management' },
 };
 
 export default function DetailDrawer({ panel, title, onClose, wsEvent, health, onOpenPanel }) {

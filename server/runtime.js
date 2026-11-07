@@ -91,6 +91,9 @@ import { installHealthOrchestratorRoutes } from './supervisor/health-orchestrato
 import { globalRateLimiter, installRateLimiterRoutes } from './gateway/rate-limiter.js';
 import { requestValidator, installRequestValidatorRoutes } from './gateway/request-validator.js';
 import { installApiRegistryRoutes } from './gateway/api-registry.js';
+import { installConfigStoreRoutes } from './config-mgr/config-store.js';
+import { installFeatureFlagRoutes } from './config-mgr/feature-flags.js';
+import { installConfigSchemaRoutes, seedDefaults as seedConfigDefaults } from './config-mgr/config-schema.js';
 import { initBus } from './fleet/bus.js';
 import { installBusRoutes } from './fleet/bus-routes.js';
 import { initTriggers, installTriggerRoutes } from './fleet/bus-triggers.js';
@@ -306,6 +309,11 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installRateLimiterRoutes(app);
   installRequestValidatorRoutes(app);
   installApiRegistryRoutes(app);
+
+  installConfigStoreRoutes(app);
+  installFeatureFlagRoutes(app);
+  installConfigSchemaRoutes(app);
+  seedConfigDefaults();
 
   installFraymusRoutes(app, { autonomy, broadcast, memoryBridge });
   installSynthesisRoutes(app);
