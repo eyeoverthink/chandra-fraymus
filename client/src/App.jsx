@@ -77,6 +77,7 @@ const NAV_GROUPS = [
       { panel: 'caching', title: 'Caching & Optimization', icon: '💾', label: 'Caching' },
       { panel: 'db-optimize', title: 'Database Optimization', icon: '🗃️', label: 'DB Optimize' },
       { panel: 'supervisor', title: 'Process Supervisor', icon: '🏥', label: 'Supervisor' },
+      { panel: 'gateway', title: 'API Gateway', icon: '🚪', label: 'Gateway' },
     ],
   },
 ];
@@ -209,6 +210,7 @@ export default function App() {
     if (action === 'caching') { setDrawer({ panel: 'caching', title: 'Caching & Optimization' }); return; }
     if (action === 'db-optimize') { setDrawer({ panel: 'db-optimize', title: 'Database Optimization' }); return; }
     if (action === 'supervisor') { setDrawer({ panel: 'supervisor', title: 'Process Supervisor' }); return; }
+    if (action === 'gateway') { setDrawer({ panel: 'gateway', title: 'API Gateway' }); return; }
     if (action.startsWith('view:')) {
       setView(action.slice(5));
       setDrawer(null);

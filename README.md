@@ -1568,6 +1568,19 @@ Full-stack process supervision layer: real-time Node.js internals monitoring via
 - 3-tab Supervisor panel (Process, Healer, Orchestrator) with live stat cards, heap trend sparkline, healing event timeline, subsystem results grid, probe status
 - 16 REST endpoints across 3 modules: process-monitor (5), auto-healer (5), health-orchestrator (6)
 
+### Phase L: API Gateway & Rate Limiting (2026-11-06)
+
+> **Global rate limiting, request validation/sanitization, and auto-discovered API catalog. Phase K ensured the runtime stays healthy, Phase L protects the API surface itself from abuse and malformed input.**
+
+Full-stack API gateway layer: sliding window rate limiter with per-route configurable limits (IP-based tracking, standard X-RateLimit-* response headers, 429 Too Many Requests enforcement, configurable maxRequests/windowMs per route prefix), request validator middleware (content-type whitelist, 5MB body size limit, 2048-char URL length limit, deep recursive sanitization stripping script tags/javascript: URIs/event handlers/null bytes from query params and JSON bodies), and auto-discovered API registry (walks Express router stack to extract all registered routes, categorizes into ~20 categories by path prefix, 60s cached catalog with search).
+
+**Shipped:**
+- Rate limiter: sliding window per-route limits (8 route prefixes configured), IP-based tracking, stale window auto-cleanup (120s), blocked request logging to SQLite
+- Request validator: content-type validation (4 allowed types), body size + URL length enforcement, deep sanitization of query params and JSON bodies, violation logging
+- API registry: auto-discovery via Express router introspection, ~20 route categories, cached catalog with TTL, snapshot history, full-text endpoint search
+- 3-tab Gateway panel (Rate Limiter, Validator, API Catalog) with stat cards, route limits list, violation timeline, category filter buttons, color-coded method badges
+- 12 REST endpoints across 3 modules: rate-limiter (4), request-validator (3), api-registry (5)
+
 ### Forecast: System Growth Trajectory
 
 | Metric | Current (Nov 2026) | Target (Q1 2027) | Target (Q2 2027) |

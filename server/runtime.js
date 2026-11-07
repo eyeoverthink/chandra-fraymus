@@ -88,6 +88,9 @@ import { installRetentionRoutes, startScheduledRetention } from './db-optimize/r
 import { installProcessMonitorRoutes, startProcessMonitor } from './supervisor/process-monitor.js';
 import { installAutoHealerRoutes, startAutoHealer } from './supervisor/auto-healer.js';
 import { installHealthOrchestratorRoutes } from './supervisor/health-orchestrator.js';
+import { globalRateLimiter, installRateLimiterRoutes } from './gateway/rate-limiter.js';
+import { requestValidator, installRequestValidatorRoutes } from './gateway/request-validator.js';
+import { installApiRegistryRoutes } from './gateway/api-registry.js';
 import { initBus } from './fleet/bus.js';
 import { installBusRoutes } from './fleet/bus-routes.js';
 import { initTriggers, installTriggerRoutes } from './fleet/bus-triggers.js';
@@ -297,6 +300,12 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installHealthOrchestratorRoutes(app);
   startProcessMonitor();
   startAutoHealer();
+
+  app.use(globalRateLimiter());
+  app.use(requestValidator());
+  installRateLimiterRoutes(app);
+  installRequestValidatorRoutes(app);
+  installApiRegistryRoutes(app);
 
   installFraymusRoutes(app, { autonomy, broadcast, memoryBridge });
   installSynthesisRoutes(app);
