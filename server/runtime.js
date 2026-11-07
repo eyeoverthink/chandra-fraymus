@@ -46,6 +46,7 @@ import { createStreamingTools } from './streaming/tools.js';
 import { installStreamingRoutes } from './streaming/routes.js';
 import { createCreationTools } from './creation/tools.js';
 import { installCreationRoutes } from './creation/routes.js';
+import { installFraymusOsRoutes } from './fraymus-os/index.js';
 import { createDistributionTools } from './distribution/tools.js';
 import { installDistributionRoutes } from './distribution/routes.js';
 import { createAnalyticsTools } from './analytics/tools.js';
@@ -337,6 +338,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installYouTubeRoutes(app);
   installCommerceRoutes(app, { memoryBridge });
   installCreationRoutes(app, { memoryBridge, broadcast });
+  installFraymusOsRoutes(app, { db, broadcast, ollamaUrl, voiceUrl });
   installDistributionRoutes(app, { memoryBridge, broadcast });
   installAnalyticsRoutes(app, { memoryBridge, broadcast });
   installLearningLoopRoutes(app, { memoryBridge, broadcast });
@@ -386,7 +388,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
       'visual-workflow-engine', '17-agent-fleet', 'mcp-server-gateway', 'mcp-client-bridge', 'cron-automations',
       'puppeteer-headless-browser', 'chrome-extension-bridge', 'vertiso-vector-memory', 'recursive-self-improvement',
       'event-driven-orchestration', 'agent-persistent-memory', 'system-health-monitor',
-      'agent-forge', 'workflow-synthesis', 'reflection-loop', 'nudp-mesh-protocol', 'sharp-image-engine', 'comfyui-bridge', 'ffmpeg-video-pipeline', 'tts-speech-engine', 'stt-transcription-engine', 'windows-media-ocr-pipeline', 'media-hub-panel', 'error-boundary-resilience', 'forge-synthesis-panel', 'system-settings-panel', 'notification-toasts', 'global-search', 'keyboard-shortcuts', 'agent-chat-panel', 'activity-timeline', 'system-metrics', 'agent-profiles', 'memory-browser', 'run-history', 'evolution-log', 'system-pulse', 'agent-leaderboard', 'agent-collaboration', 'edit-rebuild-pipeline', 'carbon-x-biological-encoding', 'social-distribution-engine', 'analytics-feedback-loop', 'ai-music-layer', 'commerce-learning-loop', 'smart-content-calendar', 'ab-testing-engine', 'trend-radar', 'audience-intelligence', 'content-repurposing', 'logic-chain', 'autonomous-goal-engine', 'intelligence-observatory', 'debate-protocol', 'adaptive-model-router', 'deep-integration-layer', 'self-healing-watchdog', 'plasmid-disaster-recovery', 'state-seek-on-boot', 'negative-control-verification', 'anti-invention-evidence-seals', 'hash-chained-record', 'strix-budget-laws', 'salvage-on-crash', 'consciousness-falsification-suite', 'writ-governed-tool-execution', 'clock-honesty-tagging', 'broadened-fossil-evolution', 'perspective-arena-mode', 'perspective-lens-toggle', 'perspective-continuity-plasmid', 'cross-tab-intelligence', 'content-nexus'] }));
+      'agent-forge', 'workflow-synthesis', 'reflection-loop', 'nudp-mesh-protocol', 'sharp-image-engine', 'comfyui-bridge', 'ffmpeg-video-pipeline', 'tts-speech-engine', 'stt-transcription-engine', 'windows-media-ocr-pipeline', 'media-hub-panel', 'error-boundary-resilience', 'forge-synthesis-panel', 'system-settings-panel', 'notification-toasts', 'global-search', 'keyboard-shortcuts', 'agent-chat-panel', 'activity-timeline', 'system-metrics', 'agent-profiles', 'memory-browser', 'run-history', 'evolution-log', 'system-pulse', 'agent-leaderboard', 'agent-collaboration', 'edit-rebuild-pipeline', 'carbon-x-biological-encoding', 'social-distribution-engine', 'analytics-feedback-loop', 'ai-music-layer', 'commerce-learning-loop', 'smart-content-calendar', 'ab-testing-engine', 'trend-radar', 'audience-intelligence', 'content-repurposing', 'logic-chain', 'autonomous-goal-engine', 'intelligence-observatory', 'debate-protocol', 'adaptive-model-router', 'deep-integration-layer', 'self-healing-watchdog', 'plasmid-disaster-recovery', 'state-seek-on-boot', 'negative-control-verification', 'anti-invention-evidence-seals', 'hash-chained-record', 'strix-budget-laws', 'salvage-on-crash', 'consciousness-falsification-suite', 'writ-governed-tool-execution', 'clock-honesty-tagging', 'broadened-fossil-evolution', 'perspective-arena-mode', 'perspective-lens-toggle', 'perspective-continuity-plasmid', 'cross-tab-intelligence', 'content-nexus', 'fraymus-os'] }));
   const clientErrors = [];
   app.post('/api/client-error', express.json(), (req, res) => {
     const { message, stack, component, view, ts } = req.body || {};
