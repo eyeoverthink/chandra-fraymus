@@ -36,6 +36,169 @@
 
 ---
 
+## Agent Pickup Guide — Read This First
+
+> **If you are an AI agent resuming work on this project, this section tells you everything you need to orient yourself in under 2 minutes.**
+
+### Who owns this
+
+**Vaughn Scott** (eyeoverthink) — entrepreneur, engineer, protects IP fiercely. He writes rigorous testable systems with correctness proofs and benchmarks. Never produce stub demos or placeholder code. Match his rigor.
+
+### What this system is
+
+Chandra-FRAYMUS is an **autonomous AI commerce & intelligence platform** — a single Express server (port 8787) + Vite React frontend (port 5173) that runs an agent fleet, commerce pipelines, a 256-neuron CTRNN neural core, 20 intelligence subsystems, and a production infrastructure stack. Everything runs locally on Ollama — no paid APIs, no cloud AI.
+
+### Critical rules (violations cause session termination)
+
+| Rule | Detail |
+|------|--------|
+| **No paid APIs** | 100% free and offline. Ollama only. Never OpenAI/ElevenLabs. |
+| **.env is secret** | Contains real Shopify/Printify credentials. NEVER expose or commit. |
+| **Don't erase content** | ALWAYS ADD to existing files. Never wholesale replace. Ask before large refactors. |
+| **Push after commit** | Always `git push` after committing. Use PowerShell for push (Bash gets blocked). |
+| **No temp folders** | Save work in `F:\Claude-Work\<topic>\`, never `%TEMP%` or scratchpad. |
+| **chatOllama contract** | `chatOllama(messages, opts)` — first arg MUST be `[{role, content}]` array, NOT a string. |
+| **startDaemon() is sync** | At `daemon/engine.js` — NOT async. Use `.then()` chains, NOT `await import()`. |
+| **DB import pattern** | `import { db } from '../db.js'` — direct Database instance, NOT a `getDb()` function. |
+
+### Architecture at a glance
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ CLIENT: Vite + React (port 5173)                                │
+│  4 Nexus views + 27 Detail Drawer panels + WebSocket live feed  │
+├─────────────────────────────────────────────────────────────────┤
+│ SERVER: Express + WebSocket (port 8787)                         │
+│                                                                 │
+│  ┌─ Intelligence ──────────────────────────────────────────┐    │
+│  │ Heart · Ledger · Dreamer · Cognition · Consciousness    │    │
+│  │ Memory Bridge · CTRNN 256-neuron · 20 subsystems        │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│  ┌─ Fleet ──────────┐  ┌─ Commerce ────────┐  ┌─ Media ──┐    │
+│  │ 23+ agents       │  │ 4 pipelines      │  │ 7 engines│    │
+│  │ Bus + Forge      │  │ Shopify/Printify  │  │ TTS/STT  │    │
+│  │ 27 fleet tools   │  │ 17 tools         │  │ OCR/Video│    │
+│  └──────────────────┘  └──────────────────┘  └──────────┘    │
+│  ┌─ Infrastructure (Phases E–L) ───────────────────────────┐    │
+│  │ Deploy · Observability · Resilience · Performance       │    │
+│  │ Caching · DB Optimize · Supervisor · Gateway            │    │
+│  │ 95+ infrastructure endpoints across 8 modules           │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│  ┌─ Protocol ──────────────────────────────────────────────┐    │
+│  │ Ed25519 identity · v13 mesh · NUDP · Carbon X DNA      │    │
+│  │ 9 encoding formats · WASM transmuter · Hive protocol   │    │
+│  └─────────────────────────────────────────────────────────┘    │
+├─────────────────────────────────────────────────────────────────┤
+│ DATA: SQLite WAL (data/chandra.db) · 60+ tables                │
+│ LLM: Ollama (localhost:11434) · 40+ models available            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key files to read first
+
+| File | Purpose |
+|------|---------|
+| `CLAUDE.md` | Full architecture reference — subsystem docs, code conventions, env vars |
+| `server/runtime.js` | Master wiring — creates all services, wires middleware, starts subsystems |
+| `server/app.js` | Express app + WebSocket + lifecycle management |
+| `client/src/App.jsx` | React entry — 4 views, 27 nav items, Detail Drawer state |
+| `server/db.js` | SQLite setup — `export const db = new Database(...)` |
+| `server/config.js` | Environment validation |
+
+### How to start
+
+```bash
+npm install        # first time only
+npm run dev        # starts server (8787) + client (5173) concurrently
+```
+
+### How to verify your work
+
+1. `node --check server/your-file.js` — syntax check
+2. `curl http://127.0.0.1:8787/api/health` — server health
+3. Open `http://localhost:5173` — frontend renders
+4. Check the specific panel/endpoint you changed
+
+### Current branch and state
+
+Work happens on `master`. Always commit + push when done. The infrastructure stack has 8 completed phases (E through L), each with its own server module directory, REST endpoints, and UI panel.
+
+### Cross-agent continuity
+
+- `F:\claude-brain\context\brain-dump.md` — read this when starting a new session
+- `F:\claude-brain\memories\` — exported Claude memory files
+- `F:\claude-brain\sessions\` — session transcript exports
+
+---
+
+## Infrastructure Stack (Phases E–L)
+
+> **Production-grade infrastructure built in 8 phases, each with its own server module, REST API, and UI panel.** Each phase builds on the previous — deployment → observability → resilience → performance → caching → database → supervision → gateway.
+
+### Phase E: Deployment & Distribution
+**Module:** `server/deploy/` + Docker + nginx  
+**Panel:** N/A (deployment config)  
+**What it does:** Multi-stage Docker build, nginx reverse proxy with rate limiting and WebSocket upgrade, SSH-based VPS deploy script, API gateway middleware with request logging.  
+**Key endpoints:** `GET /api/gateway/stats`, `POST /api/gateway/prune`
+
+### Phase F: Structured Observability
+**Module:** `server/observability/` (logger.js, metrics-export.js, alert-webhook.js)  
+**Panel:** ObservabilityPanel (4 tabs: Gateway, Metrics, Webhooks, Config)  
+**What it does:** Structured JSON logger with 50MB rotation, Prometheus-compatible metrics, alert webhooks with severity filtering.  
+**Key endpoints:** 12 across logger (3), metrics (3), webhooks (6)
+
+### Phase G: Resilience & Recovery
+**Module:** `server/resilience/` (backup-engine.js, circuit-breaker.js, recovery-monitor.js)  
+**Panel:** ResiliencePanel (4 tabs: Overview, Circuits, Backups, Recovery)  
+**What it does:** SQLite backup with WAL checkpoint, circuit breaker (closed/half-open/open), auto-recovery from health alerts.  
+**Key endpoints:** 11 across backups (4), circuits (2), recovery (5)
+
+### Phase H: Performance & Profiling
+**Module:** `server/profiling/` (request-profiler.js, query-profiler.js, memory-tracker.js)  
+**Panel:** PerformancePanel (4 tabs: Endpoints, Queries, Memory, Slow Log)  
+**What it does:** hrtime.bigint() request timing, slow query detection (>50ms), heap/GC pressure tracking with trend analysis.  
+**Key endpoints:** 15 across requests (5), queries (4), memory (6)
+
+### Phase I: Caching & Optimization
+**Module:** `server/cache/` (lru-cache.js, compression.js, etag.js)  
+**Panel:** CachingPanel (4 tabs: Overview, Cache Stores, Transfer, History)  
+**What it does:** O(1) LRU cache with TTL, gzip compression (1KB threshold), ETag conditional responses (304 Not Modified).  
+**Key endpoints:** 7 across cache (4), compression (1), etag (1), history (1)
+
+### Phase J: Database Optimization
+**Module:** `server/db-optimize/` (index-analyzer.js, wal-tuner.js, retention.js)  
+**Panel:** DbOptimizePanel (4 tabs: Tables, Indexes, WAL, Retention)  
+**What it does:** Automated index recommendations, WAL/VACUUM/ANALYZE scheduling, per-table data retention policies (30+ tables).  
+**Key endpoints:** 22 across index-analyzer (6), wal-tuner (8), retention (8)
+
+### Phase K: Process Supervisor & Auto-Healing
+**Module:** `server/supervisor/` (process-monitor.js, auto-healer.js, health-orchestrator.js)  
+**Panel:** SupervisorPanel (3 tabs: Process, Healer, Orchestrator)  
+**What it does:** Event loop delay histogram, heap trend detection, auto-healing (force GC, WAL checkpoint), K8s-style readiness/liveness probes.  
+**Key endpoints:** 16 across process-monitor (5), auto-healer (5), health-orchestrator (6)
+
+### Phase L: API Gateway & Rate Limiting
+**Module:** `server/gateway/` (rate-limiter.js, request-validator.js, api-registry.js)  
+**Panel:** GatewayPanel (3 tabs: Rate Limiter, Validator, API Catalog)  
+**What it does:** Sliding window per-route rate limiting, deep request sanitization (XSS/proto pollution), auto-discovered API catalog (462+ endpoints).  
+**Key endpoints:** 12 across rate-limiter (4), request-validator (3), api-registry (5)
+
+### Infrastructure endpoint summary
+
+| Phase | Module | Endpoints | Panel Tabs |
+|-------|--------|-----------|------------|
+| E | deploy/ | 2 | — |
+| F | observability/ | 12 | 4 |
+| G | resilience/ | 11 | 4 |
+| H | profiling/ | 15 | 4 |
+| I | cache/ | 7 | 4 |
+| J | db-optimize/ | 22 | 4 |
+| K | supervisor/ | 16 | 3 |
+| L | gateway/ | 12 | 3 |
+| **Total** | **8 modules** | **97 endpoints** | **26 tabs** |
+
+---
+
 ## Content Nexus agent feed 2026-11-05
 
 Content Nexus now syncs **agent debates, reflections, and reviewed memories** alongside saved content. Suggestions use current agent discussions with an optional focus; no fixed topic list is required. The panel refreshes local records every 30 seconds while open, exposes source readiness/errors, preserves handled state, and identifies agent-generated material. [Implementation, validation, and restart handoff](docs/handoffs/2026-11-05-content-nexus.md): 11 focused tests and 9 isolated browser checks pass; a temporary consistent database snapshot yielded 20 genuine insights with no repeat-sync duplicates. **Normal backend restart and independent review remain pending; live model generation was not verified.** Tag: `handoff/content-nexus-agent-feed-2026-11-05`.
