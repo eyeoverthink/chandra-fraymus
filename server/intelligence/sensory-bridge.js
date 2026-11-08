@@ -33,24 +33,14 @@ import { computeNoveltyFactors } from './habituation.js';
 import { updateWorkingMemory } from './working-memory.js';
 import { updatePredictions } from './predictive-processing.js';
 import { updateActiveInference } from './active-inference.js';
+import { SENSORY_REGIONS, EXTERNAL_KEYS } from './sensory-channels.js';
+import { getExternalSignals } from './external-senses.js';
 import { randomUUID } from 'node:crypto';
 
 const now = () => Date.now();
 
 const SENSORY_INTERVAL_MS = 5_000;
 const SNAPSHOT_EVERY = 60;
-
-const SENSORY_REGIONS = {
-  bus:           { tx: 2,  ty: 2,  sigma: 2.0, label: 'Bus traffic' },
-  memory:        { tx: 2,  ty: 6,  sigma: 2.0, label: 'Memory writes' },
-  emotion:       { tx: 2,  ty: 10, sigma: 2.5, label: 'Emotion state' },
-  consciousness: { tx: 2,  ty: 14, sigma: 2.0, label: 'Consciousness tier' },
-  agent:         { tx: 10, ty: 2,  sigma: 2.0, label: 'Agent activity' },
-  health:        { tx: 10, ty: 6,  sigma: 2.0, label: 'Health status' },
-  workflow:      { tx: 10, ty: 10, sigma: 2.0, label: 'Workflow runs' },
-  goals:           { tx: 10, ty: 14, sigma: 2.0, label: 'Goals / RSI' },
-  binary_insight:  { tx: 6,  ty: 14, sigma: 2.0, label: 'Binary insight (RE)' },
-};
 
 let bridgeTimer = null;
 let bridgeState = {
@@ -205,6 +195,14 @@ function collectSignals() {
     } catch (_) { return 0; }
   })();
 
+  // Phase Q: outward senses (web, youtube, commerce, mesh, git, user)
+  try {
+    const ext = getExternalSignals();
+    for (const key of EXTERNAL_KEYS) signals[key] = clamp01(ext[key] ?? 0);
+  } catch (_) {
+    for (const key of EXTERNAL_KEYS) signals[key] = 0;
+  }
+
   return signals;
 }
 
@@ -235,7 +233,7 @@ function injectSensorySignals() {
     const novelty = noveltyFactors[key] || 1.0;
     const amp = raw * sensitivity * attention * novelty;
     amplitudes[key] = Math.round(amp * 1000) / 1000;
-    if (amp > 0.01) {
+    if (amp > 0.01 && region.inject !== false) {
       ctrnn.inject(region.tx, region.ty, region.sigma, amp);
     }
   }

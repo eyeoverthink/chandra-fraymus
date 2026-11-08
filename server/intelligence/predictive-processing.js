@@ -39,7 +39,7 @@ import { randomUUID } from 'node:crypto';
 
 const now = () => Date.now();
 
-const SENSORY_KEYS = ['bus', 'memory', 'emotion', 'consciousness', 'agent', 'health', 'workflow', 'goals', 'binary_insight'];
+import { SENSORY_KEYS } from './sensory-channels.js';
 const PREDICTION_HORIZONS = [1, 2, 3]; // cycles ahead (5s, 10s, 15s)
 const SNAPSHOT_EVERY = 60;
 const BASE_PREDICTION_SENSITIVITY = 0.5;

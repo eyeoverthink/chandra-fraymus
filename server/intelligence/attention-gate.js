@@ -31,6 +31,7 @@
 import { getAutonomyModifiers } from './consciousness-gate.js';
 import { db } from '../db.js';
 import { randomUUID } from 'node:crypto';
+import { SENSORY_KEYS } from './sensory-channels.js';
 
 const now = () => Date.now();
 
@@ -40,16 +41,17 @@ const MAX_GAIN = 3.0;
 const BASE_MOTOR_INFLUENCE = 0.8;
 const BASE_EMOTION_INFLUENCE = 0.4;
 
+// Phase Q: outward channels join the map — communicating sharpens the social senses
+// (mesh, user), goal-seeking sharpens the market senses (commerce, youtube, web),
+// reflection sharpens awareness of the repository's own change (git).
 const MOTOR_SENSORY_MAP = {
-  reflect:      { primary: ['memory', 'consciousness', 'binary_insight'], weight: 1.0 },
+  reflect:      { primary: ['memory', 'consciousness', 'binary_insight', 'git'], weight: 1.0 },
   neurogenesis: { primary: ['health', 'consciousness'], weight: 0.8 },
   dream:        { primary: ['emotion', 'memory'],       weight: 0.9 },
-  selfAudit:    { primary: ['consciousness', 'health', 'binary_insight'], weight: 0.7 },
-  communicate:  { primary: ['bus', 'agent'],            weight: 0.9 },
-  goalSeek:     { primary: ['goals', 'workflow'],       weight: 1.0 },
+  selfAudit:    { primary: ['consciousness', 'health', 'binary_insight', 'git'], weight: 0.7 },
+  communicate:  { primary: ['bus', 'agent', 'mesh', 'user'], weight: 0.9 },
+  goalSeek:     { primary: ['goals', 'workflow', 'commerce', 'youtube', 'web'], weight: 1.0 },
 };
-
-const SENSORY_KEYS = ['bus', 'memory', 'emotion', 'consciousness', 'agent', 'health', 'workflow', 'goals', 'binary_insight'];
 
 let motorReadingsFn = null;
 let emotionReadingsFn = null;

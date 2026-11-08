@@ -143,8 +143,22 @@ async function gatherLandscape() {
   };
 }
 
-export async function generateGoals({ trigger = 'daemon' } = {}) {
+// Phase R: proposals are only worth generating if the executor can reach them.
+// Generation ran ~1,000/day against ~288/day execution capacity; the backlog grew
+// to 3,013 and the oldest proposals expired unread. Gate on queue depth.
+const MAX_PENDING_PROPOSALS = Math.max(1, parseInt(process.env.GOAL_MAX_PENDING) || 12);
+
+export function pendingProposalCount() {
   ensureTable();
+  return db.prepare(`SELECT COUNT(*) as c FROM goal_proposals WHERE status IN ('proposed', 'executing')`).get()?.c || 0;
+}
+
+export async function generateGoals({ trigger = 'daemon', force = false } = {}) {
+  ensureTable();
+  const pending = pendingProposalCount();
+  if (!force && pending >= MAX_PENDING_PROPOSALS) {
+    return { generated: false, reason: 'queue_full', pending, maxPending: MAX_PENDING_PROPOSALS };
+  }
   const landscape = await gatherLandscape();
 
   const totalKnowledge = landscape.memoryCategories.reduce((s, c) => s + c.count, 0);

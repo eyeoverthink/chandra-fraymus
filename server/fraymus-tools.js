@@ -57,6 +57,11 @@ import { chatOllama } from './commerce/shared.js';
 
 // Wire all intelligence modules to SQLite-backed entity store
 const ouroboros = new OuroborosEngine(entityStore, { chat: chatOllama });
+// Phase R: fitness is 60% what the organism actually achieved (goal quality, run
+// success, verifier passes) and mutations are held while real outcomes decline.
+import('./intelligence/outcome-scorer.js')
+  .then(({ computeRealityFitness }) => ouroboros.setRealityFitness(computeRealityFitness))
+  .catch(e => console.error('[ouroboros] reality fitness not wired:', e.message));
 const hermesExecutors = buildHermesExecutors();
 const hermes = new HermesFleet(hermesExecutors);
 const motor = new MotorDispatcher(entityStore);

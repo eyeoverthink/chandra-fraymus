@@ -434,6 +434,23 @@ export class OuroborosEngine {
     this.memoryOrbital = [];
   }
 
+  // Phase R: a reality source reports what the organism actually achieved (goal
+  // quality, run success, verifier passes). Fitness blends it with the genome score,
+  // and a mutation is only adopted while reality has not declined since the last
+  // cycle — the genome cannot "improve" on paper while outcomes get worse.
+  setRealityFitness(fn) {
+    this._realityFn = typeof fn === 'function' ? fn : null;
+    this._lastReality = null;
+  }
+
+  _readReality() {
+    if (!this._realityFn) return null;
+    try {
+      const r = this._realityFn();
+      return r && r.available && Number.isFinite(r.score) ? r : null;
+    } catch (_) { return null; }
+  }
+
   async runCycle() {
     this.generation++;
 
@@ -445,8 +462,13 @@ export class OuroborosEngine {
     const parentFitness = this._evaluateFitness(parent);
     const childFitness = this._evaluateFitness(mutated);
 
-    // Select winner
-    if (childFitness > parentFitness) {
+    const reality = this._readReality();
+    const realityDeclined = reality && this._lastReality != null && reality.score < this._lastReality - 0.05;
+    if (reality) this._lastReality = reality.score;
+
+    // Select winner — but hold the genome steady while real outcomes are falling
+    const improved = childFitness > parentFitness && !realityDeclined;
+    if (improved) {
       this.genome = mutated;
     }
 
@@ -455,7 +477,10 @@ export class OuroborosEngine {
       genome: { ...this.genome },
       parent_fitness: parentFitness,
       child_fitness: childFitness,
-      improved: childFitness > parentFitness,
+      improved,
+      reality_fitness: reality?.score ?? null,
+      reality_declined: !!realityDeclined,
+      reality_parts: reality?.parts ?? null,
       timestamp: new Date().toISOString(),
       phi_seal: '0x' + (4721424167835376n).toString(16).toUpperCase(),
     };
@@ -597,10 +622,17 @@ export class OuroborosEngine {
   }
 
   fitness() {
-    const score = this._evaluateFitness(this.genome);
+    const genomeScore = this._evaluateFitness(this.genome);
+    const reality = this._readReality();
+    // 40% genome geometry, 60% what actually happened in the world
+    const score = reality ? 0.4 * genomeScore + 0.6 * reality.score : genomeScore;
     return {
       generation: this.generation,
       score,
+      genomeScore,
+      realityScore: reality?.score ?? null,
+      realityParts: reality?.parts ?? null,
+      realitySamples: reality?.samples ?? null,
       genomeSize: Object.keys(this.genome).length,
       memoryDepth: this.memoryOrbital.length,
     };

@@ -21,6 +21,8 @@ import { storeMemory } from '../fleet/agent-memory.js';
 import { isResourceConstrained, getResourcePressure } from './resource-envelope.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
 import { isActionSuppressed } from './adaptive-strategy.js';
+import { scoreOutcome, installOutcomeScorerRoutes } from './outcome-scorer.js';
+import { recordOutcome, getCurrentSession } from './perspective.js';
 
 const now = () => Date.now();
 
@@ -28,6 +30,7 @@ const DEFAULT_INTERVAL_MS = 5 * 60_000;
 const RUN_TIMEOUT_MS = 240_000;
 const PROPOSAL_MAX_AGE_MS = 48 * 3600_000;
 const DEFAULT_AGENT = process.env.GOAL_EXECUTOR_AGENT || 'fraymus_prime';
+const MAX_RETRIES = 2;
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
 const COMPLEXITY_RANK = { simple: 0, moderate: 1, complex: 2 };
 
@@ -97,12 +100,13 @@ export function selectAgent(goal) {
   return { agent: best, score: bestScore, reason: 'keyword_match' };
 }
 
-function buildTask(goal) {
+function buildTask(goal, framing) {
   return [
     `Autonomous objective (${goal.priority} priority, ${goal.complexity} complexity):`,
     goal.objective,
     goal.rationale ? `\nWhy it matters: ${goal.rationale}` : '',
     goal.builds_on ? `Builds on: ${goal.builds_on}` : '',
+    framing ? `\nApproach (Perspective engine): ${framing}` : '',
     '\nProduce a concrete result: findings, a decision, or an artifact. Be specific and verifiable.',
     'Store the key finding with agent_remember so the system keeps it. If the objective is not actionable as stated, say so plainly and state what would make it actionable.',
   ].filter(Boolean).join('\n');
@@ -133,55 +137,102 @@ export async function executeGoal(goal, { trigger = 'manual' } = {}) {
 
   try { publish('goal-executor', 'system.goals', JSON.stringify({ action: 'goal_started', goalId: goal.id, agentId: agent.id, agentReason: reason, matchScore: score, trigger, objective: goal.objective.slice(0, 160) })); } catch (_) {}
 
+  // The fleet runtime already runs a Perspective assessment per invocation (its framing
+  // lands in the agent's prompt); a second assessment here would just queue another LLM
+  // call in front of the agent's first one. We read the framing it chose afterwards.
   let res;
   try {
-    res = await runAgentAndWait('local', agent.id, buildTask(goal), null, RUN_TIMEOUT_MS);
+    res = await runAgentAndWait('local', agent.id, buildTask(goal, null), null, RUN_TIMEOUT_MS);
   } catch (e) {
     res = { status: 'error', error: e.message, lastReply: '' };
   }
+  let perspectives = null;
+  try {
+    const sid = getCurrentSession();
+    const row = sid ? db.prepare(`SELECT active_perspectives FROM perspective_sessions WHERE id = ?`).get(sid) : null;
+    perspectives = row ? JSON.parse(row.active_perspectives || 'null') : null;
+  } catch (_) {}
 
   const finishedAt = now();
   const durationMs = finishedAt - startedAt;
   const ok = res.status === 'done';
+
+  // A run that never produced a step (Ollama timeout / abort) evaluated nothing: requeue
+  // instead of recording a failure, up to MAX_RETRIES per goal.
+  let runError = null;
+  if (!ok && res.runId) {
+    try { runError = db.prepare(`SELECT error, steps FROM runs WHERE id = ?`).get(res.runId); } catch (_) {}
+  }
+  const timedOut = res.status === 'timeout' || /timeout|aborted/i.test(String(runError?.error || res.error || ''));
+  if (!ok && timedOut && (runError?.steps ?? 0) === 0) {
+    const priorRetries = db.prepare(`SELECT COUNT(*) as c FROM goal_executions WHERE goal_id = ? AND status = 'retry'`).get(goal.id)?.c || 0;
+    if (priorRetries < MAX_RETRIES) {
+      db.prepare(`UPDATE goal_proposals SET status = 'proposed', acted_at = ? WHERE id = ?`).run(finishedAt, goal.id);
+      db.prepare(`UPDATE goal_executions SET status = 'retry', run_id = ?, thread_id = ?, error = ?, finished_at = ?, duration_ms = ? WHERE id = ?`)
+        .run(res.runId || null, res.threadId || null, String(runError?.error || res.error || res.status).slice(0, 500), finishedAt, durationMs, execId);
+      try { publish('goal-executor', 'system.goals', JSON.stringify({ action: 'goal_retry', goalId: goal.id, agentId: agent.id, attempt: priorRetries + 1, reason: 'llm_timeout_no_steps', trigger })); } catch (_) {}
+      inFlight = null;
+      lastCycle = { at: finishedAt, trigger, executed: true, execId, goalId: goal.id, agentId: agent.id, status: 'retry', attempt: priorRetries + 1, durationMs };
+      return lastCycle;
+    }
+  }
+
   const goalStatus = ok ? 'completed' : (res.status === 'awaiting_approval' ? 'blocked' : 'failed');
-  const errorText = ok ? null : (res.error || res.status);
+  const errorText = ok ? null : String(runError?.error || res.error || res.status).slice(0, 500);
 
   db.prepare(`UPDATE goal_proposals SET status = ?, chain_run_id = COALESCE(?, chain_run_id), acted_at = ? WHERE id = ?`)
     .run(goalStatus, res.runId || null, finishedAt, goal.id);
   db.prepare(`UPDATE goal_executions SET status = ?, run_id = ?, thread_id = ?, reply_excerpt = ?, error = ?, finished_at = ?, duration_ms = ? WHERE id = ?`)
     .run(goalStatus, res.runId || null, res.threadId || null, (res.lastReply || '').slice(0, 2000), errorText, finishedAt, durationMs, execId);
 
-  const summary = summarize(goal, agent.id, res, durationMs);
-  const confidence = ok ? 0.8 : 0.3;
+  // Phase R: completion is not credit — score how well, and let quality drive confidence.
+  let quality = ok ? 0.5 : 0.1, qualityDetail = null;
+  try {
+    const scored = await scoreOutcome({ execId, objective: goal.objective, threadId: res.threadId, reply: res.lastReply, runStatus: res.status });
+    quality = scored.quality;
+    qualityDetail = scored.detail;
+  } catch (e) { console.error('[goal-executor] outcome scoring failed:', e.message); }
+
+  const critique = qualityDetail?.judge?.critique ? ` Judge: ${qualityDetail.judge.critique}` : '';
+  const summary = summarize(goal, agent.id, res, durationMs) + ` Quality ${quality.toFixed(2)}.` + critique;
+  const confidence = Math.max(0.05, Math.min(0.99, quality));
   try {
     storeMemory('system', 'outcome', `goal:${goal.id}`, summary, { confidence, source: 'goal-executor' });
     storeMemory(agent.id, 'outcome', `goal:${goal.id}`, summary, { confidence, source: 'goal-executor' });
   } catch (e) { console.error('[goal-executor] outcome memory failed:', e.message); }
 
   try {
+    recordOutcome({ success: ok && quality >= 0.5, summary: summary.slice(0, 500), effectivePerspectives: perspectives || undefined });
+  } catch (e) { console.error('[goal-executor] perspective record failed:', e.message); }
+
+  try {
     publish('goal-executor', 'system.goals', JSON.stringify({
       action: 'goal_executed', goalId: goal.id, agentId: agent.id, status: goalStatus, runStatus: res.status,
-      durationMs, trigger, gateTier: gate.tier, objective: goal.objective.slice(0, 160),
+      quality: +quality.toFixed(3), durationMs, trigger, gateTier: gate.tier, perspectives, objective: goal.objective.slice(0, 160),
     }));
   } catch (_) {}
 
   inFlight = null;
-  const result = { executed: true, execId, goalId: goal.id, agentId: agent.id, agentReason: reason, status: goalStatus, runStatus: res.status, runId: res.runId, threadId: res.threadId, durationMs, reply: (res.lastReply || '').slice(0, 500) };
+  const result = { executed: true, execId, goalId: goal.id, agentId: agent.id, agentReason: reason, status: goalStatus, runStatus: res.status, quality: +quality.toFixed(3), critique: qualityDetail?.judge?.critique || null, perspectives, runId: res.runId, threadId: res.threadId, durationMs, reply: (res.lastReply || '').slice(0, 500) };
   lastCycle = { at: finishedAt, trigger, ...result };
   return result;
 }
 
-export async function runGoalExecutorCycle({ trigger = 'interval', goalId = null } = {}) {
+// force: an operator-initiated run bypasses the autonomy throttles (resource envelope,
+// adaptive suppression). Autonomous triggers never pass it.
+export async function runGoalExecutorCycle({ trigger = 'interval', goalId = null, force = false } = {}) {
   if (inFlight) return { executed: false, reason: 'in_flight', goalId: inFlight.goalId };
-  try {
-    if (isResourceConstrained()) {
-      lastCycle = { at: now(), trigger, executed: false, reason: 'resource_constrained' };
+  if (!force) {
+    try {
+      if (isResourceConstrained()) {
+        lastCycle = { at: now(), trigger, executed: false, reason: 'resource_constrained' };
+        return lastCycle;
+      }
+    } catch (_) {}
+    if (isActionSuppressed('goal_seek')) {
+      lastCycle = { at: now(), trigger, executed: false, reason: 'suppressed_by_strategy' };
       return lastCycle;
     }
-  } catch (_) {}
-  if (isActionSuppressed('goal_seek')) {
-    lastCycle = { at: now(), trigger, executed: false, reason: 'suppressed_by_strategy' };
-    return lastCycle;
   }
   const goal = goalId
     ? db.prepare(`SELECT * FROM goal_proposals WHERE id = ?`).get(goalId)
@@ -196,10 +247,23 @@ export async function runGoalExecutorCycle({ trigger = 'interval', goalId = null
   return executeGoal(goal, { trigger });
 }
 
+// Executions left 'running' by a process restart: the goal goes back to the queue
+// (as a retry, so the cap still applies) and the row is closed as 'interrupted'.
+export function sweepStaleExecutions(maxAgeMs = RUN_TIMEOUT_MS * 2) {
+  const stale = db.prepare(`SELECT id, goal_id FROM goal_executions WHERE status = 'running' AND started_at < ?`).all(now() - maxAgeMs);
+  for (const row of stale) {
+    db.prepare(`UPDATE goal_executions SET status = 'retry', error = 'interrupted by restart', finished_at = ? WHERE id = ?`).run(now(), row.id);
+    db.prepare(`UPDATE goal_proposals SET status = 'proposed' WHERE id = ? AND status = 'executing'`).run(row.goal_id);
+  }
+  return stale.length;
+}
+
 export function startGoalExecutor({ intervalMs = DEFAULT_INTERVAL_MS } = {}) {
   stopGoalExecutor();
   const expired = expireStaleProposals();
   if (expired) console.log(`[goal-executor] expired ${expired} stale proposals (> ${PROPOSAL_MAX_AGE_MS / 3600_000}h)`);
+  const swept = sweepStaleExecutions(0);
+  if (swept) console.log(`[goal-executor] requeued ${swept} executions interrupted by restart`);
   timer = setInterval(() => {
     runGoalExecutorCycle({ trigger: 'interval' }).catch(e => console.error('[goal-executor] cycle error:', e.message));
   }, intervalMs);
@@ -240,6 +304,7 @@ export function installGoalExecutorRoutes(app) {
 
   // Own prefix: /api/goals/:id in goal-engine would swallow /api/goals/executor.
   app.get('/api/goal-executor', route((_req, res) => res.json(getGoalExecutorStatus())));
+  installOutcomeScorerRoutes(app);
 
   app.get('/api/goal-executor/history', route((req, res) => {
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 20));
@@ -248,7 +313,7 @@ export function installGoalExecutorRoutes(app) {
 
   app.post('/api/goal-executor/run', route(async (req, res) => {
     const goalId = typeof req.body?.goalId === 'string' ? req.body.goalId.slice(0, 64) : null;
-    res.json(await runGoalExecutorCycle({ trigger: 'api', goalId }));
+    res.json(await runGoalExecutorCycle({ trigger: 'api', goalId, force: req.body?.force === true }));
   }));
 
   app.post('/api/goal-executor/expire', route((req, res) => {

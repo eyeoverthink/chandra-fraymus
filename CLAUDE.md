@@ -109,6 +109,20 @@ npm run start        # production server (serves built client)
 - Reflection actions added: `run_verifier` (verifier loop) and `execute_goal`; debates now fail closed (`status='failed'`, `verdict='abandoned'`) and `sweepStaleDebates()` runs at daemon start
 - Metacognitive gotcha fixed: `runs` has no `agent_id` column — the agent is the prefix of `model` (`agentId:model`); query with `model LIKE 'id:%'`
 
+### Outcome Scorer (server/intelligence/outcome-scorer.js) — Phase R
+- `scoreOutcome({execId, objective, threadId, reply, runStatus})` — quality 0–1 = 50% Ollama judge (JSON mode via `chatOllama(..., {format:'json'})`: specificity/actionability/evidence/meta_talk/overall + critique) + 50% deterministic (tool calls, memory writes, length, concreteness, meta-talk ratio); non-done runs cap at 0.2. Persists `goal_executions.quality/quality_detail`
+- `agentQualityStats(agentId)` / `fleetQualityStats()` — consumed by `evolvePrompts()` for `[Outcome Feedback]` blocks
+- `computeRealityFitness()` — 24 h composite (goal completion .25, goal quality .35, run success .20, verifier pass .10, debate decisiveness .10); wired into `OuroborosEngine.setRealityFitness()` in fraymus-tools.js: `fitness()` = 0.4 genome + 0.6 reality, mutations refused while reality declines > 0.05
+- Goal generation is gated on queue depth (`GOAL_MAX_PENDING`, default 12); `POST /api/goal-executor/run {force:true}` bypasses autonomy throttles; LLM-timeout runs with 0 steps requeue (max 2 retries)
+- Knowledge graph: semantic threshold 0.35, `pruneToDegreeCap(8)` on `semantically_related` only
+- 2 REST endpoints: `GET /api/goal-executor/quality`, `GET /api/goal-executor/quality/:agentId`
+
+### External Senses (server/intelligence/external-senses.js + sensory-channels.js) — Phase Q
+- `sensory-channels.js` — the ONLY place sensory channels are declared (`SENSORY_REGIONS`, `SENSORY_KEYS`, `INTERNAL_KEYS`, `EXTERNAL_KEYS`); sensory bridge, attention gate, habituation, working memory and predictive processing import it. Add a channel here, then map it in `attention-gate.js` MOTOR_SENSORY_MAP and `active-inference.js` INFERENCE_MAP
+- `external-senses.js` — outward channels on grid row 11: `web` (agent_web_sources + trend_signals), `youtube` (outlier_board), `commerce` (Shopify orders/count 24 h, falls back to local runs with `source:'local'`), `mesh` (V13 hub directory presence + NUDP peers), `git` (commits/hour + dirty files), `user` (user sensorium, `inject:false` — already injected at column 15). Network/shell sources polled every 60 s into a cache (`pollExternalSenses`), DB sources read live; `getExternalSignals()` is the synchronous read the bridge uses
+- Started/stopped with the daemon; status in `getDaemonStatus().externalSenses`; table `external_sense_events`
+- 3 REST endpoints: `GET /api/intelligence/external-senses`, `GET …/history`, `POST …/poll`
+
 ### Autonomous Neurogenesis Engine (server/intelligence/neurogenesis.js)
 - `neurogenesis.js` — Prevents degenerate sparse connectivity by spontaneously re-igniting dead connections. Connectivity score = weighted composite of agent activity (0.30), memory health (0.25), bus traffic (0.25), workflow activity (0.20) minus health penalty.
 - Below floor (0.15) → emergency: bus stimulus + memory seed + OPEG-gated forge

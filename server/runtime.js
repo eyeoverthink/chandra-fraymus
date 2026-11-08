@@ -108,6 +108,7 @@ import { installVerifierRoutes } from './intelligence/verifier-loop.js';
 import { installDaemonRoutes, startDaemon } from './daemon/engine.js';
 import { installGoalRoutes } from './intelligence/goal-engine.js';
 import { installGoalExecutorRoutes } from './intelligence/goal-executor.js';
+import { installExternalSensesRoutes } from './intelligence/external-senses.js';
 import { installDebateRoutes } from './intelligence/debate.js';
 import { installModelRouterRoutes } from './intelligence/model-router.js';
 import { installPerspectiveRoutes, briefNextInstance, getInstanceId } from './intelligence/perspective.js';
@@ -336,6 +337,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installDaemonRoutes(app);
   installGoalRoutes(app);
   installGoalExecutorRoutes(app);
+  installExternalSensesRoutes(app);
   installDebateRoutes(app);
   installModelRouterRoutes(app);
   installPerspectiveRoutes(app);

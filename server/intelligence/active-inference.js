@@ -58,6 +58,13 @@ const INFERENCE_MAP = {
   workflow:      [{ motor: 'reflect', weight: 0.4 }, { motor: 'goalSeek', weight: 0.4 }],
   goals:           [{ motor: 'goalSeek', weight: 0.7 }, { motor: 'reflect', weight: 0.2 }],
   binary_insight:  [{ motor: 'reflect', weight: 0.5 }, { motor: 'goalSeek', weight: 0.3 }],
+  // Phase Q — outward senses: surprise in the world biases toward acting in it
+  web:             [{ motor: 'communicate', weight: 0.5 }, { motor: 'reflect', weight: 0.3 }],
+  youtube:         [{ motor: 'goalSeek', weight: 0.5 }, { motor: 'communicate', weight: 0.3 }],
+  commerce:        [{ motor: 'goalSeek', weight: 0.6 }, { motor: 'communicate', weight: 0.3 }],
+  mesh:            [{ motor: 'communicate', weight: 0.7 }, { motor: 'reflect', weight: 0.2 }],
+  git:             [{ motor: 'reflect', weight: 0.5 }, { motor: 'selfAudit', weight: 0.3 }],
+  user:            [{ motor: 'communicate', weight: 0.6 }, { motor: 'goalSeek', weight: 0.3 }],
 };
 
 const MOTOR_COORDS = {

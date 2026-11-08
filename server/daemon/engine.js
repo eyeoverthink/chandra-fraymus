@@ -8,6 +8,8 @@ import { reflect } from '../intelligence/reflection.js';
 import { generateGoals } from '../intelligence/goal-engine.js';
 import { runGoalExecutorCycle, startGoalExecutor, stopGoalExecutor, getGoalExecutorStatus } from '../intelligence/goal-executor.js';
 import { sweepStaleDebates } from '../intelligence/debate.js';
+import { agentQualityStats } from '../intelligence/outcome-scorer.js';
+import { startExternalSenses, stopExternalSenses, getExternalSensesStatus } from '../intelligence/external-senses.js';
 import { runCycle as runOuroborosCycle } from '../intelligence/ouroboros-cycle.js';
 import { snapshotState, pruneFossils } from '../intelligence/state-bridge.js';
 import { runConsciousnessAudit } from '../intelligence/consciousness-cycle.js';
@@ -307,34 +309,61 @@ async function evolvePrompts() {
 
   if (patterns.length === 0) return { evolved: false, reason: 'no_parseable_fossils' };
 
-  // Inject proven patterns into ALL agents — verified fossils and chain insights are general knowledge
+  // Inject proven patterns into ALL agents — verified fossils and chain insights are general knowledge.
+  // Phase R: blocks are rebuilt every cycle (previous daemon blocks are stripped first) and each
+  // agent with measured goal outcomes gets an [Outcome Feedback] block — its own quality,
+  // the judge's critiques when low, its own exemplars when high. Credit lands on the prompt.
   const manifests = loadManifests();
   let evolvedCount = 0;
+  const gateMods = getAutonomyModifiers();
+  const stamp = new Date().toISOString();
+  const DAEMON_BLOCK_RE = /\n\n\[(?:Proven Patterns|Perspective Playbook|Outcome Feedback) — [^\]]*\]\n[\s\S]*?(?=\n\n\[(?:Proven Patterns|Perspective Playbook|Outcome Feedback) — |$)/g;
 
+  const patternLimit = Math.round(3 * gateMods.evolutionRate);
+  const patternBlock = patterns.slice(0, Math.max(1, patternLimit)).map(p =>
+    `- Verified: "${p.goal}" (${p.language}, ${p.iterations} iteration${p.iterations === 1 ? '' : 's'})`
+  ).join('\n');
+
+  let perspectivePlaybookBlock = '';
+  try {
+    const topPlaybook = db.prepare(
+      `SELECT pattern, recommended_approach, perspectives_used, success_count, fail_count FROM perspective_playbook
+       WHERE success_count + fail_count > 0 ORDER BY (success_count * 1.0 / (success_count + fail_count)) DESC, success_count DESC LIMIT 3`
+    ).all();
+    if (topPlaybook.length > 0) {
+      perspectivePlaybookBlock = `\n\n[Perspective Playbook — injected by daemon at ${stamp}]\n` +
+        topPlaybook.map(p => {
+          const rate = Math.round(p.success_count / (p.success_count + p.fail_count) * 100);
+          let lenses = [];
+          try { lenses = JSON.parse(p.perspectives_used || '[]'); } catch (_) {}
+          return `- For "${p.pattern}" tasks the ${lenses.join('+') || 'engineer'} lens succeeded ${rate}% (${p.success_count + p.fail_count} tries): ${String(p.recommended_approach || '').slice(0, 160)}`;
+        }).join('\n');
+    }
+  } catch (e) { console.error('[prompt-evolution] playbook read failed:', e.message); }
+
+  let feedbackAgents = 0;
   for (const [agentId, manifest] of manifests) {
+    const basePrompt = (manifest.systemPrompt || '').replace(DAEMON_BLOCK_RE, '').trimEnd();
 
-    // Check if this agent already has the fossil context
-    const promptLower = (manifest.systemPrompt || '').toLowerCase();
-    if (promptLower.includes('[proven patterns]')) continue; // already evolved
-
-    const gateMods = getAutonomyModifiers();
-    const patternLimit = Math.round(3 * gateMods.evolutionRate);
-    const patternBlock = patterns.slice(0, Math.max(1, patternLimit)).map(p =>
-      `- Verified: "${p.goal}" (${p.language}, ${p.iterations} iteration${p.iterations === 1 ? '' : 's'})`
-    ).join('\n');
-
-    let perspectivePlaybookBlock = '';
+    let feedbackBlock = '';
     try {
-      const topPlaybook = db.prepare(
-        `SELECT pattern, perspective, success_rate FROM perspective_playbook WHERE uses > 0 ORDER BY success_rate DESC LIMIT 3`
-      ).all();
-      if (topPlaybook.length > 0) {
-        perspectivePlaybookBlock = `\n\n[Perspective Playbook — injected by daemon at ${new Date().toISOString()}]\n` +
-          topPlaybook.map(p => `- "${p.perspective}" approach works ${Math.round(p.success_rate * 100)}% for "${p.pattern}" tasks`).join('\n');
+      const q = agentQualityStats(agentId);
+      if (q.n >= 2) {
+        const pct = Math.round(q.mean * 100);
+        const lines = [`Your last ${q.n} autonomous goals: mean quality ${pct}/100, ${Math.round(q.completionRate * 100)}% completed.`];
+        if (q.mean < 0.6) {
+          lines.push('Act, do not narrate. Call tools, produce data, state findings. Reviewers flagged:');
+          for (const c of q.critiques.slice(0, 2)) lines.push(`- ${c}`);
+        } else {
+          lines.push('This standard is working — keep outputs this concrete and evidence-backed.');
+        }
+        feedbackBlock = `\n\n[Outcome Feedback — injected by daemon at ${stamp}]\n${lines.join('\n')}`;
+        feedbackAgents++;
       }
-    } catch (_) {}
+    } catch (e) { console.error('[prompt-evolution] quality read failed:', e.message); }
 
-    const evolvedPrompt = manifest.systemPrompt + `\n\n[Proven Patterns — injected by daemon at ${new Date().toISOString()}]\n${patternBlock}` + perspectivePlaybookBlock;
+    const evolvedPrompt = basePrompt + `\n\n[Proven Patterns — injected by daemon at ${stamp}]\n${patternBlock}` + perspectivePlaybookBlock + feedbackBlock;
+    if (evolvedPrompt === manifest.systemPrompt) continue;
 
     writeOverride({ ...manifest, systemPrompt: evolvedPrompt });
     evolvedCount++;
@@ -346,9 +375,9 @@ async function evolvePrompts() {
 
   db.prepare(
     `INSERT INTO daemon_cycles (id, type, input_summary, output, created_at) VALUES (?, 'prompt_evolution', ?, ?, ?)`
-  ).run(randomUUID().slice(0, 12), `${uniqueFossils.length} fossils, ${patterns.length} patterns, tier=${gateMods.tier}`, `evolved ${evolvedCount} agents (rate=${gateMods.evolutionRate})`, now());
+  ).run(randomUUID().slice(0, 12), `${uniqueFossils.length} fossils, ${patterns.length} patterns, tier=${gateMods.tier}`, `evolved ${evolvedCount} agents, ${feedbackAgents} with outcome feedback (rate=${gateMods.evolutionRate})`, now());
 
-  return { evolved: evolvedCount > 0, fossilCount: uniqueFossils.length, patternCount: patterns.length, agentsEvolved: evolvedCount, gateTier: gateMods.tier, evolutionRate: gateMods.evolutionRate };
+  return { evolved: evolvedCount > 0, fossilCount: uniqueFossils.length, patternCount: patterns.length, agentsEvolved: evolvedCount, feedbackAgents, gateTier: gateMods.tier, evolutionRate: gateMods.evolutionRate };
 }
 
 // ─── Daemon Cycle ─────────────────────────────────────────────
@@ -545,6 +574,13 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     lastGateTier: null,
   };
 
+  // Phase Q: outward senses poller (Shopify, hub/NUDP peers, git) feeding the bridge
+  try {
+    startExternalSenses();
+  } catch (e) {
+    console.error('external senses start error:', e.message);
+  }
+
   // Phase 8: Start sensory bridge (continuous CTRNN stimulus from system state)
   try {
     setSensoryHeart(heart);
@@ -718,6 +754,7 @@ export function stopDaemon() {
   // Phase 14: Stop metacognitive monitor with daemon
   try { stopMetacognitiveMonitor(); } catch (_) {}
   try { stopGoalExecutor(); } catch (_) {}
+  try { stopExternalSenses(); } catch (_) {}
   // Phase 15: Reset adaptive strategy with daemon
   try { resetAdaptiveStrategy(); } catch (_) {}
   // Phase 17: Reset self-model with daemon
@@ -770,6 +807,7 @@ export function getDaemonStatus() {
     workingMemory: getWorkingMemoryStatus(),
     metacognitive: getMetacognitiveStatus(),
     goalExecutor: getGoalExecutorStatus(),
+    externalSenses: getExternalSensesStatus(),
     adaptiveStrategy: getAdaptiveStatus(),
     selfModel: getSelfModelStatus(),
     resourceEnvelope: getResourceEnvelopeStatus(),

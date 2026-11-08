@@ -227,7 +227,7 @@ export async function assessSituation({ context, task, agentId, emotionalState }
 
   // Inject available agents for smart routing recommendations
   try {
-    const { listAgents } = await import('./fleet/runtime.js');
+    const { listAgents } = await import('../fleet/runtime.js');
     const agents = listAgents('local');
     input.availableAgents = agents.map(a => ({ id: a.id, name: a.name, role: a.role || '' }));
   } catch (_) { input.availableAgents = []; }

@@ -297,7 +297,13 @@ export function indexFossils() {
 }
 
 // ─── Semantic Edge Building ───────────────────────────────────
-export function buildSemanticEdges({ threshold = 0.15 } = {}) {
+// Phase R: threshold raised from 0.15 — at 0.15 nearly every pair of reflection
+// memories qualified and the graph reached 91,467 edges over 1,653 nodes (~55 per
+// node, a near-complete graph that carries no structure). consolidateGraph() also
+// caps each node to its MAX_EDGES_PER_NODE strongest edges.
+export const MAX_EDGES_PER_NODE = 8;
+
+export function buildSemanticEdges({ threshold = 0.35 } = {}) {
   const nodes = db.prepare(
     'SELECT id, type, keywords, label FROM knowledge_nodes ORDER BY created_at DESC LIMIT 300'
   ).all().map(n => ({ ...n, kw: JSON.parse(n.keywords || '[]') }));
@@ -384,6 +390,10 @@ export function consolidateGraph() {
     'DELETE FROM knowledge_edges WHERE weight < 0.1 AND created_at < ?'
   ).run(fourteenDaysAgo);
 
+  // Degree cap: keep each node's MAX_EDGES_PER_NODE strongest edges (by weight,
+  // newest wins ties). Density beyond that is noise, not knowledge.
+  const capPruned = pruneToDegreeCap(MAX_EDGES_PER_NODE);
+
   // Prune old events
   db.prepare('DELETE FROM knowledge_graph_events WHERE created_at < ?').run(sevenDaysAgo);
 
@@ -393,17 +403,37 @@ export function consolidateGraph() {
   db.prepare(
     'INSERT INTO knowledge_graph_events (event_type, node_count, edge_count, details, duration_ms, created_at) VALUES (?, ?, ?, ?, ?, ?)'
   ).run('consolidation', stats.nodeCount, stats.edgeCount,
-    JSON.stringify({ indexed: indexResult, edges: edgeResult.edgesCreated, pruned, weakPruned: weakPruned.changes }),
+    JSON.stringify({ indexed: indexResult, edges: edgeResult.edgesCreated, pruned, weakPruned: weakPruned.changes, capPruned }),
     duration, now());
 
   try {
     publish('system', 'system.knowledge_graph', JSON.stringify({
       type: 'consolidation', nodes: stats.nodeCount, edges: stats.edgeCount,
-      newEdges: edgeResult.edgesCreated, pruned, durationMs: duration,
+      newEdges: edgeResult.edgesCreated, pruned, capPruned, durationMs: duration,
     }));
   } catch (_) {}
 
-  return { indexed: indexResult, edges: edgeResult, pruned, weakPruned: weakPruned.changes, stats, durationMs: duration };
+  return { indexed: indexResult, edges: edgeResult, pruned, weakPruned: weakPruned.changes, capPruned, stats, durationMs: duration };
+}
+
+export function pruneToDegreeCap(cap = MAX_EDGES_PER_NODE) {
+  // Rank each node's edges (as either endpoint) by weight desc, created_at desc;
+  // delete every edge that is beyond the cap for BOTH of its endpoints would keep
+  // hubs intact, so we delete edges beyond the cap for the endpoint that ranks them lowest.
+  const victims = db.prepare(`
+    WITH ranked AS (
+      SELECT e.id, ROW_NUMBER() OVER (PARTITION BY n.node ORDER BY e.weight DESC, e.created_at DESC) AS rn
+      FROM knowledge_edges e
+      JOIN (SELECT id, from_node_id AS node FROM knowledge_edges UNION ALL SELECT id, to_node_id FROM knowledge_edges) n ON n.id = e.id
+      WHERE e.relation = 'semantically_related'
+    )
+    SELECT DISTINCT id FROM ranked WHERE rn > ?
+  `).all(cap).map(r => r.id);
+  if (!victims.length) return 0;
+  const del = db.prepare('DELETE FROM knowledge_edges WHERE id = ?');
+  const tx = db.transaction(ids => { for (const id of ids) del.run(id); });
+  tx(victims);
+  return victims.length;
 }
 
 // ─── Stats ────────────────────────────────────────────────────

@@ -253,6 +253,40 @@ Two instrument changes, no change to the Φ_MIP/EI math: (1) `stateMode: 'drive'
 - `metacognitive-monitor.js` — the "unused forged agents" check queried `runs.agent_id`, a column that does not exist (the agent is the prefix of `model`); it always threw and was silently skipped. Fixed to `model LIKE 'agent:%'`.
 **Verified live:** first execution `goal_ec11ce2f88` → agent `bridge-gaps-v1` (keyword match) → `completed` in 124 s; `goal_proposals.status = completed` with `run_id`, `goal_executions` row, two `outcome` memories, bus events, `runs` table +1 done.
 
+### Phase R: Credit Assignment (2026-11-08)
+**Why:** Completion is not credit. The first executed goal returned "I'll delegate tasks to relevant agents…" and was recorded as a success; the ouroboros genome had sat at fitness 0.5 for 447 generations because its fitness was distance-to-φ, not anything the organism did; prompt evolution injected the same patterns into every agent regardless of how they performed (and its playbook query referenced columns that don't exist, so the playbook never reached a prompt); the knowledge graph had 95,669 edges over 1,707 nodes; goal generation ran ~1,000/day against ~288/day execution capacity.
+**Module:** `server/intelligence/outcome-scorer.js`
+- `deterministicSignals()` — tool calls in the run's thread, `agent_remember` writes, reply length, concreteness (numbers, code, paths, result verbs), and a meta-talk ratio ("I'll…", "let me…", "to tackle this…") → 0–1.
+- `judgeReply()` — Ollama judge in grammar-constrained JSON mode (`format: 'json'`, added to `chatOllama`) scoring specificity / actionability / evidence / meta_talk / overall with a one-line critique.
+- `scoreOutcome()` — blend 50/50 when the judge answers, deterministic alone when it doesn't; non-`done` runs cap at 0.2. Stored in `goal_executions.quality` + `quality_detail`.
+- `agentQualityStats()`, `fleetQualityStats()`, `computeRealityFitness()` — 24 h composite: goal completion 0.25, goal quality 0.35, run success 0.20, verifier pass 0.10, debate decisiveness 0.10.
+- 2 REST endpoints: `GET /api/goal-executor/quality`, `GET /api/goal-executor/quality/:agentId`.
+**Wiring:**
+- `goal-executor.js` — outcome memory confidence **is** the quality; a run that produced zero steps on an LLM timeout is requeued (`retry`, max 2) instead of recorded as failure; executions interrupted by a restart are requeued at boot; `recordOutcome()` writes the Perspective playbook after every goal (the fleet runtime's own per-run assessment supplies the lenses); `POST /api/goal-executor/run {force:true}` bypasses autonomy throttles for operator-initiated runs.
+- `goal-engine.js` — `generateGoals()` returns `queue_full` while ≥ `GOAL_MAX_PENDING` (12) proposals are pending.
+- `fraymus/intelligence/ouroboros.js` — `setRealityFitness(fn)`; `fitness()` = 0.4 genome + 0.6 reality; `runCycle()` refuses a mutation while reality has declined > 0.05 since the previous cycle. Wired in `fraymus-tools.js`.
+- `daemon/engine.js` `evolvePrompts()` — previous daemon blocks are stripped and rebuilt each cycle; the playbook query uses the real columns; every agent with ≥ 2 scored goals gets an `[Outcome Feedback]` block — mean quality and the judge's critiques when < 0.6, its own standard when ≥ 0.6.
+- `knowledge-graph.js` — semantic threshold 0.15 → 0.35 and `pruneToDegreeCap(8)` on `semantically_related` edges (structural `owns_memory` edges exempt).
+- `perspective.js` — `assessSituation()` imported `./fleet/runtime.js` from inside `intelligence/`; the path never resolved, so agent routing hints were always empty. Fixed.
+- `metacognitive-monitor.js` — stuck-detection query on a non-existent `runs.agent_id` fixed.
+**Verified live:** judge on a completed goal → `{specificity 0.5, actionability 0, evidence 0, meta_talk 1.0, overall 0.25}` → blended quality 0.397 (deterministic alone had said 0.54); playbook grew 3 → 4 patterns with per-goal success/fail counts; reality fitness 0.334 with parts; graph 95,669 → 3,234 edges with `owns_memory` intact at 107; executor paused itself with `suppressed_by_strategy` when metacognition read "conserve — low effectiveness" (the second-order loop closing on real outcomes).
+
+### Phase Q: Outward Senses (2026-11-08)
+**Why:** Every sensory channel measured the system itself (bus, memory, emotion, consciousness, agent, health, workflow, goals). A brain whose every sense reports on itself cannot learn about the world — and the same channel list was copied into five modules.
+**Modules:**
+- `server/intelligence/sensory-channels.js` — single registry (`SENSORY_REGIONS`, `SENSORY_KEYS`, `INTERNAL_KEYS`, `EXTERNAL_KEYS`) imported by the sensory bridge, attention gate, habituation, working memory and predictive processing. A new sense is one entry.
+- `server/intelligence/external-senses.js` — six outward channels on grid row 11:
+  - `web` — `agent_web_sources` retained + `trend_signals` seen in 24 h
+  - `youtube` — `outlier_board` saves in 24 h
+  - `commerce` — Shopify Admin API `orders/count.json` for the last 24 h (`SHOPIFY_ACCESS_TOKEN` + `SHOPIFY_STORE_DOMAIN`); without a store it reads local commerce/distribution runs and labels the source `local`
+  - `mesh` — V13 hub directory (`/api/v13/agents`, presence online/idle) + NUDP peers heard
+  - `git` — commits in the last hour and dirty files in this repository via `git log` / `git status`
+  - `user` — user-sensorium activity/attention/engagement (carried into working memory / prediction / inference without a second injection; the sensorium already injects at column 15)
+  - Network and shell sources are polled every 60 s into a cache; DB sources are read each 5 s tick. Every signal carries its `source`.
+- `attention-gate.js` — communicate → mesh, user; goalSeek → commerce, youtube, web; reflect/selfAudit → git. `active-inference.js` — surprise on outward channels biases communicate / goalSeek / reflect.
+- DB table: `external_sense_events`; 3 REST endpoints: `GET /api/intelligence/external-senses`, `GET …/history`, `POST …/poll`; status in `getDaemonStatus().externalSenses`.
+**Verified live:** 15 channels in the bridge; Shopify reached (`eyeoverthink.myshopify.com`, 0 orders / 24 h), hub reached (0 agents online), git = 1.0 (4 commits in the hour, 18 dirty files), user 0.49, web/youtube 0 (no data yet — honest zeros, not stubs).
+
 ---
 
 ## Content Nexus agent feed 2026-11-05

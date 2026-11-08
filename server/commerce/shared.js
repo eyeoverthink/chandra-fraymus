@@ -11,6 +11,8 @@ export async function chatOllama(messages, opts = {}) {
       messages,
       stream: false,
       options: { temperature: opts.temperature ?? 0.7, num_predict: opts.maxTokens ?? 2048 },
+      // Ollama grammar-constrained JSON output; callers that must parse JSON pass format: 'json'
+      ...(opts.format ? { format: opts.format } : {}),
     }),
     signal: AbortSignal.timeout(180_000),
   });

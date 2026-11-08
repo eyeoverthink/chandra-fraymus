@@ -36,7 +36,7 @@ const MIN_FRAMES_FOR_DERIVATIVE = 3;
 const BASE_TEMPORAL_SENSITIVITY = 0.6;
 const TREND_SPIKE_THRESHOLD = 0.4;
 
-const SENSORY_KEYS = ['bus', 'memory', 'emotion', 'consciousness', 'agent', 'health', 'workflow', 'goals', 'binary_insight'];
+import { SENSORY_KEYS } from './sensory-channels.js';
 
 const TEMPORAL_REGIONS = {
   trend:     { tx: 6, ty: 4,  sigma: 1.5, label: 'Trend direction' },
