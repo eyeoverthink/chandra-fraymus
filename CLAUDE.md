@@ -100,6 +100,15 @@ npm run start        # production server (serves built client)
 - 4 REST endpoints: GET stats, GET proposals, GET proposals/:id, POST propose
 - Exports: `propose`, `execute`, `sanitize`, `update`, `runPipeline`, `getProposal`, `listProposals`, `stats`
 
+### Goal Executor (server/intelligence/goal-executor.js) — Phase P
+- `goal-executor.js` — Drains `goal_proposals` through the fleet: `pickNextGoal()` (priority → simplicity → recency) → `selectAgent()` (keyword overlap with agent name/role/description, default manifests win ties, fallback `GOAL_EXECUTOR_AGENT` env / `fraymus_prime`) → `runAgentAndWait` (240 s) → `goal_proposals.status` `completed | failed | blocked`, `goal_executions` row, `outcome` memories for `system` and the agent, `system.goals` bus events
+- One in flight at a time; honours `isResourceConstrained()` and `isActionSuppressed('goal_seek')`; `expireStaleProposals()` marks `proposed` older than 48 h `expired`
+- Runs on its own 5 min interval (`startGoalExecutor` from daemon start), as daemon Step 5.5, and as the motor **Goal-seek** target (execute first, generate only when the queue is empty); status in `getDaemonStatus().goalExecutor`
+- DB table: `goal_executions`; `updateProposalStatus()` in goal-engine accepts `failed | blocked | expired`
+- 6 REST endpoints under **`/api/goal-executor`** — own prefix on purpose: `/api/goals/:id` in goal-engine is a param route and would swallow `/api/goals/executor`
+- Reflection actions added: `run_verifier` (verifier loop) and `execute_goal`; debates now fail closed (`status='failed'`, `verdict='abandoned'`) and `sweepStaleDebates()` runs at daemon start
+- Metacognitive gotcha fixed: `runs` has no `agent_id` column — the agent is the prefix of `model` (`agentId:model`); query with `model LIKE 'id:%'`
+
 ### Autonomous Neurogenesis Engine (server/intelligence/neurogenesis.js)
 - `neurogenesis.js` — Prevents degenerate sparse connectivity by spontaneously re-igniting dead connections. Connectivity score = weighted composite of agent activity (0.30), memory health (0.25), bus traffic (0.25), workflow activity (0.20) minus health penalty.
 - Below floor (0.15) → emergency: bus stimulus + memory seed + OPEG-gated forge

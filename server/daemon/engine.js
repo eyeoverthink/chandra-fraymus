@@ -6,6 +6,8 @@ import { loadManifests, writeOverride } from '../fleet/manifest.js';
 import { reloadManifests } from '../fleet/runtime.js';
 import { reflect } from '../intelligence/reflection.js';
 import { generateGoals } from '../intelligence/goal-engine.js';
+import { runGoalExecutorCycle, startGoalExecutor, stopGoalExecutor, getGoalExecutorStatus } from '../intelligence/goal-executor.js';
+import { sweepStaleDebates } from '../intelligence/debate.js';
 import { runCycle as runOuroborosCycle } from '../intelligence/ouroboros-cycle.js';
 import { snapshotState, pruneFossils } from '../intelligence/state-bridge.js';
 import { runConsciousnessAudit } from '../intelligence/consciousness-cycle.js';
@@ -392,6 +394,13 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
       stepResults.goalGeneration = { error: e.message };
     }
 
+    // Step 5.5: Goal execution (Phase P) — run the next proposed goal through the fleet
+    try {
+      stepResults.goalExecution = await runGoalExecutorCycle({ trigger: `daemon:${trigger}` });
+    } catch (e) {
+      stepResults.goalExecution = { error: e.message };
+    }
+
     // Step 6: Ouroboros RSI cycle (autonomous codebase evolution)
     try {
       stepResults.ouroboros = await runOuroborosCycle();
@@ -558,11 +567,25 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
       reflect,
       neurogenesis: neurogenesisCycle,
       consciousness: runConsciousnessAudit,
-      goals: generateGoals,
+      // Goal-seek acts before it proposes: execute the next pending goal, generate only when the queue is empty.
+      goals: async () => {
+        const r = await runGoalExecutorCycle({ trigger: 'motor' });
+        if (!r.executed && r.reason === 'no_proposals') return generateGoals({ trigger: 'motor' });
+        return r;
+      },
     });
     startMotorOutput();
   } catch (e) {
     console.error('motor output start error:', e.message);
+  }
+
+  // Phase P: goal executor (5min cycle — drains goal_proposals through the fleet) + debate sweeper
+  try {
+    const swept = sweepStaleDebates();
+    if (swept) console.log(`[daemon] closed ${swept} debates left 'running' by crashed runs`);
+    startGoalExecutor();
+  } catch (e) {
+    console.error('goal executor start error:', e.message);
   }
 
   // Phase 14: Start metacognitive monitor (30s cycle — self-assessment)
@@ -694,6 +717,7 @@ export function stopDaemon() {
   try { resetWorkingMemory(); } catch (_) {}
   // Phase 14: Stop metacognitive monitor with daemon
   try { stopMetacognitiveMonitor(); } catch (_) {}
+  try { stopGoalExecutor(); } catch (_) {}
   // Phase 15: Reset adaptive strategy with daemon
   try { resetAdaptiveStrategy(); } catch (_) {}
   // Phase 17: Reset self-model with daemon
@@ -745,6 +769,7 @@ export function getDaemonStatus() {
     habituation: getHabituationStatus(),
     workingMemory: getWorkingMemoryStatus(),
     metacognitive: getMetacognitiveStatus(),
+    goalExecutor: getGoalExecutorStatus(),
     adaptiveStrategy: getAdaptiveStatus(),
     selfModel: getSelfModelStatus(),
     resourceEnvelope: getResourceEnvelopeStatus(),

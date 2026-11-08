@@ -176,9 +176,10 @@ function assessStuckness() {
       ).all(windowStart).map(r => r.agent_id);
       let unused = 0;
       for (const id of forgedIds) {
+        // runs has no agent_id column; the agent is the prefix of `model` ("agentId:model").
         const used = db.prepare(
-          `SELECT COUNT(*) as c FROM runs WHERE agent_id = ? AND created_at > ?`
-        ).get(id, windowStart)?.c || 0;
+          `SELECT COUNT(*) as c FROM runs WHERE model LIKE ? AND created_at > ?`
+        ).get(`${id}:%`, windowStart)?.c || 0;
         if (used === 0) unused++;
       }
       if (unused > forged * 0.6) stuckSignals++;

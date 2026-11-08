@@ -154,6 +154,10 @@ export async function runDebate({ topic, proposition, config = {}, source = 'api
 
   const rounds = { opening: {}, rebuttals: [], synthesis: null };
 
+  // Any throw past this point (Ollama down, timeout, parse crash) used to leave the row
+  // at status 'running' with no verdict forever — 465 such rows accumulated.
+  try {
+
   // Round 1: Opening Arguments
   try { publish('system.debate', { type: 'debate.round', debateId, round: 'opening' }); } catch {}
 
@@ -228,6 +232,38 @@ export async function runDebate({ topic, proposition, config = {}, source = 'api
     rebuttalRounds,
     totalRounds,
   };
+
+  } catch (err) {
+    const durationMs = Date.now() - started;
+    const reason = `Debate abandoned: ${String(err?.message || err).slice(0, 500)}`;
+    try {
+      db.prepare(`UPDATE debates SET status = 'failed', rounds = ?, verdict = 'abandoned', verdict_reasoning = ?, confidence = 0, duration_ms = ? WHERE id = ?`)
+        .run(JSON.stringify(rounds), reason, durationMs, debateId);
+    } catch (_) {}
+    try { publish('system.debate', { type: 'debate.failed', debateId, topic, error: reason, durationMs }); } catch {}
+    console.error(`[debate] ${debateId} failed: ${reason}`);
+    return {
+      id: debateId, topic, proposition,
+      agents: { proponent: proRole.agentId, opponent: oppRole.agentId, judge: judgeRole.agentId },
+      rounds, verdict: 'abandoned', verdictReasoning: reason, confidence: 0, durationMs,
+      gateTier: gateMods.tier, rebuttalRounds, totalRounds, failed: true,
+    };
+  }
+}
+
+// Debates that died mid-run (process restart, crash before the catch above existed)
+// stay 'running' forever and count as unresolved. Close anything older than maxAgeMs.
+export function sweepStaleDebates(maxAgeMs = 30 * 60_000) {
+  try {
+    const info = db.prepare(
+      `UPDATE debates SET status = 'failed', verdict = 'abandoned', verdict_reasoning = 'Debate abandoned: never finished (swept at boot)', confidence = 0
+       WHERE status = 'running' AND created_at < ?`
+    ).run(Date.now() - maxAgeMs);
+    return info.changes;
+  } catch (e) {
+    console.error('[debate] sweep failed:', e.message);
+    return 0;
+  }
 }
 
 // ─── Binary Annotation Debate ─────────────────────────────────

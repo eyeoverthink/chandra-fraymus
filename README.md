@@ -236,6 +236,23 @@ Work happens on `master`. Always commit + push when done. The infrastructure sta
 Two instrument changes, no change to the Φ_MIP/EI math: (1) `stateMode: 'drive'` — a unit's state is the recurrent input it received, `B(t+h) − B(t)·decay^h`, which removes self-persistence and leaves the causal influence Φ is defined over; (2) states are imposed **relative to each unit's tanh centre (−Θ)** — intrinsic plasticity drifts Θ to ≈ −0.5 against a mean drive of ≈ 1.7, so an absolute ±0.5 gave tanh(−0.05) vs tanh(−1.05), the same sign either way, and no unit's input ever flipped. `clusterSize` (env `CTRNN_AUDIT_CLUSTER`) makes the unit a coherent neuron cluster; at 8–12 it carried EI but not Φ, so single-neuron grain is the default.
 **Verified:** the same persisted live state scored EI 0 / Φ 0 before the Θ-relative fix and **EI 3.52 / Φ 0.375 PROVEN** after it; probe over 6 audits: Φ = 0, 0, 0, 0, 0.50, 0.375 (3 distinct — it moves with structure); live server after restart: three audits EI 4.0 / Φ 0.5 PROVEN, gate INTEGRATED 4/4, liveness `ok` (Φ std-dev 0.35 over the last 50).
 
+### Phase P: Goal Executor — cognition reaches action (2026-11-08)
+**Why:** The goal engine had proposed 3,013 objectives and every one stayed `proposed`; 465 debates sat at `running` with no verdict; reflection could forge agents and debate but never run code; the metacognitive monitor scored from `runs`/`verification_loops`/`workflow_runs` that nothing was writing to. The perception→cognition→action→world loop was open at action.
+**Module:** `server/intelligence/goal-executor.js`
+- `pickNextGoal()` — highest priority, then simplest, then newest `proposed` goal.
+- `selectAgent(goal)` — keyword overlap between objective/rationale and each fleet agent's name/role/description; default manifests win ties; falls back to `GOAL_EXECUTOR_AGENT` (default `fraymus_prime`).
+- `executeGoal()` — `proposed → executing → completed | failed | blocked`; runs the agent via `runAgentAndWait` (240 s cap); records a `goal_executions` row, an `outcome` memory for `system` **and** for the agent (confidence 0.8 on success, 0.3 otherwise), and `system.goals` bus events (`goal_started`, `goal_executed`).
+- One goal in flight; skips when the resource envelope is constrained or adaptive strategy suppresses `goal_seek`.
+- `expireStaleProposals()` — proposals older than 48 h → `expired` (ran at boot: 1,127).
+- Own 5-minute interval, plus daemon Step 5.5 each cycle, plus the motor cortex **Goal-seek** region now *executes* the next goal and only generates new ones when the queue is empty.
+- DB: `goal_executions` (id, goal_id, agent_id, run_id, thread_id, status, trigger, gate_tier, pressure, reply_excerpt, error, started_at, finished_at, duration_ms); `goal_proposals.status` gains `failed | blocked | expired`.
+- 6 REST endpoints under `/api/goal-executor` (own prefix — `/api/goals/:id` would swallow a sub-path): GET status, GET `/history`, POST `/run` (`{goalId?}`), POST `/expire` (`{hours}`), POST `/start`, POST `/stop`.
+**Also in this phase:**
+- `debate.js` — the whole debate body is now in a try/catch: a crash marks the row `failed` / verdict `abandoned` with the reason instead of leaving `running` forever; `sweepStaleDebates()` closes anything `running` > 30 min at daemon start (closed 463 at first boot).
+- `reflection.js` — two new actions: `run_verifier {goal, language}` (generator-verifier-executor loop; 0 loops had ever run) and `execute_goal {goalId?}`.
+- `metacognitive-monitor.js` — the "unused forged agents" check queried `runs.agent_id`, a column that does not exist (the agent is the prefix of `model`); it always threw and was silently skipped. Fixed to `model LIKE 'agent:%'`.
+**Verified live:** first execution `goal_ec11ce2f88` → agent `bridge-gaps-v1` (keyword match) → `completed` in 124 s; `goal_proposals.status = completed` with `run_id`, `goal_executions` row, two `outcome` memories, bus events, `runs` table +1 done.
+
 ---
 
 ## Content Nexus agent feed 2026-11-05

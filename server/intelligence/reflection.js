@@ -7,6 +7,8 @@ import { runPipeline as opegPipeline } from './opeg.js';
 import { runDebate } from './debate.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
 import { getAdaptiveModifiers, isActionSuppressed } from './adaptive-strategy.js';
+import { runVerifierLoop } from './verifier-loop.js';
+import { runGoalExecutorCycle } from './goal-executor.js';
 import { isResourceConstrained } from './resource-envelope.js';
 import { heart } from '../fraymus-tools.js';
 
@@ -179,6 +181,8 @@ You can take these actions (max ${maxActions} per cycle):
 5. publish_insight: {"action": "publish_insight", "topic": "...", "insight": "..."} — share a finding with other agents
 6. run_debate: {"action": "run_debate", "topic": "...", "proposition": "..."} — trigger an adversarial debate between agents on a controversial or uncertain proposition. Use when you see conflicting evidence, a decision with unclear trade-offs, or an assumption that should be stress-tested.
 7. re_analyze: {"action": "re_analyze", "binaryKey": "...", "reason": "..."} — trigger re-analysis of a previously ingested binary dossier when low-confidence annotations or new tools are available. Check reAgentStats for low-confidence dossiers.
+8. run_verifier: {"action": "run_verifier", "goal": "...", "language": "javascript|python"} — generate code for a small, testable goal and run it through the generator-verifier-executor loop. Use when a hypothesis or pattern in memory could be settled by running code.
+9. execute_goal: {"action": "execute_goal", "goalId": "goal_..."} — run a pending goal proposal through the fleet now (omit goalId to take the highest-priority pending one). Use when proposals are piling up unexecuted.
 
 Rules:
 - Only take actions when there's clear evidence from the data
@@ -279,6 +283,17 @@ async function executeAction(action) {
           },
         });
         return { ok: opegResult.approved, action: 're_analyze', opeg: opegResult.proposalId, approved: opegResult.approved, binaryKey: action.binaryKey };
+      }
+      case 'run_verifier': {
+        if (!action.goal) return { ok: false, error: 'goal required' };
+        const language = action.language === 'python' ? 'python' : 'javascript';
+        const r = await runVerifierLoop(String(action.goal).slice(0, 2000), { language, triggeredBy: 'reflection' });
+        return { ok: r.status === 'passed', action: 'run_verifier', loopId: r.loopId, status: r.status, iterations: r.iterations };
+      }
+      case 'execute_goal': {
+        const goalId = typeof action.goalId === 'string' ? action.goalId.slice(0, 64) : null;
+        const r = await runGoalExecutorCycle({ trigger: 'reflection', goalId });
+        return { ok: r.executed === true && r.status === 'completed', action: 'execute_goal', ...r };
       }
       default:
         return { ok: false, error: `unknown action: ${action.action}` };
