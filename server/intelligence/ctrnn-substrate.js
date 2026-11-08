@@ -37,12 +37,33 @@ export class CTRNNSubstrate {
     // Amplitude the sampled neurons are set to when a state is imposed. 0.15 only
     // registers against a high-gain network; a homeostatic one operates near |B| ~ 1-2.
     this.imposeAmplitude = opts.imposeAmplitude || 0.15;
+    // Grain of a unit. 1 = single neurons (original). >1 = clusters: a homeostatic,
+    // bounded-norm network builds its structure in reciprocal E/I neighbourhoods, and
+    // Phi_MIP over 4 isolated single neurons is 0 for every such network (18 probes) —
+    // integration there needs in-subset gain only a saturated net has. Coarse-graining
+    // to clusters measures at the scale where the living network is integrated.
+    this.clusterSize = Math.max(1, opts.clusterSize | 0 || 1);
+    // What a unit's state IS for the TPM. 'level': sign of B after the horizon (original).
+    // 'drive': sign of the recurrent input the unit received, B(t+h) - B(t)*decay^h.
+    // In a leaky continuous network the imposed level and any interaction decay at the
+    // same rate, so at a short horizon the level is the unit's own past (EI = 4 bits,
+    // Phi = 0: four memory cells) and at a long horizon everything is forgotten
+    // (EI = 0). Drive removes self-persistence and leaves exactly the causal influence
+    // of the other units — the quantity Phi_MIP is defined over.
+    this.stateMode = opts.stateMode === 'drive' ? 'drive' : 'level';
 
     const snap = ctrnn.snapshot();
     this.gridSize = snap.gridSize;
     this.totalN = snap.B.length;
 
-    this.sampleIndices = opts.sampleIndices || this._selectStrategic(this.sampleCount, snap);
+    if (opts.units) this.units = opts.units;
+    else if (opts.sampleIndices) this.units = opts.sampleIndices.map(i => [i]);
+    else if (this.clusterSize > 1) this.units = this._selectClusters(this.sampleCount, this.clusterSize, snap);
+    else this.units = this._selectStrategic(this.sampleCount, snap).map(i => [i]);
+    // Flat member list: isolation set for _eulerRun, and what downstream consumers
+    // (gate's targeted injection, audit row) read as sampleIndices.
+    this.sampleIndices = this.units.flat();
+    this._memberSet = new Set(this.sampleIndices);
 
     this._baseB = new Float64Array(snap.B);
     this._baseW = new Float64Array(snap.W);
@@ -106,25 +127,102 @@ export class CTRNNSubstrate {
     return selected;
   }
 
-  getNodeCount() {
-    return this.sampleIndices.length;
+  // Cluster-grain unit selection. Cluster 1 grows around the neuron with the highest
+  // reciprocal coupling; each further cluster grows around the unused neuron with the
+  // strongest bottleneck (min of in/out) coupling to the union of existing clusters, so
+  // the clusters are mutually connected — a single-unit cut with no inbound influence
+  // makes Phi_MIP exactly 0. Growth adds the unused neuron most coupled to the cluster.
+  _selectClusters(n, size, snap) {
+    const totalN = this.totalN;
+    const W = snap.W;
+    const w = (i, j) => Math.abs(W[i * totalN + j]); // j -> i
+
+    const reciprocal = new Float64Array(totalN);
+    for (let i = 0; i < totalN; i++) {
+      for (let j = 0; j < totalN; j++) {
+        if (i !== j) reciprocal[i] += Math.min(w(i, j), w(j, i));
+      }
+    }
+
+    const used = new Set();
+    const units = [];
+
+    const grow = (seed) => {
+      const members = [seed];
+      used.add(seed);
+      while (members.length < size) {
+        let best = -1, bestScore = 0;
+        for (let i = 0; i < totalN; i++) {
+          if (used.has(i)) continue;
+          let score = 0;
+          for (const m of members) score += w(i, m) + w(m, i);
+          if (score > bestScore) { bestScore = score; best = i; }
+        }
+        if (best < 0) break;
+        members.push(best);
+        used.add(best);
+      }
+      return members;
+    };
+
+    let seed = 0;
+    for (let i = 1; i < totalN; i++) if (reciprocal[i] > reciprocal[seed]) seed = i;
+    units.push(grow(seed));
+
+    while (units.length < n) {
+      const existing = units.flat();
+      let best = -1, bestScore = -1, fallback = -1, fallbackScore = -1;
+      for (let i = 0; i < totalN; i++) {
+        if (used.has(i)) continue;
+        let inbound = 0, outbound = 0;
+        for (const m of existing) { inbound += w(i, m); outbound += w(m, i); }
+        const bottleneck = Math.min(inbound, outbound);
+        if (bottleneck > bestScore) { bestScore = bottleneck; best = i; }
+        if (inbound + outbound > fallbackScore) { fallbackScore = inbound + outbound; fallback = i; }
+      }
+      const next = bestScore > 0 ? best : fallback;
+      if (next < 0) break;
+      units.push(grow(next));
+    }
+
+    return units;
   }
 
-  // Binarize: activation > 0 → 1, else 0
+  getNodeCount() {
+    return this.units.length;
+  }
+
+  // Binarize: a unit is 1 when its mean activation > 0 (single neuron: B > 0)
   _binarize(B) {
     let bits = 0;
-    for (let i = 0; i < this.sampleIndices.length; i++) {
-      if (B[this.sampleIndices[i]] > 0) bits |= (1 << i);
+    for (let u = 0; u < this.units.length; u++) {
+      const members = this.units[u];
+      let sum = 0;
+      for (const idx of members) sum += B[idx];
+      if (sum > 0) bits |= (1 << u);
     }
     return bits;
   }
 
-  // Set sampled neurons to match a binary state vector, keep others at base
+  _unitMean(B, u) {
+    let sum = 0;
+    for (const idx of this.units[u]) sum += B[idx];
+    return sum / this.units[u].length;
+  }
+
+  // Set every member of each unit coherently to match a binary state vector, keep others at base
   _imposeState(B, stateBits) {
     const imposed = new Float64Array(B);
-    for (let i = 0; i < this.sampleIndices.length; i++) {
-      const idx = this.sampleIndices[i];
-      imposed[idx] = ((stateBits >> i) & 1) === 1 ? this.imposeAmplitude : -this.imposeAmplitude;
+    // Drive mode imposes relative to each neuron's tanh centre (-Theta). Intrinsic
+    // plasticity drifts Theta to ~-0.5 against a mean drive of ~1.7; an absolute +-0.5
+    // then yields tanh(-0.05) and tanh(-1.05) — the same sign either way — so no unit's
+    // input ever flips with the imposed state and EI reads 0.
+    const relative = this.stateMode === 'drive';
+    for (let u = 0; u < this.units.length; u++) {
+      const sign = ((stateBits >> u) & 1) === 1 ? 1 : -1;
+      for (const idx of this.units[u]) {
+        imposed[idx] = (relative ? -this._baseTheta[idx] : 0) + sign * this.imposeAmplitude;
+      }
     }
     return imposed;
   }
@@ -174,13 +272,18 @@ export class CTRNNSubstrate {
       // Start from base state with noise
       const startB = this._imposeState(this._baseB, stateBits);
       for (let i = 0; i < N; i++) {
-        if (!this.sampleIndices.includes(i)) {
+        if (!this._memberSet.has(i)) {
           startB[i] += (Math.random() - 0.5) * 0.05;
         }
       }
 
       const nextB = this._eulerRun(startB, this._baseW, this._baseTheta, this.stepsPerSample, this.sampleIndices);
-      if (nextB[this.sampleIndices[nodeIndex]] > 0) ones++;
+      let value = this._unitMean(nextB, nodeIndex);
+      if (this.stateMode === 'drive') {
+        const decay = Math.pow(1 - 16.67 / 50, this.stepsPerSample);
+        value -= this._unitMean(startB, nodeIndex) * decay;
+      }
+      if (value > 0) ones++;
     }
 
     return Math.max(1e-6, Math.min(1 - 1e-6, ones / this.samplesPerState));
@@ -188,7 +291,7 @@ export class CTRNNSubstrate {
 
   // Pre-compute full TPM for all states — expensive but used by Phi_MIP
   buildTPM() {
-    const n = this.sampleIndices.length;
+    const n = this.units.length;
     const numStates = 1 << n;
     const tpm = [];
 
@@ -205,7 +308,7 @@ export class CTRNNSubstrate {
   }
 
   runSelfModelingTrial(steps, mirrorEnabled, counterfactualEnabled, seed = 42) {
-    const n = this.sampleIndices.length;
+    const n = this.units.length;
     const N = this.totalN;
     const numStates = 1 << n;
     const trapState = numStates - 1;
@@ -221,8 +324,8 @@ export class CTRNNSubstrate {
 
     let currentB = new Float64Array(this._baseB);
     // Start near the decision boundary so noise drives exploration of many states
-    for (let i = 0; i < this.sampleIndices.length; i++) {
-      currentB[this.sampleIndices[i]] = (rng() - 0.5) * 0.02;
+    for (const idx of this.sampleIndices) {
+      currentB[idx] = (rng() - 0.5) * 0.02;
     }
 
     let totalSurprise = 0;
@@ -261,8 +364,9 @@ export class CTRNNSubstrate {
           certs.sort((a, b) => a.cert - b.cert);
           const flipCount = Math.min(2, n);
           for (let f = 0; f < flipCount; f++) {
-            const idx = this.sampleIndices[certs[f].i];
-            currentB[idx] = -Math.sign(currentB[idx] || 0.01) * 2.5;
+            const u = certs[f].i;
+            const sign = Math.sign(this._unitMean(currentB, u) || 0.01);
+            for (const idx of this.units[u]) currentB[idx] = -sign * 2.5;
           }
         }
       }
@@ -324,6 +428,8 @@ export function auditCTRNNConsciousness(ctrnn, opts = {}) {
     stepsPerSample = 3,
     trialSteps = 400,
     imposeAmplitude = 0.15,
+    clusterSize = 1,
+    stateMode = 'level',
   } = opts;
 
   const t0 = Date.now();
@@ -333,6 +439,8 @@ export function auditCTRNNConsciousness(ctrnn, opts = {}) {
     samplesPerState,
     stepsPerSample,
     imposeAmplitude,
+    clusterSize,
+    stateMode,
   });
 
   // Build the empirical TPM (needed for EI and Phi_MIP)
@@ -340,8 +448,11 @@ export function auditCTRNNConsciousness(ctrnn, opts = {}) {
 
   // Import proof functions dynamically to avoid circular deps
   const results = {
-    substrate: 'CTRNNLiveCore',
+    substrate: `CTRNNLiveCore${substrate.clusterSize > 1 ? ':cluster' + substrate.clusterSize : ''}${substrate.stateMode === 'drive' ? ':drive' : ''}`,
     sampleIndices: substrate.sampleIndices,
+    units: substrate.units,
+    clusterSize: substrate.clusterSize,
+    stateMode: substrate.stateMode,
     gridSize: substrate.gridSize,
     totalNeurons: substrate.totalN,
     sampledNeurons: substrate.getNodeCount(),

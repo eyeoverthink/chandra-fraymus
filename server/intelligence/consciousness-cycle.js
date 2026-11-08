@@ -57,11 +57,20 @@ export function runConsciousnessAudit({ trigger = 'daemon', sampleCount = 4 } = 
   // value. The previous override of 15 (five time constants) measured attractor
   // persistence rather than one-step causal effect: only a saturated high-gain network
   // could pass, and a homeostatic one read EI = 0 in 18 of 18 probe runs.
+  // stateMode 'drive': a unit's state is the recurrent input it received, not its leaky
+  // level — the level is the unit's own past at short horizons (EI 4 bits, Phi 0) and
+  // forgotten at long ones (EI 0). Drive is the first setting under which a living,
+  // homeostatic network scores Phi > 0 that varies with its structure. imposeAmplitude
+  // 0.5 matches the network's operating range (|B| ~ 1-2). clusterSize > 1 switches the
+  // unit to coherent neuron clusters (CTRNN_AUDIT_CLUSTER env).
   const result = auditCTRNNConsciousness(ctrnn, {
     sampleCount,
     samplesPerState: 32,
     stepsPerSample: 3,
     trialSteps: 200,
+    stateMode: 'drive',
+    imposeAmplitude: 0.5,
+    clusterSize: Math.max(1, parseInt(process.env.CTRNN_AUDIT_CLUSTER) || 1),
   });
 
   const proofsPassed = Object.values(result.proofs).filter(p => p.passed).length;
