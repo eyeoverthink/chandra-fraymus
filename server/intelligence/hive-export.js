@@ -131,17 +131,19 @@ function collectDebateVerdicts(since) {
 
 function collectGoalProposals(since) {
   try {
+    // goal_proposals has objective/rationale, not title/description — the old query
+    // threw on every export and goals never reached the ledger.
     const rows = db.prepare(
-      `SELECT id, title, description, priority, status, source, created_at
+      `SELECT id, objective, rationale, priority, status, source, created_at
        FROM goal_proposals WHERE created_at > ? ORDER BY created_at ASC`
     ).all(since);
     return rows.map(r => ({
       type: 'goal',
-      claim: `Goal proposed: "${(r.title || 'unknown').slice(0, 80)}" [${r.priority || 'normal'}]`,
+      claim: `Goal proposed: "${(r.objective || 'unknown').slice(0, 80)}" [${r.priority || 'normal'}]`,
       evidence: {
         goalId: r.id,
-        title: r.title,
-        description: (r.description || '').slice(0, 200),
+        objective: r.objective,
+        rationale: (r.rationale || '').slice(0, 200),
         priority: r.priority,
         status: r.status,
         source: r.source,
@@ -152,6 +154,39 @@ function collectGoalProposals(since) {
     return [];
   }
 }
+
+// Phase U: what the organism actually did and how well — the receipts the hive should care about most.
+function collectGoalOutcomes(since) {
+  try {
+    const rows = db.prepare(
+      `SELECT e.id, e.goal_id, e.agent_id, e.status, e.quality, e.duration_ms, e.finished_at, g.objective
+       FROM goal_executions e LEFT JOIN goal_proposals g ON g.id = e.goal_id
+       WHERE e.finished_at > ? AND e.status IN ('completed','failed','blocked') ORDER BY e.finished_at ASC`
+    ).all(since);
+    return rows.map(r => ({
+      type: 'goal_outcome',
+      claim: `Goal ${r.status} by ${r.agent_id} (quality ${r.quality == null ? 'unscored' : r.quality.toFixed(2)}): "${(r.objective || r.goal_id).slice(0, 80)}"`,
+      evidence: { executionId: r.id, goalId: r.goal_id, agentId: r.agent_id, status: r.status, quality: r.quality, durationMs: r.duration_ms },
+      ts: new Date(r.finished_at).toISOString(),
+    }));
+  } catch (_) { return []; }
+}
+
+function collectSelfAudits(since) {
+  try {
+    const rows = db.prepare(
+      `SELECT id, trigger, findings, blocking, real, cosmetic, clean_checks, created_at FROM self_audit_runs WHERE created_at > ? ORDER BY created_at ASC`
+    ).all(since);
+    return rows.map(r => ({
+      type: 'self_audit',
+      claim: `Self-audit (${r.trigger}): ${r.findings} findings — ${r.blocking} blocking, ${r.real} real, ${r.cosmetic} cosmetic`,
+      evidence: { runId: r.id, trigger: r.trigger, findings: r.findings, blocking: r.blocking, real: r.real, cosmetic: r.cosmetic, cleanChecks: safeParse(r.clean_checks, []) },
+      ts: new Date(r.created_at).toISOString(),
+    }));
+  } catch (_) { return []; }
+}
+
+function safeParse(s, fallback) { try { return JSON.parse(s); } catch (_) { return fallback; } }
 
 function collectConsciousnessAudits(since) {
   try {
@@ -215,9 +250,11 @@ export function exportChandraReceipts({ since, exportPath } = {}) {
   const debates = collectDebateVerdicts(lookback);
   const goals = collectGoalProposals(lookback);
   const consciousness = collectConsciousnessAudits(lookback);
+  const outcomes = collectGoalOutcomes(lookback);
+  const audits = collectSelfAudits(lookback);
 
   // Merge and sort chronologically
-  const allEvents = [...reflections, ...debates, ...goals, ...consciousness]
+  const allEvents = [...reflections, ...debates, ...goals, ...consciousness, ...outcomes, ...audits]
     .sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
 
   if (allEvents.length === 0) {
@@ -269,6 +306,8 @@ export function exportChandraReceipts({ since, exportPath } = {}) {
         debate_verdict: debates.length,
         goal: goals.length,
         consciousness: consciousness.length,
+        goal_outcome: outcomes.length,
+        self_audit: audits.length,
       },
       durationMs: duration,
     }));
@@ -284,6 +323,8 @@ export function exportChandraReceipts({ since, exportPath } = {}) {
       debate_verdict: debates.length,
       goal: goals.length,
       consciousness: consciousness.length,
+      goal_outcome: outcomes.length,
+      self_audit: audits.length,
     },
     durationMs: duration,
   };

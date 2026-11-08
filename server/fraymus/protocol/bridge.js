@@ -9,7 +9,7 @@ const MESSAGES_DIR = join(BRIDGE_REPO_PATH, 'messages');
 const SEQ_PATTERN = /^(\d{3})-(.+)\.md$/;
 
 const KNOWN_AGENTS = [
-  'niles', 'cadence', 'counterpoint', 'genesis', 'spearhead', 'tycho', 'kepler',
+  'chandra', 'niles', 'cadence', 'counterpoint', 'genesis', 'spearhead', 'tycho', 'kepler',
   'ouro', 'eye', 'fraymus', 'hermes', 'ohgee', 'dreamer', 'claudette',
   'hub', 'fleet', 'box-seat', 'devarchive', 'mnemo', 'assay',
 ];

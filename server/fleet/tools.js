@@ -19,6 +19,8 @@ import { getHabituationStatus } from '../intelligence/habituation.js';
 import { getWorkingMemoryStatus, queryWorkingMemory } from '../intelligence/working-memory.js';
 import { getMetacognitiveStatus, getStrategyRecommendation } from '../intelligence/metacognitive-monitor.js';
 import { runSelfAudit, getOpenFindings, getSelfAuditStatus } from '../intelligence/self-audit.js';
+import { getHiveMeshStatus, registerOnHub } from '../intelligence/hive-mesh.js';
+import { getHivePeersStatus, syncBridge, postDigest } from '../intelligence/hive-peers.js';
 import { getAdaptiveStatus, getAdaptiveModifiers, isActionSuppressed, isActionPreferred } from '../intelligence/adaptive-strategy.js';
 import { getSelfModelStatus, getSystemMap, lookupSubsystem, buildSpatialContext, buildSubsystemContext } from '../intelligence/self-model.js';
 import { getResourceEnvelopeStatus, getResourcePressure, isResourceConstrained, triggerEnvelopeCycle } from '../intelligence/resource-envelope.js';
@@ -471,6 +473,21 @@ export function createFleetTools({ workflowStore }) {
         const s = getSelfAuditStatus();
         ledger.record('self_audit.read', { ...s.open }, 'fleet');
         return s;
+      },
+    },
+    {
+      name: 'hive_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Read the hive: NUDP mesh node (source id, port, seeded/heard peers), V13 hub registration and directory (who is online), and the fraymus-bridge peer adapter (messages ingested per registry agent, last digest). Mode "sync" pulls the bridge and ingests new fleet messages now; mode "register" re-registers on the hub; mode "digest" posts a Chandra digest to the bridge (committed locally; pushed only when HIVE_BRIDGE_PUSH=1).',
+      parameters: object({
+        mode: { type: 'string', description: 'Optional: "sync", "register", or "digest"' },
+      }),
+      execute: async (params) => {
+        if (params.mode === 'sync') { const r = await syncBridge({ trigger: 'fleet' }); ledger.record('hive.sync', { ingested: r.ingest?.ingested }, 'fleet'); return r; }
+        if (params.mode === 'register') return registerOnHub();
+        if (params.mode === 'digest') { const r = await postDigest({ force: true }); ledger.record('hive.digest', { posted: r.posted, seq: r.seq }, 'fleet'); return r; }
+        return { mesh: getHiveMeshStatus(), peers: getHivePeersStatus() };
       },
     },
     {

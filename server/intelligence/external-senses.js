@@ -124,11 +124,17 @@ async function pollMesh() {
   try { udpPeers = getNode()?.peers?.()?.length || 0; } catch (_) {}
   let dbPeers = 0;
   try { dbPeers = db.prepare(`SELECT COUNT(*) as c FROM nudp_peers WHERE last_seen > ?`).get(now() - 600_000)?.c || 0; } catch (_) {}
-  const live = hubOnline + hubIdle * 0.5 + Math.max(udpPeers, dbPeers);
+  // Phase U: the fleet talks on the fraymus-bridge; messages ingested in 24 h are peers speaking.
+  let bridgeIn24h = 0, bridgeAgents24h = 0;
+  try {
+    const r = db.prepare(`SELECT COUNT(*) as c, COUNT(DISTINCT agent) as a FROM hive_bridge_messages WHERE direction = 'in' AND ingested_at > ?`).get(now() - DAY);
+    bridgeIn24h = r?.c || 0; bridgeAgents24h = r?.a || 0;
+  } catch (_) {}
+  const live = hubOnline + hubIdle * 0.5 + Math.max(udpPeers, dbPeers) + bridgeAgents24h;
   return {
     value: clamp01(live / 5),
-    source: hubError ? (udpPeers || dbPeers ? 'nudp' : 'unreachable') : 'hub+nudp',
-    detail: { hubOnline, hubIdle, hubTotal, udpPeers, dbPeers, relay: DEFAULT_RELAY, hubError },
+    source: hubError ? (udpPeers || dbPeers || bridgeIn24h ? 'nudp+bridge' : 'unreachable') : 'hub+nudp+bridge',
+    detail: { hubOnline, hubIdle, hubTotal, udpPeers, dbPeers, bridgeIn24h, bridgeAgents24h, relay: DEFAULT_RELAY, hubError },
     error: hubError,
   };
 }

@@ -11,6 +11,8 @@ import { sweepStaleDebates } from '../intelligence/debate.js';
 import { agentQualityStats } from '../intelligence/outcome-scorer.js';
 import { startExternalSenses, stopExternalSenses, getExternalSensesStatus } from '../intelligence/external-senses.js';
 import { startSelfAudit, stopSelfAudit, getSelfAuditStatus } from '../intelligence/self-audit.js';
+import { startHiveMesh, stopHiveMesh, getHiveMeshStatus } from '../intelligence/hive-mesh.js';
+import { startHivePeers, stopHivePeers, getHivePeersStatus } from '../intelligence/hive-peers.js';
 import { runCycle as runOuroborosCycle } from '../intelligence/ouroboros-cycle.js';
 import { snapshotState, pruneFossils } from '../intelligence/state-bridge.js';
 import { runConsciousnessAudit } from '../intelligence/consciousness-cycle.js';
@@ -632,6 +634,17 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     console.error('self-audit start error:', e.message);
   }
 
+  // Phase U: hive — NUDP node + V13 hub registration, and the fraymus-bridge peer adapter
+  startHiveMesh().then(s => {
+    console.log(`[hive-mesh] node ${s.node?.running ? 'up' : 'down'} on :${s.node?.port} as ${s.identity?.number}, ${s.peers.length} peer(s) seeded, hub ${s.hub.registered ? 'registered' : 'not registered' + (s.hub.lastError ? ` (${s.hub.lastError})` : '')}`);
+  }).catch(e => console.error('hive mesh start error:', e.message));
+  try {
+    const hp = startHivePeers();
+    console.log(`[hive-peers] bridge sync every ${hp.intervalMs / 60000} min (pull ${hp.pull ? 'on' : 'off'}, push ${hp.push ? 'on' : 'off — set HIVE_BRIDGE_PUSH=1 to publish digests'})`);
+  } catch (e) {
+    console.error('hive peers start error:', e.message);
+  }
+
   // Phase 14: Start metacognitive monitor (30s cycle — self-assessment)
   try {
     startMetacognitiveMonitor();
@@ -764,6 +777,8 @@ export function stopDaemon() {
   try { stopGoalExecutor(); } catch (_) {}
   try { stopExternalSenses(); } catch (_) {}
   try { stopSelfAudit(); } catch (_) {}
+  try { stopHiveMesh(); } catch (_) {}
+  try { stopHivePeers(); } catch (_) {}
   // Phase 15: Reset adaptive strategy with daemon
   try { resetAdaptiveStrategy(); } catch (_) {}
   // Phase 17: Reset self-model with daemon
@@ -818,6 +833,8 @@ export function getDaemonStatus() {
     goalExecutor: getGoalExecutorStatus(),
     externalSenses: getExternalSensesStatus(),
     selfAudit: (() => { const s = getSelfAuditStatus(); return { running: s.running, open: s.open, lastRun: s.lastRun && { at: s.lastRun.at, counts: s.lastRun.counts, clean: s.lastRun.clean } }; })(),
+    hiveMesh: (() => { const s = getHiveMeshStatus(); return { running: s.running, number: s.identity?.number, port: s.node?.port, peers: s.peers.length, heardFrom: s.heardFromPeers, hubRegistered: s.hub.registered, hubOnline: s.hub.online }; })(),
+    hivePeers: (() => { const s = getHivePeersStatus(); return { running: s.running, messages: s.messages, peers: s.peers.length, lastSeenSeq: s.lastSeenSeq, push: s.config.push }; })(),
     adaptiveStrategy: getAdaptiveStatus(),
     selfModel: getSelfModelStatus(),
     resourceEnvelope: getResourceEnvelopeStatus(),

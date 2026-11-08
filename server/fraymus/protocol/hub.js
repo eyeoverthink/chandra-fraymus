@@ -11,7 +11,11 @@ function makeRelay(baseUrl = DEFAULT_RELAY) {
       ? `${baseUrl}/api/v13/agents`
       : `${baseUrl}/api/v13/agents/${action}`;
     const method = action === 'directory' ? 'GET' : 'POST';
-    const opts = { method, headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15_000) };
+    // The hub accepts the public directory unauthenticated but requires a bearer token
+    // for register/send/inbox/retire. Operator-provided; never baked into source.
+    const token = process.env.FRAYMUS_HUB_TOKEN || process.env.FRAYMUS_TOKEN;
+    const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+    const opts = { method, headers, signal: AbortSignal.timeout(15_000) };
     if (method === 'POST') opts.body = JSON.stringify(body);
     const resp = await fetch(endpoint, opts);
     return resp.json();

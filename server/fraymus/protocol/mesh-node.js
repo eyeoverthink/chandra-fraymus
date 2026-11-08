@@ -56,6 +56,13 @@ class SealedLog {
   close() { this._stream.end(); }
 }
 
+// djb2 over "addr:port" — stable synthetic id for a seeded peer until it identifies itself
+function hashAddr(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
 // ── Peer tracker ─────────────────────────────────────
 class PeerTracker {
   constructor() { this._peers = new Map(); }
@@ -98,12 +105,47 @@ export class MeshNode {
       this._socket = null;
     }
 
+    // Phase U: peers only lived in memory, so a restart forgot everyone and — since
+    // _broadcast only sends to known peers — a fresh node never sent a single HELLO.
+    this._loadPersistedPeers();
+
     this._helloTimer = setInterval(() => {
       const pkt = helloPacket(this._sourceId);
       this._broadcast(pkt);
     }, HELLO_INTERVAL_MS);
+    // Say hello immediately so seeded peers hear us within seconds, not 30 s.
+    try { this._broadcast(helloPacket(this._sourceId)); } catch {}
 
-    return { started: true, port: NUDP_PORT, sourceId: this._sourceId };
+    return { started: true, port: NUDP_PORT, sourceId: this._sourceId, peers: this._peers.list().length };
+  }
+
+  // Seed a peer we have not heard from yet (a configured neighbour such as the Pi).
+  // Its real sourceId replaces the synthetic one the moment it sends a valid packet.
+  addPeer({ addr, port, sourceId, label } = {}) {
+    if (!addr || !port) return { added: false, error: 'addr and port required' };
+    const id = sourceId ?? (hashAddr(`${addr}:${port}`));
+    this._peers.seen(id, { addr, port: Number(port), seeded: true, label: label || null });
+    this._persistPeer(id, addr, Number(port), { seeded: true, label: label || null });
+    return { added: true, sourceId: id, addr, port: Number(port) };
+  }
+
+  _persistPeer(sourceId, addr, port, meta = {}) {
+    try {
+      db.prepare(`INSERT INTO nudp_peers (source_id, addr, port, last_seen, hello_count, meta) VALUES (?, ?, ?, ?, 1, ?)
+        ON CONFLICT(source_id) DO UPDATE SET addr = excluded.addr, port = excluded.port, last_seen = excluded.last_seen, hello_count = hello_count + 1`)
+        .run(sourceId, addr || null, port || null, Date.now(), JSON.stringify(meta));
+    } catch {}
+  }
+
+  _loadPersistedPeers() {
+    try {
+      const rows = db.prepare(`SELECT source_id, addr, port, meta FROM nudp_peers WHERE last_seen > ? AND addr IS NOT NULL`).all(Date.now() - 7 * 86400_000);
+      for (const r of rows) {
+        let meta = {};
+        try { meta = JSON.parse(r.meta || '{}'); } catch {}
+        this._peers.seen(r.source_id, { addr: r.addr, port: r.port, ...meta, restored: true });
+      }
+    } catch {}
   }
 
   stop() {
@@ -132,6 +174,7 @@ export class MeshNode {
       if (!pkt.valid) { this._stats.dropped++; return; }
       this._stats.received++;
       this._peers.seen(pkt.sourceId, { addr: rinfo?.address, port: rinfo?.port });
+      this._persistPeer(pkt.sourceId, rinfo?.address, rinfo?.port, { type: pkt.typeName });
 
       if (this._dedup.seen(pkt.sourceId, pkt.seq)) {
         this._stats.dropped++;

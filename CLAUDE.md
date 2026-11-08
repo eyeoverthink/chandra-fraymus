@@ -131,6 +131,12 @@ npm run start        # production server (serves built client)
 - 5 REST endpoints under `/api/intelligence/self-audit`; fleet tool `self_audit_status`
 - **When adding an autonomous action, ask what the self-audit would say about it:** does it dedup, does it have a consumer, does it leave rows in a transient state on crash. Debates now dedup on topic for 24 h (`config.allowRepeat` to override); goals dedup on objective for 7 days across all statuses
 
+### Hive (server/intelligence/hive-mesh.js + hive-peers.js) — Phase U
+- `hive-mesh.js` — NUDP node started at daemon start (`createNode` with `sourceIdFromPubkey(systemIdentity.pubkey)`), peers seeded from `MESH_PEERS` (default `10.0.0.162:47100`, the Pi's fmp1 — different protocol, roster join is an operator step), V13 hub `liveRegister` every 10 min + directory read. `mesh-node.js`: `addPeer()`, peers persisted to `nudp_peers`, restored on start, immediate HELLO. Hub needs `FRAYMUS_HUB_TOKEN` (hub.js sends it as Bearer when set); without it registration reports `unauthorized` and `operatorSteps` says so
+- `hive-peers.js` — fraymus-bridge adapter (repo at `BRIDGE_REPO_PATH`, env `FRAYMUS_BRIDGE_PATH`). Inbound every 5 min: `git pull --ff-only` → new messages → bus `hive.bridge.<agent>` + `agent_memories` category `hive_message` for the registry agent. First run backfills `HIVE_BRIDGE_BACKFILL` (10). Outbound: hourly digest via `postMessage('chandra', …)`, committed as Chandra-FRAYMUS, **pushed only with `HIVE_BRIDGE_PUSH=1`**. Tables `hive_bridge_state`, `hive_bridge_messages`. `'chandra'` added to bridge KNOWN_AGENTS
+- `hive-export.js` fixed (`objective/rationale`, not `title/description`) + receipt types `goal_outcome`, `self_audit`
+- 7 REST endpoints under `/api/intelligence/hive-mesh` and `/api/intelligence/hive-peers`; fleet tool `hive_status`
+
 ### Autonomous Neurogenesis Engine (server/intelligence/neurogenesis.js)
 - `neurogenesis.js` — Prevents degenerate sparse connectivity by spontaneously re-igniting dead connections. Connectivity score = weighted composite of agent activity (0.30), memory health (0.25), bus traffic (0.25), workflow activity (0.20) minus health penalty.
 - Below floor (0.15) → emergency: bus stimulus + memory seed + OPEG-gated forge

@@ -110,6 +110,8 @@ import { installGoalRoutes } from './intelligence/goal-engine.js';
 import { installGoalExecutorRoutes } from './intelligence/goal-executor.js';
 import { installExternalSensesRoutes } from './intelligence/external-senses.js';
 import { installSelfAuditRoutes } from './intelligence/self-audit.js';
+import { installHiveMeshRoutes } from './intelligence/hive-mesh.js';
+import { installHivePeersRoutes } from './intelligence/hive-peers.js';
 import { installDebateRoutes } from './intelligence/debate.js';
 import { installModelRouterRoutes } from './intelligence/model-router.js';
 import { installPerspectiveRoutes, briefNextInstance, getInstanceId } from './intelligence/perspective.js';
@@ -340,6 +342,8 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installGoalExecutorRoutes(app);
   installExternalSensesRoutes(app);
   installSelfAuditRoutes(app);
+  installHiveMeshRoutes(app);
+  installHivePeersRoutes(app);
   installDebateRoutes(app);
   installModelRouterRoutes(app);
   installPerspectiveRoutes(app);
