@@ -71,7 +71,17 @@ async function pull() {
     const before = await git(['rev-parse', '--short', 'HEAD']);
     await git(['pull', '--ff-only', '--quiet']);
     const after = await git(['rev-parse', '--short', 'HEAD']);
-    return { pulled: true, before, after, changed: before !== after };
+    const result = { pulled: true, before, after, changed: before !== after };
+    // Digests committed while push was off (or while a push failed) are still local.
+    // With push enabled, deliver them on the next sync rather than waiting for a new digest.
+    if (PUSH) {
+      const ahead = parseInt(await git(['rev-list', '--count', '@{u}..HEAD']), 10) || 0;
+      if (ahead > 0) {
+        try { await git(['push', '--quiet'], { timeout: 120_000 }); result.pushedPending = ahead; }
+        catch (e) { result.pushError = e.message.slice(0, 200); }
+      }
+    }
+    return result;
   } catch (e) {
     return { pulled: false, error: e.message.slice(0, 200) };
   }
