@@ -40,6 +40,13 @@ async function collectMetrics() {
     const data = await r.json();
     metrics.ollama_up = 1;
     metrics.ollama_models = (data.models || []).length;
+    // Alerts stayed open forever once raised; a stale ollama_down backlog was pinning the
+    // neurogenesis health penalty at its cap and forcing a permanent emergency loop.
+    const cleared = db.prepare(`UPDATE health_alerts SET resolved = 1 WHERE rule = 'ollama_down' AND resolved = 0`).run().changes;
+    if (cleared > 0) {
+      broadcastFn('health', { event: 'alert_resolved', rule: 'ollama_down', count: cleared });
+      publish('system', 'system.alert', { rule: 'ollama_down', severity: 'info', message: `Ollama reachable again; resolved ${cleared} open alert(s)` });
+    }
   } catch {
     metrics.ollama_up = 0;
     metrics.ollama_models = 0;

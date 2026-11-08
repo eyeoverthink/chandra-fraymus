@@ -205,6 +205,19 @@ Work happens on `master`. Always commit + push when done. The infrastructure sta
 | M | config-mgr/ | 14 | 4 |
 | **Total** | **9 modules** | **111 endpoints** | **30 tabs** |
 
+### Phase N: Autonomy Loop Hardening (2026-11-08)
+**Why:** A live audit (`F:\Claude-Work\chandra-superintelligence\SUPERINTELLIGENCE-ROADMAP.md`) found the neurogenesis engine had forged **2,975 duplicate agents** from 169 goals (one goal 748 times) because 68 never-resolved `ollama_down` alerts pinned the connectivity penalty at its cap, making every 2-minute cycle an "emergency". Forging a manifest can never raise the agent-activity signal that ends the emergency, so the loop ran for days. 1,433 consciousness audits recorded 0 synapses (wrong snapshot field) and a constant Φ=0.7718 (synapses saturated at the 2.0 clamp).
+**What changed:**
+- `fleet/forge.js` — `checkForgeAllowed(goal)`: 7-day normalized-goal dedup + hard cap of 30 forged agents. `forgeAgent()` returns `{forged:false, reason}` instead of forging; `POST /api/fleet/forge` answers 409 on a duplicate, `force:true` bypasses.
+- `intelligence/neurogenesis.js` — absolute activity targets (5 runs/h, 20 memory touches/h) replace ratios whose denominators the stimuli themselves grew; health penalty counts only alerts from the last 24h; emergency streak counter suppresses forge/memory-seed after 3 flat cycles; `diagnosis` lists the weakest score terms; `system.neurogenesis.escalation` bus event at streaks 3/10/50/200.
+- `health/monitor.js` — resolves open `ollama_down` alerts the moment Ollama answers again.
+- `gateway/rate-limiter.js` — GET/HEAD requests use a shared 600/min `_read` budget; per-route limits now apply to writes only (the Command Center alone exceeded the old 30/min `/api/intelligence` cap and showed DORMANT while the gate was INTEGRATED).
+- `intelligence/consciousness-cycle.js` — audit rows record `snap.metrics.activeSynapses` (was `snap.stats`, always 0).
+- `fraymus/core/constants.js` — autonomy registry model labels are all `ollama/*` installed models (were `anthropic/*` placeholders).
+- `app.js` — CTRNN core starts at boot with autonomy + daemon (previously only via manual `POST /api/fraymus/ctrnn/start`; a restart left the consciousness stack auditing a dead network).
+- 3,039 machine-forged manifests moved to `data/agents-archive/`, their rows to `forged_agents_archive` (script: `F:\Claude-Work\chandra-superintelligence\archive-forged-agents.mjs`).
+**Verified live:** connectivity 0.40 (floor 0.15), streak 0, manual cycle = Poisson/no forge; 60 burst GETs → 60×200; forge same goal twice → 201 then 409; `ollama_down` open alerts 68 → 0; audit row synapses 0 → 27,063; fleet 52 manifests (20 default + 32 forged).
+
 ---
 
 ## Content Nexus agent feed 2026-11-05

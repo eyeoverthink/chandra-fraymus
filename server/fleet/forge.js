@@ -42,8 +42,34 @@ function validateManifest(manifest) {
   return manifest;
 }
 
-export async function forgeAgent(goal, { context, forgedBy = 'system' } = {}) {
+const FORGE_DEDUP_WINDOW_MS = 7 * 24 * 3600_000;
+const MAX_FORGED_AGENTS = 30;
+
+const normalizeGoal = g => g.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+export function checkForgeAllowed(goal) {
+  const total = db.prepare(`SELECT COUNT(*) as c FROM forged_agents`).get()?.c || 0;
+  if (total >= MAX_FORGED_AGENTS) {
+    return { allowed: false, reason: 'forge_cap_reached', total, cap: MAX_FORGED_AGENTS };
+  }
+  const wanted = normalizeGoal(goal);
+  const recent = db.prepare(`SELECT agent_id, goal, created_at FROM forged_agents WHERE created_at > ? ORDER BY created_at DESC LIMIT 500`)
+    .all(now() - FORGE_DEDUP_WINDOW_MS);
+  const dup = recent.find(r => normalizeGoal(r.goal || '') === wanted);
+  if (dup) return { allowed: false, reason: 'duplicate_goal', existingAgentId: dup.agent_id, forgedAt: dup.created_at };
+  return { allowed: true, total, cap: MAX_FORGED_AGENTS };
+}
+
+export async function forgeAgent(goal, { context, forgedBy = 'system', force = false } = {}) {
   if (!goal || typeof goal !== 'string') throw new Error('goal is required');
+
+  if (!force) {
+    const check = checkForgeAllowed(goal);
+    if (!check.allowed) {
+      console.warn(`[forge] suppressed (${check.reason}) for "${goal.slice(0, 80)}" by ${forgedBy}`);
+      return { forged: false, ...check, agent: check.existingAgentId ? { id: check.existingAgentId } : null };
+    }
+  }
 
   const prompt = context
     ? `Goal: ${goal}\n\nAdditional context: ${context}`
@@ -113,10 +139,10 @@ export function installForgeRoutes(app) {
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
 
   app.post('/api/fleet/forge', route(async (req, res) => {
-    const { goal, context } = req.body;
+    const { goal, context, force } = req.body;
     if (!goal) return res.status(400).json({ error: 'goal required' });
-    const result = await forgeAgent(goal, { context, forgedBy: 'api' });
-    res.status(201).json(result);
+    const result = await forgeAgent(goal, { context, forgedBy: 'api', force: force === true });
+    res.status(result.forged ? 201 : 409).json(result);
   }));
 
   app.get('/api/fleet/forge/history', route((_req, res) => {

@@ -68,6 +68,7 @@ npm run start        # production server (serves built client)
 - DB table: `forged_agents` (agent_id, forged_by, goal, context, created_at)
 - 3 REST endpoints: POST forge, GET forge/history, DELETE forge/:agentId
 - 2 agent tools: `agent_forge`, `agent_list_forged`
+- **Phase N guard:** `checkForgeAllowed(goal)` — 7-day normalized-goal dedup + cap of 30 forged agents (`MAX_FORGED_AGENTS`). `forgeAgent()` returns `{ forged: false, reason: 'duplicate_goal' | 'forge_cap_reached' }` rather than forging; callers must check `result.forged`. `force: true` bypasses (API passes `body.force`). Archived machine-forged rows live in `forged_agents_archive`.
 
 ### Workflow Synthesis (server/workflow/synthesizer.js)
 - `synthesizer.js` — LLM-driven workflow composition: goal → Ollama → select from 33 node types (NODE_CATALOG) → validate DAG (topoSort cycle check) → save to DB
@@ -105,7 +106,8 @@ npm run start        # production server (serves built client)
 - Above floor → Poisson(λ*(1-score)) probabilistic stimulus injection
 - Wired into autonomy engine on 2-minute cycle; emergency triggers survival dreams
 - DB table: `neurogenesis_events` (id, trigger_type, connectivity_score, action_taken, stimulus_count, opeg_id, created_at)
-- 3 REST endpoints: GET stats, GET history, POST trigger
+- 3 REST endpoints: GET stats, GET history, POST trigger (under `/api/fraymus/neurogenesis/`)
+- **Phase N hardening:** activity terms are absolute (`RUNS_PER_HOUR_FULL=5`, `MEMORY_ACCESS_PER_HOUR_FULL=20`) — never divide by fleet size or memory count, the stimuli grow those denominators. Health penalty counts only unresolved alerts < 24h old. `emergencyStreak` suppresses forge + memory_seed after `FORGE_STREAK_LIMIT=3` flat cycles; forge picks the first goal `checkForgeAllowed()` permits or returns `forge_suppressed`. `measureConnectivity()` returns `contributions` + `diagnosis` (weakest terms first); escalation event `system.neurogenesis.escalation` at streaks 3/10/50/200.
 
 ### CTRNN Consciousness Cycle (server/intelligence/consciousness-cycle.js + ctrnn-substrate.js + ctrnn-instance.js)
 - `ctrnn-instance.js` — Singleton accessor for the 256-neuron CTRNN so routes and daemon share the same live neural core
@@ -407,6 +409,7 @@ npm run start        # production server (serves built client)
 - `monitor.js` — Polls Ollama, DB, bus, Needle, process memory every 60s; auto-alerts via bus `system.alert` topic
 - Alert rules: `ollama_down` (critical), `needle_backlog` >20 (warning), `error_spike` >10/hr (warning), 5-min cooldown
 - Prunes: metrics >48h, resolved alerts >7d
+- **Auto-resolve (Phase N):** when Ollama answers, all open `ollama_down` alerts are resolved and a `system.alert` info event is published. Other rules still require manual `resolveAlert()` — add auto-resolve when adding a rule whose condition can clear.
 - DB tables: `health_metrics`, `health_alerts`
 - 6 REST endpoints + HealthPanel.jsx (12th Detail Drawer panel, red theme, stat cards, resource bars, alert list)
 

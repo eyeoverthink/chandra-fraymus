@@ -11,6 +11,7 @@ const ROUTE_LIMITS = {
   '/api/intelligence':      { maxRequests: 30,  windowMs: 60_000 },
   '/api/commerce':          { maxRequests: 15,  windowMs: 60_000 },
   '/api/media':             { maxRequests: 10,  windowMs: 60_000 },
+  _read:                    { maxRequests: 600, windowMs: 60_000 },
   _default:                 { maxRequests: 120, windowMs: 60_000 },
 };
 
@@ -26,9 +27,11 @@ function ensureTable() {
   )`);
 }
 
-function getRouteLimit(path) {
+function getRouteLimit(path, method) {
+  // Dashboards poll dozens of read endpoints per page load; only writes get the tight per-route budgets.
+  if (method === 'GET' || method === 'HEAD') return { prefix: '_read', ...ROUTE_LIMITS._read };
   for (const [prefix, limit] of Object.entries(ROUTE_LIMITS)) {
-    if (prefix !== '_default' && path.startsWith(prefix)) return { prefix, ...limit };
+    if (!prefix.startsWith('_') && path.startsWith(prefix)) return { prefix, ...limit };
   }
   return { prefix: '_default', ...ROUTE_LIMITS._default };
 }
@@ -85,7 +88,7 @@ export function globalRateLimiter() {
     if (req.path.startsWith('/api/gateway/') || req.path.startsWith('/api/health') || req.path.startsWith('/api/supervisor/') || req.path.startsWith('/api/config-mgr/')) return next();
 
     const ip = req.ip || req.socket?.remoteAddress || 'unknown';
-    const { prefix, maxRequests, windowMs } = getRouteLimit(req.path);
+    const { prefix, maxRequests, windowMs } = getRouteLimit(req.path, req.method);
     const result = slidingWindowCheck(ip, prefix, maxRequests, windowMs);
 
     res.setHeader('X-RateLimit-Limit', result.limit);

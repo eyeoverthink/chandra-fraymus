@@ -90,7 +90,7 @@ export function runConsciousnessAudit({ trigger = 'daemon', sampleCount = 4 } = 
     proofsPassed,
     4,
     snap.tick || 0,
-    snap.stats?.activeSynapses || 0,
+    snap.metrics?.activeSynapses || 0,
     result.duration_ms,
     trigger,
   );

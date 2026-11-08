@@ -28,14 +28,14 @@ export const TIMESTAMP_WINDOW = 300; // ±300s tolerance for v13 messages
 export const DEFAULT_RELAY = 'https://fraymus-hub.srv1944678.hstgr.cloud';
 
 export const AGENTS = [
-  { name: 'main', model: 'anthropic/claude-sonnet-5', role: 'Driver/gateway' },
+  { name: 'main', model: 'ollama/fraynix-ultimate:8b', role: 'Driver/gateway' },
   { name: 'claudette', model: 'ollama/eyeoverthink/v6.1-machine', role: 'Verifier; system agent' },
   { name: 'niles', model: 'ollama/niles-fraymus:v9', role: 'Local brain; Telegram-facing' },
-  { name: 'hermes', model: 'anthropic/claude-haiku', role: 'Task runner; quick dispatch' },
-  { name: 'openclawAlpha', model: 'anthropic/claude-sonnet-5', role: 'Research/build; GitHub ops' },
-  { name: 'openclawSigma', model: 'anthropic/claude-sonnet-5', role: 'Deep analysis; evolution' },
-  { name: 'openclawForge', model: 'anthropic/claude-sonnet-5', role: 'Code generation; forge' },
-  { name: 'witness', model: 'anthropic/claude-sonnet-5', role: 'Observation; chronicle' },
+  { name: 'hermes', model: 'ollama/fraynix-dreamer-ultimate:3b', role: 'Task runner; quick dispatch' },
+  { name: 'openclawAlpha', model: 'ollama/fraynix-ultimate:8b', role: 'Research/build; GitHub ops' },
+  { name: 'openclawSigma', model: 'ollama/fraynix-ultimate:120b', role: 'Deep analysis; evolution' },
+  { name: 'openclawForge', model: 'ollama/qwen2.5-coder:7b', role: 'Code generation; forge' },
+  { name: 'witness', model: 'ollama/fraynix-dreamer-ultimate:8b', role: 'Observation; chronicle' },
   { name: 'lazarus', model: 'ollama/lazarus-v1', role: 'Resurrection; recovery' },
 ];
 

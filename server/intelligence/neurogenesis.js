@@ -2,7 +2,7 @@ import { db } from '../db.js';
 import { publish } from '../fleet/bus.js';
 import { randomUUID } from 'node:crypto';
 import { runPipeline as opegPipeline } from './opeg.js';
-import { forgeAgent } from '../fleet/forge.js';
+import { forgeAgent, checkForgeAllowed } from '../fleet/forge.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
 import { getAdaptiveModifiers } from './adaptive-strategy.js';
 
@@ -26,6 +26,17 @@ const now = () => Date.now();
 const CONNECTIVITY_FLOOR = 0.15;
 const POISSON_LAMBDA = 0.3;
 const MAX_STIMULI_PER_CYCLE = 3;
+const FORGE_STREAK_LIMIT = 3;
+const ESCALATION_STREAKS = new Set([3, 10, 50, 200]);
+
+// Absolute activity targets. Ratios against fleet size or memory count were perverse:
+// every forged agent and every seeded memory grew the denominator and lowered the score.
+const RUNS_PER_HOUR_FULL = 5;
+const MEMORY_ACCESS_PER_HOUR_FULL = 20;
+const ALERT_WINDOW_MS = 24 * 3600_000;
+
+let emergencyStreak = 0;
+let lastEmergencyScore = null;
 
 function ensureTable() {
   try {
@@ -48,9 +59,9 @@ function measureConnectivity() {
   const metrics = {};
 
   try {
-    const totalAgents = db.prepare(`SELECT COUNT(*) as c FROM agents`).get()?.c || 0;
     const recentRuns = db.prepare(`SELECT COUNT(*) as c FROM runs WHERE created_at > ?`).get(now() - 3600_000)?.c || 0;
-    metrics.agentActivityRate = totalAgents > 0 ? Math.min(1, recentRuns / totalAgents) : 0;
+    metrics.agentActivityRate = Math.min(1, recentRuns / RUNS_PER_HOUR_FULL);
+    metrics.recentRuns = recentRuns;
   } catch (_) { metrics.agentActivityRate = 0; }
 
   try {
@@ -58,7 +69,7 @@ function measureConnectivity() {
     const verifiedMemories = db.prepare(`SELECT COUNT(*) as c FROM agent_memories WHERE verified_at IS NOT NULL`).get()?.c || 0;
     const recentAccess = db.prepare(`SELECT COUNT(*) as c FROM agent_memories WHERE updated_at > ?`).get(now() - 3600_000)?.c || 0;
     metrics.memoryHealth = totalMemories > 0
-      ? (verifiedMemories / totalMemories * 0.4) + (Math.min(1, recentAccess / Math.max(1, totalMemories)) * 0.6)
+      ? (verifiedMemories / totalMemories * 0.4) + (Math.min(1, recentAccess / MEMORY_ACCESS_PER_HOUR_FULL) * 0.6)
       : 0;
   } catch (_) { metrics.memoryHealth = 0; }
 
@@ -73,18 +84,22 @@ function measureConnectivity() {
   } catch (_) { metrics.workflowActivity = 0; }
 
   try {
-    const activeAlerts = db.prepare(`SELECT COUNT(*) as c FROM health_alerts WHERE resolved = 0`).get()?.c || 0;
+    const activeAlerts = db.prepare(`SELECT COUNT(*) as c FROM health_alerts WHERE resolved = 0 AND created_at > ?`).get(now() - ALERT_WINDOW_MS)?.c || 0;
     metrics.healthPenalty = Math.min(0.3, activeAlerts * 0.1);
+    metrics.activeAlerts = activeAlerts;
   } catch (_) { metrics.healthPenalty = 0; }
 
-  const score = (
-    metrics.agentActivityRate * 0.30 +
-    metrics.memoryHealth * 0.25 +
-    metrics.busTraffic * 0.25 +
-    metrics.workflowActivity * 0.20
-  ) - metrics.healthPenalty;
+  const contributions = {
+    agentActivity: metrics.agentActivityRate * 0.30,
+    memoryHealth: metrics.memoryHealth * 0.25,
+    busTraffic: metrics.busTraffic * 0.25,
+    workflowActivity: metrics.workflowActivity * 0.20,
+    healthPenalty: -metrics.healthPenalty,
+  };
+  const score = Object.values(contributions).reduce((a, b) => a + b, 0);
+  const diagnosis = Object.entries(contributions).sort((a, b) => a[1] - b[1]).map(([k, v]) => `${k}=${v.toFixed(3)}`);
 
-  return { score: Math.max(0, Math.min(1, score)), metrics };
+  return { score: Math.max(0, Math.min(1, score)), metrics, contributions, diagnosis };
 }
 
 function poissonSample(lambda) {
@@ -133,7 +148,18 @@ async function injectStimulus(type, context) {
         'Bridge communication gaps between underutilized agents',
         'Synthesize cross-agent insights from recent activity',
       ];
-      const goal = goals[Math.floor(Math.random() * goals.length)];
+      if (emergencyStreak > FORGE_STREAK_LIMIT) {
+        return { type: 'forge_suppressed', reason: 'emergency_streak', streak: emergencyStreak, diagnosis: context.diagnosis };
+      }
+      let goal = null;
+      let lastCheck = null;
+      for (const g of goals) {
+        lastCheck = checkForgeAllowed(g);
+        if (lastCheck.allowed) { goal = g; break; }
+      }
+      if (!goal) {
+        return { type: 'forge_suppressed', reason: lastCheck?.reason || 'no_novel_goal', diagnosis: context.diagnosis };
+      }
       const opegResult = await opegPipeline({
         type: 'forge_agent',
         hypothesis: `Connectivity below floor (${context.score.toFixed(3)} < ${CONNECTIVITY_FLOOR}). Forging specialist: ${goal}`,
@@ -142,7 +168,8 @@ async function injectStimulus(type, context) {
         executeFn: async () => {
           try {
             const result = await forgeAgent(goal, { context: `Emergency neurogenesis: connectivity ${context.score.toFixed(3)}`, forgedBy: 'neurogenesis' });
-            return { ok: true, agent: { id: result.agent?.id || result.agentId }, goal, forged: true };
+            if (!result.forged) return { ok: false, suppressed: true, reason: result.reason, goal };
+            return { ok: true, agent: { id: result.agent?.id }, goal, forged: true };
           } catch (e) {
             publish('neurogenesis', 'system.evolution', JSON.stringify({ event: 'emergency_forge_failed', goal, error: e.message }));
             return { ok: false, error: e.message, goal };
@@ -178,7 +205,7 @@ async function injectCTRNNTargeted(sampleIndices) {
 }
 
 export async function neurogenesisCycle() {
-  const { score, metrics } = measureConnectivity();
+  const { score, metrics, diagnosis } = measureConnectivity();
   const stimuli = [];
 
   // Phase 4: read consciousness gate for targeted stimulus and boost
@@ -190,9 +217,25 @@ export async function neurogenesisCycle() {
   const effectiveFloor = Math.max(0.05, Math.min(0.30, CONNECTIVITY_FLOOR + (adaptiveMods.neurogenesisFloorAdjust || 0)));
 
   if (score < effectiveFloor) {
+    emergencyStreak++;
+    const scoreMoved = lastEmergencyScore === null || Math.abs(score - lastEmergencyScore) > 0.05;
+    lastEmergencyScore = score;
+
     stimuli.push(await injectStimulus('bus_stimulus', { score, reason: 'Below connectivity floor' }));
-    stimuli.push(await injectStimulus('memory_seed', { score, reason: 'Emergency re-ignition' }));
-    stimuli.push(await injectStimulus('forge_agent', { score, reason: 'Critical connectivity drop' }));
+    // Memory seeds and forges only while the emergency is new or the score is still moving;
+    // a flat streak means the stimulus isn't reaching the metric, so repeating it is waste.
+    if (emergencyStreak <= FORGE_STREAK_LIMIT || scoreMoved) {
+      stimuli.push(await injectStimulus('memory_seed', { score, reason: 'Emergency re-ignition' }));
+    }
+    stimuli.push(await injectStimulus('forge_agent', { score, reason: 'Critical connectivity drop', diagnosis }));
+
+    if (ESCALATION_STREAKS.has(emergencyStreak)) {
+      publish('neurogenesis', 'system.neurogenesis.escalation', JSON.stringify({
+        streak: emergencyStreak, score, floor: effectiveFloor, diagnosis, metrics,
+        message: `Connectivity has been below floor for ${emergencyStreak} consecutive cycles; stimuli are not moving the score. Weakest terms: ${diagnosis.slice(0, 2).join(', ')}`,
+      }));
+      console.warn(`[neurogenesis] escalation: streak=${emergencyStreak} score=${score.toFixed(3)} ${diagnosis.join(' ')}`);
+    }
 
     // Phase 4: emergency CTRNN targeted injection near consciousness core
     if (gateMods.sampleIndices.length > 0) {
@@ -206,11 +249,17 @@ export async function neurogenesisCycle() {
     );
 
     publish('neurogenesis', 'system.neurogenesis', JSON.stringify({
-      type: 'emergency', score, stimuli: stimuli.length, metrics,
+      type: 'emergency', score, stimuli: stimuli.length, metrics, diagnosis, streak: emergencyStreak,
       consciousnessTier: gateMods.tier,
     }));
 
-    return { triggered: true, type: 'emergency', score, metrics, stimuli, consciousnessTier: gateMods.tier };
+    return { triggered: true, type: 'emergency', score, metrics, diagnosis, streak: emergencyStreak, stimuli, consciousnessTier: gateMods.tier };
+  }
+
+  if (emergencyStreak > 0) {
+    console.log(`[neurogenesis] recovered above floor after ${emergencyStreak} emergency cycles (score=${score.toFixed(3)})`);
+    emergencyStreak = 0;
+    lastEmergencyScore = null;
   }
 
   // Phase 4: consciousness boost modulates Poisson lambda — higher consciousness = more stimulus
@@ -245,8 +294,8 @@ export function neurogenesisStats() {
   const emergency = db.prepare(`SELECT COUNT(*) as c FROM neurogenesis_events WHERE trigger_type = 'emergency'`).get()?.c || 0;
   const poisson = db.prepare(`SELECT COUNT(*) as c FROM neurogenesis_events WHERE trigger_type = 'poisson'`).get()?.c || 0;
   const recent = db.prepare(`SELECT * FROM neurogenesis_events ORDER BY created_at DESC LIMIT 10`).all();
-  const { score, metrics } = measureConnectivity();
-  return { total, emergency, poisson, currentConnectivity: score, metrics, recent };
+  const { score, metrics, contributions, diagnosis } = measureConnectivity();
+  return { total, emergency, poisson, currentConnectivity: score, metrics, contributions, diagnosis, emergencyStreak, recent };
 }
 
 export function neurogenesisHistory({ limit = 50 } = {}) {

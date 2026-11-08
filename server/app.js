@@ -22,6 +22,7 @@ import { handleExtensionWs } from './browser/extension-bridge.js';
 import { getObsBridge } from './streaming/overlay.js';
 import { closeBrowser } from './browser/service.js';
 import { startDaemon, stopDaemon } from './daemon/engine.js';
+import { getCTRNN } from './intelligence/ctrnn-instance.js';
 import {
   ensureV3Initialized,
   getV3State,
@@ -401,6 +402,9 @@ listenThenInitialize(server,{host:HOST,port:PORT,initialize:async()=>{
   } catch(e) { console.error(`Scheduler deferred: ${e.message}`); }
   if(process.env.FRAYMUS_AUTONOMY_AUTOSTART !== '0') {
     try { await runtime.autonomy.start(); } catch(e) { console.error(`Autonomy engine deferred: ${e.message}`); }
+    // The daemon's sensory bridge, motor cortex and consciousness audits all read the CTRNN;
+    // without this the core only ran after a manual /api/fraymus/ctrnn/start and died on restart.
+    try { getCTRNN().start(broadcast); } catch(e) { console.error(`CTRNN core deferred: ${e.message}`); }
     try { startDaemon(); } catch(e) { console.error(`Daemon engine deferred: ${e.message}`); }
   }
   ready=true;
