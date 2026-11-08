@@ -71,18 +71,21 @@ function assessLiveness(latest) {
   }
   let rows = [];
   try {
-    rows = db.prepare(`SELECT phi FROM consciousness_audits ORDER BY created_at DESC LIMIT ?`).all(LIVENESS_WINDOW);
+    rows = db.prepare(`SELECT phi, ei FROM consciousness_audits ORDER BY created_at DESC LIMIT ?`).all(LIVENESS_WINDOW);
   } catch (_) { return { alive: true, reason: 'unavailable', phiStdDev: null, sampled: 0 }; }
   if (rows.length < LIVENESS_MIN_AUDITS) return { alive: true, reason: 'insufficient_history', phiStdDev: null, sampled: rows.length };
+  const sd = (xs) => { const m = xs.reduce((a, b) => a + b, 0) / xs.length; return Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / xs.length); };
   const phis = rows.map(r => Number(r.phi) || 0);
-  const mean = phis.reduce((a, b) => a + b, 0) / phis.length;
-  const variance = phis.reduce((a, b) => a + (b - mean) ** 2, 0) / phis.length;
-  const stddev = Math.sqrt(variance);
+  const eis = rows.map(r => Number(r.ei) || 0);
+  const stddev = sd(phis);
+  const eiStdDev = sd(eis);
   const distinct = new Set(phis.map(p => p.toFixed(6))).size;
-  if (stddev < LIVENESS_MIN_PHI_STDDEV) {
-    return { alive: false, reason: 'constant_phi', phiStdDev: stddev, distinct, sampled: phis.length };
+  // Phi is quantized by the 32-sample TPM (0.375, 0.5, ...) and can legitimately repeat;
+  // EI varies continuously with structure. Only both flat means a frozen substrate.
+  if (stddev < LIVENESS_MIN_PHI_STDDEV && eiStdDev < 1e-3) {
+    return { alive: false, reason: 'constant_phi', phiStdDev: stddev, eiStdDev, distinct, sampled: phis.length };
   }
-  return { alive: true, reason: 'ok', phiStdDev: stddev, distinct, sampled: phis.length };
+  return { alive: true, reason: 'ok', phiStdDev: stddev, eiStdDev, distinct, sampled: phis.length };
 }
 
 function parseTimestamp(val) {
