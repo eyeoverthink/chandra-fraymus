@@ -139,6 +139,42 @@ export async function runDebate({ topic, proposition, config = {}, source = 'api
   const rebuttalRounds = Math.min(3, Math.max(1, Math.round(BASE_REBUTTAL_ROUNDS * gateMods.evolutionRate)));
   const totalRounds = 1 + rebuttalRounds + 1; // opening + N rebuttals + synthesis
 
+  // Phase S: the self-audit's first run found the same topic debated 81x in a day
+  // ("fear" 45x, "autonomy" 43x). A verdict reached in the last 24 h stands; re-debating
+  // the same topic burns ~2 minutes of GPU for no new information.
+  if (!config.allowRepeat) {
+    const recent = db.prepare(
+      `SELECT id, verdict, verdict_reasoning, confidence, created_at FROM debates
+       WHERE lower(trim(topic)) = lower(trim(?)) AND status = 'completed' AND created_at > ? ORDER BY created_at DESC LIMIT 1`
+    ).get(String(topic), Date.now() - 86400_000);
+    if (recent) {
+      try { publish('system.debate', { type: 'debate.deduplicated', topic, originalId: recent.id, verdict: recent.verdict, source }); } catch {}
+      return {
+        id: recent.id, topic, proposition, deduplicated: true, originalAt: recent.created_at,
+        verdict: recent.verdict, verdictReasoning: recent.verdict_reasoning, confidence: recent.confidence,
+        rounds: null, durationMs: 0, gateTier: gateMods.tier, rebuttalRounds, totalRounds,
+      };
+    }
+  }
+
+  // One debate at a time. The 43 abandoned "autonomy" debates were started while others
+  // were still running; concurrent 3-agent debates saturate Ollama, every round times
+  // out, and the abandoned debate gets re-launched. A 'running' row older than 10 min is
+  // a crash remnant (the sweeper closes it at 30 min) and does not block.
+  if (!config.allowConcurrent) {
+    const inProgress = db.prepare(
+      `SELECT id, topic, created_at FROM debates WHERE status = 'running' AND created_at > ? ORDER BY created_at DESC LIMIT 1`
+    ).get(Date.now() - 10 * 60_000);
+    if (inProgress) {
+      try { publish('system.debate', { type: 'debate.deferred', topic, blockedBy: inProgress.id, source }); } catch {}
+      return {
+        id: null, topic, proposition, deferred: true, blockedBy: inProgress.id, blockedByTopic: inProgress.topic,
+        verdict: 'deferred', verdictReasoning: `Another debate (${inProgress.id}) is in progress; one at a time keeps Ollama responsive.`,
+        confidence: 0, rounds: null, durationMs: 0, gateTier: gateMods.tier, rebuttalRounds, totalRounds,
+      };
+    }
+  }
+
   const debateId = `debate-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const DEBATE_ROLES = getDebateRoles();
   const proRole = { ...DEBATE_ROLES.proponent, ...(config.proponent || {}) };

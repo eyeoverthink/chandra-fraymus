@@ -10,6 +10,7 @@ import { runGoalExecutorCycle, startGoalExecutor, stopGoalExecutor, getGoalExecu
 import { sweepStaleDebates } from '../intelligence/debate.js';
 import { agentQualityStats } from '../intelligence/outcome-scorer.js';
 import { startExternalSenses, stopExternalSenses, getExternalSensesStatus } from '../intelligence/external-senses.js';
+import { startSelfAudit, stopSelfAudit, getSelfAuditStatus } from '../intelligence/self-audit.js';
 import { runCycle as runOuroborosCycle } from '../intelligence/ouroboros-cycle.js';
 import { snapshotState, pruneFossils } from '../intelligence/state-bridge.js';
 import { runConsciousnessAudit } from '../intelligence/consciousness-cycle.js';
@@ -624,6 +625,13 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     console.error('goal executor start error:', e.message);
   }
 
+  // Phase S: self-audit organ (15 min cycle — recurring-defect checks on the live DB)
+  try {
+    startSelfAudit();
+  } catch (e) {
+    console.error('self-audit start error:', e.message);
+  }
+
   // Phase 14: Start metacognitive monitor (30s cycle — self-assessment)
   try {
     startMetacognitiveMonitor();
@@ -755,6 +763,7 @@ export function stopDaemon() {
   try { stopMetacognitiveMonitor(); } catch (_) {}
   try { stopGoalExecutor(); } catch (_) {}
   try { stopExternalSenses(); } catch (_) {}
+  try { stopSelfAudit(); } catch (_) {}
   // Phase 15: Reset adaptive strategy with daemon
   try { resetAdaptiveStrategy(); } catch (_) {}
   // Phase 17: Reset self-model with daemon
@@ -808,6 +817,7 @@ export function getDaemonStatus() {
     metacognitive: getMetacognitiveStatus(),
     goalExecutor: getGoalExecutorStatus(),
     externalSenses: getExternalSensesStatus(),
+    selfAudit: (() => { const s = getSelfAuditStatus(); return { running: s.running, open: s.open, lastRun: s.lastRun && { at: s.lastRun.at, counts: s.lastRun.counts, clean: s.lastRun.clean } }; })(),
     adaptiveStrategy: getAdaptiveStatus(),
     selfModel: getSelfModelStatus(),
     resourceEnvelope: getResourceEnvelopeStatus(),

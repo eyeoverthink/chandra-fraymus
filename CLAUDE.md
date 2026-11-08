@@ -123,6 +123,14 @@ npm run start        # production server (serves built client)
 - Started/stopped with the daemon; status in `getDaemonStatus().externalSenses`; table `external_sense_events`
 - 3 REST endpoints: `GET /api/intelligence/external-senses`, `GET …/history`, `POST …/poll`
 
+### Self-Audit Organ (server/intelligence/self-audit.js) — Phase S
+- `runSelfAudit({trigger, writeReport})` — five recurring-defect checks on the live DB: `repeated_action` (≥5× in 24h, ≥50× BLOCKING), `flat_metric`/`dead_channel` (std-dev < 1e-6 over ≥20 samples across Φ/EI/CTRNN/metacog/pressure/connectivity + every sensory channel), `producer_without_consumer` (consumed/produced < 10%), `written_never_read` (access_count = 0 > 95%), `stuck_transient` (rows in running/executing/S1–S3 > 1 h)
+- Findings upsert by (check, subject) into `self_audit_findings`; cleared conditions set `resolved_at`. Exactly ONE aggregated `health_alerts` row (`rule='self_audit'`) for BLOCKING — never one per finding (would pin the neurogenesis health penalty). `getOpenFindingCounts()` feeds a stuck signal in `metacognitive-monitor.js`
+- Report in fraymus-audit format → `data/audits/self-audit-YYYY-MM-DD.md` + `latest.md` (weekly or `POST …/report`). Runs in `self_audit_runs`; bus `system.self_audit`
+- Own 15-min timer started by the daemon (first run 60 s after boot); status in `getDaemonStatus().selfAudit`
+- 5 REST endpoints under `/api/intelligence/self-audit`; fleet tool `self_audit_status`
+- **When adding an autonomous action, ask what the self-audit would say about it:** does it dedup, does it have a consumer, does it leave rows in a transient state on crash. Debates now dedup on topic for 24 h (`config.allowRepeat` to override); goals dedup on objective for 7 days across all statuses
+
 ### Autonomous Neurogenesis Engine (server/intelligence/neurogenesis.js)
 - `neurogenesis.js` — Prevents degenerate sparse connectivity by spontaneously re-igniting dead connections. Connectivity score = weighted composite of agent activity (0.30), memory health (0.25), bus traffic (0.25), workflow activity (0.20) minus health penalty.
 - Below floor (0.15) → emergency: bus stimulus + memory seed + OPEG-gated forge

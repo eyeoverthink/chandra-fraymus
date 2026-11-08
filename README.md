@@ -287,6 +287,19 @@ Two instrument changes, no change to the Φ_MIP/EI math: (1) `stateMode: 'drive'
 - DB table: `external_sense_events`; 3 REST endpoints: `GET /api/intelligence/external-senses`, `GET …/history`, `POST …/poll`; status in `getDaemonStatus().externalSenses`.
 **Verified live:** 15 channels in the bridge; Shopify reached (`eyeoverthink.myshopify.com`, 0 orders / 24 h), hub reached (0 agents online), git = 1.0 (4 commits in the hour, 18 dirty files), user 0.49, web/youtube 0 (no data yet — honest zeros, not stubs).
 
+### Phase S: Self-Audit Organ (2026-11-08)
+**Why:** Every pathology found in the Phase N audit had one of four shapes — the same action repeated hundreds of times, a metric that never changed, producers with no consumer, rows stuck in a transient state — and the metacognitive monitor saw none of them because it measures *activity* and these pathologies are *made of* activity. The fraymus-audit recurring-defect checklist caught them in a day of manual work; this phase makes the system run those checks on itself.
+**Module:** `server/intelligence/self-audit.js` — five checks against the live database every 15 min (first run 60 s after boot):
+- `repeated_action` — any goal / forge goal / debate topic / OPEG hypothesis / neurogenesis action / synthesized-workflow goal repeated ≥ 5× in 24 h (≥ 50× → BLOCKING); reflection action monoculture (one action type ≥ 80% of ≥ 10)
+- `flat_metric` / `dead_channel` — Φ, EI, CTRNN mean weight and synapses, metacognitive effectiveness, resource pressure, neurogenesis connectivity, and every sensory channel: std-dev < 1e-6 over ≥ 20 samples (non-zero constant → REAL; exactly zero → COSMETIC)
+- `producer_without_consumer` — goals→executions, forged agents→runs, synthesized workflows→workflow runs, OPEG proposals→execution results, bus topics ≥ 100 msgs/24 h with no persistent subscriber (consumed/produced < 10%)
+- `written_never_read` — agent memories / knowledge nodes older than a day with `access_count = 0` > 95%
+- `stuck_transient` — runs, goal executions, goals `executing`, debates, verifier loops, workflow runs, OPEG S1–S3 older than one hour
+- Findings persist in `self_audit_findings` keyed by (check, subject): re-observed → `occurrences++`, not re-observed → `resolved_at` set. **One** aggregated `health_alerts` row (`rule = 'self_audit'`) for BLOCKING findings — several would pin the neurogenesis health penalty and recreate the exact emergency loop this organ exists to catch. An open BLOCKING finding is a stuck signal in `metacognitive-monitor.js`. Markdown report in the fraymus-audit format (scope / verified clean / findings ranked / couldn't verify) to `data/audits/self-audit-YYYY-MM-DD.md` + `latest.md`, weekly or on demand.
+- Runs log to `self_audit_runs`; bus event `system.self_audit`; status in `getDaemonStatus().selfAudit`.
+- 5 REST endpoints: `GET /api/intelligence/self-audit`, `GET …/findings?severity=&status=`, `POST …/run {report?}`, `POST …/report`, `POST …/findings/:id/resolve`. Fleet tool `self_audit_status` (modes default / `run` / `findings`).
+**First run (109 ms): 47 findings — 11 BLOCKING, 15 REAL, 21 COSMETIC, 0 checks clean.** Most BLOCKING items are the pre-Phase-N forge loop still inside the 24 h window (OPEG hypothesis repeated 323×, neurogenesis action 118×). Two were **new**, and were fixed in the same commit: debate topics repeated 81× / 45× ("fear") / 43× ("autonomy") in a day — `runDebate()` now returns the verdict reached in the last 24 h instead of re-debating (`config.allowRepeat` overrides); and goal objectives re-proposed 13× because dedup only looked at currently-`proposed` rows — now 7 days across all statuses.
+
 ---
 
 ## Content Nexus agent feed 2026-11-05

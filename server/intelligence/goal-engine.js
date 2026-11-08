@@ -188,9 +188,11 @@ export async function generateGoals({ trigger = 'daemon', force = false } = {}) 
   for (const p of proposals) {
     if (!p.objective || typeof p.objective !== 'string') continue;
 
+    // Phase S: dedup across ALL statuses for 7 days (was: exact match on 'proposed' only, so
+    // an objective expired or completed yesterday was re-proposed today — self-audit saw 13x).
     const exists = db.prepare(
-      `SELECT 1 FROM goal_proposals WHERE objective = ? AND status = 'proposed'`
-    ).get(p.objective.trim());
+      `SELECT 1 FROM goal_proposals WHERE lower(trim(objective)) = lower(trim(?)) AND created_at > ?`
+    ).get(p.objective, now() - 7 * 86400_000);
     if (exists) continue;
 
     const id = 'goal_' + randomUUID().replace(/-/g, '').slice(0, 10);

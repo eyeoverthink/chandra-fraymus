@@ -18,6 +18,7 @@ import { getAttentionGateStatus, computeAttentionWeights } from '../intelligence
 import { getHabituationStatus } from '../intelligence/habituation.js';
 import { getWorkingMemoryStatus, queryWorkingMemory } from '../intelligence/working-memory.js';
 import { getMetacognitiveStatus, getStrategyRecommendation } from '../intelligence/metacognitive-monitor.js';
+import { runSelfAudit, getOpenFindings, getSelfAuditStatus } from '../intelligence/self-audit.js';
 import { getAdaptiveStatus, getAdaptiveModifiers, isActionSuppressed, isActionPreferred } from '../intelligence/adaptive-strategy.js';
 import { getSelfModelStatus, getSystemMap, lookupSubsystem, buildSpatialContext, buildSubsystemContext } from '../intelligence/self-model.js';
 import { getResourceEnvelopeStatus, getResourcePressure, isResourceConstrained, triggerEnvelopeCycle } from '../intelligence/resource-envelope.js';
@@ -450,6 +451,26 @@ export function createFleetTools({ workflowStore }) {
         const status = getSelfModelStatus();
         ledger.record('selfModel.read', { subsystemCount: status.subsystemCount, activeCount: status.activeCount, tier: status.gateTier }, 'fleet');
         return status;
+      },
+    },
+    {
+      name: 'self_audit_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Read the self-audit organ: live recurring-defect checks on the system\'s own database — repeated identical actions, metrics that never change, producers with no consumer, data written but never read, rows stuck in transient states. Returns open findings ranked BLOCKING/REAL/COSMETIC with evidence. Mode "run" executes the checks now; mode "findings" lists open findings only.',
+      parameters: object({
+        mode: { type: 'string', description: 'Optional: "run" executes an audit now, "findings" returns open findings only' },
+      }),
+      execute: async (params) => {
+        if (params.mode === 'run') {
+          const r = runSelfAudit({ trigger: 'fleet' });
+          ledger.record('self_audit.run', { ...r.counts, clean: r.clean.length }, 'fleet');
+          return r;
+        }
+        if (params.mode === 'findings') return { findings: getOpenFindings({ limit: 30 }) };
+        const s = getSelfAuditStatus();
+        ledger.record('self_audit.read', { ...s.open }, 'fleet');
+        return s;
       },
     },
     {

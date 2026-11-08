@@ -27,6 +27,7 @@ import { getCTRNN } from './ctrnn-instance.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
 import { publish } from '../fleet/bus.js';
 import { updateAdaptiveStrategy } from './adaptive-strategy.js';
+import { getOpenFindingCounts } from './self-audit.js';
 import { randomUUID } from 'node:crypto';
 
 const now = () => Date.now();
@@ -203,6 +204,15 @@ function assessStuckness() {
       `SELECT COUNT(*) as c FROM verification_loops WHERE created_at > ? AND status != 'passed'`
     ).get(windowStart)?.c || 0;
     if (recentFails >= 3) stuckSignals++;
+    totalChecks++;
+  } catch (_) {}
+
+  // Phase S: an open BLOCKING self-audit finding (repeated action, frozen metric, producer
+  // with no consumer, rows stuck in a transient state) is a stuck signal in its own right —
+  // these pathologies are made of activity, so activity-based checks alone never see them.
+  try {
+    const { blocking } = getOpenFindingCounts();
+    if (blocking > 0) stuckSignals++;
     totalChecks++;
   } catch (_) {}
 
