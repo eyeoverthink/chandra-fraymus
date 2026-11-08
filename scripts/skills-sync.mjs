@@ -202,18 +202,17 @@ async function collectSystemMap() {
 
 async function collectLive() {
   try {
-    const res = await fetch('http://127.0.0.1:8787/api/health', { signal: AbortSignal.timeout(3000) });
+    const res = await fetch('http://127.0.0.1:8787/api/health', { signal: AbortSignal.timeout(8000) });
     const j = await res.json();
     return { online: true, features: j.features?.length || 0, featureList: j.features || [] };
   } catch (_) {
-    // Fallback: count the static feature list in app.js
+    // Fallback: the static feature list that /api/health returns lives in server/runtime.js
     try {
-      const src = readFileSync(join(ROOT, 'server', 'app.js'), 'utf8');
-      const start = src.indexOf('features');
-      const block = src.slice(start, start + 6000);
-      const arr = block.match(/\[([\s\S]*?)\]/);
-      const list = arr ? [...arr[1].matchAll(/'([a-z0-9-]+)'/g)].map(m => m[1]) : [];
-      return { online: false, features: list.length, featureList: list, source: 'app.js static list' };
+      const src = readFileSync(join(ROOT, 'server', 'runtime.js'), 'utf8');
+      const start = src.indexOf('features: [');
+      const end = src.indexOf(']', start);
+      const list = start >= 0 && end > start ? [...src.slice(start, end).matchAll(/'([a-z0-9-]+)'/g)].map(m => m[1]) : [];
+      return { online: false, features: list.length || null, featureList: list, source: 'runtime.js static list (server offline)' };
     } catch (e) { return { online: false, features: null, featureList: [], error: e.message }; }
   }
 }
