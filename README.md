@@ -218,6 +218,22 @@ Work happens on `master`. Always commit + push when done. The infrastructure sta
 - 3,039 machine-forged manifests moved to `data/agents-archive/`, their rows to `forged_agents_archive` (script: `F:\Claude-Work\chandra-superintelligence\archive-forged-agents.mjs`).
 **Verified live:** connectivity 0.40 (floor 0.15), streak 0, manual cycle = Poisson/no forge; 60 burst GETs → 60×200; forge same goal twice → 201 then 409; `ollama_down` open alerts 68 → 0; audit row synapses 0 → 27,063; fleet 52 manifests (20 default + 32 forged).
 
+### Phase O: CTRNN Homeostasis, Persistence & Gate Liveness (2026-11-08)
+**Why:** The 256-neuron CTRNN was never in a dynamic regime. Its initial random weights alone drove mean |B| to ~70 by tick 255 and ~220 at steady state (every tanh output ±1); Hebbian then pinned 100% of weights at `maxWeight = 2.0` within ~900 ticks, and Φ froze at 0.7718 for 1,433 consecutive audits. A reproduction run (`probe-homeostasis.mjs --legacy`) shows the exact sequence: 100% saturated at tick 300, 93.8% clamped at 900, meanW 2.000 at 1800. The network also reset to tick 0 on every server restart (no state persistence), and the gate accepted a constant reading as INTEGRATED.
+**What changed (`server/intelligence/ctrnn.js`):**
+- **Synaptic scaling** — per-neuron incoming L1 norm bounded at `targetIncomingNorm` (3.0), multiplicative so relative weights keep heterogeneity.
+- **Synapse budget** — only the `maxIncomingSynapses` (16) strongest inputs per neuron survive; ratio-based competition is off (it homogenized rows).
+- **E/I balance, Dale's law** — `inhibitoryFraction` 0.2 of neurons have strictly negative outgoing weights; inhibitory plasticity is homeostatic (co-activity strengthens inhibition); a synapse that drifts across zero is lost, not flipped.
+- **Reciprocity bias** — a new synapse i←j spawns j←i with p = 0.8 (cortical bidirectional over-representation).
+- **Intrinsic plasticity** — Θ drifts against each neuron's output (`intrinsicRate` 0.01, clamp ±3).
+- **Density-based neurogenesis** — floor 3%, target 6% (the old absolute-weight floor was unreachable under scaling and left ignition permanently on).
+- **Metrics** — `saturationRatio`, `clampedRatio`, `meanIncomingNorm`, `maxWeightSeen`, `inhibitoryCount`.
+- **Persistence** — full state (B, W, Θ, Iext, inhibitory mask, stats, tick) written to `data/ctrnn-state.json` every 3,600 ticks and on stop; `ctrnn-instance.js` restores it on first use; `app.js stop()` stops (and persists) the core on shutdown.
+**Gate (`consciousness-gate.js`):** `assessLiveness()` — latest audit with 0 synapses → DORMANT (`dead_substrate`); Φ std-dev < 1e-4 over the last 50 audits → tier capped at AWAKENING (`constant_phi`). Exposed as `liveness` on the gate state and modifiers.
+**Audit (`ctrnn-substrate.js`, `consciousness-cycle.js`):** the production audit no longer overrides `stepsPerSample` to 15 (five time constants); it uses the substrate's own documented default of 3. The cluster picker now requires each added neuron to both receive from and project to the set (strongly connected by construction). `imposeAmplitude` is configurable.
+**Verified:** legacy vs homeostasis side by side — saturation 100% → 0–40% oscillating, clamped 99.9% → 0%, meanW 2.000 → 0.19, incoming norm held at 3.00, density stable at 6%. Restart resumes: `[ctrnn] resumed from tick 3600 (3939 synapses)`. Live gate: AWAKENING with `liveness: ok`.
+**Open finding — Φ on a living network:** 18 probe runs (`F:\Claude-Work\chandra-superintelligence\probe-homeostasis.mjs`) across norm 1.5–3.0, budgets 6–24, with/without competition, E/I, reciprocity, intrinsic plasticity, horizons 3 and 15, amplitudes 0.15 and 1.5: **Φ_MIP = 0 in every living regime.** EI ranged 0 → 2.0 bits (15 steps) → 4.0 bits (3 steps, amplitude 1.5 — four independent memory cells, correctly Φ = 0). Φ_MIP at single-neuron grain with an isolated 4-subset is satisfiable only by a high-gain regime (in-subset Σ|W| ≳ 2), i.e. the saturated network. The old Φ = 0.7718 was real IIT math on a frozen random switch network. Two honest paths: (A) revert to the saturated regime and accept a constant Φ, or (B) measure Φ at the grain where the living network has structure (reciprocal E/I clusters as units). Until decided, the gate reads the living network truthfully (currently 2/4 → AWAKENING).
+
 ---
 
 ## Content Nexus agent feed 2026-11-05

@@ -372,6 +372,7 @@ async function stop() {
   if(stopping)return;stopping=true;ready=false;clearInterval(syncTimer);clearInterval(wsHeartbeat);
   try { stopScheduler(); } catch (e) { console.error('shutdown: scheduler stop failed:', e.message); }
   try { stopDaemon(); } catch (e) { console.error('shutdown: daemon stop failed:', e.message); }
+  try { getCTRNN().stop(); } catch (e) { console.error('shutdown: ctrnn stop failed:', e.message); }
   try { await closeBrowser(); } catch (e) { console.error('shutdown: browser close failed:', e.message); }
   if(runtime) {
     let closed=await runtime.close();

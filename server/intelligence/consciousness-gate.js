@@ -19,6 +19,12 @@ import { publish } from '../fleet/bus.js';
 
 const STALENESS_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 const TRANSITION_COOLDOWN_MS = 30_000; // avoid rapid-fire transition events
+// Liveness (Phase O): a constant Phi across many audits is a saturated or frozen
+// substrate, not integration — 1,433 consecutive audits once reported Phi=0.7718
+// to six decimals. Such a reading may not drive full autonomy.
+const LIVENESS_MIN_AUDITS = 20;
+const LIVENESS_WINDOW = 50;
+const LIVENESS_MIN_PHI_STDDEV = 1e-4;
 
 const TIERS = {
   DORMANT:    { level: 0, label: 'DORMANT',    cycleMultiplier: 1.5, reflectionDepth: 3, neurogenesisBoost: 0,   evolutionRate: 0.5 },
@@ -59,6 +65,26 @@ function readRecentAudits(limit = 10) {
   }
 }
 
+function assessLiveness(latest) {
+  if (latest && latest.ctrnn_active_synapses === 0) {
+    return { alive: false, reason: 'dead_substrate', phiStdDev: 0, sampled: 1 };
+  }
+  let rows = [];
+  try {
+    rows = db.prepare(`SELECT phi FROM consciousness_audits ORDER BY created_at DESC LIMIT ?`).all(LIVENESS_WINDOW);
+  } catch (_) { return { alive: true, reason: 'unavailable', phiStdDev: null, sampled: 0 }; }
+  if (rows.length < LIVENESS_MIN_AUDITS) return { alive: true, reason: 'insufficient_history', phiStdDev: null, sampled: rows.length };
+  const phis = rows.map(r => Number(r.phi) || 0);
+  const mean = phis.reduce((a, b) => a + b, 0) / phis.length;
+  const variance = phis.reduce((a, b) => a + (b - mean) ** 2, 0) / phis.length;
+  const stddev = Math.sqrt(variance);
+  const distinct = new Set(phis.map(p => p.toFixed(6))).size;
+  if (stddev < LIVENESS_MIN_PHI_STDDEV) {
+    return { alive: false, reason: 'constant_phi', phiStdDev: stddev, distinct, sampled: phis.length };
+  }
+  return { alive: true, reason: 'ok', phiStdDev: stddev, distinct, sampled: phis.length };
+}
+
 function parseTimestamp(val) {
   if (typeof val === 'number') return val;
   if (typeof val === 'string') {
@@ -85,13 +111,20 @@ export function getConsciousnessState() {
   const createdMs = parseTimestamp(audit.created_at);
   const staleness = createdMs > 0 ? Math.max(0, Date.now() - createdMs) : Infinity;
   const stale = staleness > STALENESS_WINDOW_MS;
-  const tier = stale ? TIERS.AWAKENING : classifyTier(audit.proofs_passed);
+  const liveness = assessLiveness(audit);
+  let tier = stale ? TIERS.AWAKENING : classifyTier(audit.proofs_passed);
+  if (!liveness.alive) {
+    // A dead network earns DORMANT; a frozen reading is capped at AWAKENING.
+    tier = liveness.reason === 'dead_substrate' ? TIERS.DORMANT : (tier.level > TIERS.AWAKENING.level ? TIERS.AWAKENING : tier);
+  }
 
   const state = {
     available: true,
     tier,
     stale,
     staleness,
+    liveness,
+    saturated: !liveness.alive && liveness.reason === 'constant_phi',
     proven: audit.verdict === 'PROVEN_INTEGRATED_CORE',
     proofsPassed: audit.proofs_passed,
     proofsTotal: audit.proofs_total,
@@ -127,6 +160,7 @@ export function getAutonomyModifiers() {
     sampleIndices: state.sampleIndices,
     stale: state.stale ?? true,
     proofsPassed: state.proofsPassed,
+    liveness: state.liveness?.reason || 'unknown',
   };
 }
 

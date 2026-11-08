@@ -34,6 +34,9 @@ export class CTRNNSubstrate {
     this.sampleCount = opts.sampleCount || 4;
     this.samplesPerState = opts.samplesPerState || SAMPLES_PER_STATE;
     this.stepsPerSample = opts.stepsPerSample || EULER_STEPS_PER_SAMPLE;
+    // Amplitude the sampled neurons are set to when a state is imposed. 0.15 only
+    // registers against a high-gain network; a homeostatic one operates near |B| ~ 1-2.
+    this.imposeAmplitude = opts.imposeAmplitude || 0.15;
 
     const snap = ctrnn.snapshot();
     this.gridSize = snap.gridSize;
@@ -53,21 +56,27 @@ export class CTRNNSubstrate {
     const totalN = this.totalN;
     const W = snap.W;
 
-    // Greedy densest-cluster selection:
-    // Start with the most connected neuron, then add the neuron
-    // with highest mutual weight to the selected set. This finds
-    // the main complex — the tightest-coupled subnetwork — which
-    // IIT prescribes as the unit of Phi measurement.
-    const strength = new Float64Array(totalN);
+    // Greedy strongly-connected-cluster selection — the main complex IIT prescribes
+    // as the unit of Phi measurement. Phi_MIP is the minimum over ALL bipartitions,
+    // single-node cuts included, so it is exactly 0 whenever one sampled neuron
+    // receives nothing from the others (under isolation it just decays to Theta).
+    // The old picker maximised total mutual weight and routinely returned a subset
+    // with a dangling node: EI read up to 2 bits from the connected pairs while Phi
+    // stayed 0 in every sparse, living regime. Each neuron added here must both
+    // receive from and project to the current set; the score is the weaker
+    // direction (the bottleneck link). By induction the result is strongly connected.
+    // Falls back to the sum heuristic only when no reciprocal candidate exists.
+    const reciprocal = new Float64Array(totalN);
     for (let i = 0; i < totalN; i++) {
       for (let j = 0; j < totalN; j++) {
-        strength[i] += Math.abs(W[i * totalN + j]) + Math.abs(W[j * totalN + i]);
+        if (i === j) continue;
+        reciprocal[i] += Math.min(Math.abs(W[i * totalN + j]), Math.abs(W[j * totalN + i]));
       }
     }
 
     let best = 0;
     for (let i = 1; i < totalN; i++) {
-      if (strength[i] > strength[best]) best = i;
+      if (reciprocal[i] > reciprocal[best]) best = i;
     }
 
     const selected = [best];
@@ -75,17 +84,23 @@ export class CTRNNSubstrate {
 
     while (selected.length < n && selected.length < totalN) {
       let bestNext = -1, bestScore = -1;
+      let fallbackNext = -1, fallbackScore = -1;
       for (let i = 0; i < totalN; i++) {
         if (used.has(i)) continue;
-        let score = 0;
+        let inbound = 0, outbound = 0;
         for (const s of selected) {
-          score += Math.abs(W[i * totalN + s]) + Math.abs(W[s * totalN + i]);
+          inbound += Math.abs(W[i * totalN + s]);   // s -> i
+          outbound += Math.abs(W[s * totalN + i]);  // i -> s
         }
-        if (score > bestScore) { bestScore = score; bestNext = i; }
+        const bottleneck = Math.min(inbound, outbound);
+        if (bottleneck > bestScore) { bestScore = bottleneck; bestNext = i; }
+        const sum = inbound + outbound;
+        if (sum > fallbackScore) { fallbackScore = sum; fallbackNext = i; }
       }
-      if (bestNext < 0) break;
-      selected.push(bestNext);
-      used.add(bestNext);
+      const next = bestScore > 0 ? bestNext : fallbackNext;
+      if (next < 0) break;
+      selected.push(next);
+      used.add(next);
     }
 
     return selected;
@@ -109,7 +124,7 @@ export class CTRNNSubstrate {
     const imposed = new Float64Array(B);
     for (let i = 0; i < this.sampleIndices.length; i++) {
       const idx = this.sampleIndices[i];
-      imposed[idx] = ((stateBits >> i) & 1) === 1 ? 0.15 : -0.15;
+      imposed[idx] = ((stateBits >> i) & 1) === 1 ? this.imposeAmplitude : -this.imposeAmplitude;
     }
     return imposed;
   }
@@ -308,6 +323,7 @@ export function auditCTRNNConsciousness(ctrnn, opts = {}) {
     samplesPerState = 64,
     stepsPerSample = 3,
     trialSteps = 400,
+    imposeAmplitude = 0.15,
   } = opts;
 
   const t0 = Date.now();
@@ -316,6 +332,7 @@ export function auditCTRNNConsciousness(ctrnn, opts = {}) {
     sampleCount,
     samplesPerState,
     stepsPerSample,
+    imposeAmplitude,
   });
 
   // Build the empirical TPM (needed for EI and Phi_MIP)

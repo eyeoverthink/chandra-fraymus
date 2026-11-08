@@ -53,10 +53,14 @@ export function runConsciousnessAudit({ trigger = 'daemon', sampleCount = 4 } = 
   const ctrnn = getCTRNN();
   const snap = ctrnn.snapshot();
 
+  // stepsPerSample 3 = one time constant, the substrate's own default and the documented
+  // value. The previous override of 15 (five time constants) measured attractor
+  // persistence rather than one-step causal effect: only a saturated high-gain network
+  // could pass, and a homeostatic one read EI = 0 in 18 of 18 probe runs.
   const result = auditCTRNNConsciousness(ctrnn, {
     sampleCount,
     samplesPerState: 32,
-    stepsPerSample: 15,
+    stepsPerSample: 3,
     trialSteps: 200,
   });
 
