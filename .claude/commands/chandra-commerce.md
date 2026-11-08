@@ -12,7 +12,7 @@ All commerce code lives in `server/commerce/`. Media pipelines in `server/media/
 3. A **visual workflow node** (in `client/src/panels/WorkflowCanvas.jsx`)
 
 **Shared utilities** (`server/commerce/shared.js`):
-- `chatOllama(prompt, options)` — call Ollama for LLM inference
+- `chatOllama(messages, opts = {})` — call Ollama for LLM inference. **`messages` is a `[{ role, content }]` array, never a string.** `opts`: `model`, `temperature` (default 0.7), `maxTokens` (default 2048), `format: 'json'` for grammar-constrained JSON output
 - `parseJSON(str)` — safe JSON parse with fallback
 - `shopifyHeaders()` — returns auth headers for Shopify Admin API
 - `shopifyBase()` — returns `https://{store}.myshopify.com/admin/api/2024-10`

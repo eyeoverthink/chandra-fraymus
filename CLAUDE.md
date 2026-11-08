@@ -676,6 +676,9 @@ Ariadne, Artifact Minter, Cantor, Concierge, DevArchivist, Director, EYE Soverei
 
 ## Operational Rules
 
+### Skills Stay Live (Phase T)
+The five `/chandra-*` skills in `.claude/commands/` and the README "Live Inventory" carry generated blocks between `<!-- skills-sync:begin NAME -->` / `<!-- skills-sync:end NAME -->` markers. **Never hand-edit inside a marker block.** After adding a panel, route, module, tool, node type, agent manifest or README phase section, run `npm run skills:sync`; `npm run skills:check` exits 1 when a block is stale. Generator: `scripts/skills-sync.mjs` (reads filesystem, `data/chandra.db`, `GET /api/health`). Blocks: `inventory`, `routes`, `intelligence-modules`, `fraymus-modules`, `tools`, `panels`, `node-types`, `phases`, `vitals`, `agents`.
+
 ### Push After Pause
 After every ~1 hour pause in a session, push all work to git before stopping. When resuming after a pause, read `F:\claude-brain\context\brain-dump.md` instead of re-reading the full session context — this saves credits and preserves continuity.
 

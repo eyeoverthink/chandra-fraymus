@@ -15,7 +15,9 @@
     "benchmark": "node server/transport/benchmark.js",
     "sandbox:setup": "node server/sandbox/setup.js",
     "sandbox:verify": "node server/sandbox/verify.js",
-    "sandbox:reconcile": "node server/sandbox/reconcile.js"
+    "sandbox:reconcile": "node server/sandbox/reconcile.js",
+    "skills:sync": "node scripts/skills-sync.mjs",
+    "skills:check": "node scripts/skills-sync.mjs --check"
   },
   "dependencies": {
     "@js-temporal/polyfill": "0.5.1",
