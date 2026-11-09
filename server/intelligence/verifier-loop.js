@@ -214,10 +214,14 @@ export async function runVerifierLoop(goal, { language, maxIterations, context, 
         execResult = { exitCode: 1, stdout: '', stderr: `not executed: language ${detectedLang} has no sandbox`, executed: false, timedOut: false };
       }
       const ranClean = execResult.exitCode === 0 && !execResult.timedOut;
-      const proved = ranClean && ALL_PASS.test(execResult.stdout) && PASS_MARK.test(execResult.stdout) && !FAIL_MARK.test(execResult.stdout);
+      // proved = ran clean, declared ALL PASS, no FAIL line. Per-check "PASS …" lines are requested
+      // (they let the critic see what was checked) but not required — node:assert throwing on failure
+      // is evidence enough, and requiring them cost the first revived run a correct iteration.
+      const proved = ranClean && ALL_PASS.test(execResult.stdout) && !FAIL_MARK.test(execResult.stdout);
+      const perCheckLines = (execResult.stdout.match(/^PASS\b.*$/gm) || []).length;
       db.prepare(`INSERT INTO verification_steps (loop_id, iteration, role, input, output, verdict, created_at) VALUES (?, ?, 'executor', ?, ?, ?, ?)`).run(
         loopId, iteration, currentCode.slice(0, 4000),
-        JSON.stringify({ exitCode: execResult.exitCode, stdout: execResult.stdout.slice(0, 2000), stderr: execResult.stderr.slice(0, 2000), timedOut: execResult.timedOut, proved }).slice(0, 8000),
+        JSON.stringify({ exitCode: execResult.exitCode, stdout: execResult.stdout.slice(0, 2000), stderr: execResult.stderr.slice(0, 2000), timedOut: execResult.timedOut, proved, perCheckLines }).slice(0, 8000),
         proved ? 'PASSED' : 'FAILED', now()
       );
 
@@ -231,8 +235,10 @@ export async function runVerifierLoop(goal, { language, maxIterations, context, 
       if (!Array.isArray(verdict.issues)) verdict.issues = [];
       if (missingDeps.length) verdict.issues.unshift({ severity: 'critical', description: `Imports packages that do not exist in the sandbox: ${missingDeps.join(', ')}. Use the standard library only (Node: node:* built-ins).` });
       if (!proved) {
-        const why = execResult.timedOut ? 'timed out after 15 s' : execResult.exitCode !== 0 ? `exited ${execResult.exitCode}` : !ALL_PASS.test(execResult.stdout) ? 'did not print "ALL PASS" as its last successful line' : 'printed a FAIL line';
-        verdict.issues.unshift({ severity: 'critical', description: `The program did not prove itself: ${why}. Every check must print "PASS …" and the run must end with "ALL PASS".` });
+        const why = execResult.timedOut ? 'timed out after 15 s' : execResult.exitCode !== 0 ? `exited ${execResult.exitCode}` : FAIL_MARK.test(execResult.stdout) ? 'printed a FAIL line' : 'did not print "ALL PASS"';
+        verdict.issues.unshift({ severity: 'critical', description: `The program did not prove itself: ${why}. Fix the failing check, print "PASS …" for each check, and end with "ALL PASS".` });
+      } else if (perCheckLines === 0) {
+        verdict.issues.push({ severity: 'minor', description: 'No per-check "PASS …" lines were printed; the run proved itself by exit code and ALL PASS only.' });
       }
       const critical = verdict.issues.filter(i => String(i.severity).toLowerCase() === 'critical');
       // Approval = proved by execution AND no demonstrated critical issue. The critic cannot approve an unproven run, and cannot block a proven one on majors.
