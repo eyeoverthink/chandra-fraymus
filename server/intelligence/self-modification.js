@@ -47,6 +47,9 @@ import { runPipeline as opegPipeline } from './opeg.js';
 import { isActionSuppressed } from './adaptive-strategy.js';
 import { isResourceConstrained } from './resource-envelope.js';
 import { getOpenFindingCounts } from './self-audit.js';
+import { scanConventions, nextConventionCandidate, markFinding, getConventionStatus, listConventionFindings } from './convention-scan.js';
+
+const BOOT_AT = Date.now();   // code merged before this boot is live now; merged after it is not
 
 const now = () => Date.now();
 const MIN = 60_000, H = 3_600_000;
@@ -122,6 +125,10 @@ function ensureTables() {
   )`).run();
   db.prepare(`CREATE INDEX IF NOT EXISTS idx_smk_code_status ON smk_code_proposals(status)`).run();
   db.prepare(`CREATE INDEX IF NOT EXISTS idx_smk_code_origin ON smk_code_proposals(origin_id)`).run();
+  // Phase Z columns (additive; ignore "duplicate column" on existing DBs)
+  for (const col of ['mode TEXT', 'span_start INTEGER', 'span_end INTEGER', 'summary TEXT', 'outcome_delta REAL', 'outcome_at INTEGER']) {
+    try { db.prepare(`ALTER TABLE smk_code_proposals ADD COLUMN ${col}`).run(); } catch (_) {}
+  }
 }
 try { ensureTables(); } catch (e) { console.error('[smk] schema:', e.message); }
 
@@ -459,8 +466,56 @@ const extractCode = (raw) => {
   const m = String(raw).match(/```(?:javascript|js|jsx|mjs|ts|tsx)?\s*\n([\s\S]*?)```/);
   if (m) return m[1];
   const s = String(raw).trim();
-  return /^(import|export|\/\*|\/\/|'use strict'|const|let|function|class)\b/.test(s) ? s : null;
+  return /^(import|export|\/\*|\/\/|'use strict'|const|let|function|class|async|static|\w+\s*\()/.test(s) ? s : null;
 };
+
+// ─── Function-level spans (Phase Z) ───────────────────────────────
+// A 7B model rewrites a 40-line function reliably and a 700-line file unreliably. Given a
+// line of interest, find the smallest enclosing function / method / arrow body: scan upward
+// for a declaration start, brace-match forward (string- and comment-aware), keep the innermost
+// span that contains the line and fits MAX_SPAN_LINES; widen once; else the whole file.
+const WHOLE_FILE_MAX = Math.max(50, parseInt(process.env.SMK_WHOLE_FILE_MAX, 10) || 300);
+const MAX_SPAN_LINES = Math.max(20, parseInt(process.env.SMK_MAX_SPAN_LINES, 10) || 160);
+const DECL_START = /^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:function\s*\*?\s*\w*\s*\(|(?:const|let|var)\s+\w+\s*=\s*(?:async\s*)?(?:\([^)]*\)|\w+)\s*=>\s*\{|(?:static\s+)?(?:async\s+)?\*?(?!(?:if|for|while|switch|catch|with|return|else|do|try|function)\b)\w+\s*\([^)]*\)\s*\{\s*$|\w+\s*:\s*(?:async\s*)?(?:function\s*)?\([^)]*\)\s*(?:=>\s*)?\{\s*$|\w+\.(?:get|post|put|delete|patch|use|all)\([^,]+,\s*(?:\w+\()?\s*(?:async\s*)?\([^)]*\)\s*=>\s*\{\s*$)/;
+function matchBraces(lines, startLine) {
+  // returns the 0-based line index where the brace opened on/after startLine closes, or -1
+  let depth = 0, opened = false, inStr = null, inBlock = false;
+  for (let i = startLine; i < lines.length; i++) {
+    const s = lines[i];
+    for (let j = 0; j < s.length; j++) {
+      const c = s[j], n = s[j + 1];
+      if (inBlock) { if (c === '*' && n === '/') { inBlock = false; j++; } continue; }
+      if (inStr) { if (c === '\\') { j++; continue; } if (c === inStr) inStr = null; continue; }
+      if (c === '/' && n === '/') break;
+      if (c === '/' && n === '*') { inBlock = true; j++; continue; }
+      if (c === '"' || c === "'" || c === '`') { inStr = c; continue; }
+      if (c === '{') { depth++; opened = true; }
+      else if (c === '}') { depth--; if (opened && depth === 0) return i; }
+    }
+  }
+  return -1;
+}
+export function enclosingSpan(code, line1) {
+  const lines = code.split('\n');
+  const target = Math.min(lines.length, Math.max(1, line1)) - 1;
+  const spans = [];
+  for (let i = target; i >= 0; i--) {
+    if (!DECL_START.test(lines[i])) continue;
+    const end = matchBraces(lines, i);
+    if (end >= target) spans.push({ start: i, end, lines: end - i + 1 });
+    if (spans.length >= 6) break;
+  }
+  if (!spans.length) return null;
+  spans.sort((a, b) => a.lines - b.lines);
+  const fit = spans.find(s => s.lines <= MAX_SPAN_LINES) || spans.find(s => s.lines <= MAX_SPAN_LINES * 2.5) || null;
+  if (!fit) return null;
+  return { start: fit.start + 1, end: fit.end + 1, text: lines.slice(fit.start, fit.end + 1).join('\n'), header: lines.slice(0, Math.min(40, fit.start)).filter(l => /^\s*import\b/.test(l)).join('\n') };
+}
+function spliceSpan(code, span, replacement) {
+  const lines = code.split('\n');
+  return [...lines.slice(0, span.start - 1), ...replacement.replace(/\n+$/, '').split('\n'), ...lines.slice(span.end)].join('\n');
+}
+const declName = (text) => (text.match(/(?:function\s*\*?\s*|(?:const|let|var)\s+|^\s*(?:static\s+)?(?:async\s+)?\*?)(\w+)\s*(?:=|\()/m) || [])[1] || null;
 
 const CODE_SYSTEM = `You are a careful senior engineer modifying ONE file of a Node.js ESM codebase (Express server + SQLite via better-sqlite3). You will receive the proposal and the complete current file. Return the COMPLETE new file content in a single \`\`\`javascript fenced block and nothing else.
 Hard constraints:
@@ -471,7 +526,17 @@ Hard constraints:
 - no placeholder comments like "// rest unchanged" — the block must be the whole file
 If the proposal cannot be implemented safely in this file, return the original file unchanged.`;
 
-export async function buildCodeProposal({ source = 'manual', originId = null, title, targetFile, sketch = '', rationale = '', model = CODE_MODEL } = {}) {
+const SPAN_SYSTEM = `You are a careful senior engineer fixing ONE function in a Node.js ESM codebase. You will receive the proposal, the file's imports for context, and the exact source of the function (or route handler) to change. Return the COMPLETE replacement for that function only, in a single \`\`\`javascript fenced block, and nothing else.
+Hard constraints:
+- same function name and signature; it must remain a drop-in replacement for the span you were given
+- no import statements in your output; use only identifiers already visible in the file
+- no network calls, no new dependencies, no placeholder comments like "// rest unchanged"
+- implement exactly the proposal; preserve every other behaviour; keep the diff minimal
+- after the code block you may add one line starting with "SUMMARY:" stating what changed`;
+
+const isConvention = (src) => String(src || '').startsWith('convention');
+
+export async function buildCodeProposal({ source = 'manual', originId = null, title, targetFile, line = null, sketch = '', rationale = '', model = CODE_MODEL } = {}) {
   if (!ENABLED) return { built: false, reason: 'disabled' };
   if (!title || !targetFile) return { built: false, reason: 'title_and_targetFile_required' };
   if (state.building) return { built: false, reason: 'build_in_progress' };
@@ -479,7 +544,16 @@ export async function buildCodeProposal({ source = 'manual', originId = null, ti
   if (tgt.error) return { built: false, reason: tgt.error };
   const original = readFileSync(tgt.abs, 'utf8');
   const linesBefore = original.split('\n').length;
-  if (linesBefore > MAX_TARGET_LINES) return { built: false, reason: `target has ${linesBefore} lines (> ${MAX_TARGET_LINES})` };
+  // Span mode (Phase Z): a line of interest → patch only its enclosing function. Whole-file mode stays for small files.
+  let span = null;
+  const wantSpan = Number.isInteger(Number(line)) && Number(line) > 0;
+  if (wantSpan) {
+    span = enclosingSpan(original, Number(line));
+    if (!span && linesBefore > WHOLE_FILE_MAX) return { built: false, reason: `no patchable function around line ${line} and the file is ${linesBefore} lines` };
+  } else if (linesBefore > WHOLE_FILE_MAX) {
+    return { built: false, reason: `target has ${linesBefore} lines (> ${WHOLE_FILE_MAX}); pass a line to patch one function` };
+  }
+  const mode = span ? 'span' : 'file';
   if (originId && q1(`SELECT id FROM smk_code_proposals WHERE origin_id = ?`, originId)?.id) return { built: false, reason: 'origin_already_built' };
 
   const id = 'code_' + randomUUID().slice(0, 10);
@@ -487,37 +561,61 @@ export async function buildCodeProposal({ source = 'manual', originId = null, ti
   const wt = join(SMK_DIR, 'wt', id);
   const t = now();
   state.building = true; state.builds++;
-  db.prepare(`INSERT INTO smk_code_proposals (id, source, origin_id, title, target_file, sketch, rationale, model, branch, status, lines_before, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'building', ?, ?, ?)`)
-    .run(id, source, originId, String(title).slice(0, 200), tgt.rel, String(sketch).slice(0, 2000), String(rationale).slice(0, 1000), model, branch, linesBefore, t, t);
+  db.prepare(`INSERT INTO smk_code_proposals (id, source, origin_id, title, target_file, sketch, rationale, model, branch, status, lines_before, mode, span_start, span_end, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'building', ?, ?, ?, ?, ?, ?)`)
+    .run(id, source, originId, String(title).slice(0, 200), tgt.rel, String(sketch).slice(0, 2000), String(rationale).slice(0, 1000), model, branch, linesBefore, mode, span?.start ?? null, span?.end ?? null, t, t);
+  if (originId && isConvention(source)) try { markFinding(originId, { status: 'building', proposalId: id }); } catch {}
   const fail = (failure, extra = {}) => {
     db.prepare(`UPDATE smk_code_proposals SET status = 'failed', failure = ?, check_passed = ?, tests_selected = ?, tests_passed = ?, test_output = ?, updated_at = ? WHERE id = ?`)
       .run(String(failure).slice(0, 1000), extra.checkPassed == null ? null : (extra.checkPassed ? 1 : 0), extra.testsSelected || 0, extra.testPassed == null ? null : (extra.testPassed ? 1 : 0), extra.testOutput || null, now(), id);
     dropWorktree(wt, branch);
-    if (originId) try { db.prepare(`UPDATE ouroboros_proposals SET status = 'needs_revision', review_notes = COALESCE(review_notes,'') || ? WHERE id = ? AND status = 'accepted'`).run(`\n[smk ${id}] build failed: ${String(failure).slice(0, 200)}`, originId); } catch {}
+    // infrastructure failures (scheduler drop, model timeout) are not the finding's fault → clear proposal_id so it is retried; real build failures keep it → never retried blindly
+    const infra = /scheduler dropped|aborted due to timeout|worktree:/.test(String(failure));
+    if (originId && isConvention(source)) try { markFinding(originId, { status: 'open', clearProposal: infra }); } catch {}
+    if (originId && !isConvention(source)) try { db.prepare(`UPDATE ouroboros_proposals SET status = 'needs_revision', review_notes = COALESCE(review_notes,'') || ? WHERE id = ? AND status = 'accepted'`).run(`\n[smk ${id}] build failed: ${String(failure).slice(0, 200)}`, originId); } catch {}
     state.building = false; state.lastBuild = { id, status: 'failed', failure };
-    publish('smk', 'system.self_modification', JSON.stringify({ action: 'code_build_failed', id, title, targetFile: tgt.rel, failure: String(failure).slice(0, 300) }));
-    return { built: false, id, reason: failure, ...extra };
+    publish('smk', 'system.self_modification', JSON.stringify({ action: 'code_build_failed', id, title, targetFile: tgt.rel, mode, failure: String(failure).slice(0, 300) }));
+    return { built: false, id, reason: failure, mode, ...extra };
   };
 
   try {
-    const raw = await chatOllama([
-      { role: 'system', content: CODE_SYSTEM },
-      { role: 'user', content: `PROPOSAL: ${title}\n${sketch ? 'Sketch: ' + sketch + '\n' : ''}${rationale ? 'Why: ' + rationale + '\n' : ''}\nFILE ${tgt.rel} (${linesBefore} lines):\n\`\`\`javascript\n${original}\n\`\`\`` },
-    ], { model, priority: 'background', label: `smk:code:${id}`, temperature: 0.1,
-         // whole-file output: budget ≈ 1.6× the original in tokens (~3.2 chars/token) + headroom, capped
-         maxTokens: Math.min(12_000, Math.max(1024, Math.round(original.length / 3.2 * 1.6) + 512)), timeoutMs: 600_000 });
-    const code = extractCode(raw);
-    if (!code || code.trim().length < 40) return fail('model returned no code block');
-    if (code.trim() === original.trim()) return fail('model returned the file unchanged (declined)');
+    const budget = (chars) => Math.min(12_000, Math.max(768, Math.round(chars / 3.2 * 1.8) + 400));
+    const messages = span
+      ? [{ role: 'system', content: SPAN_SYSTEM },
+         { role: 'user', content: `PROPOSAL: ${title}\n${sketch ? 'Sketch: ' + sketch + '\n' : ''}${rationale ? 'Why: ' + rationale + '\n' : ''}\nFILE ${tgt.rel} — imports for context:\n\`\`\`javascript\n${span.header || '(none)'}\n\`\`\`\n\nFUNCTION TO CHANGE (lines ${span.start}–${span.end}):\n\`\`\`javascript\n${span.text}\n\`\`\`` }]
+      : [{ role: 'system', content: CODE_SYSTEM },
+         { role: 'user', content: `PROPOSAL: ${title}\n${sketch ? 'Sketch: ' + sketch + '\n' : ''}${rationale ? 'Why: ' + rationale + '\n' : ''}\nFILE ${tgt.rel} (${linesBefore} lines):\n\`\`\`javascript\n${original}\n\`\`\`` }];
+    // 'goal' class (3): queued behind interactive/agent/scoring work but never dropped while waiting —
+    // the first convention build was dropped by the 'background' class's 60 s max wait with both slots busy.
+    const raw = await chatOllama(messages, { model, priority: 'goal', label: `smk:code:${id}`, temperature: 0.1, maxTokens: budget(span ? span.text.length : original.length), timeoutMs: 600_000 });
+    const summary = (String(raw).match(/^SUMMARY:\s*(.+)$/m) || [])[1]?.slice(0, 300) || null;
+    const piece = extractCode(raw);
+    if (!piece || piece.trim().length < (span ? 10 : 40)) return fail('model returned no code block');
+
+    let code;
+    if (span) {
+      if (piece.trim() === span.text.trim()) return fail('model returned the function unchanged (declined)');
+      if (/^\s*import\b/m.test(piece)) return fail('span replacement contains import statements');
+      const ratio = piece.length / Math.max(1, span.text.length);
+      if (ratio < 0.5 || ratio > 3.0) return fail(`span size ratio ${ratio.toFixed(2)} outside 0.5–3.0`);
+      const n0 = declName(span.text), n1 = declName(piece);
+      if (n0 && n1 && n0 !== n1) return fail(`function renamed ${n0} → ${n1}`);
+      const probe = matchBraces(piece.split('\n'), 0);
+      if (probe < 0) return fail('span replacement has unbalanced braces');
+      code = spliceSpan(original, span, piece);
+    } else {
+      code = piece;
+      if (code.trim() === original.trim()) return fail('model returned the file unchanged (declined)');
+      const ratio = code.length / Math.max(1, original.length);
+      if (ratio < 0.5 || ratio > 2.2) return fail(`size ratio ${ratio.toFixed(2)} outside 0.5–2.2 — likely truncated or padded`);
+    }
     const linesAfter = code.split('\n').length;
-    const ratio = code.length / Math.max(1, original.length);
-    if (ratio < 0.5 || ratio > 2.2) return fail(`size ratio ${ratio.toFixed(2)} outside 0.5–2.2 — likely truncated or padded`);
     if (/\/\/\s*\.\.\.\s*(rest|unchanged|remaining)|\/\*\s*\.\.\.\s*\*\//i.test(code)) return fail('model elided part of the file');
     const lostExports = [...exportNames(original)].filter(n => !exportNames(code).has(n));
     if (lostExports.length) return fail(`exports removed: ${lostExports.join(', ')}`);
     const newImports = [...importSpecifiers(code)].filter(s => !importSpecifiers(original).has(s) && !BUILTINS.has(s) && !s.startsWith('.') && !s.startsWith('/'));
     if (newImports.length) return fail(`new third-party imports: ${newImports.join(', ')}`);
+    if (summary) db.prepare(`UPDATE smk_code_proposals SET summary = ? WHERE id = ?`).run(summary, id);
 
     const mk = makeWorktree(wt, branch);
     if (!mk.ok) return fail(`worktree: ${mk.err || mk.out}`);
@@ -557,11 +655,12 @@ export async function buildCodeProposal({ source = 'manual', originId = null, ti
         executeFn: async () => ({ ok: true, checkPassed: true, testPassed: true, branch, testsRun: tests.length }) });
       db.prepare(`UPDATE smk_code_proposals SET opeg_id = ? WHERE id = ?`).run(op.proposalId || null, id);
     } catch (e) { console.error('[smk] opeg code_change:', e.message); }
-    if (originId) try { db.prepare(`UPDATE ouroboros_proposals SET status = 'implemented', review_notes = COALESCE(review_notes,'') || ? WHERE id = ?`).run(`\n[smk ${id}] built on branch ${branch}, awaiting review`, originId); } catch {}
-    try { storeMemory('system', 'outcome', `smk:${id}`, `[SMK code ready] ${title} → ${tgt.rel} on ${branch}; ${tests.length} test file(s) green; awaiting operator approval.`, { confidence: 0.8, source: 'smk' }); } catch {}
-    state.building = false; state.lastBuild = { id, status: 'ready', branch, tests: tests.length };
-    publish('smk', 'system.self_modification', JSON.stringify({ action: 'code_ready', id, title, targetFile: tgt.rel, branch, tests: tests.length, diffStat: stat.split('\n').pop() }));
-    return { built: true, id, branch, targetFile: tgt.rel, tests: tests.length, compared, diffStat: stat, linesBefore, linesAfter };
+    if (originId && !isConvention(source)) try { db.prepare(`UPDATE ouroboros_proposals SET status = 'implemented', review_notes = COALESCE(review_notes,'') || ? WHERE id = ?`).run(`\n[smk ${id}] built on branch ${branch}, awaiting review`, originId); } catch {}
+    if (originId && isConvention(source)) try { markFinding(originId, { status: 'ready', proposalId: id }); } catch {}
+    try { storeMemory('system', 'outcome', `smk:${id}`, `[SMK code ready] ${title} → ${tgt.rel}${span ? ` (lines ${span.start}–${span.end})` : ''} on ${branch}; ${tests.length} test file(s) green; awaiting operator approval.`, { confidence: 0.8, source: 'smk' }); } catch {}
+    state.building = false; state.lastBuild = { id, status: 'ready', branch, tests: tests.length, mode };
+    publish('smk', 'system.self_modification', JSON.stringify({ action: 'code_ready', id, title, targetFile: tgt.rel, branch, mode, tests: tests.length, diffStat: stat.split('\n').pop() }));
+    return { built: true, id, branch, targetFile: tgt.rel, mode, span: span ? { start: span.start, end: span.end } : null, summary, tests: tests.length, compared, diffStat: stat, linesBefore, linesAfter };
   } catch (e) {
     return fail(`exception: ${e.message}`);
   }
@@ -589,7 +688,8 @@ export function approveCodeProposal(id, { by = 'operator' } = {}) {
   if (!merge.ok) { git(['merge', '--abort']); return { ok: false, error: `merge failed: ${(merge.err || merge.out).slice(0, 400)}` }; }
   const sha = git(['rev-parse', 'HEAD']).out;
   db.prepare(`UPDATE smk_code_proposals SET status = 'merged', merge_sha = ?, decided_by = ?, updated_at = ? WHERE id = ?`).run(sha, by, now(), id);
-  if (row.origin_id) try { db.prepare(`UPDATE ouroboros_proposals SET status = 'implemented', review_notes = COALESCE(review_notes,'') || ? WHERE id = ?`).run(`\n[smk ${id}] merged ${sha.slice(0, 8)}`, row.origin_id); } catch {}
+  if (row.origin_id && isConvention(row.source)) try { markFinding(row.origin_id, { status: 'fixed' }); } catch {}
+  if (row.origin_id && !isConvention(row.source)) try { db.prepare(`UPDATE ouroboros_proposals SET status = 'implemented', review_notes = COALESCE(review_notes,'') || ? WHERE id = ?`).run(`\n[smk ${id}] merged ${sha.slice(0, 8)}`, row.origin_id); } catch {}
   try { storeMemory('system', 'outcome', `smk:${id}:merged`, `[SMK merged] ${row.title} → ${row.target_file} (${sha.slice(0, 8)}), approved by ${by}. Restart required for the change to run.`, { confidence: 1.0, source: 'smk' }); } catch {}
   publish('smk', 'system.self_modification', JSON.stringify({ action: 'code_merged', id, title: row.title, targetFile: row.target_file, sha, by }));
   return { ok: true, id, sha, restartRequired: true };
@@ -600,7 +700,8 @@ export function rejectCodeProposal(id, { by = 'operator', reason = '' } = {}) {
   if (!['ready', 'failed'].includes(row.status)) return { ok: false, error: `status is ${row.status}` };
   if (row.branch) git(['branch', '-D', row.branch]);
   db.prepare(`UPDATE smk_code_proposals SET status = 'rejected', decided_by = ?, failure = COALESCE(failure, ?), updated_at = ? WHERE id = ?`).run(by, reason ? `rejected: ${reason}`.slice(0, 500) : null, now(), id);
-  if (row.origin_id) try { db.prepare(`UPDATE ouroboros_proposals SET status = 'rejected', review_notes = COALESCE(review_notes,'') || ? WHERE id = ?`).run(`\n[smk ${id}] rejected by ${by}${reason ? ': ' + reason.slice(0, 200) : ''}`, row.origin_id); } catch {}
+  if (row.origin_id && isConvention(row.source)) try { markFinding(row.origin_id, { status: 'rejected' }); } catch {}
+  if (row.origin_id && !isConvention(row.source)) try { db.prepare(`UPDATE ouroboros_proposals SET status = 'rejected', review_notes = COALESCE(review_notes,'') || ? WHERE id = ?`).run(`\n[smk ${id}] rejected by ${by}${reason ? ': ' + reason.slice(0, 200) : ''}`, row.origin_id); } catch {}
   publish('smk', 'system.self_modification', JSON.stringify({ action: 'code_rejected', id, title: row.title, by }));
   return { ok: true, id };
 }
@@ -664,7 +765,50 @@ export function ouroborosBacklog() {
   return backlogCache.value;
 }
 
-/** Daemon step: at most one autonomous code build per cycle, bounded by the review backlog. */
+/** Which proposers earn their keep? Experiments by rule/source, code by source family. */
+export function proposerStats() {
+  const exp = {};
+  for (const r of qa(`SELECT COALESCE(rule, source) AS p, verdict, COUNT(*) AS c FROM smk_experiments WHERE verdict != 'running' GROUP BY p, verdict`)) {
+    exp[r.p] = exp[r.p] || { kept: 0, reverted: 0, inconclusive: 0, aborted: 0 };
+    exp[r.p][r.verdict] = (exp[r.p][r.verdict] || 0) + r.c;
+  }
+  for (const v of Object.values(exp)) { const d = v.kept + v.reverted; v.keepRate = d ? round(v.kept / d, 2) : null; }
+  const code = {};
+  for (const r of qa(`SELECT CASE WHEN source LIKE 'convention%' THEN 'convention' WHEN source LIKE 'ouroboros%' THEN 'ouroboros' WHEN source LIKE 'agent%' THEN 'agent' ELSE 'operator' END AS p, status, COUNT(*) AS c FROM smk_code_proposals GROUP BY p, status`)) {
+    code[r.p] = code[r.p] || { ready: 0, failed: 0, merged: 0, rejected: 0, building: 0 };
+    code[r.p][r.status] = (code[r.p][r.status] || 0) + r.c;
+  }
+  for (const v of Object.values(code)) { const built = v.ready + v.merged + v.rejected + v.failed; v.greenRate = built ? round((v.ready + v.merged + v.rejected) / built, 2) : null; v.mergeRate = (v.merged + v.rejected) ? round(v.merged / (v.merged + v.rejected), 2) : null; }
+  return { experiments: exp, code };
+}
+
+/** Post-merge outcome: code merged before this boot is live now; compare the objective before the merge with the window after boot. */
+export function measureMergedOutcomes() {
+  const due = qa(`SELECT id, title, updated_at FROM smk_code_proposals WHERE status = 'merged' AND outcome_delta IS NULL AND updated_at < ?`, BOOT_AT);
+  const out = [];
+  if (now() < BOOT_AT + WINDOW_MS) return out;
+  for (const r of due) {
+    const before = windowMetrics(r.updated_at - WINDOW_MS, r.updated_at);
+    const after = windowMetrics(BOOT_AT, BOOT_AT + WINDOW_MS);
+    const delta = before.objective != null && after.objective != null ? round(after.objective - before.objective, 4) : null;
+    db.prepare(`UPDATE smk_code_proposals SET outcome_delta = ?, outcome_at = ? WHERE id = ?`).run(delta, now(), r.id);
+    publish('smk', 'system.self_modification', JSON.stringify({ action: 'code_outcome', id: r.id, title: r.title, delta, before: before.objective, after: after.objective }));
+    out.push({ id: r.id, delta });
+  }
+  return out;
+}
+
+const testIndexCache = { at: 0, files: new Set() };
+function fileHasTests(rel) {
+  if (now() - testIndexCache.at > 10 * MIN) {
+    testIndexCache.files = new Set(); testIndexCache.at = now();
+    const dir = join(REPO_ROOT, 'test');
+    if (existsSync(dir)) for (const f of readdirSync(dir)) if (f.endsWith('.test.js')) { try { for (const m of readFileSync(join(dir, f), 'utf8').matchAll(/\.\.\/(server\/[\w./-]+\.js)/g)) testIndexCache.files.add(m[1]); } catch {} }
+  }
+  return testIndexCache.files.has(rel);
+}
+
+/** Daemon step: at most one autonomous code build per cycle, bounded by the review backlog. Convention findings first (deterministic, cited), Ouroboros after. */
 export async function maybeBuildFromBacklog({ trigger = 'daemon' } = {}) {
   if (!ENABLED) return { built: false, reason: 'disabled' };
   if (state.building) return { built: false, reason: 'build_in_progress' };
@@ -674,6 +818,8 @@ export async function maybeBuildFromBacklog({ trigger = 'daemon' } = {}) {
   if (ready >= MAX_READY) return { built: false, reason: 'review_backlog_full', ready, max: MAX_READY };
   const today = q1(`SELECT COUNT(*) AS n FROM smk_code_proposals WHERE created_at > ?`, now() - 24 * H)?.n || 0;
   if (today >= MAX_BUILDS_PER_DAY) return { built: false, reason: 'daily_build_cap', today, max: MAX_BUILDS_PER_DAY };
+  const conv = nextConventionCandidate({ preferTested: fileHasTests });
+  if (conv) return buildCodeProposal({ source: `convention:${conv.rule}`, originId: conv.key, title: conv.title, targetFile: conv.targetFile, line: conv.line, sketch: conv.sketch, rationale: conv.rationale });
   const cand = nextOuroborosCandidate();
   if (!cand) return { built: false, reason: 'no_buildable_candidate' };
   return buildCodeProposal({ source: `ouroboros:${trigger}`, ...cand });
@@ -709,7 +855,16 @@ export function startSelfModification({ intervalMs = 5 * MIN } = {}) {
   mkdirSync(SMK_DIR, { recursive: true });
   recoverAtBoot();
   state.running = true;
-  state.timer = setInterval(() => { selfModificationCycle({ trigger: 'timer' }).catch(e => console.error('[smk] cycle:', e.message)); }, intervalMs);
+  state.timer = setInterval(() => {
+    selfModificationCycle({ trigger: 'timer' }).catch(e => console.error('[smk] cycle:', e.message));
+    try { const o = measureMergedOutcomes(); if (o.length) console.log('[smk] merged-code outcomes measured:', JSON.stringify(o)); } catch (e) { console.error('[smk] outcomes:', e.message); }
+    try {
+      const last = q1(`SELECT created_at FROM smk_convention_scans ORDER BY created_at DESC LIMIT 1`)?.created_at || 0;
+      if (now() - last > 24 * H) { const r = scanConventions(); console.log(`[smk] convention scan: ${r.findings} findings (${r.newFindings} new, ${r.resolved} resolved) in ${r.durationMs} ms`); }
+    } catch (e) { console.error('[smk] convention scan:', e.message); }
+  }, intervalMs);
+  // First convention scan shortly after boot (cheap: regex over ~360 files), so the code tier has grounded work from the first cycle.
+  setTimeout(() => { try { const r = scanConventions(); console.log(`[smk] convention scan: ${r.findings} findings (${r.newFindings} new, ${r.resolved} resolved) in ${r.durationMs} ms`); } catch (e) { console.error('[smk] convention scan:', e.message); } }, 10_000);
   return { started: true, intervalMs, windowMs: WINDOW_MS, tunables: TUNABLE_NAMES.length, codeModel: CODE_MODEL };
 }
 export function stopSelfModification() {
@@ -727,7 +882,9 @@ export function getSelfModificationStatus() {
     config: { windowMs: WINDOW_MS, experimentGapMs: EXPERIMENT_GAP_MS, retestMs: RETEST_MS, tolerance: TOLERANCE, llmProposeEveryMs: LLM_PROPOSE_EVERY_MS, codeModel: CODE_MODEL, maxReady: MAX_READY, maxBuildsPerDay: MAX_BUILDS_PER_DAY, maxTargetLines: MAX_TARGET_LINES, ouroborosBacklogMax: OUROBOROS_BACKLOG_MAX },
     experiment: running ? { ...hydrate(running), remainingMs: Math.max(0, running.started_at + running.window_ms - now()) } : null,
     verdicts, kept, proposers: { rule: state.ruleProposals, llm: state.llmProposals, llmDeclined: state.llmDeclined, lastLlmProposeAt: state.lastLlmProposeAt },
-    code: { counts: code, building: state.building, lastBuild: state.lastBuild, builds: state.builds },
+    code: { counts: code, building: state.building, lastBuild: state.lastBuild, builds: state.builds, outcomes: qa(`SELECT id, title, outcome_delta FROM smk_code_proposals WHERE outcome_delta IS NOT NULL ORDER BY outcome_at DESC LIMIT 5`) },
+    proposerStats: proposerStats(),
+    conventions: (() => { try { const c = getConventionStatus(); return { open: c.open, statuses: c.statuses, fixedTotal: c.fixedTotal, protectedOpen: c.protectedOpen, lastScanAt: c.lastScan?.created_at || null }; } catch (e) { return { error: e.message }; } })(),
     ouroboros: checkOuroborosAllowed(),
     tunables: listTunables().map(t => ({ name: t.name, value: t.value, default: t.default, source: t.source })),
     objectiveNow: windowMetrics(now() - WINDOW_MS, now()),
@@ -749,12 +906,14 @@ export function installSelfModificationRoutes(app) {
     res.status(r.started ? 201 : 409).json(r);
   }));
   app.post(`${B}/experiments/:id/evaluate`, route((req, res) => res.json(evaluateExperiment(req.params.id, { force: req.body?.force !== false }))));
-  app.get(`${B}/proposals`, route((_req, res) => res.json({ rules: ruleProposals(), nextCode: nextOuroborosCandidate() })));
+  app.get(`${B}/proposals`, route((_req, res) => res.json({ rules: ruleProposals(), nextConvention: nextConventionCandidate({ preferTested: fileHasTests }), nextOuroboros: nextOuroborosCandidate(), proposerStats: proposerStats() })));
+  app.get(`${B}/conventions`, route((req, res) => res.json({ ...getConventionStatus(), findings: listConventionFindings({ rule: req.query.rule || null, status: req.query.status || 'open', limit: parseInt(req.query.limit, 10) || 50 }) })));
+  app.post(`${B}/conventions/scan`, route((_req, res) => res.json(scanConventions())));
   app.get(`${B}/code`, route((req, res) => res.json({ proposals: listCodeProposals({ status: req.query.status || null, limit: parseInt(req.query.limit, 10) || 30 }) })));
   app.get(`${B}/code/:id`, route((req, res) => { const p = getCodeProposal(req.params.id, { diff: req.query.diff !== '0' }); p ? res.json(p) : res.status(404).json({ error: 'not found' }); }));
   app.post(`${B}/code/build`, route(async (req, res) => {
-    const { title, targetFile, sketch, rationale, model } = req.body || {};
-    const r = await buildCodeProposal({ source: 'api', title, targetFile, sketch, rationale, model });
+    const { title, targetFile, line, sketch, rationale, model } = req.body || {};
+    const r = await buildCodeProposal({ source: 'api', title, targetFile, line: line ?? null, sketch, rationale, model });
     res.status(r.built ? 201 : 409).json(r);
   }));
   app.post(`${B}/code/backlog`, route(async (_req, res) => res.json(await maybeBuildFromBacklog({ trigger: 'api' }))));

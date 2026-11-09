@@ -82,7 +82,9 @@ export default function SelfModificationPanel({ wsEvent }) {
   const exp = status?.experiment;
   const v = status?.verdicts || {};
   const cc = status?.code?.counts || {};
-  const tabs = [['experiments', `Experiments (${experiments.length})`], ['tunables', `Tunables (${status?.tunables?.length || 0})`], ['code', `Code (${cc.ready || 0} ready)`]];
+  const conv = status?.conventions || {};
+  const convOpen = Object.values(conv.open || {}).reduce((a, b) => a + b, 0);
+  const tabs = [['experiments', `Experiments (${experiments.length})`], ['tunables', `Tunables (${status?.tunables?.length || 0})`], ['code', `Code (${cc.ready || 0} ready)`], ['conventions', `Conventions (${convOpen} open)`]];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, color: C.text, fontSize: 13 }}>
@@ -171,6 +173,28 @@ export default function SelfModificationPanel({ wsEvent }) {
         </div>
       )}
 
+      {tab === 'conventions' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 12, color: C.dim }}>Deterministic scan of server/ against the codebase's own conventions (CLAUDE.md). Each open finding is a cited file:line the code tier can fix inside one function; builds take the highest-priority rule first, preferring files a test covers.</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {Object.entries(conv.open || {}).map(([rule, n]) => <Stat key={rule} label={rule.replace(/_/g, ' ')} value={n} color={C.amber} />)}
+            <Stat label="fixed (resolved by scan)" value={conv.fixedTotal ?? 0} color={C.green} />
+            <Stat label="in protected files" value={conv.protectedOpen ?? 0} color={C.dim} />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button disabled={busy} style={btn(C.cyan, true)} onClick={() => act(`${B}/conventions/scan`, {}, j => `scanned ${j.files} files: ${j.findings} findings, ${j.newFindings} new, ${j.resolved} resolved`)}>scan now</button>
+            <span style={{ fontSize: 11, color: C.dim, alignSelf: 'center' }}>last scan {ago(conv.lastScanAt)}</span>
+          </div>
+          {status?.proposerStats && (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 10, fontSize: 12 }}>
+              <div style={{ color: C.dim, marginBottom: 6 }}>Proposer credit — who earns their keep</div>
+              {Object.entries(status.proposerStats.code || {}).map(([p, v]) => <div key={p}><span style={{ color: C.purple }}>{p}</span>: {v.ready} ready · {v.merged} merged · {v.rejected} rejected · {v.failed} failed · green rate {v.greenRate ?? '—'} · merge rate {v.mergeRate ?? '—'}</div>)}
+              {Object.entries(status.proposerStats.experiments || {}).map(([p, v]) => <div key={p}><span style={{ color: C.cyan }}>{p}</span>: {v.kept} kept · {v.reverted} reverted · {v.inconclusive} inconclusive · keep rate {v.keepRate ?? '—'}</div>)}
+            </div>
+          )}
+        </div>
+      )}
+
       {tab === 'code' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {code.length === 0 && <div style={{ color: C.dim }}>No code proposals yet. The daemon builds at most one per cycle from the Ouroboros backlog, bounded by {status?.config?.maxReady ?? 3} unreviewed branches.</div>}
@@ -186,7 +210,11 @@ export default function SelfModificationPanel({ wsEvent }) {
                     <span>{ago(p.created_at)}</span>
                     <span>{p.tests_selected ? `${p.tests_selected} test file(s) ${p.tests_passed ? 'green' : 'red'}` : 'syntax check only'}</span>
                     {p.lines_before != null && p.lines_after != null && <span>{p.lines_before} → {p.lines_after} lines</span>}
+                    {p.mode === 'span' && <span style={{ color: C.cyan }}>function-level (lines {p.span_start}–{p.span_end})</span>}
+                    {p.source && <span>{p.source}</span>}
+                    {p.outcome_delta != null && <span style={{ color: p.outcome_delta >= 0 ? C.green : C.red }}>post-merge Δ {p.outcome_delta}</span>}
                   </div>
+                  {p.summary && <div style={{ fontSize: 11, color: C.text, marginTop: 4, fontStyle: 'italic' }}>model: {p.summary}</div>}
                   {p.diff_stat && <pre style={{ fontSize: 10, color: C.dim, margin: '6px 0 0', whiteSpace: 'pre-wrap' }}>{p.diff_stat}</pre>}
                   {p.failure && <div style={{ fontSize: 11, color: C.red, marginTop: 4 }}>{p.failure}</div>}
                 </div>
