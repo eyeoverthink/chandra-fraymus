@@ -636,7 +636,7 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
 
   // Phase U: hive — NUDP node + V13 hub registration, and the fraymus-bridge peer adapter
   startHiveMesh().then(s => {
-    console.log(`[hive-mesh] node ${s.node?.running ? 'up' : 'down'} on :${s.node?.port} as ${s.identity?.number}, ${s.peers.length} peer(s) seeded, hub ${s.hub.registered ? 'registered' : 'not registered' + (s.hub.lastError ? ` (${s.hub.lastError})` : '')}`);
+    console.log(`[hive-mesh] node ${s.node?.running ? 'up' : 'down'} on :${s.node?.port} as ${s.identity?.number}, ${s.peers.length} peer(s) seeded, hub ${s.hub.registered ? 'registered' : 'not registered' + (s.hub.lastError ? ` (${s.hub.lastError})` : '')}, fmp1 ${s.fmp1?.running ? `pid ${s.fmp1.pid} on :${s.fmp1.config?.port}` : 'not running'}`);
   }).catch(e => console.error('hive mesh start error:', e.message));
   try {
     const hp = startHivePeers();
@@ -833,7 +833,7 @@ export function getDaemonStatus() {
     goalExecutor: getGoalExecutorStatus(),
     externalSenses: getExternalSensesStatus(),
     selfAudit: (() => { const s = getSelfAuditStatus(); return { running: s.running, open: s.open, lastRun: s.lastRun && { at: s.lastRun.at, counts: s.lastRun.counts, clean: s.lastRun.clean } }; })(),
-    hiveMesh: (() => { const s = getHiveMeshStatus(); return { running: s.running, number: s.identity?.number, port: s.node?.port, peers: s.peers.length, heardFrom: s.heardFromPeers, hubRegistered: s.hub.registered, hubOnline: s.hub.online }; })(),
+    hiveMesh: (() => { const s = getHiveMeshStatus(); return { running: s.running, number: s.identity?.number, port: s.node?.port, peers: s.peers.length, heardFrom: s.heardFromPeers, hubRegistered: s.hub.registered, hubOnline: s.hub.online, fmp1Running: s.fmp1?.running, fmp1NodeId: s.fmp1?.nodeId, fmp1Neighbors: s.fmp1?.bidirNeighbors }; })(),
     hivePeers: (() => { const s = getHivePeersStatus(); return { running: s.running, messages: s.messages, peers: s.peers.length, lastSeenSeq: s.lastSeenSeq, push: s.config.push }; })(),
     adaptiveStrategy: getAdaptiveStatus(),
     selfModel: getSelfModelStatus(),

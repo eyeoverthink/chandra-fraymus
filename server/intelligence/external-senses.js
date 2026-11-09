@@ -27,6 +27,7 @@ import { liveDirectory } from '../fraymus/protocol/hub.js';
 import { presenceStatus } from '../fraymus/protocol/presence.js';
 import { DEFAULT_RELAY } from '../fraymus/core/constants.js';
 import { getNode } from '../fraymus/protocol/mesh-node.js';
+import { getFmp1Status } from './fmp1-node.js';
 import { getUserSensoriumStatus } from '../awareness/user-sensorium.js';
 
 const execFileP = promisify(execFile);
@@ -130,11 +131,18 @@ async function pollMesh() {
     const r = db.prepare(`SELECT COUNT(*) as c, COUNT(DISTINCT agent) as a FROM hive_bridge_messages WHERE direction = 'in' AND ingested_at > ?`).get(now() - DAY);
     bridgeIn24h = r?.c || 0; bridgeAgents24h = r?.a || 0;
   } catch (_) {}
-  const live = hubOnline + hubIdle * 0.5 + Math.max(udpPeers, dbPeers) + bridgeAgents24h;
+  // FMP/1 (the Pi's protocol): bidirectional neighbours are real radio-level peers.
+  let fmp1Neighbors = 0, fmp1Running = false;
+  try {
+    const f = getFmp1Status();
+    fmp1Running = f.running;
+    fmp1Neighbors = Array.isArray(f.status?.neighbors) ? f.status.neighbors.filter(n => n.bidir).length : 0;
+  } catch (_) {}
+  const live = hubOnline + hubIdle * 0.5 + Math.max(udpPeers, dbPeers) + bridgeAgents24h + fmp1Neighbors;
   return {
     value: clamp01(live / 5),
-    source: hubError ? (udpPeers || dbPeers || bridgeIn24h ? 'nudp+bridge' : 'unreachable') : 'hub+nudp+bridge',
-    detail: { hubOnline, hubIdle, hubTotal, udpPeers, dbPeers, bridgeIn24h, bridgeAgents24h, relay: DEFAULT_RELAY, hubError },
+    source: hubError ? (udpPeers || dbPeers || bridgeIn24h || fmp1Neighbors ? 'nudp+bridge+fmp1' : 'unreachable') : 'hub+nudp+bridge+fmp1',
+    detail: { hubOnline, hubIdle, hubTotal, udpPeers, dbPeers, bridgeIn24h, bridgeAgents24h, fmp1Running, fmp1Neighbors, relay: DEFAULT_RELAY, hubError },
     error: hubError,
   };
 }

@@ -15,6 +15,10 @@
  * Ed25519 roster. Sending NUDP HELLOs at it is harmless and will show whether it
  * answers; joining its roster needs `fmp1 keygen` on this PC and a roster entry on the
  * Pi — an operator step, reported as such in status.
+ *
+ * Third transport (2026-11-08): a real FMP/1 node now runs beside the NUDP node as a
+ * supervised Python child (fmp1-node.js) using Chandra's own FMP/1 identity
+ * (a55799181f41d3f8) and the operator-signed roster. Its inbox is bridged onto the bus.
  */
 
 import { db } from '../db.js';
@@ -26,10 +30,11 @@ import { sourceIdFromPubkey } from '../fraymus/protocol/nudp.js';
 import { liveRegister, liveDirectory, hubTokenSource } from '../fraymus/protocol/hub.js';
 import { presenceStatus } from '../fraymus/protocol/presence.js';
 import { DEFAULT_RELAY } from '../fraymus/core/constants.js';
+import { startFmp1Node, stopFmp1Node, getFmp1Status, installFmp1Routes } from './fmp1-node.js';
 
 const now = () => Date.now();
 const REGISTER_INTERVAL_MS = 10 * 60_000;
-const DEFAULT_PEERS = '10.0.0.162:47100';
+const DEFAULT_PEERS = '10.0.0.163:47100';
 const SKILLS = ['chandra', 'nudp', 'consciousness-audit', 'goal-executor', 'self-audit', 'hive-export'];
 
 let registerTimer = null;
@@ -46,7 +51,7 @@ function parsePeers() {
   const raw = process.env.MESH_PEERS ?? DEFAULT_PEERS;
   return raw.split(',').map(s => s.trim()).filter(Boolean).map(s => {
     const [addr, port] = s.split(':');
-    return { addr, port: parseInt(port, 10) || 47331, label: addr === '10.0.0.162' ? 'raspberry-pi fmp1 (different protocol; roster join is an operator step)' : null };
+    return { addr, port: parseInt(port, 10) || 47331, label: addr === '10.0.0.163' ? 'raspberry-pi fmp1 (NUDP HELLOs are a probe only; the real link is the FMP/1 node)' : null };
   });
 }
 
@@ -66,9 +71,12 @@ export async function startHiveMesh() {
     const r = node.addPeer(p);
     if (r.added) state.seededPeers.push({ ...r, label: p.label });
   }
-  state.operatorSteps = [
-    'Join the Pi fmp1 roster: install fmp1 on this PC, run `fmp1 keygen`, add the public key to the Pi roster (~/.fmp1-root). NUDP HELLOs are already being sent to it.',
-  ];
+  // FMP/1 — the protocol the Pi actually speaks. Started here so the hive has one lifecycle.
+  const f = startFmp1Node();
+  state.fmp1Start = f;
+  state.operatorSteps = f.started
+    ? ['Pi roster install is pending on the Mac: `ssh-add --apple-use-keychain ~/.ssh/id_ed25519 && bash ~/fmp1-push-chandra-roster.sh`. Until then the Pi (0cd41863a0d974b4) will not accept Chandra (a55799181f41d3f8) as a neighbour.']
+    : [`FMP/1 node not started: ${f.reason}`];
 
   state.running = true;
   await registerOnHub().catch(() => {});
@@ -79,6 +87,7 @@ export async function startHiveMesh() {
 
 export function stopHiveMesh() {
   if (registerTimer) { clearInterval(registerTimer); registerTimer = null; }
+  try { stopFmp1Node(); } catch (e) { console.error('[hive-mesh] fmp1 stop:', e.message); }
   state.running = false;
   return { stopped: true };
 }
@@ -112,12 +121,23 @@ export async function registerOnHub() {
 export function getHiveMeshStatus() {
   const node = getNode();
   const peers = node ? node.peers() : [];
+  const fmp1 = getFmp1Status();
+  const fmp1Neighbors = Array.isArray(fmp1.status?.neighbors) ? fmp1.status.neighbors : [];
   return {
     running: state.running,
     identity: state.identity,
     node: node ? node.status() : null,
     peers: peers.map(p => ({ sourceId: p.sourceId, addr: p.addr, port: p.port, seeded: !!p.seeded, restored: !!p.restored, label: p.label || null, lastSeen: p.lastSeen })),
     heardFromPeers: peers.filter(p => !p.seeded && !p.restored).length,
+    fmp1: {
+      enabled: fmp1.enabled, running: fmp1.running, pid: fmp1.pid, uptimeMs: fmp1.uptimeMs, exits: fmp1.exits,
+      nodeId: fmp1.status?.node_id || null, state: fmp1.status?.state || null, addr: fmp1.status?.addr || null,
+      neighbors: fmp1Neighbors, bidirNeighbors: fmp1Neighbors.filter(n => n.bidir).length,
+      routes: fmp1.status?.routes ? Object.keys(fmp1.status.routes).length : 0,
+      rosterVersion: fmp1.status?.roster_version ?? null, receipts: fmp1.status?.receipts?.count ?? null,
+      lastError: fmp1.status?.last_error || fmp1.statusError || null,
+      inbox: fmp1.inbox, config: fmp1.config,
+    },
     hub: { ...state.hub, relay: DEFAULT_RELAY, registerIntervalMs: REGISTER_INTERVAL_MS, tokenConfigured: !!hubTokenSource(), tokenSource: hubTokenSource() },
     operatorSteps: [
       ...state.operatorSteps,
@@ -129,6 +149,7 @@ export function getHiveMeshStatus() {
 export function installHiveMeshRoutes(app) {
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
   app.get('/api/intelligence/hive-mesh', route((_req, res) => res.json(getHiveMeshStatus())));
+  installFmp1Routes(app);
   app.post('/api/intelligence/hive-mesh/register', route(async (_req, res) => res.json(await registerOnHub())));
   app.post('/api/intelligence/hive-mesh/peer', route((req, res) => {
     const node = getNode();
