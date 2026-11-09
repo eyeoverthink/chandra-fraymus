@@ -20,7 +20,8 @@ export function installAudienceRoutes(app, { memoryBridge, broadcast } = {}) {
     try {
       const segment = getSegment(req.params.id);
       if (!segment) return res.status(404).json({ error: 'Segment not found' });
-      const signals = getSegmentSignals(req.params.id, parseInt(req.query.signalLimit) || 20);
+      const signalLimit = Math.min(500, Math.max(1, parseInt(req.query.signalLimit, 10) || 20));
+      const signals = getSegmentSignals(req.params.id, signalLimit);
       const predictions = getSegmentPredictions(req.params.id, parseInt(req.query.predLimit) || 10);
       res.json({ segment, signals, predictions });
     } catch (e) { next(e); }
