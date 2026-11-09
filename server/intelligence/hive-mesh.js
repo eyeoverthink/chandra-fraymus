@@ -23,7 +23,7 @@ import { DATA_DIR } from '../config.js';
 import { getSystemIdentity } from '../fraymus/core/system-identity.js';
 import { createNode, getNode } from '../fraymus/protocol/mesh-node.js';
 import { sourceIdFromPubkey } from '../fraymus/protocol/nudp.js';
-import { liveRegister, liveDirectory } from '../fraymus/protocol/hub.js';
+import { liveRegister, liveDirectory, hubTokenSource } from '../fraymus/protocol/hub.js';
 import { presenceStatus } from '../fraymus/protocol/presence.js';
 import { DEFAULT_RELAY } from '../fraymus/core/constants.js';
 
@@ -118,10 +118,10 @@ export function getHiveMeshStatus() {
     node: node ? node.status() : null,
     peers: peers.map(p => ({ sourceId: p.sourceId, addr: p.addr, port: p.port, seeded: !!p.seeded, restored: !!p.restored, label: p.label || null, lastSeen: p.lastSeen })),
     heardFromPeers: peers.filter(p => !p.seeded && !p.restored).length,
-    hub: { ...state.hub, relay: DEFAULT_RELAY, registerIntervalMs: REGISTER_INTERVAL_MS, tokenConfigured: !!(process.env.FRAYMUS_HUB_TOKEN || process.env.FRAYMUS_TOKEN) },
+    hub: { ...state.hub, relay: DEFAULT_RELAY, registerIntervalMs: REGISTER_INTERVAL_MS, tokenConfigured: !!hubTokenSource(), tokenSource: hubTokenSource() },
     operatorSteps: [
       ...state.operatorSteps,
-      ...(/unauthorized/i.test(state.hub.lastError || '') ? ['Hub registration needs a bearer token: set FRAYMUS_HUB_TOKEN in .env (the hub at ' + DEFAULT_RELAY + ' is your VPS; the token is yours). The public directory is readable without it.'] : []),
+      ...(/unauthorized/i.test(state.hub.lastError || '') ? ['Hub registration is unauthorized: point FRAYMUS_HUB_TOKEN_FILE in .env at a file holding the write-tier token (preferred — a stale process-level FRAYMUS_HUB_TOKEN would otherwise shadow .env), or set FRAYMUS_HUB_TOKEN. The hub at ' + DEFAULT_RELAY + ' is your VPS; the token is yours.'] : []),
     ],
   };
 }
