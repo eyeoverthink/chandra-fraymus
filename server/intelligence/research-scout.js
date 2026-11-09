@@ -61,6 +61,7 @@ function ensureTables() {
     topic TEXT, relevance REAL, relevance_terms TEXT, status TEXT NOT NULL DEFAULT 'new', fetched_at INTEGER NOT NULL
   )`).run();
   db.prepare(`CREATE INDEX IF NOT EXISTS idx_research_items_status ON research_items(status, relevance)`).run();
+  try { db.prepare(`ALTER TABLE research_items ADD COLUMN translate_note TEXT`).run(); } catch (_) {}
   db.prepare(`CREATE TABLE IF NOT EXISTS research_proposals (
     id TEXT PRIMARY KEY, item_id TEXT NOT NULL, kind TEXT NOT NULL, tunable TEXT, value REAL, hypothesis TEXT,
     target_file TEXT, sketch TEXT, rationale TEXT, idea TEXT, citation TEXT,
@@ -207,8 +208,8 @@ export async function translateItem(itemId) {
   const tunables = TUNABLE_NAMES.map(n => ({ name: n, value: tunable(n), min: REGISTRY[n].min, max: REGISTRY[n].max, unit: REGISTRY[n].unit, effect: REGISTRY[n].effect }));
   const raw = await chatOllama([
     { role: 'system', content: TRANSLATE_SYSTEM },
-    { role: 'user', content: JSON.stringify({ item: { title: it.title, abstract: (it.abstract || '').slice(0, 2500), source: it.source, url: it.url, matchedTerms: JSON.parse(it.relevance_terms || '[]') }, liveTunables: tunables, modules: moduleList() }) },
-  ], { priority: 'goal', label: `research:translate:${it.id}`, format: 'json', temperature: 0.2, maxTokens: 700 }); // 'goal': ≤ 3 calls/day, must not be dropped while waiting for a slot
+    { role: 'user', content: JSON.stringify({ item: { title: it.title, abstract: (it.abstract || '').slice(0, 1800), source: it.source, url: it.url, matchedTerms: JSON.parse(it.relevance_terms || '[]') }, liveTunables: tunables, modules: moduleList().slice(0, 36) }) },
+  ], { priority: 'goal', label: `research:translate:${it.id}`, format: 'json', temperature: 0.2, maxTokens: 600, timeoutMs: 600_000 }); // 'goal': ≤ 3 calls/day, never dropped; 10 min — on a shared GPU a 2k-token prompt can queue for minutes
   const j = parseJSON(raw) || {};
   const t = now();
   const id = 'rp_' + Math.random().toString(36).slice(2, 10);
@@ -230,8 +231,9 @@ export async function translateItem(itemId) {
     }
     try { publish('research', 'system.research', JSON.stringify({ action: 'proposal', id, kind, title: it.title, url: it.url, tunable: row.tunable, value: row.value, hypothesis: row.hypothesis, targetFile: row.target_file, idea: row.idea })); } catch (_) {}
   }
-  db.prepare(`UPDATE research_items SET status = ? WHERE id = ?`).run(kind === 'none' ? 'ignored' : 'translated', it.id);
-  return { ok: true, itemId: it.id, kind, proposalId: kind !== 'none' ? id : null, reason: j.reason || null };
+  const note = kind === 'none' ? String(j.reason || (j.kind ? `model answered ${j.kind} but it failed validation` : 'unparseable answer')).slice(0, 300) : `${kind}: ${String(j.citation || '').slice(0, 120)}`;
+  db.prepare(`UPDATE research_items SET status = ?, translate_note = ? WHERE id = ?`).run(kind === 'none' ? 'ignored' : 'translated', note, it.id);
+  return { ok: true, itemId: it.id, kind, proposalId: kind !== 'none' ? id : null, reason: j.reason || null, raw: String(raw).slice(0, 600) };
 }
 
 export async function translateTop({ max = MAX_TRANSLATE } = {}) {
