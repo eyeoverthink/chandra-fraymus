@@ -24,6 +24,7 @@ import { isActionSuppressed } from './adaptive-strategy.js';
 import { scoreOutcome, installOutcomeScorerRoutes } from './outcome-scorer.js';
 import { recordOutcome, getCurrentSession } from './perspective.js';
 import { isRetired, agentQualityWeight, goalUtility, shouldShelve, shelveGoal, sweepAgentQuality, listRetirements, installAgentQualityRoutes } from './agent-quality.js';
+import { installOutcomeFeedbackRoutes } from './outcome-feedback.js';
 
 const now = () => Date.now();
 
@@ -343,6 +344,7 @@ export function installGoalExecutorRoutes(app) {
   // Phase W routes BEFORE the outcome scorer's: /api/goal-executor/quality/:agentId is a
   // param route and would swallow /api/goal-executor/quality/trend.
   installAgentQualityRoutes(app, { listAgents: () => listAgents('local') }); // sweep route exempts hand-written manifests
+  installOutcomeFeedbackRoutes(app); // human 👍/👎 → quality blend (before the scorer's param route too)
   installOutcomeScorerRoutes(app);
 
   app.get('/api/goal-executor/history', route((req, res) => {
