@@ -57,12 +57,16 @@ ensureTable();
 
 function measureConnectivity() {
   const metrics = {};
+  // Phase V: 478 emergency events on 2026-11-08 carried connectivity exactly 0.000 while the
+  // live measure read 0.43 — a score of 0 means every term's query threw, not that the
+  // organism was dead. Count failures; three or more → the reading is unusable, say so.
+  let errors = 0;
 
   try {
     const recentRuns = db.prepare(`SELECT COUNT(*) as c FROM runs WHERE created_at > ?`).get(now() - 3600_000)?.c || 0;
     metrics.agentActivityRate = Math.min(1, recentRuns / RUNS_PER_HOUR_FULL);
     metrics.recentRuns = recentRuns;
-  } catch (_) { metrics.agentActivityRate = 0; }
+  } catch (e) { metrics.agentActivityRate = 0; errors++; metrics.lastError = e.message.slice(0, 120); }
 
   try {
     const totalMemories = db.prepare(`SELECT COUNT(*) as c FROM agent_memories`).get()?.c || 0;
@@ -71,23 +75,27 @@ function measureConnectivity() {
     metrics.memoryHealth = totalMemories > 0
       ? (verifiedMemories / totalMemories * 0.4) + (Math.min(1, recentAccess / MEMORY_ACCESS_PER_HOUR_FULL) * 0.6)
       : 0;
-  } catch (_) { metrics.memoryHealth = 0; }
+  } catch (e) { metrics.memoryHealth = 0; errors++; metrics.lastError = e.message.slice(0, 120); }
 
   try {
     const recentBus = db.prepare(`SELECT COUNT(*) as c FROM bus_messages WHERE created_at > ?`).get(now() - 3600_000)?.c || 0;
     metrics.busTraffic = Math.min(1, recentBus / 50);
-  } catch (_) { metrics.busTraffic = 0; }
+  } catch (e) { metrics.busTraffic = 0; errors++; metrics.lastError = e.message.slice(0, 120); }
 
   try {
     const recentWorkflows = db.prepare(`SELECT COUNT(*) as c FROM workflow_runs WHERE created_at > ?`).get(now() - 3600_000)?.c || 0;
     metrics.workflowActivity = Math.min(1, recentWorkflows / 10);
-  } catch (_) { metrics.workflowActivity = 0; }
+  } catch (e) { metrics.workflowActivity = 0; errors++; metrics.lastError = e.message.slice(0, 120); }
 
   try {
     const activeAlerts = db.prepare(`SELECT COUNT(*) as c FROM health_alerts WHERE resolved = 0 AND created_at > ?`).get(now() - ALERT_WINDOW_MS)?.c || 0;
     metrics.healthPenalty = Math.min(0.3, activeAlerts * 0.1);
     metrics.activeAlerts = activeAlerts;
-  } catch (_) { metrics.healthPenalty = 0; }
+  } catch (e) { metrics.healthPenalty = 0; errors++; metrics.lastError = e.message.slice(0, 120); }
+
+  if (errors >= 3) {
+    return { score: null, degraded: true, errors, metrics, contributions: {}, diagnosis: [`metrics_unavailable (${errors} of 5 terms failed: ${metrics.lastError})`] };
+  }
 
   const contributions = {
     agentActivity: metrics.agentActivityRate * 0.30,
@@ -205,7 +213,12 @@ async function injectCTRNNTargeted(sampleIndices) {
 }
 
 export async function neurogenesisCycle() {
-  const { score, metrics, diagnosis } = measureConnectivity();
+  const measured = measureConnectivity();
+  if (measured.degraded) {
+    console.warn(`[neurogenesis] connectivity unmeasurable — ${measured.diagnosis[0]}; no emergency declared`);
+    return { triggered: false, type: 'skipped', reason: 'metrics_unavailable', errors: measured.errors, diagnosis: measured.diagnosis };
+  }
+  const { score, metrics, diagnosis } = measured;
   const stimuli = [];
 
   // Phase 4: read consciousness gate for targeted stimulus and boost

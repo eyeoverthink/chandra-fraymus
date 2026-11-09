@@ -2,6 +2,7 @@ import { AgentError, fail } from './schema.js';
 import {normalizeThinking,thinkingControls,requireThinking,attachPrivateThinking} from './thinking.js';
 import { PRODUCTION } from '../config.js';
 import { sanitizeOllamaContent, sanitizeDeep } from '../fraymus/intelligence/ollama-sanitize.js';
+import { withOllama } from '../intelligence/ollama-scheduler.js';
 
 export const cloudModelName = model => typeof model === 'string' && /(?:^|[:/@._-])cloud(?:$|[:/@._-])/i.test(model);
 export function remoteModelMetadata(data, depth = 0) {
@@ -108,10 +109,11 @@ export function createOllamaProvider({ url, fetchImpl = fetch }) {
       const checked=beforeRequest?.({inputTokens:estimatedInputTokens??Buffer.byteLength(JSON.stringify(messages))+Buffer.byteLength(JSON.stringify(tools??[]))+512,maxOutputTokens,reservedCostUsd:0,estimated:true});
       if(checked&&typeof checked.then==='function')await checked;
       signal?.throwIfAborted();
-      const data = await request('/api/chat', {
+      // Phase V: agent runs go through the priority scheduler ahead of background cognition.
+      const data = await withOllama('agent_run', () => request('/api/chat', {
         model, messages, ...(tools?.length ? { tools } : {}), stream: false,...(choice!==undefined?{think:choice}:{}),
         options: { num_predict: maxOutputTokens, num_ctx: maxInputTokens, temperature: 0.2 },
-      }, signal);
+      }, signal), { label: `agent-runtime:${model}` });
       assertLocalModel(model, data);
       if (data.error) fail('provider_error', String(data.error).slice(0, 300));
       if (!data.message || typeof data.message.content !== 'string' || (data.message.tool_calls !== undefined && !Array.isArray(data.message.tool_calls))) fail('provider_invalid_response', 'Ollama returned an invalid chat message');

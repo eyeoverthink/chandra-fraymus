@@ -19,6 +19,26 @@ const DEFAULT_INTERVAL_MS = 30 * 60 * 1000;
 let reflectionTimer = null;
 let lastReflectionAt = 0;
 
+// Phase V gate. Measured 2026-11-09: 956 reflections in 24 h (884 from the motor Reflect
+// region, one every ~90 s), each averaging 303 s because debates/verifier loops run
+// inline — so 3–4 overlapped and starved every agent run of GPU. Three guards, applied
+// to every autonomous trigger (anything but 'manual' / 'api'):
+//   1. single-flight — a reflection never starts while one is running
+//   2. minimum interval — REFLECTION_MIN_INTERVAL_MS (default 10 min → ≤ 6/h)
+//   3. new outcome-bearing data since the last one (bus traffic does not count: the
+//      system's own stimuli publish ~13 bus messages a minute)
+// Plus a per-reflection budget for heavy actions, so one reflection cannot launch
+// three debates and two verifier loops.
+let reflectionInFlight = false;
+let lastReflectionStartedAt = 0;
+const MIN_INTERVAL_MS = Math.max(60_000, parseInt(process.env.REFLECTION_MIN_INTERVAL_MS, 10) || 10 * 60_000);
+const HEAVY_ACTION_BUDGET = { run_debate: 1, run_verifier: 1, forge_agent: 1, synthesize_workflow: 1 };
+const gateStats = { ran: 0, inProgress: 0, minInterval: 0, noNewData: 0, heavySkipped: 0, strategySkipped: 0 };
+
+export function getReflectionGateStats() {
+  return { ...gateStats, minIntervalMs: MIN_INTERVAL_MS, inFlight: reflectionInFlight, lastReflectionAt, lastStartedAt: lastReflectionStartedAt };
+}
+
 function collectState() {
   const memoryStats = (() => {
     try {
@@ -303,7 +323,26 @@ async function executeAction(action) {
   }
 }
 
-export async function reflect({ trigger = 'manual' } = {}) {
+export async function reflect(opts = {}) {
+  const trigger = opts.trigger || 'manual';
+  const autonomous = !['manual', 'api'].includes(trigger);
+  if (reflectionInFlight) { gateStats.inProgress++; return { skipped: true, reason: 'in_progress', trigger }; }
+  if (autonomous) {
+    const sinceStart = now() - lastReflectionStartedAt;
+    if (sinceStart < MIN_INTERVAL_MS) { gateStats.minInterval++; return { skipped: true, reason: 'min_interval', trigger, nextInMs: MIN_INTERVAL_MS - sinceStart }; }
+    if (!hasNewData()) { gateStats.noNewData++; return { skipped: true, reason: 'no_new_data', trigger }; }
+  }
+  reflectionInFlight = true;
+  lastReflectionStartedAt = now();
+  gateStats.ran++;
+  try {
+    return await reflectInner({ trigger });
+  } finally {
+    reflectionInFlight = false;
+  }
+}
+
+async function reflectInner({ trigger = 'manual' } = {}) {
   const t0 = now();
   const state = collectState();
 
@@ -323,17 +362,29 @@ export async function reflect({ trigger = 'manual' } = {}) {
   const response = await chatOllama([
     { role: 'system', content: prompt },
     { role: 'user', content: `Current system state:\n${stateStr}\n\nAnalyze this state and decide what actions to take.` },
-  ]);
+  ], { priority: 'reflection', label: `reflection:${trigger}` });
 
   const plan = parseReflectionResponse(response, maxActions);
   const results = [];
 
-  const ACTION_SUPPRESSION_MAP = { forge_agent: 'forge', synthesize_workflow: 'synthesize' };
+  // Strategy keys per action — 'goal_execute' is deliberately absent: draining the goal
+  // queue is the one thing conserve mode must never suppress (Phase V inversion).
+  const ACTION_SUPPRESSION_MAP = { forge_agent: 'forge', synthesize_workflow: 'synthesize', run_debate: 'debate', run_verifier: 'verify' };
+  const heavyUsed = {};
   for (const action of plan.actions) {
     const suppressKey = ACTION_SUPPRESSION_MAP[action.action];
     if (suppressKey && isActionSuppressed(suppressKey)) {
+      gateStats.strategySkipped++;
       results.push({ ...action, result: { ok: false, skipped: true, reason: `suppressed by adaptive strategy (${adaptiveMods.strategy})` } });
       continue;
+    }
+    if (action.action in HEAVY_ACTION_BUDGET) {
+      heavyUsed[action.action] = (heavyUsed[action.action] || 0) + 1;
+      if (heavyUsed[action.action] > HEAVY_ACTION_BUDGET[action.action]) {
+        gateStats.heavySkipped++;
+        results.push({ ...action, result: { ok: false, skipped: true, reason: `heavy action budget (${HEAVY_ACTION_BUDGET[action.action]} ${action.action} per reflection)` } });
+        continue;
+      }
     }
     const result = await executeAction(action);
     results.push({ ...action, result });
@@ -380,12 +431,22 @@ export function getReflection(id) {
   return db.prepare(`SELECT * FROM reflections WHERE id = ?`).get(id);
 }
 
+// "New data" means outcome-bearing rows since the last reflection STARTED — things the
+// world or the fleet did, not bus chatter the organism emits about itself.
+const NEW_DATA_SOURCES = [
+  ['runs', 'created_at'], ['goal_executions', 'started_at'], ['workflow_runs', 'created_at'],
+  ['hive_bridge_messages', 'ingested_at'], ['fmp1_messages', 'received_at'],
+  ['verification_loops', 'completed_at'], ['debates', 'created_at'], ['agent_memories', 'created_at'],
+];
 function hasNewData() {
-  try {
-    const recent = db.prepare(`SELECT COUNT(*) as c FROM bus_messages WHERE created_at > ?`).get(lastReflectionAt || 0).c;
-    const recentRuns = db.prepare(`SELECT COUNT(*) as c FROM workflow_runs WHERE created_at > ?`).get(lastReflectionAt || 0).c;
-    return recent > 0 || recentRuns > 0;
-  } catch (_) { return false; }
+  const since = lastReflectionStartedAt || lastReflectionAt || 0;
+  for (const [table, col] of NEW_DATA_SOURCES) {
+    try {
+      const c = db.prepare(`SELECT COUNT(*) as c FROM ${table} WHERE ${col} > ? AND ${table !== 'agent_memories' ? '1=1' : "source NOT IN ('neurogenesis','system')"}`).get(since)?.c || 0;
+      if (c > 0) return true;
+    } catch (_) {}
+  }
+  return false;
 }
 
 export function startReflectionLoop({ intervalMs = DEFAULT_INTERVAL_MS } = {}) {

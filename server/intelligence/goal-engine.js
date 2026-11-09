@@ -12,6 +12,7 @@
 import { randomUUID } from 'node:crypto';
 import { db } from '../db.js';
 import { chatOllama } from '../commerce/shared.js';
+import { isActionSuppressed } from './adaptive-strategy.js';
 import { publish } from '../fleet/bus.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
 
@@ -159,6 +160,10 @@ export async function generateGoals({ trigger = 'daemon', force = false } = {}) 
   if (!force && pending >= MAX_PENDING_PROPOSALS) {
     return { generated: false, reason: 'queue_full', pending, maxPending: MAX_PENDING_PROPOSALS };
   }
+  // Phase V: generation has its own strategy key so conserve can stop proposals without stopping execution.
+  if (!force && isActionSuppressed('goal_generate')) {
+    return { generated: false, reason: 'suppressed_by_strategy', pending, maxPending: MAX_PENDING_PROPOSALS };
+  }
   const landscape = await gatherLandscape();
 
   const totalKnowledge = landscape.memoryCategories.reduce((s, c) => s + c.count, 0);
@@ -179,7 +184,7 @@ export async function generateGoals({ trigger = 'daemon', force = false } = {}) 
   const response = await chatOllama([
     { role: 'system', content: GOAL_PROMPT + tierContext },
     { role: 'user', content: `Current system knowledge landscape:\n${input}\n\nPropose up to ${maxProposals} objectives.` },
-  ]);
+  ], { priority: 'goal', label: `goal-engine:${trigger}` });
 
   const parsed = parseJSON(response, { proposals: [], landscape_summary: 'Parse error' });
   const proposals = (parsed.proposals || []).slice(0, maxProposals);

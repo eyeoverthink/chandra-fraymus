@@ -82,7 +82,7 @@ export async function judgeReply({ objective, reply }) {
     const raw = await chatOllama([
       { role: 'system', content: JUDGE_PROMPT },
       { role: 'user', content: `Objective:\n${String(objective).slice(0, 1500)}\n\nAgent output:\n${text}` },
-    ], { temperature: 0.1, format: 'json', maxTokens: 400 });
+    ], { temperature: 0.1, format: 'json', maxTokens: 400, priority: 'scoring', label: 'outcome-judge' });
     const cleaned = String(raw).replace(/```json\s*/g, '').replace(/```\s*/g, '');
     const s = cleaned.indexOf('{'), e = cleaned.lastIndexOf('}');
     if (s === -1 || e === -1) return null;

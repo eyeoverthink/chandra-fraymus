@@ -229,7 +229,9 @@ export async function runGoalExecutorCycle({ trigger = 'interval', goalId = null
         return lastCycle;
       }
     } catch (_) {}
-    if (isActionSuppressed('goal_seek')) {
+    // Phase V: the executor answers to 'goal_execute' (draining), never to 'goal_seek' or
+    // 'goal_generate' — conserve mode must be able to stop proposing while still executing.
+    if (isActionSuppressed('goal_execute')) {
       lastCycle = { at: now(), trigger, executed: false, reason: 'suppressed_by_strategy' };
       return lastCycle;
     }

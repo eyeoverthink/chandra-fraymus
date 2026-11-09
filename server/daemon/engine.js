@@ -34,6 +34,8 @@ import { setNarrativeHeart, setNarrativeCTRNN, startNarrative, stopNarrative, re
 import { setDreamSolverCTRNN, setDreamSolverDreamer, getDreamSolverStatus, resetDreamSolver } from '../intelligence/dream-solver.js';
 import { setMonitorCTRNN, startIntelligenceMonitor, stopIntelligenceMonitor, resetIntelligenceMonitor, getIntelligenceMonitorStatus } from '../intelligence/intelligence-monitor.js';
 import { exportChandraReceipts, getExportStats } from '../intelligence/hive-export.js';
+import { getSchedulerStatus } from '../intelligence/ollama-scheduler.js';
+import { getReflectionGateStats } from '../intelligence/reflection.js';
 import { consolidateGraph, getStats as getKnowledgeGraphStats } from '../intelligence/knowledge-graph.js';
 import { readChart, getLineageStats } from '../intelligence/lineage.js';
 import { startUserSensorium, stopUserSensorium, resetUserSensorium, getUserSensoriumStatus } from '../awareness/user-sensorium.js';
@@ -833,6 +835,8 @@ export function getDaemonStatus() {
     goalExecutor: getGoalExecutorStatus(),
     externalSenses: getExternalSensesStatus(),
     selfAudit: (() => { const s = getSelfAuditStatus(); return { running: s.running, open: s.open, lastRun: s.lastRun && { at: s.lastRun.at, counts: s.lastRun.counts, clean: s.lastRun.clean } }; })(),
+    ollamaScheduler: (() => { const s = getSchedulerStatus(); return { maxConcurrent: s.maxConcurrent, running: s.running, queued: s.queued, queuedByClass: s.queuedByClass, dropped: s.stats.dropped, droppedByClass: s.stats.droppedByClass, avgWaitMs: s.stats.avgWaitMs, maxWaitMs: s.stats.maxWaitMs, pressure: s.pressure }; })(),
+    reflectionGate: getReflectionGateStats(),
     hiveMesh: (() => { const s = getHiveMeshStatus(); return { running: s.running, number: s.identity?.number, port: s.node?.port, peers: s.peers.length, heardFrom: s.heardFromPeers, hubRegistered: s.hub.registered, hubOnline: s.hub.online, fmp1Running: s.fmp1?.running, fmp1NodeId: s.fmp1?.nodeId, fmp1Neighbors: s.fmp1?.bidirNeighbors }; })(),
     hivePeers: (() => { const s = getHivePeersStatus(); return { running: s.running, messages: s.messages, peers: s.peers.length, lastSeenSeq: s.lastSeenSeq, push: s.config.push }; })(),
     adaptiveStrategy: getAdaptiveStatus(),

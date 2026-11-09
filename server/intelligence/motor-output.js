@@ -50,6 +50,27 @@ const MOTOR_REGIONS = {
   goalSeek:     { cx: 8,  cy: 12, label: 'Goal-seek',     action: 'goals' },
 };
 
+// Phase V: the adaptive strategy names actions 'goal_seek' / 'consciousness_audit' while
+// the regions are keyed 'goalSeek' / 'selfAudit' — so suppression and preference never
+// matched for those two. Map region → strategy key explicitly.
+const STRATEGY_KEY = {
+  reflect: 'reflect', neurogenesis: 'neurogenesis', dream: 'dream',
+  selfAudit: 'consciousness_audit', communicate: 'communicate', goalSeek: 'goal_seek',
+};
+
+// Hard floors on how often a region may fire, independent of the gate-scaled cooldown.
+// Measured 2026-11-09 before this: Reflect every ~90 s (884/24 h), Self-audit every ~45 s
+// (1,914 consciousness audits/24 h). Each firing is one or more Ollama calls or a 4-proof
+// audit; nothing downstream consumes them faster than this.
+const MIN_INTERVAL_MS = {
+  reflect: Math.max(60_000, parseInt(process.env.MOTOR_REFLECT_MIN_MS, 10) || 10 * 60_000),
+  goalSeek: Math.max(60_000, parseInt(process.env.MOTOR_GOALSEEK_MIN_MS, 10) || 3 * 60_000),
+  selfAudit: Math.max(60_000, parseInt(process.env.MOTOR_SELFAUDIT_MIN_MS, 10) || 10 * 60_000),
+  dream: 5 * 60_000,
+  neurogenesis: 2 * 60_000,
+  communicate: 60_000,
+};
+
 let motorTimer = null;
 let previousReadings = {};
 let cooldowns = {};
@@ -237,12 +258,13 @@ async function motorCycle() {
     readings[key] = Math.round(activation * 1000) / 1000;
 
     const prevActivation = previousReadings[key] || 0;
-    const preferred = isActionPreferred(key);
+    const preferred = isActionPreferred(STRATEGY_KEY[key] || key);
     const effectiveThreshold = preferred ? threshold * 0.85 : threshold;
     const sustained = prevActivation >= effectiveThreshold && activation >= effectiveThreshold;
+    const regionCooldown = Math.max(cooldownMs, MIN_INTERVAL_MS[key] || 0);
 
-    if (sustained && !isOnCooldown(key, cooldownMs)) {
-      if (isActionSuppressed(key) || isResourceConstrained()) {
+    if (sustained && !isOnCooldown(key, regionCooldown)) {
+      if (isActionSuppressed(STRATEGY_KEY[key] || key) || isResourceConstrained()) {
         firings.push({
           region: key, label: region.label, activation: readings[key],
           action: region.action, result: isResourceConstrained() ? 'resource_constrained' : 'suppressed',

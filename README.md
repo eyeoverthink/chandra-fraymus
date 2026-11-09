@@ -2013,27 +2013,40 @@ Copyright (c) 2024-2026 eyeoverthink®. This software is proprietary and confide
 
 **Addendum — hive-export watermark (2026-11-09).** Phase U's notes flagged that the outbound ledger re-exported a 2 h window every cycle. Measured: 117,812 receipts for 4,324 unique events — 96% duplicates, an 85 MB file the chain verifier refused (10 MB limit), so the stats endpoint had been returning 400. The window was only half the story. `consciousness_audits.created_at` is a TEXT `datetime('now')` while every other exported table stores epoch milliseconds; SQLite orders every integer below every string, so the collector's `created_at > <ms>` matched the entire table on every run (110,443 of the duplicates), and `new Date('YYYY-MM-DD HH:MM:SS')` put those receipts 8 hours into the future. Fixes in `hive-export.js`: the window now starts at the previous export's start time (capped at 7 days), each collector compares in its column's own type (`sinceClause`) and converts timestamps as UTC (`toIso`), and a `(type, source id)` scan of the ledger tail refuses anything already written. Zero-event runs still advance the watermark. `compactExportLedger()` re-seals a one-receipt-per-event chain from genesis with the old file archived beside it — operator-triggered only (`POST …/compact`, dry run by default), because it rewrites signed history. The self-audit gained a `hive_exports:duplicate_receipts` check and flagged BLOCKING at 94% on its first run. **Verified live:** post-fix export = 4 new receipts, 0 duplicates; immediate re-run = 0; forced 2 h re-scan = 1 new, 2,209 refused; compaction dry run 117,900 → 4,412. **Compacted** on the operator's OK the same day: 4,412 receipts, 4.0 MB, chain verified intact from the new genesis; the 85.6 MB pre-compaction chain is archived next to the ledger.
 
+## Phase V — Stop the thrash (2026-11-09)
+
+**Why:** ranking the organism against the six-stage loop after N–U gave architecture 10/10 and closed-loop health ≈ 3.5/10. Nearly all the red traced to one chain: the motor Reflect region fired every ~90 s (884 reflections/24 h); each reflection averaged 303 s because it ran debates, verifier loops and forges inline on the same GPU; 3–4 overlapped; every agent-run error in 24 h was an Ollama timeout; low outcomes put the adaptive strategy into `conserve`, which suppressed `goal_seek` — honoured by the executor but not the generator — so goals piled up at 3 % execution and effectiveness stayed at 0.14. Side findings: verifier 0/136 (model imported npm packages the sandbox lacks; reflection sent it "Debate on …" as a coding goal), 326/371 debates failed with one topic retried 82× (dedup only honoured completed verdicts), and motor suppression never matched because region keys (`goalSeek`, `selfAudit`) differed from strategy keys (`goal_seek`, `consciousness_audit`).
+
+**Modules:**
+- `server/intelligence/ollama-scheduler.js` — one priority queue in front of the GPU. `withOllama(priority, fn)` admits `OLLAMA_MAX_CONCURRENT` (2) calls, orders waiters by class (interactive → agent_run → scoring → goal → forge/debate → verifier → reflection → dream), and drops low classes that wait past their limit or when the queue is full — a reflection that waits five minutes is a stale thought. Every Ollama path goes through it: `chatOllama()` (with `priority`/`label` options; request timeout starts after admission), the fleet streaming `chat()` (slot held through the stream), and the agent runtime provider. The resource envelope reads scheduler pressure as a sixth sensor.
+- `reflection.js` — single-flight, 10-minute minimum interval, "new data" redefined as outcome-bearing rows since the last reflection started (bus traffic excluded), one heavy action of each kind per reflection.
+- `motor-output.js` — region→strategy key map, per-region firing floors (Reflect and Self-audit 10 min, Goal-seek 3 min).
+- `adaptive-strategy.js` — generation and execution are separate keys (`goal_generate` / `goal_execute`); `conserve` now suppresses everything that generates cognition and prefers draining the goal queue.
+- `debate.js` — exponential backoff on failed topics. `verifier-loop.js` — rejects non-programming goals, rejects and never executes code importing packages the sandbox lacks. `neurogenesis.js` — a connectivity read with ≥ 3 failed terms is "unmeasurable", not an emergency at 0.000.
+
+**Verified live at boot:** scheduler admitted the first motor reflection and nothing else queued; `conserve` reads `preferred: [goal_execute]`, `suppressed: [forge, synthesize, neurogenesis, goal_generate, debate, verify, dream]`; `check?action=goal_execute` → not suppressed, `goal_generate` → suppressed; envelope budgets include `ollamaQueue`. Offline: with both slots busy and arrivals R, D, A3, S the admission order was A3, S, D, R; verifier gates reject "Debate on autonomy" and flag `pandas-js`, `lodash`, `numpy`. Success criteria (24 h): run errors < 30 %, reflections < 150/24 h, ≥ 50 % of proposals executed, effectiveness > 0.4, no BLOCKING self-audit findings.
+
 ## Live Inventory
 
 Generated by `npm run skills:sync` from the filesystem, `data/chandra.db` and `GET /api/health`; `npm run skills:check` fails when it is stale. The same generator keeps the `/chandra-*` skills in `.claude/commands/` current.
 
 <!-- skills-sync:begin inventory -->
-_Regenerated by `npm run skills:sync` on 2026-11-09 from commit `4f85a05`. Do not hand-edit this block._
+_Regenerated by `npm run skills:sync` on 2026-11-09 from commit `7e8c0cd`. Do not hand-edit this block._
 
 | Thing | Count | Source |
 |---|---|---|
 | Features registered | **96** | live `GET /api/health` |
-| REST routes | **972** | regex over 356 server files (`app.get/post/put/patch/delete`) |
+| REST routes | **973** | regex over 357 server files (`app.get/post/put/patch/delete`) |
 | SQLite tables | **202** | `sqlite_master` in `data/chandra.db` |
-| Server code | **356 files / 75,768 lines** | `server/**/*.js` |
-| Intelligence modules | **55** | `server/intelligence/*.js` (routes files excluded) |
+| Server code | **357 files / 76,180 lines** | `server/**/*.js` |
+| Intelligence modules | **56** | `server/intelligence/*.js` (routes files excluded) |
 | FRAYMUS intelligence modules | **19** | `server/fraymus/intelligence/*.js` |
 | Fleet tool definitions | **251** unique names | `name: '…'` across 7 tools files |
 | Hermes executor functions | **51** (Hermes exposes 30 skills; extras are aliases/sub-skills) | `buildHermesExecutors()` in `fraymus-tools.js` |
 | Workflow node types | **53** (53 handled in engine) | `NODE_CATEGORIES` in WorkflowCanvas.jsx vs `workflow/engine.js` |
 | Detail Drawer panels | **58** entries / 59 panel files | `DetailDrawer.jsx` PANELS map, `client/src/panels/` |
 | Nexus views | **4** (CommandCenter, ConstellationView, LibraryView, ManifestationPlane) | `client/src/nexus/*.jsx` |
-| Agent manifests | **20** default + **47** forged on disk | `agents/*.md`, `data/agents/*.md` |
+| Agent manifests | **20** default + **49** forged on disk | `agents/*.md`, `data/agents/*.md` |
 | Self-model subsystems | **30** (intelligence 18, fleet 3, workflow 1, commerce 1, media 1, core 3, ui 3) | `self-model.js` SYSTEM_MAP |
 | README phases | **20** (B C D E F G H I J K L M N O P Q R S T U) | `### Phase X` headers in README.md |
 <!-- skills-sync:end inventory -->
@@ -2041,13 +2054,13 @@ _Regenerated by `npm run skills:sync` on 2026-11-09 from commit `4f85a05`. Do no
 ### Route catalog (generated)
 
 <!-- skills-sync:begin routes -->
-_Regenerated by `npm run skills:sync` on 2026-11-09 from commit `4f85a05`. Do not hand-edit this block._
+_Regenerated by `npm run skills:sync` on 2026-11-09 from commit `7e8c0cd`. Do not hand-edit this block._
 
-972 unique routes. Top prefixes:
+973 unique routes. Top prefixes:
 
 | Prefix | Routes |
 |---|---|
-| `/api/intelligence` | 188 |
+| `/api/intelligence` | 189 |
 | `/api/fraymus` | 87 |
 | `/api/integrity` | 45 |
 | `/api/fleet` | 34 |

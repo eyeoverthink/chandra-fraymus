@@ -52,32 +52,41 @@ const STRATEGY_PARAMS = {
     neurogenesisFloorAdjust: 0,
     description: 'All systems nominal — no adjustments needed',
   },
+  // Action keys (Phase V): generation and execution are distinct —
+  //   goal_generate (goal engine proposes)   vs   goal_execute (executor drains the queue)
+  //   debate, verify, forge, synthesize, neurogenesis, dream, consciousness_audit, reflect, communicate
+  //   goal_seek = the motor region that executes-then-generates (suppress only when both should stop)
   diversify: {
     cycleMultiplier: 0.8,
     reflectionCap: 7,
     opegToleranceScale: 1.2,
-    preferredActions: ['dream', 'consciousness_audit', 'goal_seek'],
-    suppressedActions: ['forge', 'synthesize'],
+    preferredActions: ['dream', 'consciousness_audit', 'goal_execute'],
+    suppressedActions: ['forge', 'synthesize', 'goal_generate'],
     neurogenesisFloorAdjust: -0.03,
-    description: 'Stuck pattern — diversify action types, suppress repetition, encourage dreams and new connections',
+    description: 'Stuck pattern — diversify action types, suppress repetition, drain the goal queue, encourage dreams and new connections',
   },
+  // Inverted 2026-11-09. The old conserve suppressed goal_seek (which the EXECUTOR honoured
+  // and the generator did not) and preferred reflect — so low effectiveness → fewer
+  // outcomes → lower effectiveness, while reflections kept spawning debates. Conserve now
+  // means: stop talking, finish what you started. Suppress everything that generates new
+  // cognition; keep executing goals, since outcomes are the only way effectiveness recovers.
   conserve: {
     cycleMultiplier: 1.5,
-    reflectionCap: 3,
+    reflectionCap: 2,
     opegToleranceScale: 0.7,
-    preferredActions: ['reflect'],
-    suppressedActions: ['forge', 'neurogenesis', 'goal_seek'],
+    preferredActions: ['goal_execute'],
+    suppressedActions: ['forge', 'synthesize', 'neurogenesis', 'goal_generate', 'debate', 'verify', 'dream'],
     neurogenesisFloorAdjust: 0.05,
-    description: 'Low effectiveness — slow down, reflect more, suppress expensive actions, tighten gates',
+    description: 'Low effectiveness — stop generating cognition (debates, verifier loops, forges, new goals, dreams); keep draining the goal queue so outcomes can recover',
   },
   calibrate: {
     cycleMultiplier: 1.0,
     reflectionCap: 5,
     opegToleranceScale: 0.6,
-    preferredActions: ['verify', 'reflect'],
-    suppressedActions: [],
+    preferredActions: ['verify', 'goal_execute'],
+    suppressedActions: ['forge', 'synthesize', 'goal_generate'],
     neurogenesisFloorAdjust: 0,
-    description: 'Poor prediction accuracy — tighten OPEG gates, force verification before autonomous changes',
+    description: 'Poor prediction accuracy — tighten OPEG gates, verify before autonomous changes, no new self-modification',
   },
 };
 

@@ -15,6 +15,7 @@ import { chatOllama, parseJSON } from '../commerce/shared.js';
 import { publish } from '../fleet/bus.js';
 import { loadManifests } from '../fleet/manifest.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
+import { isActionSuppressed } from './adaptive-strategy.js';
 
 const BASE_REBUTTAL_ROUNDS = 1;
 
@@ -122,7 +123,7 @@ async function runRound(roundName, prompt, role, config = {}) {
     { role: 'user', content: prompt },
   ];
 
-  const raw = await chatOllama(messages, { model, temperature: 0.4 });
+  const raw = await chatOllama(messages, { model, temperature: 0.4, priority: 'debate', label: 'debate' });
   const parsed = parseJSON(raw);
 
   if (!parsed) {
@@ -154,6 +155,32 @@ export async function runDebate({ topic, proposition, config = {}, source = 'api
         verdict: recent.verdict, verdictReasoning: recent.verdict_reasoning, confidence: recent.confidence,
         rounds: null, durationMs: 0, gateTier: gateMods.tier, rebuttalRounds, totalRounds,
       };
+    }
+  }
+
+  // Phase V: autonomous debates obey the adaptive strategy (conserve suppresses 'debate');
+  // user/agent/workflow-initiated debates always run.
+  if (source === 'reflection' && isActionSuppressed('debate')) {
+    try { publish('system.debate', { type: 'debate.suppressed', topic, source }); } catch {}
+    return { topic, proposition, deferred: true, reason: 'suppressed_by_strategy', gateTier: gateMods.tier };
+  }
+
+  // Phase V: the 24 h dedup above only honoured COMPLETED verdicts, so a topic whose debate
+  // timed out was re-launched on the next reflection — 326 of 371 debates in 24 h failed,
+  // one topic 82×. A failed topic now backs off exponentially: 30 min after the first
+  // failure, 1 h after the second, 2 h, 4 h … capped at 24 h.
+  if (!config.allowRepeat) {
+    const failed = db.prepare(
+      `SELECT COUNT(*) AS c, MAX(created_at) AS last FROM debates
+       WHERE lower(trim(topic)) = lower(trim(?)) AND status = 'failed' AND created_at > ?`
+    ).get(String(topic), Date.now() - 86400_000);
+    if (failed?.c) {
+      const backoffMs = Math.min(86400_000, 30 * 60_000 * 2 ** (failed.c - 1));
+      const sinceLast = Date.now() - failed.last;
+      if (sinceLast < backoffMs) {
+        try { publish('system.debate', { type: 'debate.backoff', topic, failedCount: failed.c, retryInMs: backoffMs - sinceLast, source }); } catch {}
+        return { topic, proposition, deferred: true, reason: 'failed_recently', failedCount: failed.c, retryInMs: backoffMs - sinceLast, gateTier: gateMods.tier };
+      }
     }
   }
 

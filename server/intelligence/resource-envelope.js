@@ -27,6 +27,7 @@ import { join } from 'node:path';
 import { DATA_DIR } from '../config.js';
 import { OLLAMA_URL } from '../config.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
+import { getSchedulerStatus } from './ollama-scheduler.js';
 
 const now = () => Date.now();
 
@@ -40,14 +41,18 @@ const RESOURCE_BUDGETS = {
   concurrentRuns: { ceiling: 8, warning: 5, critical: 7 },
   ollamaLatencyMs: { ceiling: 30_000, warning: 10_000, critical: 20_000 },
   busBacklog: { ceiling: 100, warning: 50, critical: 80 },
+  // Phase V: inference queue load from the Ollama scheduler, already a 0..1 ratio
+  // ((running + queued) / (3 × max concurrent)).
+  ollamaQueue: { ceiling: 1, warning: 0.5, critical: 0.8 },
 };
 
 const PRESSURE_WEIGHTS = {
-  heap: 0.25,
-  dbSize: 0.15,
-  concurrentRuns: 0.25,
+  heap: 0.20,
+  dbSize: 0.10,
+  concurrentRuns: 0.20,
   ollamaLatency: 0.20,
   busBacklog: 0.15,
+  ollamaQueue: 0.15,
 };
 
 let envelopeTimer = null;
@@ -149,9 +154,19 @@ function computeResourcePressure(resources) {
     (resources.dbSize?.ratio || 0) * PRESSURE_WEIGHTS.dbSize +
     (resources.concurrentRuns?.ratio || 0) * PRESSURE_WEIGHTS.concurrentRuns +
     (resources.ollamaLatency?.ratio || 0) * PRESSURE_WEIGHTS.ollamaLatency +
-    (resources.busBacklog?.ratio || 0) * PRESSURE_WEIGHTS.busBacklog;
+    (resources.busBacklog?.ratio || 0) * PRESSURE_WEIGHTS.busBacklog +
+    (resources.ollamaQueue?.ratio || 0) * PRESSURE_WEIGHTS.ollamaQueue;
 
   return Math.max(0, Math.min(1, pressure));
+}
+
+function measureOllamaQueue() {
+  try {
+    const s = getSchedulerStatus();
+    return { ratio: s.pressure, queued: s.queued, running: s.running, dropped: s.stats.dropped, budget: RESOURCE_BUDGETS.ollamaQueue };
+  } catch (_) {
+    return { ratio: 0, queued: 0, running: 0, dropped: 0, budget: RESOURCE_BUDGETS.ollamaQueue };
+  }
 }
 
 function classifyPressure(pressure) {
@@ -197,6 +212,7 @@ async function envelopeCycle() {
     concurrentRuns: measureConcurrentRuns(),
     ollamaLatency: await measureOllamaLatency(),
     busBacklog: measureBusBacklog(),
+    ollamaQueue: measureOllamaQueue(),
   };
 
   const pressure = computeResourcePressure(resources);
@@ -217,6 +233,10 @@ async function envelopeCycle() {
     ollamaLatencyMs: resources.ollamaLatency.latencyMs,
     ollamaAvailable: resources.ollamaLatency.available,
     busMessagesPerMin: resources.busBacklog.messagesPerMinute,
+    ollamaQueueRatio: resources.ollamaQueue.ratio,
+    ollamaQueued: resources.ollamaQueue.queued,
+    ollamaRunning: resources.ollamaQueue.running,
+    ollamaDropped: resources.ollamaQueue.dropped,
   };
   envelopeState.lastReadAt = now();
   envelopeState.fatigueLevel = +fatigue.toFixed(3);
@@ -338,6 +358,7 @@ export function isResourceConstrained() {
   if (r.concurrentRuns >= RESOURCE_BUDGETS.concurrentRuns.critical) return true;
   if (r.ollamaLatencyMs >= RESOURCE_BUDGETS.ollamaLatencyMs.critical) return true;
   if (r.busMessagesPerMin >= RESOURCE_BUDGETS.busBacklog.critical) return true;
+  if (r.ollamaQueueRatio >= RESOURCE_BUDGETS.ollamaQueue.critical) return true;
   return false;
 }
 

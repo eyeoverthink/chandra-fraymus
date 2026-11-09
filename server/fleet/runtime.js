@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { watch, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { DATA_DIR, OLLAMA_URL } from '../config.js';
+import { withOllama } from '../intelligence/ollama-scheduler.js';
 import { db } from '../db.js';
 import { loadManifests, writeOverride, removeOverride } from './manifest.js';
 import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
@@ -262,6 +263,9 @@ async function chat(messages, tools, model, { runId, agentId } = {}) {
     stream: true,
   };
 
+  // Phase V: agent runs are the only thing that produces outcomes — they take the GPU
+  // ahead of reflection/debate/verifier work. The slot is held through the whole stream.
+  return withOllama('agent_run', async () => {
   const res = await fetch(`${OLLAMA_URL}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -310,6 +314,7 @@ async function chat(messages, tools, model, { runId, agentId } = {}) {
     content: sanitizeOllamaContent(contentParts.join('')),
     tool_calls: sanitizeDeep(toolCalls),
   };
+  }, { label: `agent:${agentId || 'unknown'}` });
 }
 
 function addMsg(threadId, runId, msg) {
