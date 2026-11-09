@@ -100,7 +100,7 @@ function detectLanguage(text) {
   return 'unknown';
 }
 
-async function executeCode(code, language) {
+export async function executeCode(code, language) {
   const tmpDir = path.join(os.tmpdir(), 'chandra-verify-' + randomUUID().slice(0, 8));
   await mkdir(tmpDir, { recursive: true });
 

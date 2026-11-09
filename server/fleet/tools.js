@@ -20,6 +20,7 @@ import { getWorkingMemoryStatus, queryWorkingMemory } from '../intelligence/work
 import { getMetacognitiveStatus, getStrategyRecommendation } from '../intelligence/metacognitive-monitor.js';
 import { runSelfAudit, getOpenFindings, getSelfAuditStatus } from '../intelligence/self-audit.js';
 import { getHiveMeshStatus, registerOnHub } from '../intelligence/hive-mesh.js';
+import { runReaProtocol, getReaRun, listReaRuns, getReaStatus } from '../intelligence/rea-protocol.js';
 import { getHivePeersStatus, syncBridge, postDigest } from '../intelligence/hive-peers.js';
 import { getAdaptiveStatus, getAdaptiveModifiers, isActionSuppressed, isActionPreferred } from '../intelligence/adaptive-strategy.js';
 import { getSelfModelStatus, getSystemMap, lookupSubsystem, buildSpatialContext, buildSubsystemContext } from '../intelligence/self-model.js';
@@ -453,6 +454,37 @@ export function createFleetTools({ workflowStore }) {
         const status = getSelfModelStatus();
         ledger.record('selfModel.read', { subsystemCount: status.subsystemCount, activeCount: status.activeCount, tier: status.gateTier }, 'fleet');
         return status;
+      },
+    },
+    {
+      name: 'rea_run',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Run the REA protocol (Reverse Engineer Anything, 8 evidence-first stages) on a target: a local path under REA_ROOTS, a public URL, or pasted text. Code collects numbered facts (files, exports, imports, hashes, grep hits, HTTP surface) BEFORE any reasoning; every claim must cite fact ids; only an executed Node check that prints PASS can make a claim PROVEN. Mode "start" (default) begins a run and returns its runId — it takes minutes, so call again with mode "status" and the runId to read stages, claims, checks and the report. Mode "list" shows recent runs. Results are stored as binary_dossier memories for the RE Analyst.',
+      parameters: object({
+        mode: { type: 'string', description: '"start" (default) | "status" | "list"' },
+        target: string(20000, { description: 'Path, URL, or text to analyse (for mode start)' }),
+        feature: string(200, { description: 'Optional feature/keyword to trace through the target' }),
+        question: string(500, { description: 'Optional question the analysis should answer' }),
+        runId: string(40, { description: 'Run id (for mode status)' }),
+      }),
+      execute: async (params, context) => {
+        const mode = params.mode || 'start';
+        if (mode === 'list') return { ...getReaStatus(), runs: listReaRuns({ limit: 10 }) };
+        if (mode === 'status') {
+          const r = getReaRun(String(params.runId || ''));
+          if (!r) return { error: 'run not found', runId: params.runId };
+          const { report, evidence, ...rest } = r;
+          return { ...rest, claims: evidence.filter(e => e.kind === 'claim').map(e => ({ stage: e.stage, label: e.label, claim: e.claim, factIds: e.fact_ids })), checks: evidence.filter(e => e.kind === 'check').map(e => ({ label: e.label, title: e.detail?.title, claim: e.claim, output: e.detail?.output })), reportExcerpt: report ? report.slice(0, 3000) : null };
+        }
+        if (!params.target) throw new Error('target required');
+        const agentId = context?.agent?.id || context?.agentId || null;
+        const p = runReaProtocol({ target: String(params.target), feature: params.feature || null, question: params.question || null, agentId, trigger: 'fleet', priority: 'agent_run' });
+        p.catch(e => console.error('[rea] fleet run failed:', e.message));
+        await new Promise(r => setTimeout(r, 400));
+        const latest = listReaRuns({ limit: 1 })[0];
+        ledger.record('rea.start', { runId: latest?.id, target: String(params.target).slice(0, 120) }, 'fleet');
+        return { started: true, runId: latest?.id || null, note: 'Collecting facts and running 8 stages; call rea_run with mode "status" and this runId in a few minutes.' };
       },
     },
     {
