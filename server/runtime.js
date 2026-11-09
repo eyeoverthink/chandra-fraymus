@@ -118,6 +118,7 @@ import { installNarratorRoutes } from './intelligence/narrator.js';
 import { installSweeperRoutes } from './intelligence/transient-sweeper.js';
 import { installTunableRoutes } from './intelligence/tunables.js';
 import { installSelfModificationRoutes } from './intelligence/self-modification.js';
+import { installResearchRoutes } from './intelligence/research-scout.js';
 import { installHivePeersRoutes } from './intelligence/hive-peers.js';
 import { installDebateRoutes } from './intelligence/debate.js';
 import { installModelRouterRoutes } from './intelligence/model-router.js';
@@ -357,6 +358,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installSweeperRoutes(app);
   installTunableRoutes(app);
   installSelfModificationRoutes(app);
+  installResearchRoutes(app);
   installHivePeersRoutes(app);
   installDebateRoutes(app);
   installModelRouterRoutes(app);

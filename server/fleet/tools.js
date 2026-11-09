@@ -24,6 +24,7 @@ import { runReaProtocol, getReaRun, listReaRuns, getReaStatus } from '../intelli
 import { narrate, getNarratorStatus } from '../intelligence/narrator.js';
 import { getSelfModificationStatus, startExperiment, buildCodeProposal, ruleProposals as smkRuleProposals, listExperiments as smkListExperiments, listCodeProposals as smkListCode } from '../intelligence/self-modification.js';
 import { listTunables } from '../intelligence/tunables.js';
+import { getResearchStatus, scanResearch, listResearchItems, listResearchProposals, translateItem } from '../intelligence/research-scout.js';
 import { getHivePeersStatus, syncBridge, postDigest } from '../intelligence/hive-peers.js';
 import { getAdaptiveStatus, getAdaptiveModifiers, isActionSuppressed, isActionPreferred } from '../intelligence/adaptive-strategy.js';
 import { getSelfModelStatus, getSystemMap, lookupSubsystem, buildSpatialContext, buildSubsystemContext } from '../intelligence/self-model.js';
@@ -507,6 +508,26 @@ export function createFleetTools({ workflowStore }) {
           return r;
         }
         return getSelfModificationStatus();
+      },
+    },
+    {
+      name: 'research_scout',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'The Research Scout: keyless daily reads of recent AI research (arXiv, Hacker News, Semantic Scholar) on continual learning, memory, inference efficiency, neuromodulation, active inference, self-improving agents, verification and integrated information, scored for relevance to THIS system and translated into kernel proposals (tunable experiments, one-file code sketches, or stored ideas). Mode "status" (default); "items" (top relevant items, optional topic); "proposals"; "scan" (fetch + translate now — minutes, network + Ollama); "translate" (one item by itemId).',
+      parameters: object({
+        mode: { type: 'string', description: '"status" | "items" | "proposals" | "scan" | "translate"' },
+        topic: { type: 'string', description: 'items: topic id filter' },
+        itemId: { type: 'string', description: 'translate: research item id, e.g. arxiv:2511.01234' },
+      }),
+      execute: async (params, context) => {
+        const agentId = context?.agent?.id || context?.agentId || 'agent';
+        const mode = params.mode || 'status';
+        if (mode === 'items') return { items: listResearchItems({ topic: params.topic || null, limit: 20, minRelevance: 0.2 }) };
+        if (mode === 'proposals') return { proposals: listResearchProposals({ limit: 20 }) };
+        if (mode === 'scan') { ledger.record('research.scan', { agent: agentId }, 'fleet'); return scanResearch({ trigger: `agent:${agentId}` }); }
+        if (mode === 'translate' && params.itemId) return translateItem(String(params.itemId));
+        return getResearchStatus();
       },
     },
     {

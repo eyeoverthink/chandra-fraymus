@@ -56,9 +56,9 @@ export default function SelfModificationPanel({ wsEvent }) {
 
   const load = useCallback(async () => {
     try {
-      const [s, e, c, t] = await Promise.all([fetch(B), fetch(`${B}/experiments?limit=40`), fetch(`${B}/code?limit=40`), fetch('/api/intelligence/tunables')]);
-      const [sj, ej, cj, tj] = await Promise.all([s.json(), e.json(), c.json(), t.json()]);
-      setStatus({ ...sj, tunablesFull: tj.tunables || [] }); setExperiments(ej.experiments || []); setCode(cj.proposals || []); setError('');
+      const [s, e, c, t, r, ri, rp] = await Promise.all([fetch(B), fetch(`${B}/experiments?limit=40`), fetch(`${B}/code?limit=40`), fetch('/api/intelligence/tunables'), fetch('/api/intelligence/research'), fetch('/api/intelligence/research/items?limit=25&minRelevance=0.2'), fetch('/api/intelligence/research/proposals?limit=25')]);
+      const [sj, ej, cj, tj, rj, rij, rpj] = await Promise.all([s.json(), e.json(), c.json(), t.json(), r.json(), ri.json(), rp.json()]);
+      setStatus({ ...sj, tunablesFull: tj.tunables || [], research: { ...rj, itemsList: rij.items || [], proposalsList: rpj.proposals || [] } }); setExperiments(ej.experiments || []); setCode(cj.proposals || []); setError('');
     } catch (e) { setError(e.message); }
   }, []);
   useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, [load]);
@@ -84,7 +84,8 @@ export default function SelfModificationPanel({ wsEvent }) {
   const cc = status?.code?.counts || {};
   const conv = status?.conventions || {};
   const convOpen = Object.values(conv.open || {}).reduce((a, b) => a + b, 0);
-  const tabs = [['experiments', `Experiments (${experiments.length})`], ['tunables', `Tunables (${status?.tunables?.length || 0})`], ['code', `Code (${cc.ready || 0} ready)`], ['conventions', `Conventions (${convOpen} open)`]];
+  const research = status?.research || null;
+  const tabs = [['experiments', `Experiments (${experiments.length})`], ['tunables', `Tunables (${status?.tunables?.length || 0})`], ['code', `Code (${cc.ready || 0} ready)`], ['conventions', `Conventions (${convOpen} open)`], ['research', `Research (${research?.relevantItems ?? 0} relevant)`]];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, color: C.text, fontSize: 13 }}>
@@ -192,6 +193,39 @@ export default function SelfModificationPanel({ wsEvent }) {
               {Object.entries(status.proposerStats.experiments || {}).map(([p, v]) => <div key={p}><span style={{ color: C.cyan }}>{p}</span>: {v.kept} kept · {v.reverted} reverted · {v.inconclusive} inconclusive · keep rate {v.keepRate ?? '—'}</div>)}
             </div>
           )}
+        </div>
+      )}
+
+      {tab === 'research' && research && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 12, color: C.dim }}>Keyless daily reads (arXiv, Hacker News, Semantic Scholar) on the organism's own topics, scored against its tunables and modules. The few most relevant are translated into ONE kernel proposal each — an experiment, a one-file sketch, a stored idea, or honestly none.</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {Object.entries(research.items || {}).map(([k, v]) => <Stat key={k} label={`items ${k}`} value={v} color={k === 'translated' ? C.green : C.text} />)}
+            <Stat label="relevant ≥ threshold" value={research.relevantItems ?? 0} color={C.cyan} />
+            {Object.entries(research.proposals || {}).map(([k, v]) => <Stat key={k} label={k.replace(':', ' · ')} value={v} color={C.purple} />)}
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button disabled={busy} style={btn(C.cyan, true)} onClick={() => act('/api/intelligence/research/scan', {}, j => `scan: ${j.fetched} fetched, ${j.newItems} new, ${j.translated} translated → ${j.proposals} proposals`)}>scan now</button>
+            <button disabled={busy} style={btn(C.purple, true)} onClick={() => act('/api/intelligence/research/translate', { max: 3 }, j => `translated ${j.translated}, proposals ${j.proposals}`)}>translate top 3</button>
+            <span style={{ fontSize: 11, color: C.dim, alignSelf: 'center' }}>last scan {ago(research.lastScanAt)}{research.lastScan?.errors?.length ? ` · ${research.lastScan.errors.length} source error(s)` : ''}</span>
+          </div>
+          <div style={{ fontSize: 12, color: C.dim, marginTop: 4 }}>Proposals</div>
+          {(research.proposalsList || []).length === 0 && <div style={{ color: C.dim, fontSize: 12 }}>none yet</div>}
+          {(research.proposalsList || []).map(p => (
+            <div key={p.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 10, fontSize: 12 }}>
+              <div><span style={{ color: p.kind === 'experiment' ? C.cyan : p.kind === 'code' ? C.purple : C.amber, fontWeight: 600, marginRight: 8 }}>{p.kind.toUpperCase()}</span><span style={{ color: C.dim }}>{p.status}</span> · <a href={p.url} target="_blank" rel="noreferrer" style={{ color: C.blue }}>{p.item_title}</a></div>
+              <div style={{ color: C.text, marginTop: 4 }}>{p.kind === 'experiment' ? `${p.tunable} → ${p.value}: ${p.hypothesis}` : p.kind === 'code' ? `${p.target_file}: ${p.sketch}` : p.idea}</div>
+            </div>
+          ))}
+          <div style={{ fontSize: 12, color: C.dim, marginTop: 4 }}>Most relevant items</div>
+          {(research.itemsList || []).map(i => (
+            <div key={i.id} style={{ display: 'flex', gap: 10, fontSize: 12, borderTop: `1px solid ${C.border}`, padding: '6px 0' }}>
+              <span style={{ color: C.cyan, width: 40 }}>{i.relevance.toFixed(2)}</span>
+              <span style={{ color: C.dim, width: 48 }}>{i.source}</span>
+              <a href={i.url} target="_blank" rel="noreferrer" style={{ color: C.text, flex: 1, minWidth: 0, textDecoration: 'none' }}>{i.title}</a>
+              <span style={{ color: i.status === 'translated' ? C.green : C.dim }}>{i.status}</span>
+            </div>
+          ))}
         </div>
       )}
 

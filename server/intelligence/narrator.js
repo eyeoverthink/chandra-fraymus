@@ -84,6 +84,13 @@ const LINES = {
   'system.world.observed': p => (Number(p.newObservations) >= 8 ? { kind: 'world', text: `Scanned the world: ${p.newObservations} new observations across ${p.web} web and ${p.youtube} video queries.` } : null),
   'system.self_audit': p => { const b = Number(p.counts?.blocking ?? p.blocking ?? 0); return b > 0 ? { kind: 'audit', text: `Self-audit found ${b} blocking issue${b === 1 ? '' : 's'}.` } : null; },
   'system.ollama.dropped': p => ({ kind: 'scheduler', text: `Dropped a ${p.class} job after waiting ${Math.round((p.waitedMs || 0) / 1000)} seconds — the inference queue is full.` }),
+  'system.research': p => {
+    if (p.action === 'proposal' && p.kind === 'experiment') return { kind: 'research', text: `I read "${clip(p.title, 70)}" and want to test it: ${clip(p.hypothesis, 110)}` };
+    if (p.action === 'proposal' && p.kind === 'code') return { kind: 'research', text: `A paper suggested a change to ${basename(String(p.targetFile || ''))}: "${clip(p.title, 80)}". Drafting it for review.` };
+    if (p.action === 'proposal' && p.kind === 'idea') return { kind: 'research', text: `Filed an idea from "${clip(p.title, 70)}": ${clip(p.idea, 100)}` };
+    if (p.action === 'scan' && (p.proposals || 0) > 0) return { kind: 'research', text: `Research scan: ${p.fetched} items read, ${p.newItems} new, ${p.proposals} turned into proposals.` };
+    return null;
+  },
   'system.self_modification': p => {
     const name = String(p.tunable || '').replace(/_/g, ' ').replace(/\./g, ' ');
     if (p.action === 'experiment_started') return { kind: 'smk', text: `Trying a change to myself: ${name} from ${p.before} to ${p.after}. I will measure it for ${Math.round((p.windowMs || 0) / 60000)} minutes.` };

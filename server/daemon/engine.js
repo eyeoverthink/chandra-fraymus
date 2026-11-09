@@ -15,6 +15,7 @@ import { scanTrends } from '../trend-radar/radar.js';
 import { startNarrator, stopNarrator, getNarratorStatus } from '../intelligence/narrator.js';
 import { startTransientSweeper, stopTransientSweeper, getSweeperStatus } from '../intelligence/transient-sweeper.js';
 import { startSelfModification, stopSelfModification, getSelfModificationStatus, selfModificationCycle, maybeBuildFromBacklog, checkOuroborosAllowed } from '../intelligence/self-modification.js';
+import { startResearchScout, stopResearchScout, getResearchStatus } from '../intelligence/research-scout.js';
 import { startSelfAudit, stopSelfAudit, getSelfAuditStatus } from '../intelligence/self-audit.js';
 import { startHiveMesh, stopHiveMesh, getHiveMeshStatus } from '../intelligence/hive-mesh.js';
 import { startHivePeers, stopHivePeers, getHivePeersStatus } from '../intelligence/hive-peers.js';
@@ -676,6 +677,14 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     console.error('self-modification start error:', e.message);
   }
 
+  // Phase AA: research scout (daily keyless reads → tunable hypotheses / code sketches for the kernel)
+  try {
+    const rs = startResearchScout();
+    if (rs.started) console.log(`[research] scout started: ${rs.topics} topics, scan every ${Math.round(rs.scanIntervalMs / 3600000)} h, translate ≤ ${rs.maxTranslate}/scan at relevance ≥ ${rs.minRelevance}`);
+  } catch (e) {
+    console.error('research scout start error:', e.message);
+  }
+
   // Phase P: goal executor (5min cycle — drains goal_proposals through the fleet) + debate sweeper
   try {
     const swept = sweepStaleDebates();
@@ -838,6 +847,7 @@ export function stopDaemon() {
   try { stopNarrator(); } catch (_) {}
   try { stopTransientSweeper(); } catch (_) {}
   try { stopSelfModification(); } catch (_) {}
+  try { stopResearchScout(); } catch (_) {}
   try { stopSelfAudit(); } catch (_) {}
   try { stopHiveMesh(); } catch (_) {}
   try { stopHivePeers(); } catch (_) {}
@@ -895,6 +905,7 @@ export function getDaemonStatus() {
     goalExecutor: getGoalExecutorStatus(),
     externalSenses: getExternalSensesStatus(),
     sweeper: (() => { const s = getSweeperStatus(); return { running: s.running, sweeps: s.sweeps, totals: s.totals, currentlyStuck: s.currentlyStuck, lastAt: s.lastAt }; })(),
+    researchScout: (() => { try { const s = getResearchStatus(); return { running: s.running, scans: s.scans, lastScanAt: s.lastScanAt, items: s.items, relevantItems: s.relevantItems, proposals: s.proposals, pendingExperiment: s.pendingExperiment && s.pendingExperiment.tunable, pendingCode: s.pendingCode && s.pendingCode.targetFile }; } catch (e) { return { error: e.message }; } })(),
     selfModification: (() => { try { const s = getSelfModificationStatus(); return { enabled: s.enabled, running: s.running, cycles: s.cycles, experiment: s.experiment && { id: s.experiment.id, tunable: s.experiment.tunable, before: s.experiment.before_value, after: s.experiment.after_value, remainingMs: s.experiment.remainingMs }, verdicts: s.verdicts, code: s.code.counts, ouroborosBacklog: s.ouroboros.backlog, objective: s.objectiveNow.objective }; } catch (e) { return { error: e.message }; } })(),
     narrator: (() => { const s = getNarratorStatus(); return { running: s.running, overlayClients: s.overlayClients, spoken: s.spoken, textOnly: s.textOnly, dropped: s.dropped, ttsErrors: s.ttsErrors, queued: s.queued, lastLine: s.lastLine, last24h: s.last24h }; })(),
     worldPollers: (() => { const s = getWorldPollersStatus(); return { running: s.running, polls: s.polls, lastPollAt: s.lastPollAt, observations24h: s.observations24h, interests: s.interests.map(i => i.query), errors: s.errors.slice(-3) }; })(),

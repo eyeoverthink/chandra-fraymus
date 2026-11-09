@@ -48,6 +48,7 @@ import { isActionSuppressed } from './adaptive-strategy.js';
 import { isResourceConstrained } from './resource-envelope.js';
 import { getOpenFindingCounts } from './self-audit.js';
 import { scanConventions, nextConventionCandidate, markFinding, getConventionStatus, listConventionFindings } from './convention-scan.js';
+import { nextResearchExperiment, nextResearchCode, markResearchProposal } from './research-scout.js';
 
 const BOOT_AT = Date.now();   // code merged before this boot is live now; merged after it is not
 
@@ -277,6 +278,7 @@ export function evaluateExperiment(id = null, { force = false } = {}) {
   if (verdict !== 'kept') setTunable(row.tunable, row.before_value, { source: `smk:${row.id}:${verdict}` });
   db.prepare(`UPDATE smk_experiments SET verdict = ?, reason = ?, delta = ?, post = ?, evaluated_at = ? WHERE id = ?`)
     .run(verdict, reason, delta, JSON.stringify(post), now(), row.id);
+  if (String(row.source || '').startsWith('research:')) { try { db.prepare(`UPDATE research_proposals SET status = ?, updated_at = ? WHERE experiment_id = ?`).run(verdict, now(), row.id); } catch {} }
   const text = `[SMK ${verdict}] ${row.tunable} ${row.before_value} → ${row.after_value} (${row.rule || row.source}): ${reason}. Hypothesis: ${row.hypothesis || 'n/a'}`;
   try { storeMemory('system', 'outcome', `smk:${row.id}`, text.slice(0, 1200), { confidence: verdict === 'inconclusive' ? 0.5 : 0.9, source: 'smk' }); } catch (e) { console.error('[smk] memory:', e.message); }
   publish('smk', 'system.self_modification', JSON.stringify({ action: 'experiment_evaluated', id: row.id, tunable: row.tunable, before: row.before_value, after: row.after_value, verdict, delta, reason, baselineObjective: baseline.objective, postObjective: post.objective }));
@@ -374,6 +376,14 @@ export async function selfModificationCycle({ trigger = 'timer' } = {}) {
 
   let proposals = ruleProposals().filter(p => !recentlyTested(p.tunable));
   if (proposals.length) state.ruleProposals++;
+  // Third proposer (Phase AA): a hypothesis the research scout translated from a paper — after the
+  // deterministic rules, before the LLM proposer. Credit goes to `research:<item>`.
+  let researchPick = null;
+  if (!proposals.length) {
+    const r = nextResearchExperiment();
+    if (r && !recentlyTested(r.tunable)) { proposals = [r]; researchPick = r; }
+    else if (r) { try { markResearchProposal(r.proposalId, { status: 'skipped_recently_tested' }); } catch {} }
+  }
   if (!proposals.length && now() - state.lastLlmProposeAt >= LLM_PROPOSE_EVERY_MS) {
     try {
       const p = await llmProposal();
@@ -382,7 +392,8 @@ export async function selfModificationCycle({ trigger = 'timer' } = {}) {
   }
   if (!proposals.length) return Object.assign(result, skip('nothing_to_propose'));
   const p = proposals[0];
-  const started = await startExperiment({ ...p, source: trigger });
+  const started = await startExperiment({ ...p, source: p.source || trigger });
+  if (researchPick) { try { markResearchProposal(researchPick.proposalId, { status: started.started ? 'started' : `refused:${started.reason}`, experimentId: started.id || null }); } catch {} }
   result.started = started;
   state.lastCycle = result;
   return Object.assign(result, { acted: !!started.started, reason: started.started ? undefined : started.reason });
@@ -702,7 +713,8 @@ export function approveCodeProposal(id, { by = 'operator' } = {}) {
   const sha = git(['rev-parse', 'HEAD']).out;
   db.prepare(`UPDATE smk_code_proposals SET status = 'merged', merge_sha = ?, decided_by = ?, updated_at = ? WHERE id = ?`).run(sha, by, now(), id);
   if (row.origin_id && isConvention(row.source)) try { markFinding(row.origin_id, { status: 'fixed' }); } catch {}
-  if (row.origin_id && !isConvention(row.source)) try { db.prepare(`UPDATE ouroboros_proposals SET status = 'implemented', review_notes = COALESCE(review_notes,'') || ? WHERE id = ?`).run(`\n[smk ${id}] merged ${sha.slice(0, 8)}`, row.origin_id); } catch {}
+  if (row.origin_id && String(row.source || '').startsWith('research:')) try { markResearchProposal(row.origin_id, { status: 'merged' }); } catch {}
+  if (row.origin_id && !isConvention(row.source) && !String(row.source || '').startsWith('research:')) try { db.prepare(`UPDATE ouroboros_proposals SET status = 'implemented', review_notes = COALESCE(review_notes,'') || ? WHERE id = ?`).run(`\n[smk ${id}] merged ${sha.slice(0, 8)}`, row.origin_id); } catch {}
   try { storeMemory('system', 'outcome', `smk:${id}:merged`, `[SMK merged] ${row.title} → ${row.target_file} (${sha.slice(0, 8)}), approved by ${by}. Restart required for the change to run.`, { confidence: 1.0, source: 'smk' }); } catch {}
   publish('smk', 'system.self_modification', JSON.stringify({ action: 'code_merged', id, title: row.title, targetFile: row.target_file, sha, by }));
   return { ok: true, id, sha, restartRequired: true };
@@ -787,7 +799,7 @@ export function proposerStats() {
   }
   for (const v of Object.values(exp)) { const d = v.kept + v.reverted; v.keepRate = d ? round(v.kept / d, 2) : null; }
   const code = {};
-  for (const r of qa(`SELECT CASE WHEN source LIKE 'convention%' THEN 'convention' WHEN source LIKE 'ouroboros%' THEN 'ouroboros' WHEN source LIKE 'agent%' THEN 'agent' ELSE 'operator' END AS p, status, COUNT(*) AS c FROM smk_code_proposals GROUP BY p, status`)) {
+  for (const r of qa(`SELECT CASE WHEN source LIKE 'convention%' THEN 'convention' WHEN source LIKE 'research%' THEN 'research' WHEN source LIKE 'ouroboros%' THEN 'ouroboros' WHEN source LIKE 'agent%' THEN 'agent' ELSE 'operator' END AS p, status, COUNT(*) AS c FROM smk_code_proposals GROUP BY p, status`)) {
     code[r.p] = code[r.p] || { ready: 0, failed: 0, merged: 0, rejected: 0, building: 0 };
     code[r.p][r.status] = (code[r.p][r.status] || 0) + r.c;
   }
@@ -834,6 +846,13 @@ export async function maybeBuildFromBacklog({ trigger = 'daemon' } = {}) {
   if (today >= MAX_BUILDS_PER_DAY) return { built: false, reason: 'daily_build_cap', today, max: MAX_BUILDS_PER_DAY };
   const conv = nextConventionCandidate({ preferTested: fileHasTests });
   if (conv) return buildCodeProposal({ source: `convention:${conv.rule}`, originId: conv.key, title: conv.title, targetFile: conv.targetFile, line: conv.line, sketch: conv.sketch, rationale: conv.rationale });
+  const rs = nextResearchCode();
+  if (rs) {
+    const r = await buildCodeProposal({ source: rs.source, originId: rs.originId, title: rs.title, targetFile: rs.targetFile, sketch: rs.sketch, rationale: rs.rationale });
+    const infra = /scheduler dropped|aborted due to timeout|worktree:/.test(String(r.reason || ''));
+    try { markResearchProposal(rs.proposalId, { status: r.built ? 'built' : infra ? 'proposed' : 'failed', codeId: r.id || null }); } catch {}
+    return r;
+  }
   const cand = nextOuroborosCandidate();
   if (!cand) return { built: false, reason: 'no_buildable_candidate' };
   return buildCodeProposal({ source: `ouroboros:${trigger}`, ...cand });
