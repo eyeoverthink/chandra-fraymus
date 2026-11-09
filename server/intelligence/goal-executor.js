@@ -23,6 +23,7 @@ import { getAutonomyModifiers } from './consciousness-gate.js';
 import { isActionSuppressed } from './adaptive-strategy.js';
 import { scoreOutcome, installOutcomeScorerRoutes } from './outcome-scorer.js';
 import { recordOutcome, getCurrentSession } from './perspective.js';
+import { isRetired, agentQualityWeight, goalUtility, shouldShelve, shelveGoal, sweepAgentQuality, listRetirements, installAgentQualityRoutes } from './agent-quality.js';
 
 const now = () => Date.now();
 
@@ -67,6 +68,10 @@ export function expireStaleProposals(maxAgeMs = PROPOSAL_MAX_AGE_MS) {
   return info.changes;
 }
 
+// Phase W: priority first, then expected quality from similar past executions, then
+// simplicity, then recency. Proposals whose similar history is consistently poor are
+// shelved on the way past so the 1,800-deep backlog gets triaged by evidence, not FIFO.
+const UTILITY_CANDIDATES = 40;
 export function pickNextGoal() {
   const rows = db.prepare(
     `SELECT * FROM goal_proposals WHERE status = 'proposed' ORDER BY created_at DESC LIMIT 200`
@@ -76,28 +81,50 @@ export function pickNextGoal() {
     (PRIORITY_RANK[a.priority] ?? 1) - (PRIORITY_RANK[b.priority] ?? 1) ||
     (COMPLEXITY_RANK[a.complexity] ?? 1) - (COMPLEXITY_RANK[b.complexity] ?? 1) ||
     b.created_at - a.created_at);
-  return rows[0];
+  const top = rows.slice(0, UTILITY_CANDIDATES);
+  const scored = [];
+  for (const g of top) {
+    const u = goalUtility(g);
+    if (shouldShelve(g, u)) { shelveGoal(g, u); continue; }
+    scored.push({ g, u });
+  }
+  if (!scored.length) return rows[UTILITY_CANDIDATES] || null;
+  scored.sort((a, b) =>
+    (PRIORITY_RANK[a.g.priority] ?? 1) - (PRIORITY_RANK[b.g.priority] ?? 1) ||
+    (b.u.expected ?? 0.5) - (a.u.expected ?? 0.5) ||
+    (COMPLEXITY_RANK[a.g.complexity] ?? 1) - (COMPLEXITY_RANK[b.g.complexity] ?? 1) ||
+    b.g.created_at - a.g.created_at);
+  const pick = scored[0];
+  pick.g._utility = pick.u;
+  return pick.g;
 }
 
 const tokenize = s => new Set(String(s || '').toLowerCase().match(/[a-z][a-z0-9_-]{3,}/g) || []);
 
+// Phase W: keyword fit × quality weight (0.5 + 7-day mean quality once an agent has ≥ 3
+// scored outcomes; neutral 1.0 before), retired agents excluded. Hand-written manifests
+// still win exact ties.
 export function selectAgent(goal) {
-  const agents = listAgents('local').filter(a => a?.id);
-  if (!agents.length) throw new Error('no fleet agents available');
+  const all = listAgents('local').filter(a => a?.id);
+  if (!all.length) throw new Error('no fleet agents available');
+  const agents = all.filter(a => !isRetired(a.id));
+  const pool = agents.length ? agents : all;
   const goalTokens = tokenize(`${goal.objective} ${goal.rationale || ''}`);
-  let best = null, bestScore = -1;
-  for (const a of agents) {
+  let best = null, bestScore = -1, bestFit = 0, bestWeight = null;
+  for (const a of pool) {
     const agentTokens = tokenize(`${a.name} ${a.role || ''} ${a.description || ''}`);
-    let score = 0;
-    for (const t of goalTokens) if (agentTokens.has(t)) score++;
-    if (a.source === 'default') score += 0.5; // hand-written manifests over forged ones on ties
-    if (score > bestScore) { bestScore = score; best = a; }
+    let fit = 0;
+    for (const t of goalTokens) if (agentTokens.has(t)) fit++;
+    if (fit < 1) continue;
+    const w = agentQualityWeight(a.id);
+    const score = fit * w.weight + (a.source === 'default' ? 0.25 : 0);
+    if (score > bestScore) { bestScore = score; best = a; bestFit = fit; bestWeight = w; }
   }
-  if (bestScore < 1) {
-    const fallback = agents.find(a => a.id === DEFAULT_AGENT) || agents.find(a => a.source === 'default') || agents[0];
-    return { agent: fallback, score: 0, reason: 'default' };
+  if (!best) {
+    const fallback = pool.find(a => a.id === DEFAULT_AGENT) || pool.find(a => a.source === 'default') || pool[0];
+    return { agent: fallback, score: 0, fit: 0, weight: agentQualityWeight(fallback.id), reason: 'default', retiredExcluded: all.length - agents.length };
   }
-  return { agent: best, score: bestScore, reason: 'keyword_match' };
+  return { agent: best, score: +bestScore.toFixed(3), fit: bestFit, weight: bestWeight, reason: 'keyword_match_x_quality', retiredExcluded: all.length - agents.length };
 }
 
 function buildTask(goal, framing) {
@@ -122,7 +149,8 @@ export async function executeGoal(goal, { trigger = 'manual' } = {}) {
   if (!goal) throw new Error('goal required');
   if (inFlight) return { executed: false, reason: 'in_flight', goalId: inFlight.goalId };
 
-  const { agent, score, reason } = selectAgent(goal);
+  const { agent, score, reason, weight, fit } = selectAgent(goal);
+  const utility = goal._utility || goalUtility(goal);
   const gate = getAutonomyModifiers();
   let pressure = null;
   try { pressure = getResourcePressure()?.pressure ?? null; } catch (_) {}
@@ -135,7 +163,7 @@ export async function executeGoal(goal, { trigger = 'manual' } = {}) {
   db.prepare(`INSERT INTO goal_executions (id, goal_id, agent_id, status, trigger, gate_tier, pressure, started_at)
     VALUES (?, ?, ?, 'running', ?, ?, ?, ?)`).run(execId, goal.id, agent.id, trigger, gate.tier, pressure, startedAt);
 
-  try { publish('goal-executor', 'system.goals', JSON.stringify({ action: 'goal_started', goalId: goal.id, agentId: agent.id, agentReason: reason, matchScore: score, trigger, objective: goal.objective.slice(0, 160) })); } catch (_) {}
+  try { publish('goal-executor', 'system.goals', JSON.stringify({ action: 'goal_started', goalId: goal.id, agentId: agent.id, agentReason: reason, matchScore: score, keywordFit: fit, qualityWeight: weight?.weight, agentMeanQuality: weight?.mean, expectedQuality: utility?.expected, utilitySamples: utility?.samples, trigger, objective: goal.objective.slice(0, 160) })); } catch (_) {}
 
   // The fleet runtime already runs a Perspective assessment per invocation (its framing
   // lands in the agent's prompt); a second assessment here would just queue another LLM
@@ -213,7 +241,7 @@ export async function executeGoal(goal, { trigger = 'manual' } = {}) {
   } catch (_) {}
 
   inFlight = null;
-  const result = { executed: true, execId, goalId: goal.id, agentId: agent.id, agentReason: reason, status: goalStatus, runStatus: res.status, quality: +quality.toFixed(3), critique: qualityDetail?.judge?.critique || null, perspectives, runId: res.runId, threadId: res.threadId, durationMs, reply: (res.lastReply || '').slice(0, 500) };
+  const result = { executed: true, execId, goalId: goal.id, agentId: agent.id, agentReason: reason, qualityWeight: weight?.weight, expectedQuality: utility?.expected, status: goalStatus, runStatus: res.status, quality: +quality.toFixed(3), critique: qualityDetail?.judge?.critique || null, perspectives, runId: res.runId, threadId: res.threadId, durationMs, reply: (res.lastReply || '').slice(0, 500) };
   lastCycle = { at: finishedAt, trigger, ...result };
   return result;
 }
@@ -298,7 +326,13 @@ export function getGoalExecutorStatus() {
     executions: Object.fromEntries(exec.map(r => [r.status, { count: r.c, avgMs: Math.round(r.avgMs || 0) }])),
     last24h: { executed: recent24h?.c || 0, completed: recent24h?.ok || 0 },
     defaultAgent: DEFAULT_AGENT,
+    retiredAgents: listRetirements().map(r => r.agent_id),
   };
+}
+
+/** Phase W daemon step: retire consistently poor forged agents (hand-written ones exempt). */
+export function runAgentQualitySweep() {
+  return sweepAgentQuality({ agents: listAgents('local') });
 }
 
 export function installGoalExecutorRoutes(app) {
@@ -306,6 +340,9 @@ export function installGoalExecutorRoutes(app) {
 
   // Own prefix: /api/goals/:id in goal-engine would swallow /api/goals/executor.
   app.get('/api/goal-executor', route((_req, res) => res.json(getGoalExecutorStatus())));
+  // Phase W routes BEFORE the outcome scorer's: /api/goal-executor/quality/:agentId is a
+  // param route and would swallow /api/goal-executor/quality/trend.
+  installAgentQualityRoutes(app, { listAgents: () => listAgents('local') }); // sweep route exempts hand-written manifests
   installOutcomeScorerRoutes(app);
 
   app.get('/api/goal-executor/history', route((req, res) => {

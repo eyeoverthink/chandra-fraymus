@@ -248,7 +248,7 @@ export function getProposal(id) {
 
 export function updateProposalStatus(id, status, chainRunId = null) {
   ensureTable();
-  const valid = ['proposed', 'accepted', 'rejected', 'executing', 'completed', 'failed', 'blocked', 'expired'];
+  const valid = ['proposed', 'accepted', 'rejected', 'executing', 'completed', 'failed', 'blocked', 'expired', 'shelved'];
   if (!valid.includes(status)) throw new Error(`Invalid status: ${status}`);
   db.prepare(
     `UPDATE goal_proposals SET status = ?, chain_run_id = COALESCE(?, chain_run_id), acted_at = ? WHERE id = ?`

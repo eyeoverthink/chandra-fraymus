@@ -6,7 +6,7 @@ import { loadManifests, writeOverride } from '../fleet/manifest.js';
 import { reloadManifests } from '../fleet/runtime.js';
 import { reflect } from '../intelligence/reflection.js';
 import { generateGoals } from '../intelligence/goal-engine.js';
-import { runGoalExecutorCycle, startGoalExecutor, stopGoalExecutor, getGoalExecutorStatus } from '../intelligence/goal-executor.js';
+import { runGoalExecutorCycle, startGoalExecutor, stopGoalExecutor, getGoalExecutorStatus, runAgentQualitySweep } from '../intelligence/goal-executor.js';
 import { sweepStaleDebates } from '../intelligence/debate.js';
 import { agentQualityStats } from '../intelligence/outcome-scorer.js';
 import { startExternalSenses, stopExternalSenses, getExternalSensesStatus } from '../intelligence/external-senses.js';
@@ -433,6 +433,14 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
       stepResults.goalExecution = await runGoalExecutorCycle({ trigger: `daemon:${trigger}` });
     } catch (e) {
       stepResults.goalExecution = { error: e.message };
+    }
+
+    // Step 5.6: Agent quality sweep (Phase W) — retire consistently poor forged agents
+    try {
+      const sweep = runAgentQualitySweep();
+      stepResults.agentQualitySweep = { checked: sweep.checked, retired: sweep.retired.map(r => r.agentId), exempt: sweep.exempt.length };
+    } catch (e) {
+      stepResults.agentQualitySweep = { error: e.message };
     }
 
     // Step 6: Ouroboros RSI cycle (autonomous codebase evolution)

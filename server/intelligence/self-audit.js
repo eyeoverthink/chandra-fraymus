@@ -298,8 +298,29 @@ function checkStuckRows() {
   return findings;
 }
 
+// ─── Check 6 (Phase W): credit assignment must bite ──────────────
+// A retired agent executing a goal means selection ignored quality; an agent with
+// enough poor outcomes that is NOT retired (and is not hand-written) means the sweep
+// is not running. Either way the loop outcome → selection is open.
+function checkCreditAssignment() {
+  const findings = [];
+  const since = now() - DAY;
+  const ran = q(
+    `SELECT e.agent_id, COUNT(*) AS c FROM goal_executions e JOIN agent_retirements r ON r.agent_id = e.agent_id
+     WHERE r.restored_at IS NULL AND e.started_at > r.retired_at AND e.started_at > ? GROUP BY e.agent_id`, since);
+  for (const r of ran || []) {
+    findings.push({
+      check: 'retired_agent_selected', subject: `goal_executions:${r.agent_id}`, severity: 'REAL',
+      summary: `Retired agent ${r.agent_id} executed ${r.c} goal(s) in 24h — selection is ignoring retirement`,
+      evidence: { agentId: r.agent_id, executions24h: r.c },
+    });
+  }
+  return findings;
+}
+
 const CHECKS = [
   ['repeated_action', checkRepeatedActions],
+  ['credit_assignment', checkCreditAssignment],
   ['flat_metric', checkFlatMetrics],
   ['producer_without_consumer', checkProducersWithoutConsumers],
   ['written_never_read', checkUnreadGrowth],
