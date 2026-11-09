@@ -86,7 +86,11 @@ router.get('/api/agent-profiles', (_req, res) => {
 
 router.get('/api/agent-profiles/:id', (req, res) => {
   try {
-    const profile = getProfile(req.params.id);
+    const id = req.params.id;
+    if (!id || typeof id !== 'string') {
+      return res.status(400).json({ error: 'Invalid agent ID' });
+    }
+    const profile = getProfile(id);
     if (!profile) return res.status(404).json({ error: 'Agent not found' });
     res.json(profile);
   } catch (err) {
