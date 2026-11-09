@@ -39,3 +39,11 @@ export function attachPrivateThinking(response,text) {
 export function consumePrivateThinking(response) {
   const text=privateThinking.get(response);privateThinking.delete(response);return text;
 }
+
+/** Summarize the thinking controls in a human-readable string. */
+export function describeThinking(metadata) {
+  const controls=thinkingControls(metadata);
+  if(!controls)return 'off';
+  const values=controls.values.map(value=>value===controls.default?'(default) '+value:value);
+  return values.join(', ');
+}
