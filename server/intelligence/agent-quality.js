@@ -26,6 +26,7 @@
 
 import { db } from '../db.js';
 import { publish } from '../fleet/bus.js';
+import { tunable } from './tunables.js';
 import { storeMemory } from '../fleet/agent-memory.js';
 import { fleetQualityStats, agentQualityStats } from './outcome-scorer.js';
 
@@ -33,8 +34,11 @@ const now = () => Date.now();
 const DAY = 86400_000;
 const WINDOW_MS = 7 * DAY;
 export const RETIRE_MIN_SAMPLES = Math.max(3, parseInt(process.env.AGENT_RETIRE_MIN_SAMPLES, 10) || 5);
-export const RETIRE_THRESHOLD = Math.min(0.5, Math.max(0.05, parseFloat(process.env.AGENT_RETIRE_THRESHOLD) || 0.2));
-export const SHELVE_THRESHOLD = Math.min(0.5, Math.max(0.05, parseFloat(process.env.AGENT_SHELVE_THRESHOLD) || 0.15));
+const DEFAULT_RETIRE_T = Math.min(0.5, Math.max(0.05, parseFloat(process.env.AGENT_RETIRE_THRESHOLD) || 0.2));
+const DEFAULT_SHELVE_T = Math.min(0.5, Math.max(0.05, parseFloat(process.env.AGENT_SHELVE_THRESHOLD) || 0.15));
+// Phase Y: both thresholds are live tunables (bounded in tunables.js REGISTRY)
+export const retireThreshold = () => tunable('agent.retire_threshold', DEFAULT_RETIRE_T);
+export const shelveThreshold = () => tunable('agent.shelve_threshold', DEFAULT_SHELVE_T);
 export const SHELVE_MIN_ATTEMPTS = 3;
 const WEIGHT_MIN_SAMPLES = 3;
 
@@ -67,7 +71,7 @@ export function retireAgent(agentId, { quality, samples, reason = 'low_quality',
               VALUES (?, ?, ?, ?, ?, NULL, NULL)
               ON CONFLICT(agent_id) DO UPDATE SET quality = excluded.quality, samples = excluded.samples, reason = excluded.reason, retired_at = excluded.retired_at, restored_at = NULL, restored_by = NULL`)
     .run(agentId, quality ?? null, samples ?? null, `${reason}:${by}`, now());
-  const summary = `Agent ${agentId} retired from autonomous goal selection: 7-day mean quality ${quality == null ? 'n/a' : quality.toFixed(2)} over ${samples ?? '?'} outcomes (threshold ${RETIRE_THRESHOLD}). Reversible via POST /api/goal-executor/retirements/${agentId}/restore.`;
+  const summary = `Agent ${agentId} retired from autonomous goal selection: 7-day mean quality ${quality == null ? 'n/a' : quality.toFixed(2)} over ${samples ?? '?'} outcomes (threshold ${retireThreshold()}). Reversible via POST /api/goal-executor/retirements/${agentId}/restore.`;
   try { storeMemory(agentId, 'outcome', `retired:${now()}`, summary, { confidence: 0.9, source: 'agent-quality' }); } catch (_) {}
   try { storeMemory('system', 'outcome', `retired:${agentId}`, summary, { confidence: 0.9, source: 'agent-quality' }); } catch (_) {}
   try { publish('agent-quality', 'system.fleet.retired', JSON.stringify({ agentId, quality, samples, reason, by })); } catch (_) {}
@@ -88,7 +92,7 @@ export function restoreAgent(agentId, { by = 'operator' } = {}) {
  * live fleet list (so hand-written manifests can be exempted by source); without it every
  * low scorer is treated as eligible.
  */
-export function sweepAgentQuality({ agents = null, minSamples = RETIRE_MIN_SAMPLES, threshold = RETIRE_THRESHOLD, windowMs = WINDOW_MS } = {}) {
+export function sweepAgentQuality({ agents = null, minSamples = RETIRE_MIN_SAMPLES, threshold = retireThreshold(), windowMs = WINDOW_MS } = {}) {
   const bySource = new Map((agents || []).map(a => [a.id, a.source || 'unknown']));
   const stats = fleetQualityStats({ windowMs });
   const retired = [], exempt = [], kept = [];
@@ -160,7 +164,7 @@ export function goalUtility(goal) {
 }
 
 export function shouldShelve(goal, utility = goalUtility(goal)) {
-  return utility.expected != null && utility.samples >= SHELVE_MIN_ATTEMPTS && utility.expected < SHELVE_THRESHOLD;
+  return utility.expected != null && utility.samples >= SHELVE_MIN_ATTEMPTS && utility.expected < shelveThreshold();
 }
 
 export function shelveGoal(goal, utility) {
@@ -191,7 +195,7 @@ export function qualityTrend({ days = 7 } = {}) {
 
 export function getAgentQualityStatus() {
   return {
-    thresholds: { retireMinSamples: RETIRE_MIN_SAMPLES, retireThreshold: RETIRE_THRESHOLD, shelveThreshold: SHELVE_THRESHOLD, shelveMinAttempts: SHELVE_MIN_ATTEMPTS, weightMinSamples: WEIGHT_MIN_SAMPLES },
+    thresholds: { retireMinSamples: RETIRE_MIN_SAMPLES, retireThreshold: retireThreshold(), shelveThreshold: shelveThreshold(), shelveMinAttempts: SHELVE_MIN_ATTEMPTS, weightMinSamples: WEIGHT_MIN_SAMPLES },
     retirements: listRetirements(),
     trend: qualityTrend(),
   };

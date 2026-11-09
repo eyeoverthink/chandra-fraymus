@@ -602,7 +602,25 @@ export async function runCycle(rootDir) {
     const parentContext = parentGenome.length > 0
       ? `\n\nThis cycle inherits from generation ${parent.generation} (${parentId}). Its genome carries ${inheritedGenes} inherited genes:\n${parentGenome.map(g => `- [${g.category}] ${g.title}`).join('\n')}\n\nPropose improvements that BUILD ON these accepted patterns. Avoid re-proposing what is already in the genome.`
       : '';
-    const rawProposals = await analyzeForImprovements(outlineText, parentContext);
+    const analyzed = await analyzeForImprovements(outlineText, parentContext);
+
+    // Grounding (Phase Y): a proposal is only storable if at least one of its target files
+    // exists in this tree. Measured 2026-11-09: 206 of 395 "accepted" proposals named files
+    // that do not exist (agent/memory.js ×93, ab-engine.js ×49, workspace-patch.js ×39) —
+    // the model invents paths from the outline, and the kernel's code tier can only build
+    // against real files. Dropped proposals are counted, not stored.
+    const root = rootDir || process.cwd();
+    const groundRoots = ['', 'server/', 'server/intelligence/', 'client/src/'];
+    const exists = (f) => groundRoots.some(r => { try { return fs.statSync(path.join(root, r + String(f))).isFile(); } catch { return false; } });
+    const rawProposals = [];
+    let ungrounded = 0;
+    for (const p of analyzed) {
+      const files = Array.isArray(p.targetFiles) ? p.targetFiles.filter(exists) : [];
+      if (files.length) rawProposals.push({ ...p, targetFiles: files }); else ungrounded++;
+    }
+    if (ungrounded) {
+      try { publish('ouroboros', 'system.evolution', JSON.stringify({ action: 'ouroboros_proposals_ungrounded', cycleId, dropped: ungrounded, kept: rawProposals.length })); } catch (_) {}
+    }
 
     // Store proposals
     const insert = db.prepare(`INSERT INTO ouroboros_proposals (id, cycle_id, category, priority, title, description, target_files, rationale, implementation_sketch) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);

@@ -35,6 +35,8 @@ const MODIFICATION_TYPES = [
   'publish_insight',
   'neurogenesis',
   're_reanalysis',
+  'tune_parameter',   // Phase Y: self-modification kernel moves a live tunable inside its bounds
+  'code_change',      // Phase Y: a tested code change on an rsi/* branch (merge is the operator's)
 ];
 
 function ensureTable() {
@@ -194,6 +196,18 @@ function evaluateModification(type, pre, post, execResult) {
     if (!verifiedGrew) {
       return { decision: 'REJECTED', reason: 'Memory verification did not increase verified count', checks, gateTier: gateMods.tier };
     }
+  }
+
+  if (type === 'tune_parameter') {
+    const applied = execResult.applied === true && Number.isFinite(execResult.after);
+    checks.push({ check: 'parameter_applied', passed: applied, detail: applied ? `${execResult.tunable}: ${execResult.before} → ${execResult.after}` : 'tunable was not applied' });
+    if (!applied) return { decision: 'REJECTED', reason: 'Parameter change was not applied', checks, gateTier: gateMods.tier };
+  }
+
+  if (type === 'code_change') {
+    const green = execResult.checkPassed === true && execResult.testPassed === true && !!execResult.branch;
+    checks.push({ check: 'branch_green', passed: green, detail: green ? `branch ${execResult.branch}: syntax ok, tests ${execResult.testsRun ?? '?'} passed` : `syntax ${execResult.checkPassed ? 'ok' : 'FAILED'}, tests ${execResult.testPassed ? 'passed' : 'FAILED'}` });
+    if (!green) return { decision: 'REJECTED', reason: 'Code change did not produce a green branch', checks, gateTier: gateMods.tier };
   }
 
   if (post.recentRunSuccess < pre.recentRunSuccess - regressionTolerance) {

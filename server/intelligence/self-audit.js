@@ -318,9 +318,33 @@ function checkCreditAssignment() {
   return findings;
 }
 
+// ─── Check 7 (Phase Y): the self-modification kernel must close its own loops ──
+// An experiment still 'running' past twice its window is a kernel that stopped evaluating;
+// a code build 'building' for over an hour is a crashed build; ≥ 3 green branches waiting
+// over 48 h means the operator (the consumer of tier B) is not consuming — the kernel is
+// already capped, but the finding names the open loop.
+function checkSelfModification() {
+  const findings = [];
+  const t = now();
+  const stuckExp = q(`SELECT id, tunable, started_at, window_ms FROM smk_experiments WHERE verdict = 'running' AND started_at + 2 * window_ms < ?`, t) || [];
+  for (const e of stuckExp) {
+    findings.push({ check: 'stuck_transient', subject: `smk_experiments:${e.id}`, severity: 'REAL',
+      summary: `Experiment ${e.id} on ${e.tunable} is still running ${Math.round((t - e.started_at) / H)}h after a ${Math.round(e.window_ms / 60000)}-min window`,
+      evidence: { id: e.id, tunable: e.tunable, startedAt: e.started_at, windowMs: e.window_ms } });
+  }
+  const stuckBuild = q1(`SELECT COUNT(*) AS c FROM smk_code_proposals WHERE status = 'building' AND created_at < ?`, t - H);
+  if (stuckBuild?.c) findings.push({ check: 'stuck_transient', subject: 'smk_code_proposals.status', severity: 'REAL', summary: `${stuckBuild.c} code build(s) stuck in 'building' for over an hour`, evidence: { count: stuckBuild.c } });
+  const waiting = q1(`SELECT COUNT(*) AS c, MIN(updated_at) AS oldest FROM smk_code_proposals WHERE status = 'ready' AND updated_at < ?`, t - 2 * DAY);
+  if ((waiting?.c || 0) >= 3) findings.push({ check: 'producer_without_consumer', subject: 'smk_code_proposals:awaiting_review', severity: 'REAL',
+    summary: `${waiting.c} tested code branches have waited over 48 h for operator review — the kernel's code tier has no consumer right now`,
+    evidence: { count: waiting.c, oldestAgeHours: waiting.oldest ? Math.round((t - waiting.oldest) / H) : null } });
+  return findings;
+}
+
 const CHECKS = [
   ['repeated_action', checkRepeatedActions],
   ['credit_assignment', checkCreditAssignment],
+  ['self_modification', checkSelfModification],
   ['flat_metric', checkFlatMetrics],
   ['producer_without_consumer', checkProducersWithoutConsumers],
   ['written_never_read', checkUnreadGrowth],

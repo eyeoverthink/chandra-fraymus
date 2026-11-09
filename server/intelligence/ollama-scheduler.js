@@ -25,6 +25,7 @@
  */
 
 import { publish } from '../fleet/bus.js';
+import { tunable } from './tunables.js';
 
 const now = () => Date.now();
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -39,7 +40,8 @@ const CLASS_NAMES = ['interactive', 'agent_run', 'scoring', 'goal', 'forge/debat
 // How long each class may wait before being dropped. Interactive and agent runs are
 // never dropped by the scheduler (their own request timeouts still apply).
 const MAX_WAIT_MS = { 0: Infinity, 1: 10 * 60_000, 2: 5 * 60_000, 3: 3 * 60_000, 4: 2 * 60_000, 5: 2 * 60_000, 6: 90_000, 7: 60_000 };
-const MAX_CONCURRENT = clamp(parseInt(process.env.OLLAMA_MAX_CONCURRENT, 10) || 2, 1, 8);
+const DEFAULT_MAX_CONCURRENT = clamp(parseInt(process.env.OLLAMA_MAX_CONCURRENT, 10) || 2, 1, 8);
+const maxConcurrent = () => clamp(Math.round(tunable('ollama.max_concurrent', DEFAULT_MAX_CONCURRENT)), 1, 8); // Phase Y: live tunable
 const MAX_QUEUE = clamp(parseInt(process.env.OLLAMA_MAX_QUEUE, 10) || 24, 4, 500);
 const DROP_EVENT_COOLDOWN_MS = 30_000;
 
@@ -69,7 +71,7 @@ function pushRecent(entry) {
 }
 
 function pump() {
-  while (running < MAX_CONCURRENT && queue.length) {
+  while (running < maxConcurrent() && queue.length) {
     queue.sort((a, b) => a.prio - b.prio || a.enqueuedAt - b.enqueuedAt);
     const job = queue.shift();
     clearTimeout(job.timer);
@@ -151,7 +153,7 @@ export function getSchedulerStatus() {
   for (const j of queue) bump(queuedByClass, CLASS_NAMES[j.prio]);
   const oldestQueuedMs = queue.length ? now() - Math.min(...queue.map(j => j.enqueuedAt)) : 0;
   return {
-    maxConcurrent: MAX_CONCURRENT,
+    maxConcurrent: maxConcurrent(),
     maxQueue: MAX_QUEUE,
     running,
     runningJobs: [...runningJobs.values()].map(r => ({ label: r.label, class: CLASS_NAMES[r.prio], runningMs: now() - r.startedAt })),
@@ -167,7 +169,7 @@ export function getSchedulerStatus() {
 
 /** 0..1 — how loaded the inference path is; the resource envelope reads this as a sensor. */
 export function schedulerPressure() {
-  return clamp((running + queue.length) / (MAX_CONCURRENT * 3), 0, 1);
+  return clamp((running + queue.length) / (maxConcurrent() * 3), 0, 1);
 }
 
 export function installOllamaSchedulerRoutes(app) {

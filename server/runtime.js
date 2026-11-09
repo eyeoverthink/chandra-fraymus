@@ -116,6 +116,8 @@ import { installWorldPollerRoutes } from './intelligence/world-pollers.js';
 import { installReaRoutes } from './intelligence/rea-protocol.js';
 import { installNarratorRoutes } from './intelligence/narrator.js';
 import { installSweeperRoutes } from './intelligence/transient-sweeper.js';
+import { installTunableRoutes } from './intelligence/tunables.js';
+import { installSelfModificationRoutes } from './intelligence/self-modification.js';
 import { installHivePeersRoutes } from './intelligence/hive-peers.js';
 import { installDebateRoutes } from './intelligence/debate.js';
 import { installModelRouterRoutes } from './intelligence/model-router.js';
@@ -353,6 +355,8 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installReaRoutes(app);
   installNarratorRoutes(app);
   installSweeperRoutes(app);
+  installTunableRoutes(app);
+  installSelfModificationRoutes(app);
   installHivePeersRoutes(app);
   installDebateRoutes(app);
   installModelRouterRoutes(app);

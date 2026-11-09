@@ -22,6 +22,8 @@ import { runSelfAudit, getOpenFindings, getSelfAuditStatus } from '../intelligen
 import { getHiveMeshStatus, registerOnHub } from '../intelligence/hive-mesh.js';
 import { runReaProtocol, getReaRun, listReaRuns, getReaStatus } from '../intelligence/rea-protocol.js';
 import { narrate, getNarratorStatus } from '../intelligence/narrator.js';
+import { getSelfModificationStatus, startExperiment, buildCodeProposal, ruleProposals as smkRuleProposals, listExperiments as smkListExperiments, listCodeProposals as smkListCode } from '../intelligence/self-modification.js';
+import { listTunables } from '../intelligence/tunables.js';
 import { getHivePeersStatus, syncBridge, postDigest } from '../intelligence/hive-peers.js';
 import { getAdaptiveStatus, getAdaptiveModifiers, isActionSuppressed, isActionPreferred } from '../intelligence/adaptive-strategy.js';
 import { getSelfModelStatus, getSystemMap, lookupSubsystem, buildSpatialContext, buildSubsystemContext } from '../intelligence/self-model.js';
@@ -472,6 +474,39 @@ export function createFleetTools({ workflowStore }) {
         const r = await narrate(String(params.text || ''), { kind: 'agent', source: `agent:${agentId}` });
         ledger.record('narrator.say', { agent: agentId, text: String(params.text || '').slice(0, 120) }, 'fleet');
         return r;
+      },
+    },
+    {
+      name: 'self_modify',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'The Self-Modification Kernel (Phase Y). Mode "status" (default): live tunables, the running experiment, verdict counts, code proposals awaiting review. Mode "tunables": every live knob with bounds and current value. Mode "proposals": what the deterministic rules would change right now. Mode "experiment": start ONE bounded experiment on a tunable (tunable, value, hypothesis) — applied immediately, measured for the window, kept or reverted automatically; refused if one is running or the tunable was tested in the last 24 h. Mode "code": build ONE tested code change on a git branch (title, targetFile, sketch) — the kernel never merges; a human approves. Mode "history": recent experiments and code proposals.',
+      parameters: object({
+        mode: { type: 'string', description: '"status" | "tunables" | "proposals" | "experiment" | "code" | "history"' },
+        tunable: { type: 'string', description: 'experiment: registry name, e.g. reflection.min_interval_ms' },
+        value: { type: 'number', description: 'experiment: the value to try (clamped to bounds)' },
+        hypothesis: { type: 'string', description: 'experiment: one falsifiable sentence' },
+        title: { type: 'string', description: 'code: short imperative title' },
+        targetFile: { type: 'string', description: 'code: one existing file under server/ or client/src' },
+        sketch: { type: 'string', description: 'code: what to change, concretely' },
+      }),
+      execute: async (params, context) => {
+        const agentId = context?.agent?.id || context?.agentId || 'agent';
+        const mode = params.mode || 'status';
+        if (mode === 'tunables') return { tunables: listTunables() };
+        if (mode === 'proposals') return { rules: smkRuleProposals() };
+        if (mode === 'history') return { experiments: smkListExperiments({ limit: 15 }), code: smkListCode({ limit: 15 }) };
+        if (mode === 'experiment') {
+          const r = await startExperiment({ tunable: params.tunable, value: params.value, hypothesis: params.hypothesis, source: `agent:${agentId}` });
+          ledger.record('smk.experiment', { agent: agentId, tunable: params.tunable, value: params.value, started: r.started, reason: r.reason }, 'fleet');
+          return r;
+        }
+        if (mode === 'code') {
+          const r = await buildCodeProposal({ source: `agent:${agentId}`, title: params.title, targetFile: params.targetFile, sketch: params.sketch });
+          ledger.record('smk.code', { agent: agentId, title: params.title, targetFile: params.targetFile, built: r.built, reason: r.reason }, 'fleet');
+          return r;
+        }
+        return getSelfModificationStatus();
       },
     },
     {

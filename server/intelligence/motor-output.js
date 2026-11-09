@@ -32,6 +32,7 @@ import { isActionSuppressed, isActionPreferred } from './adaptive-strategy.js';
 import { isResourceConstrained } from './resource-envelope.js';
 import { recordEfferenceCopy } from './predictive-processing.js';
 import { publish } from '../fleet/bus.js';
+import { tunable } from './tunables.js';
 import { randomUUID } from 'node:crypto';
 
 const now = () => Date.now();
@@ -70,6 +71,12 @@ const MIN_INTERVAL_MS = {
   neurogenesis: 2 * 60_000,
   communicate: 60_000,
 };
+// Phase Y: the three expensive floors are live tunables (the kernel may move them inside bounds).
+const MOTOR_TUNABLE = { reflect: 'motor.reflect_min_ms', goalSeek: 'motor.goalseek_min_ms', selfAudit: 'motor.selfaudit_min_ms' };
+function motorFloor(key) {
+  const t = MOTOR_TUNABLE[key];
+  return t ? tunable(t, MIN_INTERVAL_MS[key]) : (MIN_INTERVAL_MS[key] || 0);
+}
 
 let motorTimer = null;
 let previousReadings = {};
@@ -261,7 +268,7 @@ async function motorCycle() {
     const preferred = isActionPreferred(STRATEGY_KEY[key] || key);
     const effectiveThreshold = preferred ? threshold * 0.85 : threshold;
     const sustained = prevActivation >= effectiveThreshold && activation >= effectiveThreshold;
-    const regionCooldown = Math.max(cooldownMs, MIN_INTERVAL_MS[key] || 0);
+    const regionCooldown = Math.max(cooldownMs, motorFloor(key));
 
     if (sustained && !isOnCooldown(key, regionCooldown)) {
       if (isActionSuppressed(STRATEGY_KEY[key] || key) || isResourceConstrained()) {

@@ -1,6 +1,8 @@
 import { db } from '../db.js';
 import { chatOllama } from '../commerce/shared.js';
 import { publish } from '../fleet/bus.js';
+import { tunable } from './tunables.js';
+import { startExperiment } from './self-modification.js';
 import { forgeAgent } from '../fleet/forge.js';
 import { synthesizeWorkflow } from '../workflow/synthesizer.js';
 import { runPipeline as opegPipeline } from './opeg.js';
@@ -31,12 +33,13 @@ let lastReflectionAt = 0;
 // three debates and two verifier loops.
 let reflectionInFlight = false;
 let lastReflectionStartedAt = 0;
-const MIN_INTERVAL_MS = Math.max(60_000, parseInt(process.env.REFLECTION_MIN_INTERVAL_MS, 10) || 10 * 60_000);
+const DEFAULT_MIN_INTERVAL_MS = Math.max(60_000, parseInt(process.env.REFLECTION_MIN_INTERVAL_MS, 10) || 10 * 60_000);
+const minIntervalMs = () => tunable('reflection.min_interval_ms', DEFAULT_MIN_INTERVAL_MS); // Phase Y: live tunable
 const HEAVY_ACTION_BUDGET = { run_debate: 1, run_verifier: 1, forge_agent: 1, synthesize_workflow: 1 };
 const gateStats = { ran: 0, inProgress: 0, minInterval: 0, noNewData: 0, heavySkipped: 0, strategySkipped: 0 };
 
 export function getReflectionGateStats() {
-  return { ...gateStats, minIntervalMs: MIN_INTERVAL_MS, inFlight: reflectionInFlight, lastReflectionAt, lastStartedAt: lastReflectionStartedAt };
+  return { ...gateStats, minIntervalMs: minIntervalMs(), inFlight: reflectionInFlight, lastReflectionAt, lastStartedAt: lastReflectionStartedAt };
 }
 
 function collectState() {
@@ -203,6 +206,7 @@ You can take these actions (max ${maxActions} per cycle):
 7. re_analyze: {"action": "re_analyze", "binaryKey": "...", "reason": "..."} — trigger re-analysis of a previously ingested binary dossier when low-confidence annotations or new tools are available. Check reAgentStats for low-confidence dossiers.
 8. run_verifier: {"action": "run_verifier", "goal": "...", "language": "javascript|python"} — generate code for a small, testable goal and run it through the generator-verifier-executor loop. Use when a hypothesis or pattern in memory could be settled by running code.
 9. execute_goal: {"action": "execute_goal", "goalId": "goal_..."} — run a pending goal proposal through the fleet now (omit goalId to take the highest-priority pending one). Use when proposals are piling up unexecuted.
+10. tune_parameter: {"action": "tune_parameter", "tunable": "<name from selfModification.tunables>", "value": <number>, "hypothesis": "..."} — start ONE bounded experiment on a live tunable; it is measured for a window and kept or reverted automatically. Only when the data shows a specific knob is set wrong (e.g. inference jobs being dropped, reflections not improving effectiveness). Refused if an experiment is already running.
 
 Rules:
 - Only take actions when there's clear evidence from the data
@@ -316,6 +320,11 @@ async function executeAction(action) {
         const r = await runGoalExecutorCycle({ trigger: 'reflection', goalId });
         return { ok: r.executed === true && r.status === 'completed', action: 'execute_goal', ...r };
       }
+      case 'tune_parameter': {
+        if (!action.tunable || action.value == null) return { ok: false, error: 'tunable and value required' };
+        const r = await startExperiment({ tunable: String(action.tunable), value: action.value, hypothesis: String(action.hypothesis || action.reason || '').slice(0, 400), source: 'reflection' });
+        return { ok: r.started === true, action: 'tune_parameter', ...r };
+      }
       default:
         return { ok: false, error: `unknown action: ${action.action}` };
     }
@@ -330,7 +339,7 @@ export async function reflect(opts = {}) {
   if (reflectionInFlight) { gateStats.inProgress++; return { skipped: true, reason: 'in_progress', trigger }; }
   if (autonomous) {
     const sinceStart = now() - lastReflectionStartedAt;
-    if (sinceStart < MIN_INTERVAL_MS) { gateStats.minInterval++; return { skipped: true, reason: 'min_interval', trigger, nextInMs: MIN_INTERVAL_MS - sinceStart }; }
+    if (sinceStart < minIntervalMs()) { gateStats.minInterval++; return { skipped: true, reason: 'min_interval', trigger, nextInMs: minIntervalMs() - sinceStart }; }
     if (!hasNewData()) { gateStats.noNewData++; return { skipped: true, reason: 'no_new_data', trigger }; }
   }
   reflectionInFlight = true;

@@ -40,6 +40,7 @@ import ObservatoryPanel from '../panels/ObservatoryPanel.jsx';
 import DebatePanel from '../panels/DebatePanel.jsx';
 import GoalsPanel from '../panels/GoalsPanel.jsx';
 import FeedbackPanel from '../panels/FeedbackPanel.jsx';
+import SelfModificationPanel from '../panels/SelfModificationPanel.jsx';
 import ModelRouterPanel from '../panels/ModelRouterPanel.jsx';
 import PerspectivePanel from '../panels/PerspectivePanel.jsx';
 import SwarmPanel from '../panels/SwarmPanel.jsx';
@@ -101,6 +102,7 @@ const PANELS = {
   debate: { component: DebatePanel, label: 'Debate Protocol' },
   goals: { component: GoalsPanel, label: 'Autonomous Goals' },
   feedback: { component: FeedbackPanel, label: 'Outcome Feedback' },
+  selfmod: { component: SelfModificationPanel, label: 'Self-Modification Kernel' },
   'model-router': { component: ModelRouterPanel, label: 'Adaptive Model Router' },
   perspective: { component: PerspectivePanel, label: 'Perspective Engine' },
   swarm: { component: SwarmPanel, label: 'Swarm Protocol' },

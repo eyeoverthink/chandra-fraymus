@@ -14,6 +14,7 @@ import { db } from '../db.js';
 import { chatOllama } from '../commerce/shared.js';
 import { isActionSuppressed } from './adaptive-strategy.js';
 import { publish } from '../fleet/bus.js';
+import { tunable } from './tunables.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
 
 const BASE_MAX_PROPOSALS = 2;
@@ -147,7 +148,8 @@ async function gatherLandscape() {
 // Phase R: proposals are only worth generating if the executor can reach them.
 // Generation ran ~1,000/day against ~288/day execution capacity; the backlog grew
 // to 3,013 and the oldest proposals expired unread. Gate on queue depth.
-const MAX_PENDING_PROPOSALS = Math.max(1, parseInt(process.env.GOAL_MAX_PENDING) || 12);
+const DEFAULT_MAX_PENDING = Math.max(1, parseInt(process.env.GOAL_MAX_PENDING) || 12);
+const maxPending = () => tunable('goals.max_pending', DEFAULT_MAX_PENDING); // Phase Y: live tunable
 
 export function pendingProposalCount() {
   ensureTable();
@@ -157,12 +159,12 @@ export function pendingProposalCount() {
 export async function generateGoals({ trigger = 'daemon', force = false } = {}) {
   ensureTable();
   const pending = pendingProposalCount();
-  if (!force && pending >= MAX_PENDING_PROPOSALS) {
-    return { generated: false, reason: 'queue_full', pending, maxPending: MAX_PENDING_PROPOSALS };
+  if (!force && pending >= maxPending()) {
+    return { generated: false, reason: 'queue_full', pending, maxPending: maxPending() };
   }
   // Phase V: generation has its own strategy key so conserve can stop proposals without stopping execution.
   if (!force && isActionSuppressed('goal_generate')) {
-    return { generated: false, reason: 'suppressed_by_strategy', pending, maxPending: MAX_PENDING_PROPOSALS };
+    return { generated: false, reason: 'suppressed_by_strategy', pending, maxPending: maxPending() };
   }
   const landscape = await gatherLandscape();
 

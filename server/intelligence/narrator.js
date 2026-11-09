@@ -20,13 +20,15 @@ import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 import { db } from '../db.js';
 import { onTopic, offTopic, publish } from '../fleet/bus.js';
+import { tunable } from './tunables.js';
 import { ttsSpeak } from '../media/tts-engine.js';
 import { getObsBridge } from '../streaming/overlay.js';
 
 const now = () => Date.now();
 const AGENT = 'narrator';
 const ENABLED = process.env.NARRATOR_ENABLED !== '0';
-const MIN_GAP_MS = Math.max(5_000, parseInt(process.env.NARRATOR_MIN_GAP_MS, 10) || 45_000);
+const DEFAULT_GAP_MS = Math.max(5_000, parseInt(process.env.NARRATOR_MIN_GAP_MS, 10) || 45_000);
+const minGapMs = () => tunable('narrator.min_gap_ms', DEFAULT_GAP_MS); // Phase Y: live tunable
 const ALWAYS = process.env.NARRATOR_ALWAYS === '1';
 const VOICE = process.env.NARRATOR_VOICE || 'en-US-GuyNeural';
 const QUEUE_MAX = 5;
@@ -82,6 +84,14 @@ const LINES = {
   'system.world.observed': p => (Number(p.newObservations) >= 8 ? { kind: 'world', text: `Scanned the world: ${p.newObservations} new observations across ${p.web} web and ${p.youtube} video queries.` } : null),
   'system.self_audit': p => { const b = Number(p.counts?.blocking ?? p.blocking ?? 0); return b > 0 ? { kind: 'audit', text: `Self-audit found ${b} blocking issue${b === 1 ? '' : 's'}.` } : null; },
   'system.ollama.dropped': p => ({ kind: 'scheduler', text: `Dropped a ${p.class} job after waiting ${Math.round((p.waitedMs || 0) / 1000)} seconds — the inference queue is full.` }),
+  'system.self_modification': p => {
+    const name = String(p.tunable || '').replace(/_/g, ' ').replace(/\./g, ' ');
+    if (p.action === 'experiment_started') return { kind: 'smk', text: `Trying a change to myself: ${name} from ${p.before} to ${p.after}. I will measure it for ${Math.round((p.windowMs || 0) / 60000)} minutes.` };
+    if (p.action === 'experiment_evaluated') return { kind: 'smk', text: p.verdict === 'kept' ? `Kept the change to ${name}: the objective moved ${p.delta >= 0 ? 'up' : 'within tolerance'} by ${Math.abs(Number(p.delta || 0)).toFixed(3)}.` : p.verdict === 'reverted' ? `Reverted ${name} to ${p.before}: ${clip(p.reason, 90)}.` : `Inconclusive test on ${name}; put it back.` };
+    if (p.action === 'code_ready') return { kind: 'smk', text: `I wrote and tested a change to ${basename(String(p.targetFile || ''))}: ${clip(p.title, 80)}. It is on a branch waiting for Vaughn's review.` };
+    if (p.action === 'code_merged') return { kind: 'smk', text: `My change to ${basename(String(p.targetFile || ''))} was approved and merged. A restart will make it live.` };
+    return null;
+  },
 };
 export const TOPICS = Object.keys(LINES);
 
@@ -127,7 +137,7 @@ function recentlySaid(text) {
 
 function pump() {
   if (!running || !queue.length || speaking) return;
-  const wait = MIN_GAP_MS - (now() - lastSpokenAt);
+  const wait = minGapMs() - (now() - lastSpokenAt);
   if (wait > 0) { if (!timer) timer = setTimeout(() => { timer = null; pump(); }, wait); return; }
   const item = queue.shift();
   speak(item).catch(e => console.error('[narrator] speak:', e.message));
@@ -157,7 +167,7 @@ export function startNarrator() {
   if (running) return { started: false, reason: 'already running' };
   running = true;
   for (const t of TOPICS) onTopic(t, AGENT, handlerFor(t));
-  return { started: true, topics: TOPICS, minGapMs: MIN_GAP_MS, voice: VOICE, audioOnlyWithOverlay: !ALWAYS };
+  return { started: true, topics: TOPICS, minGapMs: minGapMs(), voice: VOICE, audioOnlyWithOverlay: !ALWAYS };
 }
 
 export function stopNarrator() {
@@ -174,7 +184,7 @@ export function narrate(text, { kind = 'say', source = 'operator', force = false
   if (!t) throw Object.assign(new Error('text required'), { status: 400 });
   if (force) return speak({ kind, text: t, topic: null, source });
   const queued = enqueue({ kind, text: t, topic: null, source });
-  return Promise.resolve({ queued, position: queue.length, minGapMs: MIN_GAP_MS, text: t });
+  return Promise.resolve({ queued, position: queue.length, minGapMs: minGapMs(), text: t });
 }
 
 export function listNarrations({ limit = 30 } = {}) {
@@ -185,7 +195,7 @@ export function getNarratorStatus() {
   let overlayClients = 0;
   try { overlayClients = getObsBridge().clients.size; } catch (_) {}
   const last24 = db.prepare(`SELECT COUNT(*) n, SUM(audio_url IS NOT NULL) spoken FROM narrations WHERE created_at > ?`).get(now() - 86400_000);
-  return { enabled: ENABLED, running, overlayClients, audioOnlyWithOverlay: !ALWAYS, voice: VOICE, minGapMs: MIN_GAP_MS, queued: queue.length, topics: TOPICS, ...state, last24h: { lines: last24?.n || 0, spoken: last24?.spoken || 0 }, recent: listNarrations({ limit: 8 }) };
+  return { enabled: ENABLED, running, overlayClients, audioOnlyWithOverlay: !ALWAYS, voice: VOICE, minGapMs: minGapMs(), queued: queue.length, topics: TOPICS, ...state, last24h: { lines: last24?.n || 0, spoken: last24?.spoken || 0 }, recent: listNarrations({ limit: 8 }) };
 }
 
 export function installNarratorRoutes(app) {

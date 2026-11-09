@@ -14,6 +14,7 @@ import { startWorldPollers, stopWorldPollers, getWorldPollersStatus, setTrendSca
 import { scanTrends } from '../trend-radar/radar.js';
 import { startNarrator, stopNarrator, getNarratorStatus } from '../intelligence/narrator.js';
 import { startTransientSweeper, stopTransientSweeper, getSweeperStatus } from '../intelligence/transient-sweeper.js';
+import { startSelfModification, stopSelfModification, getSelfModificationStatus, selfModificationCycle, maybeBuildFromBacklog, checkOuroborosAllowed } from '../intelligence/self-modification.js';
 import { startSelfAudit, stopSelfAudit, getSelfAuditStatus } from '../intelligence/self-audit.js';
 import { startHiveMesh, stopHiveMesh, getHiveMeshStatus } from '../intelligence/hive-mesh.js';
 import { startHivePeers, stopHivePeers, getHivePeersStatus } from '../intelligence/hive-peers.js';
@@ -447,9 +448,21 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
       stepResults.agentQualitySweep = { error: e.message };
     }
 
-    // Step 6: Ouroboros RSI cycle (autonomous codebase evolution)
+    // Step 5.7: Self-modification kernel (Phase Y) — evaluate/start one bounded parameter
+    // experiment, then at most one autonomous code build from the Ouroboros backlog
     try {
-      stepResults.ouroboros = await runOuroborosCycle();
+      const smk = await selfModificationCycle({ trigger: `daemon:${trigger}` });
+      const build = await maybeBuildFromBacklog({ trigger });
+      stepResults.selfModification = { acted: smk.acted, reason: smk.reason, started: smk.started?.id, evaluated: smk.evaluation?.verdict, build: build.built ? { id: build.id, branch: build.branch, tests: build.tests } : { reason: build.reason } };
+    } catch (e) {
+      stepResults.selfModification = { error: e.message };
+    }
+
+    // Step 6: Ouroboros RSI cycle (autonomous codebase evolution) — gated: no new analysis
+    // while the accepted backlog is not being consumed by the kernel's code tier
+    try {
+      const gate = checkOuroborosAllowed();
+      stepResults.ouroboros = gate.allowed ? await runOuroborosCycle() : { skipped: true, ...gate };
     } catch (e) {
       stepResults.ouroboros = { error: e.message };
     }
@@ -655,6 +668,14 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     console.error('transient sweeper start error:', e.message);
   }
 
+  // Phase Y: self-modification kernel (5-min experiment timer; code builds run from the daemon cycle)
+  try {
+    const smk = startSelfModification();
+    if (smk.started) console.log(`[smk] started: ${smk.tunables} live tunables, window ${Math.round(smk.windowMs / 60000)} min, code model ${smk.codeModel}`);
+  } catch (e) {
+    console.error('self-modification start error:', e.message);
+  }
+
   // Phase P: goal executor (5min cycle — drains goal_proposals through the fleet) + debate sweeper
   try {
     const swept = sweepStaleDebates();
@@ -816,6 +837,7 @@ export function stopDaemon() {
   try { stopWorldPollers(); } catch (_) {}
   try { stopNarrator(); } catch (_) {}
   try { stopTransientSweeper(); } catch (_) {}
+  try { stopSelfModification(); } catch (_) {}
   try { stopSelfAudit(); } catch (_) {}
   try { stopHiveMesh(); } catch (_) {}
   try { stopHivePeers(); } catch (_) {}
@@ -873,6 +895,7 @@ export function getDaemonStatus() {
     goalExecutor: getGoalExecutorStatus(),
     externalSenses: getExternalSensesStatus(),
     sweeper: (() => { const s = getSweeperStatus(); return { running: s.running, sweeps: s.sweeps, totals: s.totals, currentlyStuck: s.currentlyStuck, lastAt: s.lastAt }; })(),
+    selfModification: (() => { try { const s = getSelfModificationStatus(); return { enabled: s.enabled, running: s.running, cycles: s.cycles, experiment: s.experiment && { id: s.experiment.id, tunable: s.experiment.tunable, before: s.experiment.before_value, after: s.experiment.after_value, remainingMs: s.experiment.remainingMs }, verdicts: s.verdicts, code: s.code.counts, ouroborosBacklog: s.ouroboros.backlog, objective: s.objectiveNow.objective }; } catch (e) { return { error: e.message }; } })(),
     narrator: (() => { const s = getNarratorStatus(); return { running: s.running, overlayClients: s.overlayClients, spoken: s.spoken, textOnly: s.textOnly, dropped: s.dropped, ttsErrors: s.ttsErrors, queued: s.queued, lastLine: s.lastLine, last24h: s.last24h }; })(),
     worldPollers: (() => { const s = getWorldPollersStatus(); return { running: s.running, polls: s.polls, lastPollAt: s.lastPollAt, observations24h: s.observations24h, interests: s.interests.map(i => i.query), errors: s.errors.slice(-3) }; })(),
     selfAudit: (() => { const s = getSelfAuditStatus(); return { running: s.running, open: s.open, lastRun: s.lastRun && { at: s.lastRun.at, counts: s.lastRun.counts, clean: s.lastRun.clean } }; })(),

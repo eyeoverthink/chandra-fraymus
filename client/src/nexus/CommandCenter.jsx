@@ -32,6 +32,7 @@ const WIDGETS = [
   { id: 'debate', label: 'Debate', icon: '⚔', color: '#dc2626', panel: 'debate' },
   { id: 'goals', label: 'Goals', icon: '🎯', color: '#16a34a', panel: 'goals' },
   { id: 'feedback', label: 'Rate Outcomes', icon: '👍', color: '#f59e0b', panel: 'feedback' },
+  { id: 'selfmod', label: 'Self-Mod', icon: '🧬', color: '#22d3ee', panel: 'selfmod' },
   { id: 'model-router', label: 'Model Router', icon: '🔀', color: '#2563eb', panel: 'model-router' },
   { id: 'perspective', label: 'Perspective', icon: '🔮', color: '#8b5cf6', panel: 'perspective' },
   { id: 'swarm', label: 'Swarm', icon: '🐝', color: '#f59e0b', panel: 'swarm' },

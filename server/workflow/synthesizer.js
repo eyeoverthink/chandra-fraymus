@@ -3,6 +3,7 @@ import { db } from '../db.js';
 import { chatOllama } from '../commerce/shared.js';
 import { topoSort, validateWorkflow } from './engine.js';
 import { publish } from '../fleet/bus.js';
+import { tunable } from '../intelligence/tunables.js';
 
 const now = () => Date.now();
 
@@ -99,17 +100,18 @@ function validateSynthesized(wf) {
 
 // Producer-without-consumer guard (self-audit, 2026-11-09): 195 workflows synthesized in
 // 7 days, 0 ever ran. Synthesis is only worth its model call if the last few products were
-// used. Autonomous callers are refused while MAX_UNRUN_SYNTHESIZED recent synthesized
+// used. Autonomous callers are refused while maxUnrun() recent synthesized
 // workflows have never had a workflow_run; `force` (an operator / API call) bypasses.
-const MAX_UNRUN_SYNTHESIZED = Math.max(1, parseInt(process.env.SYNTH_MAX_UNRUN, 10) || 3);
+const DEFAULT_MAX_UNRUN = Math.max(1, parseInt(process.env.SYNTH_MAX_UNRUN, 10) || 3);
+const maxUnrun = () => Math.max(1, Math.round(tunable('synth.max_unrun', DEFAULT_MAX_UNRUN))); // Phase Y: live tunable
 export function checkSynthesisAllowed() {
   try {
     const unrun = db.prepare(
       `SELECT COUNT(*) AS c FROM synthesized_workflows sw
        WHERE sw.created_at > ? AND NOT EXISTS (SELECT 1 FROM workflow_runs r WHERE r.workflow_id = sw.workflow_id)`
     ).get(now() - 7 * 86400_000)?.c || 0;
-    if (unrun >= MAX_UNRUN_SYNTHESIZED) return { allowed: false, reason: 'unconsumed_backlog', unrun, max: MAX_UNRUN_SYNTHESIZED };
-    return { allowed: true, unrun, max: MAX_UNRUN_SYNTHESIZED };
+    if (unrun >= maxUnrun()) return { allowed: false, reason: 'unconsumed_backlog', unrun, max: maxUnrun() };
+    return { allowed: true, unrun, max: maxUnrun() };
   } catch (e) { return { allowed: true, error: e.message }; }
 }
 

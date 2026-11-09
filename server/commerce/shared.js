@@ -20,7 +20,8 @@ export async function chatOllama(messages, opts = {}) {
         // Ollama grammar-constrained JSON output; callers that must parse JSON pass format: 'json'
         ...(opts.format ? { format: opts.format } : {}),
       }),
-      signal: AbortSignal.timeout(180_000),
+      // Default 180 s; long single-shot generations (SMK whole-file code rewrites) pass timeoutMs, capped at 15 min
+      signal: AbortSignal.timeout(Math.min(900_000, Math.max(10_000, parseInt(opts.timeoutMs, 10) || 180_000))),
     });
     if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`);
     const data = await res.json();
