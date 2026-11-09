@@ -2011,6 +2011,8 @@ Copyright (c) 2024-2026 eyeoverthink®. This software is proprietary and confide
 
 **Addendum — FMP/1 node (2026-11-08).** The Pi was never going to answer NUDP: it runs `fmp1`, Vaughn's own Python mesh protocol (UDP 47100, Ed25519 key cards, a roster signed by an operator root key that never leaves his Mac), and it had moved to `10.0.0.163`. Rather than port 1,400 lines of routing/custody/receipt logic into Node and create a second drifting implementation, `server/intelligence/fmp1-node.js` runs the reference implementation as a supervised child process under Chandra's own FMP/1 identity (`a55799181f41d3f8`, keygen'd 2026-11-01, on the signed roster as `chandra`/relay next to `fraymus-pi`/gateway) and talks to it over its localhost JSON control socket (`127.0.0.1:47101`, token-authenticated). Supervisor restarts with backoff, kills the child on server exit, keeps a stdout ring. Every 60 s it polls `status` (node id, state, neighbours with ETX, routes, roster version, receipts) and `inbox`; new messages land in `fmp1_messages`, on the bus as `hive.fmp1.message`, and as agent memories. Routes: `GET /api/intelligence/hive-mesh/fmp1`, `POST …/fmp1/start|stop|send`, `GET …/fmp1/inbox`. The `mesh` sense now counts bidirectional FMP/1 neighbours. **Verified live:** `python -m fmp1 … node --lan` spawned at daemon start, control status returns `node_id a55799181f41d3f8`, `roster_version 1794209923`, state `DISCOVERING`, tx/rx counters moving, 0 neighbours — correct, because the Pi's roster does not yet contain Chandra. That last step is the operator's (SSH key passphrase on the Mac); status reports it under `operatorSteps` until a neighbour appears.
 
+**Addendum — FMP/1 link live (2026-11-09).** The roster went onto the Pi that morning and the link stayed one-way: the Pi listed Chandra as a neighbour, Chandra listed nobody. The "roster" explanation above was wrong — `fmp1` never consults the roster for HELLO admission (only for NOTICE/INTENT authorization and as a key fallback). What was already on disk said so: Chandra's node had **no `rej_*` counters at all** (nothing from the Pi was being rejected, because nothing was arriving to reject), yet `~/.fmp1/receipts.jsonl` held the Pi's signed RECEIPT floods, admitted every ~15 minutes — so unicast worked and the keys verified. The missing piece was multicast. `netsh interface ipv4 show joins` showed `239.255.71.1` joined on exactly one interface: the Hyper-V **Default Switch**, because fmp1 joins with `INADDR_ANY` and Windows resolves that by route metric (Tailscale 5, vEthernet 15, Wi-Fi 40). A 30-second `pktmon` on UDP 47100 confirmed it: 26 multicast HELLOs sent from `172.28.0.1`, 0 packets from the Pi. Two fixes: `fmp1-node.js detectBindAddress()` now picks the local IPv4 that shares a subnet with the first peer and passes `--bind` (override `FMP1_BIND`), and `fmp1/node.py` uses the bound address for `IP_ADD_MEMBERSHIP` / `IP_MULTICAST_IF` (patch kept for the upstream repo). **Verified live:** 1.4 s after restart, state `ACTIVE`, `0cd41863a0d974b4` `bidir: true`, and `POST …/fmp1/send {wait:true}` → `DELIVERED`. The one remaining operator step is robustness, not function: add `--peer 10.0.0.161:47100` on the Pi so its HELLOs are unicast too.
+
 **Addendum — hive-export watermark (2026-11-09).** Phase U's notes flagged that the outbound ledger re-exported a 2 h window every cycle. Measured: 117,812 receipts for 4,324 unique events — 96% duplicates, an 85 MB file the chain verifier refused (10 MB limit), so the stats endpoint had been returning 400. The window was only half the story. `consciousness_audits.created_at` is a TEXT `datetime('now')` while every other exported table stores epoch milliseconds; SQLite orders every integer below every string, so the collector's `created_at > <ms>` matched the entire table on every run (110,443 of the duplicates), and `new Date('YYYY-MM-DD HH:MM:SS')` put those receipts 8 hours into the future. Fixes in `hive-export.js`: the window now starts at the previous export's start time (capped at 7 days), each collector compares in its column's own type (`sinceClause`) and converts timestamps as UTC (`toIso`), and a `(type, source id)` scan of the ledger tail refuses anything already written. Zero-event runs still advance the watermark. `compactExportLedger()` re-seals a one-receipt-per-event chain from genesis with the old file archived beside it — operator-triggered only (`POST …/compact`, dry run by default), because it rewrites signed history. The self-audit gained a `hive_exports:duplicate_receipts` check and flagged BLOCKING at 94% on its first run. **Verified live:** post-fix export = 4 new receipts, 0 duplicates; immediate re-run = 0; forced 2 h re-scan = 1 new, 2,209 refused; compaction dry run 117,900 → 4,412. **Compacted** on the operator's OK the same day: 4,412 receipts, 4.0 MB, chain verified intact from the new genesis; the 85.6 MB pre-compaction chain is archived next to the ledger.
 
 ## Phase V — Stop the thrash (2026-11-09)
@@ -2075,15 +2077,15 @@ Copyright (c) 2024-2026 eyeoverthink®. This software is proprietary and confide
 Generated by `npm run skills:sync` from the filesystem, `data/chandra.db` and `GET /api/health`; `npm run skills:check` fails when it is stale. The same generator keeps the `/chandra-*` skills in `.claude/commands/` current.
 
 <!-- skills-sync:begin inventory -->
-_Regenerated by `npm run skills:sync` on 2026-11-09 from commit `684d483`. Do not hand-edit this block._
+_Regenerated by `npm run skills:sync` on 2026-11-09 from commit `7de73a2`. Do not hand-edit this block._
 
 | Thing | Count | Source |
 |---|---|---|
-| Features registered | **96** | live `GET /api/health` |
-| REST routes | **997** | regex over 362 server files (`app.get/post/put/patch/delete`) |
+| Features registered | **96** | runtime.js static list (server offline) |
+| REST routes | **999** | regex over 363 server files (`app.get/post/put/patch/delete`) |
 | SQLite tables | **209** | `sqlite_master` in `data/chandra.db` |
-| Server code | **362 files / 77,741 lines** | `server/**/*.js` |
-| Intelligence modules | **61** | `server/intelligence/*.js` (routes files excluded) |
+| Server code | **363 files / 77,857 lines** | `server/**/*.js` |
+| Intelligence modules | **62** | `server/intelligence/*.js` (routes files excluded) |
 | FRAYMUS intelligence modules | **19** | `server/fraymus/intelligence/*.js` |
 | Fleet tool definitions | **253** unique names | `name: '…'` across 7 tools files |
 | Hermes executor functions | **51** (Hermes exposes 30 skills; extras are aliases/sub-skills) | `buildHermesExecutors()` in `fraymus-tools.js` |
@@ -2098,13 +2100,13 @@ _Regenerated by `npm run skills:sync` on 2026-11-09 from commit `684d483`. Do no
 ### Route catalog (generated)
 
 <!-- skills-sync:begin routes -->
-_Regenerated by `npm run skills:sync` on 2026-11-09 from commit `684d483`. Do not hand-edit this block._
+_Regenerated by `npm run skills:sync` on 2026-11-09 from commit `7de73a2`. Do not hand-edit this block._
 
-997 unique routes. Top prefixes:
+999 unique routes. Top prefixes:
 
 | Prefix | Routes |
 |---|---|
-| `/api/intelligence` | 202 |
+| `/api/intelligence` | 204 |
 | `/api/fraymus` | 87 |
 | `/api/integrity` | 45 |
 | `/api/fleet` | 34 |

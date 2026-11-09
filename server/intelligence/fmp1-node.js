@@ -16,6 +16,7 @@
 
 import { spawn } from 'node:child_process';
 import { createConnection } from 'node:net';
+import { networkInterfaces } from 'node:os';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -76,8 +77,41 @@ function log(line) {
   if (state.log.length > LOG_LINES) state.log.shift();
 }
 
+// Which local IPv4 shares a subnet with the first peer? Needed because this PC is multi-homed
+// (Wi-Fi + Hyper-V + WSL + Tailscale): an fmp1 node bound to 0.0.0.0 joined the multicast group
+// on the Hyper-V switch and sent its multicast HELLOs from 172.28.0.1, so the Pi's multicast
+// never met ours (pktmon + `netsh interface ipv4 show joins`, 2026-11-09). Longest-prefix match
+// over os.networkInterfaces() — synchronous, no socket. FMP1_BIND overrides; 'any' = 0.0.0.0.
+const ip4 = s => s.split('.').reduce((n, o) => ((n << 8) | (parseInt(o, 10) & 255)) >>> 0, 0);
+export function detectBindAddress(peers = PEERS) {
+  const env = (process.env.FMP1_BIND || '').trim();
+  if (env && env.toLowerCase() !== 'auto') return env.toLowerCase() === 'any' ? null : env;
+  const first = peers[0];
+  if (!first) return null;
+  const host = first.includes(':') ? first.slice(0, first.lastIndexOf(':')) : first;
+  if (!/^\d+\.\d+\.\d+\.\d+$/.test(host)) return null;
+  const peer = ip4(host);
+  let best = null, bestBits = -1;
+  try {
+    for (const [name, addrs] of Object.entries(networkInterfaces())) {
+      for (const a of addrs || []) {
+        if (a.family !== 'IPv4' && a.family !== 4) continue;
+        if (a.internal || !a.netmask) continue;
+        const mask = ip4(a.netmask);
+        if (((ip4(a.address) & mask) >>> 0) !== ((peer & mask) >>> 0)) continue;
+        const bits = a.netmask.split('.').reduce((n, o) => n + ((parseInt(o, 10) >>> 0).toString(2).match(/1/g) || []).length, 0);
+        if (bits > bestBits) { best = a.address; bestBits = bits; state.bindIface = name; }
+      }
+    }
+  } catch (e) { log(`bind auto-detect failed: ${e.message}`); }
+  return best;
+}
+
 function buildArgs() {
   const args = ['-m', 'fmp1', '--data-dir', DATA_DIR, '--control-port', String(CONTROL_PORT), 'node', '--lan', '--port', String(PORT)];
+  const bind = detectBindAddress();
+  state.bind = bind;
+  if (bind) args.push('--bind', bind);
   for (const p of PEERS) args.push('--peer', p);
   const rp = rootPub();
   if (existsSync(ROSTER) && rp) args.push('--roster', ROSTER, '--root-pub', rp);
@@ -205,7 +239,7 @@ export function getFmp1Status() {
     uptimeMs: state.running ? now() - state.startedAt : 0,
     exits: state.exits,
     lastExit: state.lastExit,
-    config: { dataDir: DATA_DIR, port: PORT, controlPort: CONTROL_PORT, peers: PEERS, roster: existsSync(ROSTER) ? ROSTER : null, rootPubConfigured: !!rootPub(), python: PYTHON },
+    config: { dataDir: DATA_DIR, bind: state.bind ?? null, bindIface: state.bindIface ?? null, port: PORT, controlPort: CONTROL_PORT, peers: PEERS, roster: existsSync(ROSTER) ? ROSTER : null, rootPubConfigured: !!rootPub(), python: PYTHON },
     status: state.status,
     statusAt: state.statusAt,
     statusError: state.statusError,

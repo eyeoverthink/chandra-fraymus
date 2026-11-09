@@ -74,8 +74,10 @@ export async function startHiveMesh() {
   // FMP/1 — the protocol the Pi actually speaks. Started here so the hive has one lifecycle.
   const f = startFmp1Node();
   state.fmp1Start = f;
+  // Roster pushed to the Pi 2026-11-09 (its roster version now matches ours). Discovery itself
+  // never consulted the roster — HELLO reachability did; see fmp1-node.js detectBindAddress().
   state.operatorSteps = f.started
-    ? ['Pi roster install is pending on the Mac: `ssh-add --apple-use-keychain ~/.ssh/id_ed25519 && bash ~/fmp1-push-chandra-roster.sh`. Until then the Pi (0cd41863a0d974b4) will not accept Chandra (a55799181f41d3f8) as a neighbour.']
+    ? ['If the FMP/1 link stays one-way (Pi lists Chandra, Chandra lists nobody), add Chandra as a static unicast peer on the Pi so its HELLOs do not depend on Wi-Fi multicast: `--peer <this PC\'s LAN IP>:47100` in the fmp1 service on fraymus-pi, then restart it.']
     : [`FMP/1 node not started: ${f.reason}`];
 
   state.running = true;
