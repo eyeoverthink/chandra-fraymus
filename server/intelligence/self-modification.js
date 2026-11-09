@@ -418,24 +418,30 @@ function resolveTarget(file) {
   }
   return { error: `target not found under ${ALLOWED_ROOTS.join(', ')}: ${file}` };
 }
+// Generic stems ("routes", "index", "tools") match half the test suite by accident; require the
+// path (or parent/stem) for those, and allow a bare distinctive stem otherwise.
+const GENERIC_STEMS = new Set(['routes', 'index', 'tools', 'shared', 'engine', 'utils', 'types', 'schema', 'service', 'runtime', 'config', 'server', 'client']);
 function selectTests(rel) {
   const dir = join(REPO_ROOT, 'test');
   if (!existsSync(dir)) return [];
   const stem = basename(rel, extname(rel));
+  const parentStem = `${dirname(rel).split('/').pop()}/${stem}`;
+  const distinctive = stem.length >= 6 && !GENERIC_STEMS.has(stem);
   const picks = [];
   for (const f of readdirSync(dir)) {
     if (!f.endsWith('.test.js')) continue;
     let src = '';
     try { src = readFileSync(join(dir, f), 'utf8'); } catch { continue; }
-    if (src.includes(stem) || src.includes(rel) || src.includes(basename(rel))) picks.push('test/' + f);
+    if (src.includes(rel) || src.includes(parentStem) || (distinctive && src.includes(stem))) picks.push('test/' + f);
   }
   return picks;
 }
+const stripAnsi = (s) => String(s).replace(/\x1b\[[0-9;]*m/g, '');
 function runTests(cwd, files) {
   if (!files.length) return { ran: 0, passed: true, failing: [], output: '(no test file references the target — syntax check only)' };
-  const r = spawnSync(process.execPath, ['--test', ...files], { cwd, encoding: 'utf8', timeout: TEST_TIMEOUT_MS, windowsHide: true, env: { ...process.env, CHANDRA_DATA_DIR: join(cwd, 'data-smk'), PORT: '0' } });
-  const output = ((r.stdout || '') + '\n' + (r.stderr || '')).trim();
-  const failing = [...output.matchAll(/^\s*(?:✖|not ok \d+ -)\s*(.+)$/gm)].map(m => m[1].trim()).filter(l => !/^(tests|suites|pass|fail|cancelled|skipped|todo|duration_ms)/.test(l));
+  const r = spawnSync(process.execPath, ['--test', ...files], { cwd, encoding: 'utf8', timeout: TEST_TIMEOUT_MS, windowsHide: true, env: { ...process.env, CHANDRA_DATA_DIR: join(cwd, 'data-smk'), PORT: '0', NO_COLOR: '1', FORCE_COLOR: '0' } });
+  const output = stripAnsi(((r.stdout || '') + '\n' + (r.stderr || '')).trim());
+  const failing = [...output.matchAll(/^\s*(?:✖|not ok \d+ -)\s*(.+)$/gm)].map(m => m[1].replace(/\s*\([\d.]+ms\)\s*$/, '').trim()).filter(l => !/^(tests|suites|pass|fail|cancelled|skipped|todo|duration_ms)/.test(l));
   return { ran: files.length, passed: r.status === 0, failing, timedOut: r.signal === 'SIGTERM', output: output.slice(-6000) };
 }
 // Worktrees live INSIDE the repo tree (data/smk/wt/<id>), so Node resolves `node_modules`
@@ -446,6 +452,10 @@ function runTests(cwd, files) {
 // looks like one before git touches the directory.
 function makeWorktree(path, branch, base = 'master') {
   mkdirSync(dirname(path), { recursive: true });
+  // Many tests mkdtemp inside `new URL('../../work/', import.meta.url)` — i.e. a `work` dir beside
+  // the checkout (F:/Fraymus-Skill-Lab/work for the repo). For a worktree at data/smk/wt/<id> that
+  // resolves to data/smk/wt/work, so keep that scratch parent present (it is gitignored under data/).
+  mkdirSync(join(dirname(path), 'work'), { recursive: true });
   return branch ? git(['worktree', 'add', '-b', branch, path, base]) : git(['worktree', 'add', '--detach', path, base]);
 }
 function unlinkIfLink(p) {
@@ -636,8 +646,10 @@ export async function buildCodeProposal({ source = 'manual', originId = null, ti
         const br = runTests(base, tests);
         const baselineFailing = new Set(br.failing);
         const newFailures = tr.failing.filter(f => !baselineFailing.has(f));
-        compared = { baselineFailing: br.failing.length, newFailures };
-        if (!tr.timedOut && newFailures.length === 0 && tr.failing.length > 0) tr = { ...tr, passed: true, output: tr.output + `\n\n[smk] ${tr.failing.length} failure(s) also fail on master — not caused by this change` };
+        compared = { baselineFailing: br.failing.length, baselinePassed: br.passed, newFailures };
+        // rescued when master fails the same way: every named failure also fails on master, and master's run was red too
+        const rescued = !tr.timedOut && !br.passed && newFailures.length === 0;
+        if (rescued) tr = { ...tr, passed: true, output: tr.output + `\n\n[smk] ${tr.failing.length || 'the'} failure(s) also fail on master (${br.failing.length} named) — not caused by this change` };
       }
       dropWorktree(base);
     }
