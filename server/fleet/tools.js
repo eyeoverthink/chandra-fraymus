@@ -21,6 +21,7 @@ import { getMetacognitiveStatus, getStrategyRecommendation } from '../intelligen
 import { runSelfAudit, getOpenFindings, getSelfAuditStatus } from '../intelligence/self-audit.js';
 import { getHiveMeshStatus, registerOnHub } from '../intelligence/hive-mesh.js';
 import { runReaProtocol, getReaRun, listReaRuns, getReaStatus } from '../intelligence/rea-protocol.js';
+import { narrate, getNarratorStatus } from '../intelligence/narrator.js';
 import { getHivePeersStatus, syncBridge, postDigest } from '../intelligence/hive-peers.js';
 import { getAdaptiveStatus, getAdaptiveModifiers, isActionSuppressed, isActionPreferred } from '../intelligence/adaptive-strategy.js';
 import { getSelfModelStatus, getSystemMap, lookupSubsystem, buildSpatialContext, buildSubsystemContext } from '../intelligence/self-model.js';
@@ -454,6 +455,23 @@ export function createFleetTools({ workflowStore }) {
         const status = getSelfModelStatus();
         ledger.record('selfModel.read', { subsystemCount: status.subsystemCount, activeCount: status.activeCount, tier: status.gateTier }, 'fleet');
         return status;
+      },
+    },
+    {
+      name: 'narrate',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'Speak one short line (≤ 300 chars) on the live OBS overlay through the Narrator: text card plus a TTS clip when an overlay is connected. Rate-limited (one line per ~45 s, queue of 5). Use for something a viewer should hear now — a result, a decision, a warning — not for chatter. Mode "status" returns narrator state and recent lines.',
+      parameters: object({
+        text: string(300, { description: 'The line to speak' }),
+        mode: { type: 'string', description: 'Optional: "status"' },
+      }),
+      execute: async (params, context) => {
+        if (params.mode === 'status') return getNarratorStatus();
+        const agentId = context?.agent?.id || context?.agentId || 'agent';
+        const r = await narrate(String(params.text || ''), { kind: 'agent', source: `agent:${agentId}` });
+        ledger.record('narrator.say', { agent: agentId, text: String(params.text || '').slice(0, 120) }, 'fleet');
+        return r;
       },
     },
     {

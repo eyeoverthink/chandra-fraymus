@@ -114,6 +114,7 @@ import { installHiveMeshRoutes } from './intelligence/hive-mesh.js';
 import { installOllamaSchedulerRoutes } from './intelligence/ollama-scheduler.js';
 import { installWorldPollerRoutes } from './intelligence/world-pollers.js';
 import { installReaRoutes } from './intelligence/rea-protocol.js';
+import { installNarratorRoutes } from './intelligence/narrator.js';
 import { installHivePeersRoutes } from './intelligence/hive-peers.js';
 import { installDebateRoutes } from './intelligence/debate.js';
 import { installModelRouterRoutes } from './intelligence/model-router.js';
@@ -349,6 +350,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installOllamaSchedulerRoutes(app);
   installWorldPollerRoutes(app);
   installReaRoutes(app);
+  installNarratorRoutes(app);
   installHivePeersRoutes(app);
   installDebateRoutes(app);
   installModelRouterRoutes(app);

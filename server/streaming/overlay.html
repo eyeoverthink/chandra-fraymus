@@ -48,6 +48,24 @@
   .stego-tag { font-size: 18px; position: absolute; top: 16px; right: 20px; opacity: 0.6; }
   @keyframes pulse { 0%,100% { box-shadow: 0 0 40px rgba(140,60,255,0.4); } 50% { box-shadow: 0 0 60px rgba(140,60,255,0.6), 0 0 100px rgba(100,20,200,0.3); } }
   .artifact-card.show { animation: pulse 2s ease-in-out 3; }
+  /* Narrator: Chandra speaking about what it did (top-right, stacks downward) */
+  #narrations { position: fixed; top: 40px; right: 40px; width: 420px; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+  .narration-card {
+    padding: 14px 18px; border-radius: 14px;
+    background: linear-gradient(135deg, rgba(0,20,30,0.92), rgba(0,40,60,0.88));
+    border: 1.5px solid rgba(0,243,255,0.45);
+    box-shadow: 0 0 30px rgba(0,243,255,0.25);
+    transform: translateX(460px); opacity: 0;
+    transition: transform 0.5s cubic-bezier(0.22,1,0.36,1), opacity 0.4s;
+  }
+  .narration-card.show { transform: translateX(0); opacity: 1; }
+  .narration-card.hide { transform: translateX(460px); opacity: 0; }
+  .narration-card .who { display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(0,243,255,0.8); margin-bottom: 6px; }
+  .narration-card .who .dot { width: 8px; height: 8px; border-radius: 50%; background: #00f3ff; box-shadow: 0 0 8px #00f3ff; }
+  .narration-card .who .dot.speaking { animation: speak 0.5s ease-in-out infinite; }
+  @keyframes speak { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.6); opacity: 0.6; } }
+  .narration-card .line { font-size: 15px; line-height: 1.4; color: #e6f7ff; }
+  .narration-card .kind { font-size: 10px; color: rgba(0,243,255,0.55); margin-top: 6px; font-family: 'Cascadia Code', 'Fira Code', monospace; }
   #watermark { position: fixed; bottom: 10px; left: 10px; font-size: 9px; color: rgba(255,255,255,0.03); pointer-events: none; }
   #status { position: fixed; top: 8px; left: 8px; font-size: 10px; padding: 4px 8px; border-radius: 4px; background: rgba(0,0,0,0.5); color: rgba(255,255,255,0.4); }
 
@@ -101,9 +119,35 @@ function connect() {
       const msg = JSON.parse(e.data);
       if (msg.type === 'artifact') showArtifact(msg.payload);
       if (msg.type === 'spore') updateOrganism(msg.payload);
+      if (msg.type === 'narration') showNarration(msg.payload);
       if (msg.type === 'history' && Array.isArray(msg.payload)) msg.payload.forEach(a => showArtifact(a));
     } catch (_) {}
   };
+}
+
+// Narrator card: text always; audio when the server attached a clip. OBS Browser Sources
+// play audio when "Control audio via OBS" is on (or the source is unmuted).
+function showNarration(n) {
+  let host = document.getElementById('narrations');
+  if (!host) { host = document.createElement('div'); host.id = 'narrations'; document.body.appendChild(host); }
+  const card = document.createElement('div');
+  card.className = 'narration-card';
+  card.innerHTML = `
+    <div class="who"><div class="dot${n.audioUrl ? ' speaking' : ''}"></div><span>Chandra</span></div>
+    <div class="line">${escHtml(n.text || '')}</div>
+    <div class="kind">${escHtml(n.kind || '')}${n.topic ? ' · ' + escHtml(n.topic) : ''}${n.engine ? ' · ' + escHtml(n.engine) : ''}</div>`;
+  host.appendChild(card);
+  requestAnimationFrame(() => card.classList.add('show'));
+  let holdMs = Number(n.durationMs) || 6000;
+  if (n.audioUrl) {
+    try {
+      const audio = new Audio(n.audioUrl);
+      audio.volume = 1.0;
+      audio.addEventListener('ended', () => card.querySelector('.dot')?.classList.remove('speaking'));
+      audio.play().catch(() => { card.querySelector('.dot')?.classList.remove('speaking'); });
+    } catch (_) {}
+  }
+  setTimeout(() => { card.classList.remove('show'); card.classList.add('hide'); setTimeout(() => card.remove(), FADE_MS); }, holdMs);
 }
 
 function showArtifact(a) {

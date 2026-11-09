@@ -50,6 +50,16 @@ export function createObsBridge() {
     }
   }
 
+  // Narrator (2026-11-09): spoken lines with an optional audio clip URL; the overlay plays them.
+  function broadcastNarration(payload) {
+    const msg = JSON.stringify({ type: 'narration', payload });
+    let sent = 0;
+    for (const ws of clients) {
+      if (ws.readyState === 1) { ws.send(msg); sent++; }
+    }
+    return sent;
+  }
+
   function broadcastConfig(config) {
     const msg = JSON.stringify({ type: 'config', payload: config });
     for (const ws of clients) {
@@ -80,6 +90,7 @@ export function createObsBridge() {
     addClient,
     broadcastArtifact,
     broadcastSporeState,
+    broadcastNarration,
     broadcastConfig,
     serveOverlay,
     serveDemo,
