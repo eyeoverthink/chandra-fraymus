@@ -14,26 +14,33 @@ import { builtinModules } from 'node:module';
 const now = () => Date.now();
 const BASE_MAX_ITERATIONS = 5;
 const EXEC_TIMEOUT = 15_000;
+// Phase AB (2026-11-09): 476 executions, 55 exited 0, 0 loops ever passed — because APPROVAL was
+// the LLM critic's call, the critic was prompted to be adversarial (it always found a "major"),
+// and it ruled BEFORE the code ran. Inverted. Now: the program must prove itself (PASS markers,
+// exit 0), the critic sees the real output and may reject only on a CRITICAL, demonstrated issue,
+// and the generator is the coder model.
+const GEN_MODEL = process.env.VERIFIER_GEN_MODEL || process.env.SMK_CODE_MODEL || 'qwen2.5-coder:7b';
+const PASS_MARK = /^PASS\b/m, ALL_PASS = /^ALL PASS\b/m, FAIL_MARK = /^FAIL\b/m;
 
-const GENERATOR_PROMPT = `You are a Generator agent — an expert software architect and implementer.
-Given a goal, produce a complete, working implementation. Output ONLY the code or solution, no explanations.
-
-Rules:
-- Write complete, runnable code (not pseudocode, not stubs)
-- Use ONLY the language's standard library. No third-party packages — nothing from npm or pip. The code runs in a bare sandbox with no installs. For JavaScript write an ES module that imports only node: built-ins (node:fs, node:crypto, …) or nothing.
-- The program must be self-contained and demonstrate itself: when run with no arguments it exercises its own logic on sample data and prints the result
-- Handle errors properly
-- If given feedback from a previous iteration, address every issue raised
-- Output the solution inside a single markdown code block with the language tag`;
-
-const VERIFIER_PROMPT = `You are a Verifier agent — an adversarial code reviewer and critic.
-Your job is to find REAL problems in the code. You are skeptical and thorough.
+const GENERATOR_PROMPT = `You are a Generator agent — an expert implementer writing a SELF-PROVING program.
+Given a goal, produce one complete, runnable program. Output ONLY the code inside a single markdown code block with the language tag.
 
 Rules:
-- Look for: bugs, edge cases, missing error handling, stubs, placeholder logic, security issues
-- Do NOT nitpick style — focus on correctness and completeness
-- Rate severity: critical (will crash/wrong output), major (significant edge case), minor (improvement)
-- If the code is genuinely correct and complete, say APPROVED
+- JavaScript: an ES module (import syntax, never require) using only node: built-ins (node:assert, node:fs, node:crypto, …) or nothing. Python: standard library only. The sandbox has no packages installed.
+- The program must demonstrate the goal on sample data and CHECK its own results with assertions.
+- For every check that succeeds print a line starting with "PASS " followed by what was checked; on any failure print a line starting with "FAIL " and exit with a non-zero code.
+- The last line printed on success must be exactly "ALL PASS".
+- No stubs, no placeholders, no TODOs, no network, no file writes outside the current directory.
+- If given feedback from a previous iteration, fix every issue it raises.`;
+
+const VERIFIER_PROMPT = `You are a Verifier agent reviewing a self-proving program TOGETHER WITH ITS ACTUAL EXECUTION OUTPUT.
+The sandbox already ran the code; its stdout, stderr and exit code are given. Judge from evidence.
+
+Rules:
+- A CRITICAL issue is one that makes the demonstration false or dangerous: the asserts do not test the stated goal, a check always passes trivially, the output contradicts the claim, or the code does something unsafe. You must state the concrete input or line that proves it.
+- Everything else (edge cases not covered, missing error handling, style) is MAJOR or MINOR — report it, but it does NOT block approval.
+- If the program ran, printed ALL PASS, and has no CRITICAL issue, the verdict is APPROVED.
+- If the program failed to run or printed FAIL, the verdict is REJECTED and your issues must explain why from the output.
 
 Output format (JSON only, no markdown fences):
 {"verdict": "APPROVED" or "REJECTED", "issues": [{"severity": "critical|major|minor", "description": "..."}], "summary": "one-line assessment"}`;
@@ -183,30 +190,50 @@ export async function runVerifierLoop(goal, { language, maxIterations, context, 
       const genResponse = await chatOllama([
         { role: 'system', content: GENERATOR_PROMPT },
         { role: 'user', content: genPrompt },
-      ], { priority: 'verifier', label: 'verifier:generate' });
+      ], { priority: 'verifier', label: 'verifier:generate', model: GEN_MODEL, temperature: 0.2, maxTokens: 3000, timeoutMs: 600_000 });
 
       currentCode = extractCode(genResponse);
-      const detectedLang = language || detectLanguage(genResponse);
+      const detectedLang = language && language !== 'auto' ? language : detectLanguage(genResponse);
 
       db.prepare(`INSERT INTO verification_steps (loop_id, iteration, role, input, output, created_at) VALUES (?, ?, 'generator', ?, ?, ?)`).run(
         loopId, iteration, genPrompt.slice(0, 4000), currentCode.slice(0, 8000), now()
       );
 
-      // ── VERIFY ────────────────────────────────────────────
+      // ── EXECUTE FIRST — the sandbox is the primary witness ─────────
+      const missingDeps = nonBuiltinImports(currentCode, detectedLang);
+      let execResult;
+      if (missingDeps.length) {
+        execResult = { exitCode: 1, stdout: '', stderr: `not executed: missing packages ${missingDeps.join(', ')}`, executed: false, timedOut: false };
+      } else if (['javascript', 'js', 'node', 'python', 'py'].includes(detectedLang)) {
+        execResult = await executeCode(currentCode, detectedLang);
+      } else {
+        execResult = { exitCode: 1, stdout: '', stderr: `not executed: language ${detectedLang} has no sandbox`, executed: false, timedOut: false };
+      }
+      const ranClean = execResult.exitCode === 0 && !execResult.timedOut;
+      const proved = ranClean && ALL_PASS.test(execResult.stdout) && PASS_MARK.test(execResult.stdout) && !FAIL_MARK.test(execResult.stdout);
+      db.prepare(`INSERT INTO verification_steps (loop_id, iteration, role, input, output, verdict, created_at) VALUES (?, ?, 'executor', ?, ?, ?, ?)`).run(
+        loopId, iteration, currentCode.slice(0, 4000),
+        JSON.stringify({ exitCode: execResult.exitCode, stdout: execResult.stdout.slice(0, 2000), stderr: execResult.stderr.slice(0, 2000), timedOut: execResult.timedOut, proved }).slice(0, 8000),
+        proved ? 'PASSED' : 'FAILED', now()
+      );
+
+      // ── VERIFY — the critic reviews code + real output; only CRITICAL blocks ─────
       const verifyResponse = await chatOllama([
         { role: 'system', content: VERIFIER_PROMPT },
-        { role: 'user', content: `Language: ${detectedLang}\n\nCode to review:\n\`\`\`${detectedLang}\n${currentCode}\n\`\`\`` },
-      ], { priority: 'verifier', label: 'verifier:review' });
+        { role: 'user', content: `Goal: ${goal}\nLanguage: ${detectedLang}\n\nCode:\n\`\`\`${detectedLang}\n${currentCode.slice(0, 6000)}\n\`\`\`\n\nExecution: exit code ${execResult.exitCode}${execResult.timedOut ? ' (timed out)' : ''}\nstdout:\n${execResult.stdout.slice(0, 1500) || '(empty)'}\nstderr:\n${execResult.stderr.slice(0, 1000) || '(empty)'}` },
+      ], { priority: 'verifier', label: 'verifier:review', format: 'json', temperature: 0.1, timeoutMs: 300_000 });
 
       const verdict = parseJSON(verifyResponse, { verdict: 'REJECTED', issues: [{ severity: 'critical', description: 'Failed to parse verifier output' }], summary: 'Parse error' });
       if (!Array.isArray(verdict.issues)) verdict.issues = [];
-      // Sandbox reality overrides the LLM verifier: code that needs packages we do not have
-      // cannot be APPROVED, and the generator is told exactly which imports to drop.
-      const missingDeps = nonBuiltinImports(currentCode, detectedLang);
-      if (missingDeps.length) {
-        verdict.verdict = 'REJECTED';
-        verdict.issues.unshift({ severity: 'critical', description: `Imports packages that do not exist in the sandbox: ${missingDeps.join(', ')}. Use the standard library only (Node: node:* built-ins).` });
+      if (missingDeps.length) verdict.issues.unshift({ severity: 'critical', description: `Imports packages that do not exist in the sandbox: ${missingDeps.join(', ')}. Use the standard library only (Node: node:* built-ins).` });
+      if (!proved) {
+        const why = execResult.timedOut ? 'timed out after 15 s' : execResult.exitCode !== 0 ? `exited ${execResult.exitCode}` : !ALL_PASS.test(execResult.stdout) ? 'did not print "ALL PASS" as its last successful line' : 'printed a FAIL line';
+        verdict.issues.unshift({ severity: 'critical', description: `The program did not prove itself: ${why}. Every check must print "PASS …" and the run must end with "ALL PASS".` });
       }
+      const critical = verdict.issues.filter(i => String(i.severity).toLowerCase() === 'critical');
+      // Approval = proved by execution AND no demonstrated critical issue. The critic cannot approve an unproven run, and cannot block a proven one on majors.
+      verdict.verdict = proved && critical.length === 0 ? 'APPROVED' : 'REJECTED';
+      verdict.proved = proved;
 
       db.prepare(`INSERT INTO verification_steps (loop_id, iteration, role, input, output, verdict, created_at) VALUES (?, ?, 'verifier', ?, ?, ?, ?)`).run(
         loopId, iteration, currentCode.slice(0, 4000), JSON.stringify(verdict).slice(0, 8000), verdict.verdict, now()
@@ -217,28 +244,12 @@ export async function runVerifierLoop(goal, { language, maxIterations, context, 
         break;
       }
 
-      // ── EXECUTE (if code is runnable) ─────────────────────
-      let execResult = null;
-      if (missingDeps.length) {
-        execResult = { exitCode: 1, stdout: '', stderr: `not executed: missing packages ${missingDeps.join(', ')}`, executed: false, timedOut: false };
-      } else if (['javascript', 'js', 'node', 'python', 'py'].includes(detectedLang)) {
-        execResult = await executeCode(currentCode, detectedLang);
-
-        db.prepare(`INSERT INTO verification_steps (loop_id, iteration, role, input, output, verdict, created_at) VALUES (?, ?, 'executor', ?, ?, ?, ?)`).run(
-          loopId, iteration, currentCode.slice(0, 4000),
-          JSON.stringify({ exitCode: execResult.exitCode, stdout: execResult.stdout.slice(0, 2000), stderr: execResult.stderr.slice(0, 2000), timedOut: execResult.timedOut }).slice(0, 8000),
-          execResult.exitCode === 0 ? 'PASSED' : 'FAILED', now()
-        );
-      }
-
       // ── BUILD FEEDBACK ────────────────────────────────────
-      feedback = `Verifier issues:\n${verdict.issues.map(i => `- [${i.severity}] ${i.description}`).join('\n')}`;
-      if (execResult) {
-        feedback += `\n\nExecution result (exit code ${execResult.exitCode}):`;
-        if (execResult.stdout) feedback += `\nstdout: ${execResult.stdout.slice(0, 2000)}`;
-        if (execResult.stderr) feedback += `\nstderr: ${execResult.stderr.slice(0, 2000)}`;
-        if (execResult.timedOut) feedback += '\n(TIMED OUT — process killed after 15s)';
-      }
+      feedback = `Issues (fix the critical ones first):\n${verdict.issues.map(i => `- [${i.severity}] ${i.description}`).join('\n')}`;
+      feedback += `\n\nExecution result (exit code ${execResult.exitCode}):`;
+      if (execResult.stdout) feedback += `\nstdout: ${execResult.stdout.slice(0, 2000)}`;
+      if (execResult.stderr) feedback += `\nstderr: ${execResult.stderr.slice(0, 2000)}`;
+      if (execResult.timedOut) feedback += '\n(TIMED OUT — process killed after 15s)';
     }
 
     // ── FINALIZE ──────────────────────────────────────────────

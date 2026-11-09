@@ -29,6 +29,9 @@ import { storeMemory } from '../fleet/agent-memory.js';
 import { REGISTRY, TUNABLE_NAMES, tunable } from './tunables.js';
 import { getSystemMap } from './self-model.js';   // module list for the translator's `code` targets
 import { isResourceConstrained } from './resource-envelope.js';
+import { runVerifierLoop } from './verifier-loop.js';   // ideas → self-proving demo programs → fossils (verifier-loop imports neither this nor the kernel)
+
+const MAX_DEMOS_PER_DAY = Math.max(0, parseInt(process.env.RESEARCH_MAX_DEMOS_PER_DAY, 10) || 2);
 
 const now = () => Date.now();
 const H = 3_600_000;
@@ -68,6 +71,8 @@ function ensureTables() {
     status TEXT NOT NULL DEFAULT 'proposed', experiment_id TEXT, code_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
   )`).run();
   db.prepare(`CREATE INDEX IF NOT EXISTS idx_research_props_status ON research_proposals(status, kind)`).run();
+  try { db.prepare(`ALTER TABLE research_proposals ADD COLUMN demo_loop_id TEXT`).run(); } catch (_) {}
+  try { db.prepare(`ALTER TABLE research_proposals ADD COLUMN demo_status TEXT`).run(); } catch (_) {}
   db.prepare(`CREATE TABLE IF NOT EXISTS research_scans (
     id INTEGER PRIMARY KEY AUTOINCREMENT, topics INTEGER, fetched INTEGER, new_items INTEGER, translated INTEGER, proposals INTEGER, errors TEXT, duration_ms INTEGER, created_at INTEGER NOT NULL
   )`).run();
@@ -182,7 +187,8 @@ export async function scanResearch({ translate = true, trigger = 'timer' } = {})
 
 // ─── Translation: one abstract → one actionable thing, or none ─────
 const TRANSLATE_SYSTEM = `You are the Research Scout of Chandra-FRAYMUS, a local autonomous system that can change itself in exactly two ways: (A) move one of its LIVE TUNABLES inside declared bounds for a measured one-hour experiment, or (B) rewrite one function in one of its existing source files, tested on a branch a human merges.
-Read the research item and decide whether it implies ONE concrete, falsifiable change to THIS system. Prefer "none": most research does not map onto a knob this system exposes. Never invent tunables or files.
+Read the research item and decide whether it implies ONE concrete, falsifiable change to THIS system. Never invent tunables or files.
+Decision order: (1) if the paper's mechanism maps onto an existing tunable → "experiment"; (2) if it maps onto one existing module's behaviour → "code"; (3) if the paper describes a mechanism this system HAS A VERSION OF (self-improvement loops, memory consolidation, replay, plasticity rules, schedulers, verifiers, prediction error, homeostasis) but no knob or implementation for the paper's specific twist → "idea", stating the missing knob or mechanism in one or two sentences — an idea later becomes a self-proving demo program and possibly a new tunable; (4) otherwise "none". "none" is right for papers about things this system does not do at all; "idea" is right for papers about things it does differently.
 Return ONLY JSON, one of:
 {"kind":"experiment","tunable":"<exact name from the list>","value":<number inside its bounds>,"hypothesis":"<one sentence: mechanism from the paper → metric expected to move>","citation":"<title>"}
 {"kind":"code","targetFile":"<exact path from the module list>","sketch":"<what to change in one function, concretely>","rationale":"<why, grounded in the paper>","citation":"<title>"}
@@ -255,6 +261,33 @@ export function nextResearchCode() {
   if (!r || r._error) return null;
   return { proposalId: r.id, originId: r.id, title: `Research: ${String(r.citation || r.title).slice(0, 120)}`, targetFile: r.target_file, sketch: r.sketch, rationale: `${r.rationale} — source: ${r.url}`, source: `research:${r.item_id}` };
 }
+/**
+ * Ideas → self-proving demo programs (Phase AB). An `idea` names a mechanism this system lacks a
+ * knob for; the revived verifier loop (coder model, execute-first, PASS contract) writes a minimal
+ * working model of it with assertions. A pass becomes a `fossil` memory (confidence 1.0) that
+ * prompt evolution injects into agents — the chain read → attempt → prove → remember.
+ */
+export async function runResearchDemos({ max = 1, trigger = 'daemon' } = {}) {
+  if (!ENABLED) return { ran: 0, reason: 'disabled' };
+  if (isResourceConstrained()) return { ran: 0, reason: 'resource_constrained' };
+  const today = q1(`SELECT COUNT(*) AS c FROM research_proposals WHERE demo_loop_id IS NOT NULL AND updated_at > ?`, now() - 24 * H)?.c || 0;
+  if (today >= MAX_DEMOS_PER_DAY) return { ran: 0, reason: 'daily_demo_cap', today, max: MAX_DEMOS_PER_DAY };
+  const ideas = qa(`SELECT p.*, i.title, i.url FROM research_proposals p JOIN research_items i ON i.id = p.item_id WHERE p.kind = 'idea' AND p.demo_loop_id IS NULL ORDER BY i.relevance DESC, p.created_at ASC LIMIT ?`, Math.max(1, Math.min(max, MAX_DEMOS_PER_DAY - today)));
+  const out = [];
+  for (const p of ideas) {
+    const goal = `Build a minimal working model of this mechanism, on toy data, in one self-contained Node ES module with assertions: ${p.idea}\nContext: the mechanism comes from "${p.title}". Keep it small (≤ 120 lines), deterministic, and make each assertion print "PASS …"; finish with "ALL PASS".`;
+    db.prepare(`UPDATE research_proposals SET demo_status = 'running', updated_at = ? WHERE id = ?`).run(now(), p.id);
+    let r;
+    try { r = await runVerifierLoop(goal, { language: 'javascript', maxIterations: 3, triggeredBy: `research:${trigger}` }); }
+    catch (e) { r = { loopId: null, status: 'error', error: e.message }; }
+    const demoStatus = r.status === 'passed' ? 'demonstrated' : `demo_${r.status || 'error'}`;
+    db.prepare(`UPDATE research_proposals SET demo_loop_id = ?, demo_status = ?, updated_at = ? WHERE id = ?`).run(r.loopId || `none:${now()}`, demoStatus, now(), p.id);
+    try { publish('research', 'system.research', JSON.stringify({ action: 'demo', id: p.id, title: p.title, idea: p.idea, loopId: r.loopId, status: r.status, iterations: r.iterations })); } catch (_) {}
+    out.push({ proposalId: p.id, loopId: r.loopId, status: r.status, iterations: r.iterations });
+  }
+  return { ran: out.length, demos: out };
+}
+
 export function markResearchProposal(id, { status, experimentId = null, codeId = null }) {
   db.prepare(`UPDATE research_proposals SET status = ?, experiment_id = COALESCE(?, experiment_id), code_id = COALESCE(?, code_id), updated_at = ? WHERE id = ?`).run(status, experimentId, codeId, now(), id);
 }
@@ -289,10 +322,11 @@ export function getResearchStatus() {
   const byTopic = Object.fromEntries(qa(`SELECT topic, COUNT(*) AS c, ROUND(AVG(relevance), 2) AS rel FROM research_items GROUP BY topic`).map(r => [r.topic, { count: r.c, meanRelevance: r.rel }]));
   const relevant = q1(`SELECT COUNT(*) AS c FROM research_items WHERE relevance >= ?`, MIN_RELEVANCE)?.c || 0;
   const props = Object.fromEntries(qa(`SELECT kind || ':' || status AS k, COUNT(*) AS c FROM research_proposals GROUP BY k`).map(r => [r.k, r.c]));
+  const demos = Object.fromEntries(qa(`SELECT COALESCE(demo_status, 'not_started') AS k, COUNT(*) AS c FROM research_proposals WHERE kind = 'idea' GROUP BY k`).map(r => [r.k, r.c]));
   const last = q1(`SELECT * FROM research_scans ORDER BY created_at DESC LIMIT 1`) || null;
   return { enabled: ENABLED, running: state.running, scanning: state.scanning, scans: state.scans, lastScanAt: state.lastScanAt, lastScan: last && { ...last, errors: JSON.parse(last.errors || '[]') },
     config: { topics: TOPICS.map(t => t.id), scanIntervalMs: SCAN_INTERVAL_MS, maxTranslate: MAX_TRANSLATE, minRelevance: MIN_RELEVANCE, perQuery: PER_QUERY, sources: SOURCES.map(s => s[0]) },
-    items, bySource, byTopic, relevantItems: relevant, proposals: props, pendingExperiment: nextResearchExperiment(), pendingCode: nextResearchCode() };
+    items, bySource, byTopic, relevantItems: relevant, proposals: props, demos, maxDemosPerDay: MAX_DEMOS_PER_DAY, pendingExperiment: nextResearchExperiment(), pendingCode: nextResearchCode() };
 }
 export function installResearchRoutes(app) {
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
@@ -302,5 +336,6 @@ export function installResearchRoutes(app) {
   app.get(`${B}/proposals`, route((req, res) => res.json({ proposals: listResearchProposals({ status: req.query.status || null, limit: parseInt(req.query.limit, 10) || 40 }) })));
   app.post(`${B}/scan`, route(async (req, res) => res.json(await scanResearch({ translate: req.body?.translate !== false, trigger: 'api' }))));
   app.post(`${B}/rescore`, route((_req, res) => res.json(rescoreAll())));
+  app.post(`${B}/demos`, route(async (req, res) => res.json(await runResearchDemos({ max: Math.min(3, Math.max(1, parseInt(req.body?.max, 10) || 1)), trigger: 'api' }))));
   app.post(`${B}/translate`, route(async (req, res) => res.json(req.body?.itemId ? await translateItem(String(req.body.itemId)) : await translateTop({ max: Math.min(10, Math.max(1, parseInt(req.body?.max, 10) || MAX_TRANSLATE)) }))));
 }

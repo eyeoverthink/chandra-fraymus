@@ -15,7 +15,7 @@ import { scanTrends } from '../trend-radar/radar.js';
 import { startNarrator, stopNarrator, getNarratorStatus } from '../intelligence/narrator.js';
 import { startTransientSweeper, stopTransientSweeper, getSweeperStatus } from '../intelligence/transient-sweeper.js';
 import { startSelfModification, stopSelfModification, getSelfModificationStatus, selfModificationCycle, maybeBuildFromBacklog, checkOuroborosAllowed } from '../intelligence/self-modification.js';
-import { startResearchScout, stopResearchScout, getResearchStatus } from '../intelligence/research-scout.js';
+import { startResearchScout, stopResearchScout, getResearchStatus, runResearchDemos } from '../intelligence/research-scout.js';
 import { startSelfAudit, stopSelfAudit, getSelfAuditStatus } from '../intelligence/self-audit.js';
 import { startHiveMesh, stopHiveMesh, getHiveMeshStatus } from '../intelligence/hive-mesh.js';
 import { startHivePeers, stopHivePeers, getHivePeersStatus } from '../intelligence/hive-peers.js';
@@ -457,6 +457,15 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
       stepResults.selfModification = { acted: smk.acted, reason: smk.reason, started: smk.started?.id, evaluated: smk.evaluation?.verdict, build: build.built ? { id: build.id, branch: build.branch, tests: build.tests } : { reason: build.reason } };
     } catch (e) {
       stepResults.selfModification = { error: e.message };
+    }
+
+    // Step 5.8: Research demos (Phase AB) — one `idea` from the scout → self-proving program via the
+    // revived verifier loop → fossil on pass (≤ RESEARCH_MAX_DEMOS_PER_DAY)
+    try {
+      const d = await runResearchDemos({ max: 1, trigger });
+      stepResults.researchDemos = d.ran ? { ran: d.ran, demos: d.demos } : { ran: 0, reason: d.reason };
+    } catch (e) {
+      stepResults.researchDemos = { error: e.message };
     }
 
     // Step 6: Ouroboros RSI cycle (autonomous codebase evolution) — gated: no new analysis
