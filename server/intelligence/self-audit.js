@@ -24,6 +24,7 @@ import { join } from 'node:path';
 import { db } from '../db.js';
 import { DATA_DIR } from '../config.js';
 import { publish } from '../fleet/bus.js';
+import { ledgerDuplication } from './hive-export.js';
 
 const now = () => Date.now();
 const H = 3600_000;
@@ -118,6 +119,22 @@ function checkRepeatedActions() {
         evidence: { types, total },
       });
     }
+  }
+  // Hive export re-emission (added 2026-11-09 after the ledger reached 96% duplicates unnoticed):
+  // the receipts exported in the last 24 h should be one per event. Examine exactly that many tail lines.
+  const exp24 = q1(`SELECT SUM(receipt_count) AS n, COUNT(*) AS runs FROM hive_exports WHERE created_at > ?`, since);
+  if (exp24?.n >= 50) {
+    try {
+      const d = ledgerDuplication({ tailLines: exp24.n });
+      if (d.ratio >= 0.2) {
+        findings.push({
+          check: 'repeated_action', subject: 'hive_exports:duplicate_receipts',
+          severity: d.ratio >= 0.5 ? 'BLOCKING' : 'REAL',
+          summary: `Hive export re-emitted ${d.duplicates}/${d.examined} receipts in 24h (${Math.round(d.ratio * 100)}% duplicates across ${exp24.runs} exports) — events must reach the ledger once`,
+          evidence: { exportsRuns24h: exp24.runs, receipts24h: exp24.n, ...d },
+        });
+      }
+    } catch (_) {}
   }
   return findings;
 }
@@ -371,7 +388,7 @@ export function writeAuditReport({ findings, clean, errors, trigger }) {
     '## Scope',
     '',
     ...CHECKS.map(([name]) => `- \`${name}\``),
-    `- Tables: ${[...new Set([...ACTION_SOURCES.map(s => s.table), 'consciousness_audits', 'ctrnn_snapshots', 'metacognitive_events', 'resource_envelope_events', 'neurogenesis_events', 'sensory_bridge_events', 'goal_executions', 'runs', 'workflow_runs', 'bus_messages', 'bus_subscriptions', 'agent_memories', 'knowledge_nodes', ...TRANSIENT.map(t => t.table)])].sort().join(', ')}`,
+    `- Tables: ${[...new Set([...ACTION_SOURCES.map(s => s.table), 'hive_exports', 'consciousness_audits', 'ctrnn_snapshots', 'metacognitive_events', 'resource_envelope_events', 'neurogenesis_events', 'sensory_bridge_events', 'goal_executions', 'runs', 'workflow_runs', 'bus_messages', 'bus_subscriptions', 'agent_memories', 'knowledge_nodes', ...TRANSIENT.map(t => t.table)])].sort().join(', ')}`,
     '',
     '## Verified clean',
     '',
