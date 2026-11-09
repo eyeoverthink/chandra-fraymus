@@ -554,7 +554,8 @@ export async function buildCodeProposal({ source = 'manual', originId = null, ti
     return { built: false, reason: `target has ${linesBefore} lines (> ${WHOLE_FILE_MAX}); pass a line to patch one function` };
   }
   const mode = span ? 'span' : 'file';
-  if (originId && q1(`SELECT id FROM smk_code_proposals WHERE origin_id = ?`, originId)?.id) return { built: false, reason: 'origin_already_built' };
+  // an origin counts as built unless its only attempts died of infrastructure (scheduler drop, model timeout, worktree error)
+  if (originId && q1(`SELECT id FROM smk_code_proposals WHERE origin_id = ? AND NOT (status = 'failed' AND (failure LIKE '%scheduler dropped%' OR failure LIKE '%aborted due to timeout%' OR failure LIKE '%worktree:%'))`, originId)?.id) return { built: false, reason: 'origin_already_built' };
 
   const id = 'code_' + randomUUID().slice(0, 10);
   const branch = `rsi/${id}`;
