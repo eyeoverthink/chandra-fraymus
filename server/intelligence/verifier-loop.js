@@ -179,6 +179,10 @@ export async function runVerifierLoop(goal, { language, maxIterations, context, 
   let feedback = '';
   let finalVerdict = 'incomplete';
   let iteration = 0;
+  // Reflection's speculative loops may be dropped under load ('verifier' class, 2-min max wait);
+  // an operator, agent or research demo asked for this run — 'goal' class is queued but never dropped
+  // (a dropped critic call killed the first revived run after the sandbox had already caught a real bug).
+  const prio = triggeredBy === 'reflection' ? 'verifier' : 'goal';
 
   try {
     for (iteration = 1; iteration <= iterations; iteration++) {
@@ -190,7 +194,7 @@ export async function runVerifierLoop(goal, { language, maxIterations, context, 
       const genResponse = await chatOllama([
         { role: 'system', content: GENERATOR_PROMPT },
         { role: 'user', content: genPrompt },
-      ], { priority: 'verifier', label: 'verifier:generate', model: GEN_MODEL, temperature: 0.2, maxTokens: 3000, timeoutMs: 600_000 });
+      ], { priority: prio, label: 'verifier:generate', model: GEN_MODEL, temperature: 0.2, maxTokens: 3000, timeoutMs: 600_000 });
 
       currentCode = extractCode(genResponse);
       const detectedLang = language && language !== 'auto' ? language : detectLanguage(genResponse);
@@ -221,7 +225,7 @@ export async function runVerifierLoop(goal, { language, maxIterations, context, 
       const verifyResponse = await chatOllama([
         { role: 'system', content: VERIFIER_PROMPT },
         { role: 'user', content: `Goal: ${goal}\nLanguage: ${detectedLang}\n\nCode:\n\`\`\`${detectedLang}\n${currentCode.slice(0, 6000)}\n\`\`\`\n\nExecution: exit code ${execResult.exitCode}${execResult.timedOut ? ' (timed out)' : ''}\nstdout:\n${execResult.stdout.slice(0, 1500) || '(empty)'}\nstderr:\n${execResult.stderr.slice(0, 1000) || '(empty)'}` },
-      ], { priority: 'verifier', label: 'verifier:review', format: 'json', temperature: 0.1, timeoutMs: 300_000 });
+      ], { priority: prio, label: 'verifier:review', format: 'json', temperature: 0.1, timeoutMs: 300_000 });
 
       const verdict = parseJSON(verifyResponse, { verdict: 'REJECTED', issues: [{ severity: 'critical', description: 'Failed to parse verifier output' }], summary: 'Parse error' });
       if (!Array.isArray(verdict.issues)) verdict.issues = [];
