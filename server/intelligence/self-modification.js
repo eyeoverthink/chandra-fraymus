@@ -33,7 +33,7 @@
  * producing when they are not consuming), does it leave rows transient on crash (boot
  * evaluates or aborts anything left 'running'/'building').
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, symlinkSync, statSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, lstatSync, statSync, readdirSync } from 'node:fs';
 import { join, resolve, relative, basename, dirname, extname, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -431,15 +431,27 @@ function runTests(cwd, files) {
   const failing = [...output.matchAll(/^\s*(?:✖|not ok \d+ -)\s*(.+)$/gm)].map(m => m[1].trim()).filter(l => !/^(tests|suites|pass|fail|cancelled|skipped|todo|duration_ms)/.test(l));
   return { ran: files.length, passed: r.status === 0, failing, timedOut: r.signal === 'SIGTERM', output: output.slice(-6000) };
 }
+// Worktrees live INSIDE the repo tree (data/smk/wt/<id>), so Node resolves `node_modules`
+// upward to the repo's own install — no link of any kind is created. The first version put
+// a `node_modules` junction in the worktree; `git worktree remove --force` on Windows walked
+// through it and emptied the real node_modules/.bin before aborting on a locked native
+// binary (2026-11-09). Never link into the worktree; and defensively unlink anything that
+// looks like one before git touches the directory.
 function makeWorktree(path, branch, base = 'master') {
   mkdirSync(dirname(path), { recursive: true });
-  const r = branch ? git(['worktree', 'add', '-b', branch, path, base]) : git(['worktree', 'add', '--detach', path, base]);
-  if (!r.ok) return r;
-  try { symlinkSync(join(REPO_ROOT, 'node_modules'), join(path, 'node_modules'), 'junction'); } catch (e) { return { ok: false, err: 'node_modules junction: ' + e.message }; }
-  return r;
+  return branch ? git(['worktree', 'add', '-b', branch, path, base]) : git(['worktree', 'add', '--detach', path, base]);
+}
+function unlinkIfLink(p) {
+  try { const st = lstatSync(p); if (st.isSymbolicLink()) { rmSync(p, { recursive: false, force: true }); return true; } } catch {}
+  return false;
 }
 function dropWorktree(path, branch = null) {
-  if (existsSync(path)) { git(['worktree', 'remove', '--force', path]); try { rmSync(path, { recursive: true, force: true }); } catch {} }
+  if (existsSync(path)) {
+    unlinkIfLink(join(path, 'node_modules'));
+    unlinkIfLink(join(path, 'client', 'node_modules'));
+    git(['worktree', 'remove', '--force', path]);
+    try { if (existsSync(path)) rmSync(path, { recursive: true, force: true }); } catch {}
+  }
   git(['worktree', 'prune']);
   if (branch) git(['branch', '-D', branch]);
 }
