@@ -270,6 +270,7 @@ async function executeAction(action) {
           source: 'reflection',
           executeFn: async (p) => {
             const r = await synthesizeWorkflow(p.goal, { synthesizedBy: p.synthesizedBy });
+            if (!r.synthesized) return { ok: false, refused: r.reason, unrun: r.unrun };
             return { ok: true, workflow: { id: r.workflow.id, name: r.workflow.name } };
           },
         });

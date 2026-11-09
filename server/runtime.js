@@ -115,6 +115,7 @@ import { installOllamaSchedulerRoutes } from './intelligence/ollama-scheduler.js
 import { installWorldPollerRoutes } from './intelligence/world-pollers.js';
 import { installReaRoutes } from './intelligence/rea-protocol.js';
 import { installNarratorRoutes } from './intelligence/narrator.js';
+import { installSweeperRoutes } from './intelligence/transient-sweeper.js';
 import { installHivePeersRoutes } from './intelligence/hive-peers.js';
 import { installDebateRoutes } from './intelligence/debate.js';
 import { installModelRouterRoutes } from './intelligence/model-router.js';
@@ -351,6 +352,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installWorldPollerRoutes(app);
   installReaRoutes(app);
   installNarratorRoutes(app);
+  installSweeperRoutes(app);
   installHivePeersRoutes(app);
   installDebateRoutes(app);
   installModelRouterRoutes(app);

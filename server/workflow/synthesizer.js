@@ -97,8 +97,31 @@ function validateSynthesized(wf) {
   return wf;
 }
 
-export async function synthesizeWorkflow(goal, { constraints, synthesizedBy = 'system' } = {}) {
+// Producer-without-consumer guard (self-audit, 2026-11-09): 195 workflows synthesized in
+// 7 days, 0 ever ran. Synthesis is only worth its model call if the last few products were
+// used. Autonomous callers are refused while MAX_UNRUN_SYNTHESIZED recent synthesized
+// workflows have never had a workflow_run; `force` (an operator / API call) bypasses.
+const MAX_UNRUN_SYNTHESIZED = Math.max(1, parseInt(process.env.SYNTH_MAX_UNRUN, 10) || 3);
+export function checkSynthesisAllowed() {
+  try {
+    const unrun = db.prepare(
+      `SELECT COUNT(*) AS c FROM synthesized_workflows sw
+       WHERE sw.created_at > ? AND NOT EXISTS (SELECT 1 FROM workflow_runs r WHERE r.workflow_id = sw.workflow_id)`
+    ).get(now() - 7 * 86400_000)?.c || 0;
+    if (unrun >= MAX_UNRUN_SYNTHESIZED) return { allowed: false, reason: 'unconsumed_backlog', unrun, max: MAX_UNRUN_SYNTHESIZED };
+    return { allowed: true, unrun, max: MAX_UNRUN_SYNTHESIZED };
+  } catch (e) { return { allowed: true, error: e.message }; }
+}
+
+export async function synthesizeWorkflow(goal, { constraints, synthesizedBy = 'system', force = false } = {}) {
   if (!goal || typeof goal !== 'string') throw new Error('goal is required');
+  if (!force) {
+    const check = checkSynthesisAllowed();
+    if (!check.allowed) {
+      try { publish('system', 'system.evolution', JSON.stringify({ action: 'workflow_synthesis_refused', reason: check.reason, unrun: check.unrun, goal: goal.slice(0, 160), synthesizedBy })); } catch (_) {}
+      return { synthesized: false, reason: check.reason, unrun: check.unrun, max: check.max, note: `${check.unrun} synthesized workflows from the last 7 days have never run; run or delete some before synthesizing more (force:true bypasses)` };
+    }
+  }
 
   const prompt = constraints
     ? `Goal: ${goal}\n\nConstraints: ${constraints}`
@@ -107,7 +130,7 @@ export async function synthesizeWorkflow(goal, { constraints, synthesizedBy = 's
   const response = await chatOllama([
     { role: 'system', content: SYNTH_PROMPT },
     { role: 'user', content: prompt },
-  ]);
+  ], { priority: 'synthesize', label: `synthesize:${synthesizedBy}` });
 
   const wf = validateSynthesized(parseSynthResponse(response));
 
@@ -153,8 +176,8 @@ export function installSynthesisRoutes(app) {
   app.post('/api/workflows/synthesize', route(async (req, res) => {
     const { goal, constraints } = req.body;
     if (!goal) return res.status(400).json({ error: 'goal required' });
-    const result = await synthesizeWorkflow(goal, { constraints, synthesizedBy: 'api' });
-    res.status(201).json(result);
+    const result = await synthesizeWorkflow(goal, { constraints, synthesizedBy: 'api', force: req.body?.force !== false }); // operators are not throttled unless they ask to be
+    res.status(result.synthesized ? 201 : 409).json(result);
   }));
 
   app.get('/api/workflows/synthesized', route((_req, res) => {

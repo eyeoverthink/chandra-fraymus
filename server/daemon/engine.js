@@ -13,6 +13,7 @@ import { startExternalSenses, stopExternalSenses, getExternalSensesStatus } from
 import { startWorldPollers, stopWorldPollers, getWorldPollersStatus, setTrendScanner } from '../intelligence/world-pollers.js';
 import { scanTrends } from '../trend-radar/radar.js';
 import { startNarrator, stopNarrator, getNarratorStatus } from '../intelligence/narrator.js';
+import { startTransientSweeper, stopTransientSweeper, getSweeperStatus } from '../intelligence/transient-sweeper.js';
 import { startSelfAudit, stopSelfAudit, getSelfAuditStatus } from '../intelligence/self-audit.js';
 import { startHiveMesh, stopHiveMesh, getHiveMeshStatus } from '../intelligence/hive-mesh.js';
 import { startHivePeers, stopHivePeers, getHivePeersStatus } from '../intelligence/hive-peers.js';
@@ -646,6 +647,14 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     console.error('motor output start error:', e.message);
   }
 
+  // Transient sweeper: close runs / verifier loops / OPEG proposals a restart left mid-flight (boot + hourly)
+  try {
+    const sw = startTransientSweeper();
+    if (sw.boot.total) console.log(`[sweeper] boot: closed ${sw.boot.total} stale row(s)`);
+  } catch (e) {
+    console.error('transient sweeper start error:', e.message);
+  }
+
   // Phase P: goal executor (5min cycle — drains goal_proposals through the fleet) + debate sweeper
   try {
     const swept = sweepStaleDebates();
@@ -806,6 +815,7 @@ export function stopDaemon() {
   try { stopExternalSenses(); } catch (_) {}
   try { stopWorldPollers(); } catch (_) {}
   try { stopNarrator(); } catch (_) {}
+  try { stopTransientSweeper(); } catch (_) {}
   try { stopSelfAudit(); } catch (_) {}
   try { stopHiveMesh(); } catch (_) {}
   try { stopHivePeers(); } catch (_) {}
@@ -862,6 +872,7 @@ export function getDaemonStatus() {
     metacognitive: getMetacognitiveStatus(),
     goalExecutor: getGoalExecutorStatus(),
     externalSenses: getExternalSensesStatus(),
+    sweeper: (() => { const s = getSweeperStatus(); return { running: s.running, sweeps: s.sweeps, totals: s.totals, currentlyStuck: s.currentlyStuck, lastAt: s.lastAt }; })(),
     narrator: (() => { const s = getNarratorStatus(); return { running: s.running, overlayClients: s.overlayClients, spoken: s.spoken, textOnly: s.textOnly, dropped: s.dropped, ttsErrors: s.ttsErrors, queued: s.queued, lastLine: s.lastLine, last24h: s.last24h }; })(),
     worldPollers: (() => { const s = getWorldPollersStatus(); return { running: s.running, polls: s.polls, lastPollAt: s.lastPollAt, observations24h: s.observations24h, interests: s.interests.map(i => i.query), errors: s.errors.slice(-3) }; })(),
     selfAudit: (() => { const s = getSelfAuditStatus(); return { running: s.running, open: s.open, lastRun: s.lastRun && { at: s.lastRun.at, counts: s.lastRun.counts, clean: s.lastRun.clean } }; })(),
