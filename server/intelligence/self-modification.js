@@ -829,7 +829,8 @@ export async function maybeBuildFromBacklog({ trigger = 'daemon' } = {}) {
   if (isResourceConstrained()) return { built: false, reason: 'resource_constrained' };
   const ready = q1(`SELECT COUNT(*) AS n FROM smk_code_proposals WHERE status = 'ready'`)?.n || 0;
   if (ready >= MAX_READY) return { built: false, reason: 'review_backlog_full', ready, max: MAX_READY };
-  const today = q1(`SELECT COUNT(*) AS n FROM smk_code_proposals WHERE created_at > ?`, now() - 24 * H)?.n || 0;
+  // the daily cap counts real attempts — builds that died of infrastructure (scheduler drop, timeout, worktree/harness) do not spend it
+  const today = q1(`SELECT COUNT(*) AS n FROM smk_code_proposals WHERE created_at > ? AND NOT (status = 'failed' AND (failure LIKE '%scheduler dropped%' OR failure LIKE '%aborted due to timeout%' OR failure LIKE '%worktree:%'))`, now() - 24 * H)?.n || 0;
   if (today >= MAX_BUILDS_PER_DAY) return { built: false, reason: 'daily_build_cap', today, max: MAX_BUILDS_PER_DAY };
   const conv = nextConventionCandidate({ preferTested: fileHasTests });
   if (conv) return buildCodeProposal({ source: `convention:${conv.rule}`, originId: conv.key, title: conv.title, targetFile: conv.targetFile, line: conv.line, sketch: conv.sketch, rationale: conv.rationale });
