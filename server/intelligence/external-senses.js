@@ -59,19 +59,23 @@ try { ensureTable(); } catch (e) { console.error('[external-senses] schema:', e.
 
 // ─── Live DB-backed senses ───────────────────────────────────────
 
+// Phase X: the world pollers' own observations count alongside what agent runs retained.
 function senseWeb() {
   const since = now() - DAY;
-  let sources = 0, trends = 0;
+  let sources = 0, trends = 0, observed = 0;
   try { sources = db.prepare(`SELECT COUNT(*) as c FROM agent_web_sources WHERE created_at > ?`).get(since)?.c || 0; } catch (_) {}
   try { trends = db.prepare(`SELECT COUNT(*) as c FROM trend_signals WHERE last_seen_at > ?`).get(since)?.c || 0; } catch (_) {}
-  return { value: Math.max(clamp01(sources / 5), clamp01(trends / 10)), source: 'db', detail: { webSources24h: sources, trendSignals24h: trends } };
+  try { observed = db.prepare(`SELECT COUNT(*) as c FROM world_observations WHERE kind = 'web' AND observed_at > ?`).get(since)?.c || 0; } catch (_) {}
+  const value = Math.max(clamp01(sources / 5), clamp01(trends / 10), clamp01(observed / 10));
+  return { value, source: observed ? 'db+world-poller' : 'db', detail: { webSources24h: sources, trendSignals24h: trends, worldObservations24h: observed } };
 }
 
 function senseYouTube() {
   const since = now() - DAY;
-  let saved = 0;
+  let saved = 0, observed = 0;
   try { saved = db.prepare(`SELECT COUNT(*) as c FROM outlier_board WHERE created_at > ?`).get(since)?.c || 0; } catch (_) {}
-  return { value: clamp01(saved / 5), source: 'db', detail: { outliersSaved24h: saved } };
+  try { observed = db.prepare(`SELECT COUNT(*) as c FROM world_observations WHERE kind = 'youtube' AND observed_at > ?`).get(since)?.c || 0; } catch (_) {}
+  return { value: Math.max(clamp01(saved / 5), clamp01(observed / 8)), source: observed ? 'db+world-poller' : 'db', detail: { outliersSaved24h: saved, worldObservations24h: observed } };
 }
 
 function senseUser() {

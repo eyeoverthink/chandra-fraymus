@@ -33,7 +33,11 @@ import { briefNextInstance } from './perspective.js';
 const execFileP = promisify(execFile);
 const now = () => Date.now();
 const SYNC_INTERVAL_MS = 5 * 60_000;
-const DIGEST_MIN_GAP_MS = 60 * 60_000;
+// Phase X: digests post on CONTENT, not on the clock. Minimum gap keeps the bridge readable;
+// maximum gap guarantees the fleet hears from Chandra at least every 6 h if anything happened.
+const DIGEST_MIN_GAP_MS = 15 * 60_000;
+const DIGEST_MAX_GAP_MS = 6 * 60 * 60_000;
+const DIGEST_MIN_OUTCOMES = 2;
 const BACKFILL = Math.max(0, parseInt(process.env.HIVE_BRIDGE_BACKFILL) || 10);
 const PULL = process.env.HIVE_BRIDGE_PULL !== '0';
 const PUSH = process.env.HIVE_BRIDGE_PUSH === '1';
@@ -140,6 +144,7 @@ function buildDigest() {
 
   const hasContent = outcomes.length || findings.length || transitions.length;
   if (!hasContent) return null;
+  const newBlocking = findings.filter(f => f.severity === 'BLOCKING' && Number(f.first_seen || 0) > since).length;
 
   const lines = [
     `# Chandra digest — ${new Date().toISOString()}`,
@@ -162,14 +167,28 @@ function buildDigest() {
     `_Reply on the bridge; Chandra ingests new messages every 5 minutes and stores them as agent memories._`,
     '',
   ];
-  return { content: lines.join('\n'), counts: { outcomes: outcomes.length, findings: findings.length, transitions: transitions.length } };
+  return { content: lines.join('\n'), counts: { outcomes: outcomes.length, findings: findings.length, transitions: transitions.length, newBlocking } };
+}
+
+// Something worth a post: enough goal outcomes, a new BLOCKING finding, a tier transition —
+// or the maximum silence has elapsed and there is any content at all.
+function digestWorthy(counts, sinceLastMs) {
+  if (counts.outcomes >= DIGEST_MIN_OUTCOMES) return 'outcomes';
+  if (counts.newBlocking > 0) return 'new_blocking_finding';
+  if (counts.transitions > 0) return 'tier_transition';
+  if (sinceLastMs >= DIGEST_MAX_GAP_MS) return 'max_gap';
+  return null;
 }
 
 export async function postDigest({ force = false } = {}) {
   const last = Number(getState('last_digest_at') || 0);
-  if (!force && now() - last < DIGEST_MIN_GAP_MS) return { posted: false, reason: 'digest_gap', nextInMs: DIGEST_MIN_GAP_MS - (now() - last) };
+  const sinceLast = now() - last;
+  if (!force && sinceLast < DIGEST_MIN_GAP_MS) return { posted: false, reason: 'digest_gap', nextInMs: DIGEST_MIN_GAP_MS - sinceLast };
   const digest = buildDigest();
   if (!digest) return { posted: false, reason: 'nothing_to_say' };
+  const why = force ? 'forced' : digestWorthy(digest.counts, sinceLast);
+  if (!why) return { posted: false, reason: 'not_yet_worthy', counts: digest.counts, maxGapInMs: DIGEST_MAX_GAP_MS - sinceLast };
+  digest.counts.reason = why;
   const topic = `digest-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}`;
   const posted = await postMessage(AGENT_NAME, topic, digest.content);
   setState('last_digest_at', now());

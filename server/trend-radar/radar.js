@@ -103,7 +103,7 @@ Return JSON array: [{ "topic": "specific trend name", "category": "tech|culture|
   const raw = await chatOllama([
     { role: 'system', content: system },
     { role: 'user', content: `Scan for trends as of ${new Date().toISOString().split('T')[0]}. Focus on actionable trends that could become content in the next 7-14 days.` },
-  ]);
+  ], { priority: 'background', label: 'trend-radar:scan' });
 
   const parsed = parseJSON(raw);
   if (!Array.isArray(parsed)) {

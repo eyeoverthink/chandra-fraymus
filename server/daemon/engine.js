@@ -10,6 +10,8 @@ import { runGoalExecutorCycle, startGoalExecutor, stopGoalExecutor, getGoalExecu
 import { sweepStaleDebates } from '../intelligence/debate.js';
 import { agentQualityStats } from '../intelligence/outcome-scorer.js';
 import { startExternalSenses, stopExternalSenses, getExternalSensesStatus } from '../intelligence/external-senses.js';
+import { startWorldPollers, stopWorldPollers, getWorldPollersStatus, setTrendScanner } from '../intelligence/world-pollers.js';
+import { scanTrends } from '../trend-radar/radar.js';
 import { startSelfAudit, stopSelfAudit, getSelfAuditStatus } from '../intelligence/self-audit.js';
 import { startHiveMesh, stopHiveMesh, getHiveMeshStatus } from '../intelligence/hive-mesh.js';
 import { startHivePeers, stopHivePeers, getHivePeersStatus } from '../intelligence/hive-peers.js';
@@ -590,6 +592,14 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
   // Phase Q: outward senses poller (Shopify, hub/NUDP peers, git) feeding the bridge
   try {
     startExternalSenses();
+    // Phase X: senses that actually fetch (web search, YouTube RSS, 6-hourly trend scan)
+    try {
+      setTrendScanner(scanTrends);
+      const wp = startWorldPollers();
+      console.log(`[world-pollers] every ${wp.intervalMs / 60000} min; interests: ${wp.interests.slice(0, 4).join(' | ')}`);
+    } catch (e) {
+      console.error('world pollers start error:', e.message);
+    }
   } catch (e) {
     console.error('external senses start error:', e.message);
   }
@@ -786,6 +796,7 @@ export function stopDaemon() {
   try { stopMetacognitiveMonitor(); } catch (_) {}
   try { stopGoalExecutor(); } catch (_) {}
   try { stopExternalSenses(); } catch (_) {}
+  try { stopWorldPollers(); } catch (_) {}
   try { stopSelfAudit(); } catch (_) {}
   try { stopHiveMesh(); } catch (_) {}
   try { stopHivePeers(); } catch (_) {}
@@ -842,6 +853,7 @@ export function getDaemonStatus() {
     metacognitive: getMetacognitiveStatus(),
     goalExecutor: getGoalExecutorStatus(),
     externalSenses: getExternalSensesStatus(),
+    worldPollers: (() => { const s = getWorldPollersStatus(); return { running: s.running, polls: s.polls, lastPollAt: s.lastPollAt, observations24h: s.observations24h, interests: s.interests.map(i => i.query), errors: s.errors.slice(-3) }; })(),
     selfAudit: (() => { const s = getSelfAuditStatus(); return { running: s.running, open: s.open, lastRun: s.lastRun && { at: s.lastRun.at, counts: s.lastRun.counts, clean: s.lastRun.clean } }; })(),
     ollamaScheduler: (() => { const s = getSchedulerStatus(); return { maxConcurrent: s.maxConcurrent, running: s.running, queued: s.queued, queuedByClass: s.queuedByClass, dropped: s.stats.dropped, droppedByClass: s.stats.droppedByClass, avgWaitMs: s.stats.avgWaitMs, maxWaitMs: s.stats.maxWaitMs, pressure: s.pressure }; })(),
     reflectionGate: getReflectionGateStats(),

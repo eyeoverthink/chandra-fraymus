@@ -112,6 +112,7 @@ import { installExternalSensesRoutes } from './intelligence/external-senses.js';
 import { installSelfAuditRoutes } from './intelligence/self-audit.js';
 import { installHiveMeshRoutes } from './intelligence/hive-mesh.js';
 import { installOllamaSchedulerRoutes } from './intelligence/ollama-scheduler.js';
+import { installWorldPollerRoutes } from './intelligence/world-pollers.js';
 import { installHivePeersRoutes } from './intelligence/hive-peers.js';
 import { installDebateRoutes } from './intelligence/debate.js';
 import { installModelRouterRoutes } from './intelligence/model-router.js';
@@ -345,6 +346,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installSelfAuditRoutes(app);
   installHiveMeshRoutes(app);
   installOllamaSchedulerRoutes(app);
+  installWorldPollerRoutes(app);
   installHivePeersRoutes(app);
   installDebateRoutes(app);
   installModelRouterRoutes(app);
