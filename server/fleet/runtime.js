@@ -90,6 +90,20 @@ export function setFleetTools(tools) {
   toolRegistry = tools;
 }
 
+// Phase AC: runtime-registered tools (forged skills). Replace by name so a restore after retire
+// never leaves two entries; the registry stays a plain array that agentTools() filters.
+export function addFleetTools(tools) {
+  const names = new Set(tools.map(t => t.name));
+  toolRegistry = [...toolRegistry.filter(t => !names.has(t.name)), ...tools];
+  return toolRegistry.length;
+}
+
+export function removeFleetTools(names) {
+  const drop = new Set(names);
+  toolRegistry = toolRegistry.filter(t => !drop.has(t.name));
+  return toolRegistry.length;
+}
+
 function getManifest(id) {
   if (!manifests) manifests = loadManifests();
   return manifests.get(id);
@@ -102,7 +116,9 @@ function matchesTool(allow, name) {
 }
 
 function agentTools(agent) {
-  return toolRegistry.filter(t => matchesTool(agent.tools, t.name));
+  // forged skills (group 'skill') are sandboxed pure functions proven by execution; by default every
+  // agent may call them without the manifest naming `skill.*` (SKILLS_FOR_ALL_AGENTS=0 restores opt-in)
+  return toolRegistry.filter(t => matchesTool(agent.tools, t.name) || (t.group === 'skill' && t.forAllAgents));
 }
 
 function agentRoster(currentId) {

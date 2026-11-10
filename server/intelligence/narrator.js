@@ -99,6 +99,14 @@ const LINES = {
     if (p.action === 'code_merged') return { kind: 'smk', text: `My change to ${basename(String(p.targetFile || ''))} was approved and merged. A restart will make it live.` };
     return null;
   },
+  // Phase AC: proven programs becoming callable tools
+  'system.skills': p => {
+    const name = String(p.name || '').replace(/^skill\./, '').replace(/_/g, ' ');
+    if (p.action === 'crystallized') return { kind: 'skills', text: `I turned a proven program into a new skill: ${name}. ${clip(p.description, 100)} Every agent can call it now.` };
+    if (p.action === 'retired') return { kind: 'skills', text: `Retired the skill ${name}${p.reason ? `: ${clip(p.reason, 80)}` : ''}.` };
+    if (p.action === 'composition' && p.status === 'passed') return { kind: 'skills', text: `Two of my skills, ${String(p.a || '').replace(/^skill\./, '')} and ${String(p.b || '').replace(/^skill\./, '')}, combined into a program that proved itself. It will become a third.` };
+    return null;
+  },
 };
 export const TOPICS = Object.keys(LINES);
 

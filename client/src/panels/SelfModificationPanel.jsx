@@ -56,13 +56,19 @@ export default function SelfModificationPanel({ wsEvent }) {
 
   const load = useCallback(async () => {
     try {
-      const [s, e, c, t, r, ri, rp] = await Promise.all([fetch(B), fetch(`${B}/experiments?limit=40`), fetch(`${B}/code?limit=40`), fetch('/api/intelligence/tunables'), fetch('/api/intelligence/research'), fetch('/api/intelligence/research/items?limit=25&minRelevance=0.2'), fetch('/api/intelligence/research/proposals?limit=25')]);
-      const [sj, ej, cj, tj, rj, rij, rpj] = await Promise.all([s.json(), e.json(), c.json(), t.json(), r.json(), ri.json(), rp.json()]);
-      setStatus({ ...sj, tunablesFull: tj.tunables || [], research: { ...rj, itemsList: rij.items || [], proposalsList: rpj.proposals || [] } }); setExperiments(ej.experiments || []); setCode(cj.proposals || []); setError('');
+      const [s, e, c, t, r, ri, rp, sk, skl] = await Promise.all([fetch(B), fetch(`${B}/experiments?limit=40`), fetch(`${B}/code?limit=40`), fetch('/api/intelligence/tunables'), fetch('/api/intelligence/research'), fetch('/api/intelligence/research/items?limit=25&minRelevance=0.2'), fetch('/api/intelligence/research/proposals?limit=25'), fetch('/api/intelligence/skills'), fetch('/api/intelligence/skills/list?limit=40')]);
+      const [sj, ej, cj, tj, rj, rij, rpj, skj, sklj] = await Promise.all([s.json(), e.json(), c.json(), t.json(), r.json(), ri.json(), rp.json(), sk.json(), skl.json()]);
+      setStatus({ ...sj, tunablesFull: tj.tunables || [], research: { ...rj, itemsList: rij.items || [], proposalsList: rpj.proposals || [] }, skills: { ...skj, list: sklj.skills || [] } }); setExperiments(ej.experiments || []); setCode(cj.proposals || []); setError('');
     } catch (e) { setError(e.message); }
   }, []);
   useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, [load]);
-  useEffect(() => { if (wsEvent && /self_modification|tunable/.test(wsEvent.type || wsEvent.topic || '')) load(); }, [wsEvent, load]);
+  useEffect(() => { if (wsEvent && /self_modification|tunable|skills/.test(wsEvent.type || wsEvent.topic || '')) load(); }, [wsEvent, load]);
+  const [skillOut, setSkillOut] = useState({});   // skill id → last test result
+  const testSkill = async (s) => {
+    setBusy(true);
+    try { const r = await fetch(`/api/intelligence/skills/${encodeURIComponent(s.id)}/test`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ input: s.examples?.[0]?.input || {} }) }); const j = await r.json(); setSkillOut(o => ({ ...o, [s.id]: j })); }
+    catch (e) { setSkillOut(o => ({ ...o, [s.id]: { error: e.message } })); } finally { setBusy(false); }
+  };
 
   const act = async (url, body, okMsg) => {
     setBusy(true); setMsg('');
@@ -85,7 +91,8 @@ export default function SelfModificationPanel({ wsEvent }) {
   const conv = status?.conventions || {};
   const convOpen = Object.values(conv.open || {}).reduce((a, b) => a + b, 0);
   const research = status?.research || null;
-  const tabs = [['experiments', `Experiments (${experiments.length})`], ['tunables', `Tunables (${status?.tunables?.length || 0})`], ['code', `Code (${cc.ready || 0} ready)`], ['conventions', `Conventions (${convOpen} open)`], ['research', `Research (${research?.relevantItems ?? 0} relevant)`]];
+  const skills = status?.skills || null;
+  const tabs = [['experiments', `Experiments (${experiments.length})`], ['tunables', `Tunables (${status?.tunables?.length || 0})`], ['code', `Code (${cc.ready || 0} ready)`], ['conventions', `Conventions (${convOpen} open)`], ['research', `Research (${research?.relevantItems ?? 0} relevant)`], ['skills', `Skills (${skills?.counts?.active || 0} active)`]];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, color: C.text, fontSize: 13 }}>
@@ -224,6 +231,49 @@ export default function SelfModificationPanel({ wsEvent }) {
               <span style={{ color: C.dim, width: 48 }}>{i.source}</span>
               <a href={i.url} target="_blank" rel="noreferrer" style={{ color: C.text, flex: 1, minWidth: 0, textDecoration: 'none' }}>{i.title}</a>
               <span style={{ color: i.status === 'translated' ? C.green : C.dim }}>{i.status}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'skills' && skills && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 12, color: C.dim }}>Programs the verifier proved by execution are crystallized into sandboxed tools (<code>skill.*</code>) every agent can call. Static gate (allow-listed builtins only), smoke-tested examples, Node permission sandbox, stripped env, 15 s timeout. Failing skills retire themselves; unused ones are flagged by the self-audit. Two skills → a composition goal → a third.</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {Object.entries(skills.counts || {}).map(([k, v]) => <Stat key={k} label={k} value={v} color={k === 'active' ? C.green : k === 'failed' ? C.red : C.dim} />)}
+            <Stat label="calls 24h" value={`${skills.calls24h?.ok ?? 0}/${skills.calls24h?.total ?? 0}`} color={C.cyan} />
+            <Stat label="agents calling" value={skills.calls24h?.agents ?? 0} color={C.purple} />
+            <Stat label="quality with skills" value={skills.outcomes?.withSkill?.meanQuality ?? '—'} color={C.green} />
+            <Stat label="quality without" value={skills.outcomes?.without?.meanQuality ?? '—'} color={C.text} />
+            {Object.entries(skills.compositions || {}).map(([k, v]) => <Stat key={k} label={`compose ${k}`} value={v} color={C.amber} />)}
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button disabled={busy || skills.crystallizing} style={btn(C.cyan, true)} onClick={() => act('/api/intelligence/skills/crystallize', {}, j => j.crystallized ? `crystallized ${j.name} in ${j.iterations} attempt(s)` : `refused: ${j.reason}`)}>crystallize next fossil</button>
+            <button disabled={busy || skills.composing} style={btn(C.amber, true)} onClick={() => act('/api/intelligence/skills/compose', { force: true }, j => j.composed ? `composition passed: loop ${j.loopId}` : `composition: ${j.reason || j.status}`)}>compose two skills</button>
+            <span style={{ fontSize: 11, color: C.dim, alignSelf: 'center' }}>{skills.crystallizing ? 'crystallizing…' : skills.composing ? 'composing…' : skills.nextCandidate ? `next: ${skills.nextCandidate.goal}` : 'no fossil waiting'} · {skills.config?.perDay}/day</span>
+          </div>
+          {(skills.list || []).length === 0 && <div style={{ color: C.dim, fontSize: 12 }}>No skills yet — every passed verification loop becomes a candidate.</div>}
+          {(skills.list || []).map(s => (
+            <div key={s.id} style={{ background: C.card, border: `1px solid ${s.status === 'active' ? C.green : C.border}`, borderRadius: 10, padding: 10, fontSize: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600 }}><span style={{ color: s.status === 'active' ? C.green : s.status === 'failed' ? C.red : C.dim, marginRight: 8 }}>{s.status.toUpperCase()}</span><span style={{ color: C.cyan }}>{s.name}</span></div>
+                  <div style={{ color: C.text, marginTop: 4 }}>{s.description}</div>
+                  <div style={{ fontSize: 11, color: C.dim, marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <span>{s.source_kind}</span><span>{s.calls} calls · {s.failures} failed{s.meanMs != null ? ` · ${s.meanMs} ms` : ''}</span><span>{s.deterministic ? 'deterministic' : 'non-deterministic'}</span><span>{s.iterations} attempt(s)</span><span>{ago(s.created_at)}</span>
+                    {s.input_schema?.properties && <span>in: {Object.keys(s.input_schema.properties).join(', ')}</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: C.dim, marginTop: 2, fontStyle: 'italic' }}>from: {s.source_goal}</div>
+                  {s.failure && <div style={{ fontSize: 11, color: C.red, marginTop: 4, whiteSpace: 'pre-wrap' }}>{s.failure}</div>}
+                  {skillOut[s.id] && <pre style={{ fontSize: 10, color: skillOut[s.id].error ? C.red : C.green, margin: '6px 0 0', whiteSpace: 'pre-wrap' }}>{JSON.stringify(skillOut[s.id].output ?? skillOut[s.id], null, 1).slice(0, 600)}</pre>}
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {s.status === 'active' && <button disabled={busy} style={btn(C.cyan, true)} onClick={() => testSkill(s)}>test</button>}
+                  {s.status === 'active' && <button disabled={busy} style={btn(C.red, true)} onClick={() => act(`/api/intelligence/skills/${encodeURIComponent(s.id)}/retire`, { by: 'operator' }, () => `retired ${s.name}`)}>retire</button>}
+                  {s.status === 'retired' && <button disabled={busy} style={btn(C.green, true)} onClick={() => act(`/api/intelligence/skills/${encodeURIComponent(s.id)}/restore`, { by: 'operator' }, () => `restored ${s.name}`)}>restore</button>}
+                  {s.status === 'failed' && <button disabled={busy} style={btn(C.amber, true)} onClick={() => act('/api/intelligence/skills/crystallize', { loopId: s.source_loop_id, force: true }, j => j.crystallized ? `crystallized ${j.name}` : `refused: ${j.reason}`)}>retry</button>}
+                </div>
+              </div>
             </div>
           ))}
         </div>

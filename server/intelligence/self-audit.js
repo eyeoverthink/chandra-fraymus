@@ -341,10 +341,36 @@ function checkSelfModification() {
   return findings;
 }
 
+// ─── Check: skill forge (Phase AC) — proven programs that became tools must be used and must work ──
+function checkSkillForge() {
+  const findings = [];
+  const t = now();
+  const active = q(`SELECT id, name, calls, failures, created_at FROM forged_skills WHERE status = 'active'`) || [];
+  if (active.length >= 3) {
+    const called7d = q1(`SELECT COUNT(DISTINCT skill_id) AS c FROM forged_skill_calls WHERE created_at > ? AND agent_id IS NOT NULL AND agent_id != 'operator'`, t - 7 * DAY)?.c || 0;
+    const oldEnough = active.filter(s => s.created_at < t - 2 * DAY).length;
+    if (oldEnough >= 3 && called7d === 0) findings.push({
+      check: 'producer_without_consumer', subject: 'forged_skills→agent_calls', severity: 'REAL',
+      summary: `${active.length} forged skills are registered, ${oldEnough} for over 48 h, and no agent has called any in 7 days — crystallization is not capability`,
+      evidence: { active: active.length, oldEnough, calledByAgents7d: called7d },
+    });
+  }
+  const failing = active.filter(s => s.calls >= 10 && s.failures / s.calls > 0.5);
+  if (failing.length) findings.push({
+    check: 'credit_assignment', subject: 'forged_skills:failing_active', severity: 'REAL',
+    summary: `${failing.length} active skill(s) fail more than half their calls and were not retired: ${failing.map(f => f.name).join(', ')}`,
+    evidence: { skills: failing.map(f => ({ name: f.name, calls: f.calls, failures: f.failures })) },
+  });
+  const stuckComp = q1(`SELECT COUNT(*) AS c FROM skill_compositions WHERE status = 'running' AND created_at < ?`, t - 2 * H);
+  if (stuckComp?.c) findings.push({ check: 'stuck_transient', subject: 'skill_compositions.status', severity: 'REAL', summary: `${stuckComp.c} skill composition(s) stuck in 'running' for over 2 h`, evidence: { count: stuckComp.c } });
+  return findings;
+}
+
 const CHECKS = [
   ['repeated_action', checkRepeatedActions],
   ['credit_assignment', checkCreditAssignment],
   ['self_modification', checkSelfModification],
+  ['skill_forge', checkSkillForge],
   ['flat_metric', checkFlatMetrics],
   ['producer_without_consumer', checkProducersWithoutConsumers],
   ['written_never_read', checkUnreadGrowth],

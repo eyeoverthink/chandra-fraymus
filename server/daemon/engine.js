@@ -16,6 +16,7 @@ import { startNarrator, stopNarrator, getNarratorStatus } from '../intelligence/
 import { startTransientSweeper, stopTransientSweeper, getSweeperStatus } from '../intelligence/transient-sweeper.js';
 import { startSelfModification, stopSelfModification, getSelfModificationStatus, selfModificationCycle, maybeBuildFromBacklog, checkOuroborosAllowed } from '../intelligence/self-modification.js';
 import { startResearchScout, stopResearchScout, getResearchStatus, runResearchDemos } from '../intelligence/research-scout.js';
+import { startSkillForge, stopSkillForge, getSkillForgeStatus, skillForgeCycle } from '../intelligence/skill-forge.js';
 import { startSelfAudit, stopSelfAudit, getSelfAuditStatus } from '../intelligence/self-audit.js';
 import { startHiveMesh, stopHiveMesh, getHiveMeshStatus } from '../intelligence/hive-mesh.js';
 import { startHivePeers, stopHivePeers, getHivePeersStatus } from '../intelligence/hive-peers.js';
@@ -468,6 +469,16 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
       stepResults.researchDemos = { error: e.message };
     }
 
+    // Step 5.9: Skill forge (Phase AC) — one passed verification loop → sandboxed callable tool
+    // `skill.<name>` for the fleet (≤ skills.crystallize_per_day), then one composition goal a day
+    // that asks the verifier to combine two existing skills (the curriculum ladder)
+    try {
+      const sf = await skillForgeCycle({ trigger });
+      stepResults.skillForge = { crystallized: sf.crystallize?.crystallized ? sf.crystallize.name : (sf.crystallize?.reason || sf.reason || null), composition: sf.compose?.composed ? sf.compose.loopId : (sf.compose?.reason || null) };
+    } catch (e) {
+      stepResults.skillForge = { error: e.message };
+    }
+
     // Step 6: Ouroboros RSI cycle (autonomous codebase evolution) — gated: no new analysis
     // while the accepted backlog is not being consumed by the kernel's code tier
     try {
@@ -694,6 +705,11 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     console.error('research scout start error:', e.message);
   }
 
+  // Phase AC: skill forge — re-register every active forged skill as a fleet tool at boot
+  startSkillForge()
+    .then(sf => { if (sf.started) console.log(`[skills] forge started: ${sf.loaded} skill(s) registered, ≤ ${sf.perDay}/day, sandbox ${sf.sandboxFlags.join(' ')}`); })
+    .catch(e => console.error('skill forge start error:', e.message));
+
   // Phase P: goal executor (5min cycle — drains goal_proposals through the fleet) + debate sweeper
   try {
     const swept = sweepStaleDebates();
@@ -857,6 +873,7 @@ export function stopDaemon() {
   try { stopTransientSweeper(); } catch (_) {}
   try { stopSelfModification(); } catch (_) {}
   try { stopResearchScout(); } catch (_) {}
+  try { stopSkillForge(); } catch (_) {}
   try { stopSelfAudit(); } catch (_) {}
   try { stopHiveMesh(); } catch (_) {}
   try { stopHivePeers(); } catch (_) {}
@@ -915,6 +932,7 @@ export function getDaemonStatus() {
     externalSenses: getExternalSensesStatus(),
     sweeper: (() => { const s = getSweeperStatus(); return { running: s.running, sweeps: s.sweeps, totals: s.totals, currentlyStuck: s.currentlyStuck, lastAt: s.lastAt }; })(),
     researchScout: (() => { try { const s = getResearchStatus(); return { running: s.running, scans: s.scans, lastScanAt: s.lastScanAt, items: s.items, relevantItems: s.relevantItems, proposals: s.proposals, pendingExperiment: s.pendingExperiment && s.pendingExperiment.tunable, pendingCode: s.pendingCode && s.pendingCode.targetFile }; } catch (e) { return { error: e.message }; } })(),
+    skillForge: (() => { try { const s = getSkillForgeStatus(); return { enabled: s.enabled, running: s.running, registered: s.registered, counts: s.counts, calls24h: s.calls24h, compositions: s.compositions, nextCandidate: s.nextCandidate && s.nextCandidate.loopId, outcomes: s.outcomes, cycles: s.cycles, crystallizing: s.crystallizing }; } catch (e) { return { error: e.message }; } })(),
     selfModification: (() => { try { const s = getSelfModificationStatus(); return { enabled: s.enabled, running: s.running, cycles: s.cycles, experiment: s.experiment && { id: s.experiment.id, tunable: s.experiment.tunable, before: s.experiment.before_value, after: s.experiment.after_value, remainingMs: s.experiment.remainingMs }, verdicts: s.verdicts, code: s.code.counts, ouroborosBacklog: s.ouroboros.backlog, objective: s.objectiveNow.objective }; } catch (e) { return { error: e.message }; } })(),
     narrator: (() => { const s = getNarratorStatus(); return { running: s.running, overlayClients: s.overlayClients, spoken: s.spoken, textOnly: s.textOnly, dropped: s.dropped, ttsErrors: s.ttsErrors, queued: s.queued, lastLine: s.lastLine, last24h: s.last24h }; })(),
     worldPollers: (() => { const s = getWorldPollersStatus(); return { running: s.running, polls: s.polls, lastPollAt: s.lastPollAt, observations24h: s.observations24h, interests: s.interests.map(i => i.query), errors: s.errors.slice(-3) }; })(),

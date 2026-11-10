@@ -37,6 +37,7 @@ const NAV_GROUPS = [
       { panel: 'cross-tab', title: 'Cross-Tab Intelligence', icon: '🌐', label: 'Cross-Tab' },
       { panel: 'ouroboros-cycle', title: 'Ouroboros RSI', icon: '🐍', label: 'Ouroboros RSI' },
       { panel: 'ouroboros-lineage', title: 'Ouroboros Lineage', icon: '🧬', label: 'Lineage' },
+      { panel: 'selfmod', title: 'Self-Modification Kernel', icon: '🔩', label: 'Self-Mod Kernel' },   // Phases Y–AC: tunables, experiments, code branches, conventions, research, skills
     ],
   },
   {

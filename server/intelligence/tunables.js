@@ -38,6 +38,8 @@ export const REGISTRY = {
   // Added 2026-11-09 after a bridge peer flagged 76 digests in 24 h (one every 15 min — "≥ 2 outcomes" is always true at 18 goals/h)
   'hive.digest_min_gap_ms': { env: 'HIVE_DIGEST_MIN_GAP_MS', default: 2 * 3_600_000, min: 15 * 60_000, max: 12 * 3_600_000, step: 15 * 60_000, unit: 'ms', module: 'hive-peers.js', effect: 'raising it posts fewer digests to the shared fraymus-bridge' },
   'hive.digest_min_outcomes': { env: 'HIVE_DIGEST_MIN_OUTCOMES', default: 8, min: 2, max: 100, step: 1, unit: 'outcomes', module: 'hive-peers.js', effect: 'raising it requires more goal outcomes before a digest counts as worth posting' },
+  // Phase AC (2026-11-10): how many proven programs may become callable skills per day
+  'skills.crystallize_per_day': { env: 'SKILL_CRYSTALLIZE_PER_DAY', default: 3, min: 0, max: 12, step: 1, unit: 'skills', module: 'skill-forge.js', effect: 'raising it lets more verified fossils be crystallized into sandboxed agent tools each day (each costs ~2 coder-model calls)' },
 };
 export const TUNABLE_NAMES = Object.keys(REGISTRY);
 

@@ -25,6 +25,7 @@ import { narrate, getNarratorStatus } from '../intelligence/narrator.js';
 import { getSelfModificationStatus, startExperiment, buildCodeProposal, ruleProposals as smkRuleProposals, listExperiments as smkListExperiments, listCodeProposals as smkListCode } from '../intelligence/self-modification.js';
 import { listTunables } from '../intelligence/tunables.js';
 import { getResearchStatus, scanResearch, listResearchItems, listResearchProposals, translateItem } from '../intelligence/research-scout.js';
+import { getSkillForgeStatus, listSkills as listForgedSkills, getSkill as getForgedSkill, invokeSkill as invokeForgedSkill, crystallize as crystallizeSkill } from '../intelligence/skill-forge.js';
 import { getHivePeersStatus, syncBridge, postDigest } from '../intelligence/hive-peers.js';
 import { getAdaptiveStatus, getAdaptiveModifiers, isActionSuppressed, isActionPreferred } from '../intelligence/adaptive-strategy.js';
 import { getSelfModelStatus, getSystemMap, lookupSubsystem, buildSpatialContext, buildSubsystemContext } from '../intelligence/self-model.js';
@@ -469,7 +470,7 @@ export function createFleetTools({ workflowStore }) {
         text: string(300, { description: 'The line to speak' }),
         mode: { type: 'string', description: 'Optional: "status"' },
       }),
-      execute: async (params, context) => {
+      execute: async ({ args: params = {} }, context) => { // runtime calls execute({ args }, ctx) — fixed 2026-11-10, these four read undefined params before
         if (params.mode === 'status') return getNarratorStatus();
         const agentId = context?.agent?.id || context?.agentId || 'agent';
         const r = await narrate(String(params.text || ''), { kind: 'agent', source: `agent:${agentId}` });
@@ -491,7 +492,7 @@ export function createFleetTools({ workflowStore }) {
         targetFile: { type: 'string', description: 'code: one existing file under server/ or client/src' },
         sketch: { type: 'string', description: 'code: what to change, concretely' },
       }),
-      execute: async (params, context) => {
+      execute: async ({ args: params = {} }, context) => { // runtime calls execute({ args }, ctx) — fixed 2026-11-10, these four read undefined params before
         const agentId = context?.agent?.id || context?.agentId || 'agent';
         const mode = params.mode || 'status';
         if (mode === 'tunables') return { tunables: listTunables() };
@@ -520,7 +521,7 @@ export function createFleetTools({ workflowStore }) {
         topic: { type: 'string', description: 'items: topic id filter' },
         itemId: { type: 'string', description: 'translate: research item id, e.g. arxiv:2511.01234' },
       }),
-      execute: async (params, context) => {
+      execute: async ({ args: params = {} }, context) => { // runtime calls execute({ args }, ctx) — fixed 2026-11-10, these four read undefined params before
         const agentId = context?.agent?.id || context?.agentId || 'agent';
         const mode = params.mode || 'status';
         if (mode === 'items') return { items: listResearchItems({ topic: params.topic || null, limit: 20, minRelevance: 0.2 }) };
@@ -528,6 +529,26 @@ export function createFleetTools({ workflowStore }) {
         if (mode === 'scan') { ledger.record('research.scan', { agent: agentId }, 'fleet'); return scanResearch({ trigger: `agent:${agentId}` }); }
         if (mode === 'translate' && params.itemId) return translateItem(String(params.itemId));
         return getResearchStatus();
+      },
+    },
+    {
+      name: 'skill_forge',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'The Skill Forge (Phase AC): programs the verifier proved by execution are crystallized into sandboxed tools named skill.<name> that every agent can call directly (they appear in your tool list). Mode "status" (default): counts, calls in 24 h, outcome comparison with/without skills, next fossil candidate. Mode "list": active skills with description, input schema and examples. Mode "test": run one skill by id or name with an input object. Mode "crystallize": turn the next passed verification loop (or loopId) into a skill now — two coder-model calls plus sandbox smoke tests, minutes.',
+      parameters: object({
+        mode: { type: 'string', description: '"status" | "list" | "test" | "crystallize"' },
+        skill: { type: 'string', description: 'test: skill id (sk_…) or name (skill.…)' },
+        input: { type: 'object', description: 'test: input object matching the skill\'s input schema' },
+        loopId: { type: 'string', description: 'crystallize: a passed verification loop id (optional)' },
+      }),
+      execute: async ({ args: params = {} }, context) => {
+        const agentId = context?.agent?.id || context?.agentId || 'agent';
+        const mode = params.mode || 'status';
+        if (mode === 'list') return { skills: listForgedSkills({ status: 'active', limit: 40 }).map(s => ({ id: s.id, name: s.name, description: s.description, input_schema: s.input_schema, examples: s.examples.slice(0, 2), calls: s.calls, failures: s.failures })) };
+        if (mode === 'test') { const s = getForgedSkill(String(params.skill || '')); if (!s) return { error: 'unknown skill' }; return invokeForgedSkill(s.id, params.input || s.examples[0]?.input || {}, context || {}); }
+        if (mode === 'crystallize') { ledger.record('skills.crystallize', { agent: agentId, loopId: params.loopId || null }, 'fleet'); return crystallizeSkill({ loopId: params.loopId || null, trigger: `agent:${agentId}` }); }
+        return getSkillForgeStatus();
       },
     },
     {
@@ -542,7 +563,7 @@ export function createFleetTools({ workflowStore }) {
         question: string(500, { description: 'Optional question the analysis should answer' }),
         runId: string(40, { description: 'Run id (for mode status)' }),
       }),
-      execute: async (params, context) => {
+      execute: async ({ args: params = {} }, context) => { // runtime calls execute({ args }, ctx) — fixed 2026-11-10, these four read undefined params before
         const mode = params.mode || 'start';
         if (mode === 'list') return { ...getReaStatus(), runs: listReaRuns({ limit: 10 }) };
         if (mode === 'status') {

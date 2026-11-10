@@ -274,7 +274,7 @@ export async function runVerifierLoop(goal, { language, maxIterations, context, 
       try {
         storeMemory('system', 'fossil', `verified:${goal.slice(0, 100)}`, JSON.stringify({
           goal, code: currentCode.slice(0, 4000), language: language || 'auto',
-          iterations: iteration, verifiedAt: now(),
+          iterations: iteration, verifiedAt: now(), loopId, // Phase AC: the skill forge crystallizes by loop id
         }), { confidence: 1.0, source: 'verifier-loop' });
       } catch (_) {}
 
