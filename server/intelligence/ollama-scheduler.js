@@ -70,7 +70,23 @@ function pushRecent(entry) {
   if (recent.length > 30) recent.shift();
 }
 
+// GPU lease support (media/gpu-lease.js): while paused nothing new is admitted. Jobs already running
+// finish; queued jobs keep their normal max-wait, so low-priority work is dropped rather than piling
+// up behind a long render, and interactive requests wait for the lease to end.
+let pausedBy = null;
+let pausedAt = 0;
+export function pauseOllama(reason) { if (!pausedBy) pausedAt = now(); pausedBy = String(reason || 'paused').slice(0, 80); return { paused: true, by: pausedBy }; }
+export function resumeOllama() { const was = pausedBy; pausedBy = null; pausedAt = 0; pump(); return { resumed: true, was }; }
+export function ollamaPaused() { return pausedBy ? { by: pausedBy, forMs: now() - pausedAt } : null; }
+/** Resolves true once no Ollama job is running, or false at the deadline. */
+export async function waitForOllamaIdle(timeoutMs = 120_000) {
+  const deadline = now() + timeoutMs;
+  while (running > 0 && now() < deadline) await new Promise(r => setTimeout(r, Math.max(10, Math.min(500, deadline - now()))));
+  return running === 0;
+}
+
 function pump() {
+  if (pausedBy) return;
   while (running < maxConcurrent() && queue.length) {
     queue.sort((a, b) => a.prio - b.prio || a.enqueuedAt - b.enqueuedAt);
     const job = queue.shift();
@@ -155,6 +171,7 @@ export function getSchedulerStatus() {
   return {
     maxConcurrent: maxConcurrent(),
     maxQueue: MAX_QUEUE,
+    paused: ollamaPaused(),
     running,
     runningJobs: [...runningJobs.values()].map(r => ({ label: r.label, class: CLASS_NAMES[r.prio], runningMs: now() - r.startedAt })),
     queued: queue.length,
