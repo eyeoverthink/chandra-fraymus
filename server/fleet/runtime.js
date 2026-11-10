@@ -98,6 +98,9 @@ export function addFleetTools(tools) {
   return toolRegistry.length;
 }
 
+/** What the run loop can actually offer agents — the registry, not the manifests' wish lists. */
+export function fleetToolNames() { return toolRegistry.map(t => t.name); }
+
 export function removeFleetTools(names) {
   const drop = new Set(names);
   toolRegistry = toolRegistry.filter(t => !drop.has(t.name));
@@ -108,6 +111,8 @@ function getManifest(id) {
   if (!manifests) manifests = loadManifests();
   return manifests.get(id);
 }
+
+import { narratedToolCall, nudgeMessage, unverifiedMessage, MAX_NARRATION_NUDGES } from './narration-guard.js';
 
 function matchesTool(allow, name) {
   if (allow === '*') return true;
@@ -471,6 +476,7 @@ async function drive(runId, depth = 0) {
     } catch (_) {}
   }
 
+  let narrationNudges = 0;
   for (let step = run.steps || 0; step < MAX_STEPS; step++) {
     // Harness Law 3: Budget bands — fire warnings at 60/75/85%
     const { firedNow, inReserve, newFired } = budgetBands(step + 1, MAX_STEPS, envelope.budget.fired);
@@ -522,10 +528,27 @@ async function drive(runId, depth = 0) {
     broadcastFn('fleet', { type: 'step', runId, step: step + 1 });
 
     if (!res.tool_calls.length) {
+      // Narration guard: a described-but-never-made tool call carries invented evidence. One nudge
+      // to make the real call; if the model narrates again the run still ends, flagged unverified.
+      const claimed = narratedToolCall(res.content, tools);
+      // a reply that reports a tool this run really called is a summary, not a narration
+      const reallyCalled = claimed && db.prepare("SELECT 1 FROM messages WHERE run_id = ? AND role = 'tool' AND name = ? LIMIT 1").get(runId, claimed);
+      const narrated = reallyCalled ? null : claimed;
+      if (narrated) {
+        const nudged = narrationNudges < MAX_NARRATION_NUDGES;
+        ledger.record('fleet.narrated_tool_call', { agent: agent.id, tool: narrated, step, runId, nudged }, 'fleet');
+        broadcastFn('fleet', { type: 'narrated_tool_call', runId, agentId: agent.id, tool: narrated, nudged });
+        addMsg(run.thread_id, runId, { role: 'system', content: nudged ? nudgeMessage(narrated, tools) : unverifiedMessage(narrated) });
+        if (nudged) { narrationNudges++; continue; }
+      }
       setRun(runId, { status: 'done' });
       broadcastFn('fleet', { type: 'done', runId, status: 'done', harness: { steps: envelope.steps.length, evidence: true } });
-      try { autoStoreFromCompletion(agent.id, lastUser?.content, res.content); } catch (_) {}
-      try { replayRecord(agent.id, lastUser?.content || '', agent.model, envelope.steps, 0.5, step + 1); } catch (_) {}
+      // a reply flagged as invented tool output is never remembered: the first fabricated answer
+      // (4211) was stored as an `outcome` memory and came back verbatim in a later, unrelated run
+      if (!narrated) {
+        try { autoStoreFromCompletion(agent.id, lastUser?.content, res.content); } catch (_) {}
+        try { replayRecord(agent.id, lastUser?.content || '', agent.model, envelope.steps, 0.5, step + 1); } catch (_) {}
+      }
       if (depth === 0) try { recordOutcome({ success: true, summary: `${agent.id} completed in ${step + 1} steps`, effectivePerspectives: null }); } catch (_) {}
       return;
     }

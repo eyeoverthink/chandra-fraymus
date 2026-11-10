@@ -13,7 +13,7 @@ import { modelForAgent, replyWithModel, setBrainMemoryBridge } from './brain.js'
 import { ingestFleetSnapshot } from './fleet.js';
 import { migrateWorkspaces } from './db-migrate.js';
 import { join } from 'node:path';
-import { initFleet, setFleetTools, startRun, callToolDirect } from './fleet/runtime.js';
+import { initFleet, setFleetTools, addFleetTools, startRun, callToolDirect } from './fleet/runtime.js';
 import { initMcp, mcpServers, importServers, removeServer } from './mcp/client.js';
 import { createToken } from './mcp/auth.js';
 import { initScheduler, startScheduler, stopScheduler, listAutomations, saveAutomation, deleteAutomation, runAutomation, automationRuns } from './automations/scheduler.js';
@@ -395,6 +395,11 @@ listenThenInitialize(server,{host:HOST,port:PORT,initialize:async()=>{
   await runtime.tasks.start();
   if(stopping)return;
   try { initFleet({ broadcast, vertiso: runtime.vertiso, rsi: runtime.rsi, memoryBridge: runtime.memoryBridge }); } catch(e) { console.error(`Fleet init deferred: ${e.message}`); }
+  // Phase AD: the fleet run loop's registry is only ever filled by addFleetTools (setFleetTools has no
+  // call site), so a static tool declared for every agent must be registered here to be callable.
+  // Deliberately narrow: only group 'skill' + forAllAgents (today: `reason`) — the same contract as
+  // forged skills. Giving the fleet the other ~250 tools is an operator decision, not a side effect.
+  try { const n = addFleetTools((runtime.fleetTools || []).filter(t => t.group === 'skill' && t.forAllAgents)); console.log(`fleet: ${n} tool(s) in the run-loop registry after static skill tools`); } catch(e) { console.error(`Fleet static skill tools: ${e.message}`); }
   if (runtime.memoryBridge) setBrainMemoryBridge(runtime.memoryBridge);
   try { await initMcp(join(DATA_DIR, 'mcp-servers.json')); } catch(e) { console.error(`MCP client deferred: ${e.message}`); }
   try {

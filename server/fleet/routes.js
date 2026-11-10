@@ -1,7 +1,7 @@
 import {
   startRun, decideApproval, listAgents, getAgent,
   saveAgentManifest, resetAgentManifest, listThreads, getThread,
-  getQueueStatus, reloadManifests,
+  getQueueStatus, reloadManifests, fleetToolNames,
 } from './runtime.js';
 
 export function installFleetRoutes(app) {
@@ -64,6 +64,7 @@ export function installFleetRoutes(app) {
     res.json({
       streaming: true,
       parallelTools: true,
+      registeredTools: fleetToolNames(),
       hotReload: true,
       queue,
       agentCount: agents.length,
