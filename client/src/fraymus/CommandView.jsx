@@ -13,7 +13,9 @@ const FALLBACK_PROMPTS = [
 const SHELF_KINDS = [
   { id: 'site', label: 'Sites' }, { id: 'wiki', label: 'Wikis' }, { id: 'draft', label: 'Drafts' },
   { id: 'report', label: 'Reports' }, { id: 'client', label: 'API clients' },
+  { id: 'image', label: 'Images' }, { id: 'video', label: 'Video' }, { id: 'audio', label: 'Audio' },
 ];
+const MEDIA_KINDS = ['image', 'video', 'audio'];
 
 function ago(ms) {
   const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
@@ -89,6 +91,7 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
 
   async function openArtifact(item) {
     if (item.kind === 'site') { window.open(item.url, '_blank', 'noopener'); return; }
+    if (MEDIA_KINDS.includes(item.kind)) { setViewer({ kind: item.kind, title: item.title, format: 'media', media: item.media, detail: item.detail }); return; }
     try {
       setViewer(await api(`/api/hermes/artifacts/read?kind=${encodeURIComponent(item.kind)}&id=${encodeURIComponent(item.id)}`));
     } catch (error) {
@@ -409,6 +412,8 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
               <div className="shelf-row">
                 {shelf.artifacts.map(item => (
                   <button type="button" key={item.kind + item.id} className={`shelf-card kind-${item.kind}`} onClick={() => openArtifact(item)} title={item.kind === 'site' ? 'Opens in a new tab' : 'Opens here'}>
+                    {item.kind === 'image' && <img className="shelf-thumb" src={item.media} alt="" loading="lazy" />}
+                    {item.kind === 'video' && <video className="shelf-thumb" src={`${item.media}#t=0.5`} preload="metadata" muted playsInline />}
                     <span className="shelf-kind">{item.kind}</span>
                     <strong>{item.title}</strong>
                     <span className="shelf-meta">{item.detail} · {ago(item.at)}</span>
@@ -455,13 +460,23 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
             <header>
               <div><span className="shelf-kind">{viewer.kind}</span><strong>{viewer.title}</strong></div>
               <div>
-                <button type="button" onClick={() => { navigator.clipboard?.writeText(viewer.text).then(() => setBanner('Copied.'), () => setBanner('Copy was blocked by the browser.')); }}>Copy</button>
+                {viewer.format !== 'media' && <button type="button" onClick={() => { navigator.clipboard?.writeText(viewer.text).then(() => setBanner('Copied.'), () => setBanner('Copy was blocked by the browser.')); }}>Copy</button>}
+                {viewer.format === 'media' && <a className="viewer-link" href={viewer.media} target="_blank" rel="noopener noreferrer">Open file</a>}
                 <button type="button" onClick={() => { setText(`About "${viewer.title}": `); setViewer(null); inputRef.current?.focus(); }}>Ask about it</button>
                 <button type="button" onClick={() => setViewer(null)}>Close</button>
               </div>
             </header>
             {viewer.path && <p className="muted">{viewer.path}</p>}
-            <pre className={viewer.format === 'code' ? 'code' : ''}>{viewer.text}</pre>
+            {viewer.format === 'media' ? (
+              <div className="viewer-media">
+                {viewer.kind === 'image' && <img src={viewer.media} alt={viewer.title} />}
+                {viewer.kind === 'video' && <video src={viewer.media} controls autoPlay playsInline />}
+                {viewer.kind === 'audio' && <audio src={viewer.media} controls autoPlay />}
+                <p className="muted">{viewer.detail}</p>
+              </div>
+            ) : (
+              <pre className={viewer.format === 'code' ? 'code' : ''}>{viewer.text}</pre>
+            )}
           </div>
         </div>
       )}

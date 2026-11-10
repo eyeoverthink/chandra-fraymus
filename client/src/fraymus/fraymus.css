@@ -364,3 +364,12 @@
 .viewer header strong { overflow-wrap: anywhere; }
 .viewer pre { margin: 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.55 "Segoe UI", system-ui, sans-serif; border-top: 1px solid var(--line); padding-top: 10px; }
 .viewer pre.code { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }
+
+/* Shelf media */
+.shelf-thumb { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 8px; background: #03060a; display: block; }
+.kind-image .shelf-kind, .kind-video .shelf-kind { color: #c4a6ff; }
+.kind-audio .shelf-kind { color: #ffb86b; }
+.viewer-media { display: flex; flex-direction: column; align-items: center; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; overflow: auto; }
+.viewer-media img, .viewer-media video { max-width: 100%; max-height: 66vh; border-radius: 10px; background: #03060a; }
+.viewer-media audio { width: min(520px, 100%); }
+.viewer-link { color: var(--cyan); font-size: 13px; text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; }

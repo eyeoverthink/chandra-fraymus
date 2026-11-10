@@ -124,4 +124,6 @@ flow now enforce in running code.
 
 The home screen now has a **Made here** shelf under the capability deck: every site, code wiki, API client, reverse-engineering report and draft the agents have produced, newest first, with a filter per kind. Sites open in a new tab; everything else opens in an in-page viewer with Copy and "Ask about it" (which starts a question about that artifact). At first load it listed six real items: one site, two wiki pages, two REA reports and one script draft.
 
-Not on the shelf yet: generated images, video and audio (they live under the media engine's own folders and need a thumbnail view), and forged skills (they have their own tab in Self-Mod).
+**Images, video and audio are on the shelf** (added the same evening): thumbnails on the cards, an in-page player, and a filter per kind. At build time: 18 images, 8 videos, 1,098 audio files. Audio is limited to the two newest in the mixed view because the narrator records a line every few minutes; the Audio filter shows all of them, titled with what was said. Images and videos are titled only by kind and time — no prompt is stored with them yet.
+
+Not on the shelf: forged skills (they have their own tab in Self-Mod).

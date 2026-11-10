@@ -76,10 +76,23 @@ test('artifact shelf lists what exists and refuses to read outside its folders',
   const { listArtifacts, readArtifact } = await import('../server/hermes/free-tools.js');
   const all = listArtifacts({ limit: 100 });
   assert.equal(typeof all.total, 'number');
-  assert.ok(all.artifacts.every(a => ['site', 'wiki', 'client', 'report', 'draft'].includes(a.kind) && a.title && a.at >= 0));
+  assert.ok(all.artifacts.every(a => ['site', 'wiki', 'client', 'report', 'draft', 'image', 'video', 'audio'].includes(a.kind) && a.title && a.at >= 0));
   assert.deepEqual([...all.artifacts].sort((a, b) => b.at - a.at).map(a => a.id), all.artifacts.map(a => a.id), 'newest first');
   for (const a of all.artifacts.filter(x => x.kind === 'site')) assert.match(a.url, /^http:\/\/127\.0\.0\.1:\d+\/sites\/[a-z0-9-]+\/$/);
-  for (const a of all.artifacts.filter(x => x.kind !== 'site').slice(0, 6)) { const r = readArtifact(a.kind, a.id); assert.ok(r && typeof r.text === 'string' && r.text.length > 0, `${a.kind} ${a.id}`); }
+  for (const a of all.artifacts.filter(x => ['wiki', 'client', 'report', 'draft'].includes(x.kind)).slice(0, 6)) { const r = readArtifact(a.kind, a.id); assert.ok(r && typeof r.text === 'string' && r.text.length > 0, `${a.kind} ${a.id}`); }
   assert.ok(listArtifacts({ kind: 'wiki' }).artifacts.every(a => a.kind === 'wiki'));
   for (const [kind, id] of [['wiki', '../../.env'], ['wiki', '..%2F..%2F.env/x.md'], ['wiki', 'a/../../.env'], ['client', '../chandra.db'], ['client', 'x.js'], ['report', '../../package.json'], ['report', 'C:/Windows/win.ini'], ['site', 'anything'], ['nope', 'x'], ['draft', 'no-such-id']]) assert.equal(readArtifact(kind, id), null, `${kind}:${id}`);
+});
+
+test('media on the shelf: typed, capped when unfiltered, and only reachable by bare file name', async () => {
+  const { listArtifacts, mediaFile } = await import('../server/hermes/free-tools.js');
+  const all = listArtifacts({ limit: 100 });
+  assert.ok(all.artifacts.filter(a => a.kind === 'audio').length <= 2, 'narration audio must not bury the shelf');
+  for (const kind of ['image', 'video', 'audio']) {
+    const only = listArtifacts({ kind, limit: 5 }).artifacts;
+    assert.ok(only.every(a => a.kind === kind && a.media.startsWith('/api/hermes/artifacts/media?kind=' + kind + '&id=')));
+    for (const a of only.slice(0, 2)) { const f = mediaFile(kind, a.id); assert.ok(f && f.mime.startsWith(kind + '/'), kind + ' ' + a.id + ' → ' + (f && f.mime)); }
+    if (all.counts[kind]) assert.ok(all.counts[kind] >= only.length);
+  }
+  for (const [kind, id] of [['image', '../chandra.db'], ['image', '..\..\.env'], ['image', 'a/b.png'], ['image', 'chandra.db'], ['audio', '../../.env'], ['video', 'C:/Windows/win.ini'], ['audio', 'x.png'], ['doc', 'x.png'], ['image', '']]) assert.equal(mediaFile(kind, id), null, kind + ':' + id);
 });

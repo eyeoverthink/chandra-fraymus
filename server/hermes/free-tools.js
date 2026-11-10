@@ -420,7 +420,26 @@ function dirEntries(dir) { try { return readdirSync(dir, { withFileTypes: true }
 function mtime(p) { try { return statSync(p).mtimeMs; } catch (_) { return 0; } }
 function firstHeading(file, fallback) { try { const m = readFileSync(file, 'utf8').slice(0, 2000).match(/^#\s+(.+)$/m) || readFileSync(file, 'utf8').slice(0, 4000).match(/<title>([^<]+)<\/title>/i); return m ? decodeEntities(m[1]).trim().slice(0, 120) : fallback; } catch (_) { return fallback; } }
 
-/** kinds: site (opens in the browser), wiki | client | report | draft (read in the viewer). */
+// media the engines wrote: images (data/media, plus GIFs from the video engine), video (data/video), audio (data/tts)
+const MEDIA_DIRS = { image: [join(DATA_DIR, 'media'), join(DATA_DIR, 'video')], video: [join(DATA_DIR, 'video')], audio: [join(DATA_DIR, 'tts')] };
+const MEDIA_EXT = { image: /\.(png|jpe?g|webp|gif)$/i, video: /\.(mp4|webm|mov)$/i, audio: /\.(mp3|wav|ogg)$/i };
+const MEDIA_MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg' };
+const UNFILTERED_AUDIO_CAP = 2; // the narrator speaks every few minutes; unfiltered, audio would bury everything else
+const stamp = name => { const m = /^(\d{13})-/.exec(name); return m ? Number(m[1]) : 0; }; // engines name files <epoch ms>-<id>.<ext>
+const when = ms => new Date(ms).toISOString().slice(0, 16).replace('T', ' ');
+function mediaItems(kind) {
+  const out = [];
+  for (const dir of MEDIA_DIRS[kind]) for (const f of dirEntries(dir)) if (f.isFile() && MEDIA_EXT[kind].test(f.name)) { const at = stamp(f.name) || mtime(join(dir, f.name)); out.push({ kind, id: f.name, title: `${kind[0].toUpperCase()}${kind.slice(1)} · ${when(at)}`, detail: extname(f.name).slice(1).toLowerCase(), media: `/api/hermes/artifacts/media?kind=${kind}&id=${encodeURIComponent(f.name)}`, at }); }
+  return out;
+}
+/** Absolute path of one media file, or null. The id must be a bare file name of the right type inside that kind's folders. */
+export function mediaFile(kind, id) {
+  if (!MEDIA_DIRS[kind] || !safeName(id) || !MEDIA_EXT[kind].test(String(id))) return null;
+  for (const dir of MEDIA_DIRS[kind]) { const full = join(dir, String(id)); if (existsSync(full) && statSync(full).isFile()) return { path: full, mime: MEDIA_MIME[extname(full).toLowerCase()] || 'application/octet-stream' }; }
+  return null;
+}
+
+/** kinds: site (opens in the browser) · wiki | client | report | draft (read in the viewer) · image | video | audio (played in the viewer). */
 export function listArtifacts({ limit = 24, kind = null } = {}) {
   const out = [];
   const port = SERVER_PORT;
@@ -429,9 +448,16 @@ export function listArtifacts({ limit = 24, kind = null } = {}) {
   for (const f of dirEntries(HAR_DIR)) if (f.isFile() && f.name.endsWith('.mjs')) out.push({ kind: 'client', id: f.name, title: `API client: ${f.name.replace(/\.mjs$/, '')}`, detail: 'ES module', at: mtime(join(HAR_DIR, f.name)) });
   for (const f of dirEntries(REA_DIR)) if (f.isFile() && f.name.endsWith('.md')) out.push({ kind: 'report', id: f.name, title: firstHeading(join(REA_DIR, f.name), `REA report ${f.name}`), detail: 'reverse-engineering report', at: mtime(join(REA_DIR, f.name)) });
   try { for (const r of db.prepare(`SELECT id, preset, topic, status, created_at FROM fraymus_os_artifacts ORDER BY created_at DESC LIMIT 40`).all()) out.push({ kind: 'draft', id: r.id, title: r.topic, detail: `${String(r.preset).replace(/-/g, ' ')} · ${r.status}`, at: r.created_at }); } catch (e) { if (!/no such table/.test(e.message)) console.error('[hermes] draft artifacts:', e.message); }
-  const filtered = kind ? out.filter(a => a.kind === kind) : out;
+  const media = { image: mediaItems('image'), video: mediaItems('video'), audio: mediaItems('audio').sort((a, b) => b.at - a.at) };
   const counts = out.reduce((m, a) => (m[a.kind] = (m[a.kind] || 0) + 1, m), {});
-  return { total: out.length, counts, artifacts: filtered.sort((a, b) => b.at - a.at).slice(0, limit) };
+  for (const k of Object.keys(media)) if (media[k].length) counts[k] = media[k].length;
+  const total = out.length + media.image.length + media.video.length + media.audio.length;
+  const pool = kind ? (media[kind] || out.filter(a => a.kind === kind)) : [...out, ...media.image, ...media.video, ...media.audio.slice(0, UNFILTERED_AUDIO_CAP)];
+  const artifacts = pool.sort((a, b) => b.at - a.at).slice(0, limit);
+  // spoken lines get their text as the title (the narrator stores what each file says)
+  const spoken = artifacts.filter(a => a.kind === 'audio');
+  if (spoken.length) { try { const find = db.prepare(`SELECT text FROM narrations WHERE audio_url = ? LIMIT 1`); for (const a of spoken) { const row = find.get(`/tts/${a.id}`); if (row?.text) { a.title = clip(row.text, 110); a.detail = `narration · ${a.detail}`; } } } catch (e) { if (!/no such table/.test(e.message)) console.error('[hermes] narration titles:', e.message); } }
+  return { total, counts, artifacts };
 }
 
 /** Text of one non-site artifact. Names are checked against a strict pattern; nothing outside data/ is readable. */
@@ -460,7 +486,9 @@ export function installHermesRoutes(app, { express } = {}) {
   app.get('/api/hermes', route((req, res) => res.json(hermesStatus())));
   app.get('/api/hermes/skills', route((req, res) => res.json({ skills: HERMES_SKILLS })));
   app.get('/api/hermes/brief', route((req, res) => res.json(morningBrief())));
-  app.get('/api/hermes/artifacts', route((req, res) => res.json(listArtifacts({ limit: Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 24)), kind: ['site', 'wiki', 'client', 'report', 'draft'].includes(req.query.kind) ? req.query.kind : null }))));
+  app.get('/api/hermes/artifacts', route((req, res) => res.json(listArtifacts({ limit: Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 24)), kind: ['site', 'wiki', 'client', 'report', 'draft', 'image', 'video', 'audio'].includes(req.query.kind) ? req.query.kind : null }))));
+  // media bytes go through /api so the dev proxy and the built client both reach them same-origin
+  app.get('/api/hermes/artifacts/media', (req, res, next) => { try { const f = mediaFile(String(req.query.kind || ''), String(req.query.id || '')); if (!f) return res.status(404).json({ error: 'media not found' }); res.setHeader('Content-Type', f.mime); res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Cache-Control', 'private, max-age=3600'); res.sendFile(f.path, err => { if (err && !res.headersSent) next(err); }); } catch (e) { next(e); } });
   app.get('/api/hermes/artifacts/read', route((req, res) => { const a = readArtifact(String(req.query.kind || ''), String(req.query.id || '')); return a ? res.json(a) : res.status(404).json({ error: 'artifact not found' }); }));
   app.get('/api/hermes/sites', route((req, res) => { let sites = []; try { sites = readdirSync(SITES_DIR, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => ({ slug: d.name, url: `/sites/${d.name}/` })); } catch (_) { /* no sites yet */ } res.json({ sites }); }));
   // operator call of a safe tool; approval-labelled tools only run through an agent's approval flow
