@@ -17,6 +17,7 @@ import { startTransientSweeper, stopTransientSweeper, getSweeperStatus } from '.
 import { startSelfModification, stopSelfModification, getSelfModificationStatus, selfModificationCycle, maybeBuildFromBacklog, checkOuroborosAllowed } from '../intelligence/self-modification.js';
 import { startResearchScout, stopResearchScout, getResearchStatus, runResearchDemos } from '../intelligence/research-scout.js';
 import { startSkillForge, stopSkillForge, getSkillForgeStatus, skillForgeCycle } from '../intelligence/skill-forge.js';
+import { startGeneralIntelligence, stopGeneralIntelligence, getGeneralIntelligenceStatus, generalIntelligenceCycle } from '../intelligence/general-intelligence.js';
 import { startSelfAudit, stopSelfAudit, getSelfAuditStatus } from '../intelligence/self-audit.js';
 import { startHiveMesh, stopHiveMesh, getHiveMeshStatus } from '../intelligence/hive-mesh.js';
 import { startHivePeers, stopHivePeers, getHivePeersStatus } from '../intelligence/hive-peers.js';
@@ -479,6 +480,16 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
       stepResults.skillForge = { error: e.message };
     }
 
+    // Step 5.95: General intelligence core (Phase AD) — when due, start a capability benchmark
+    // (fresh machine-graded problems → g-score, strategy bandit update); otherwise distil one
+    // lesson from recent failures and A/B-test it. Both run in the background, single-flight.
+    try {
+      const gi = await generalIntelligenceCycle({ trigger });
+      stepResults.generalIntelligence = { action: gi.action || null, started: gi.started ?? null, reason: gi.reason || null, runId: gi.runId || null };
+    } catch (e) {
+      stepResults.generalIntelligence = { error: e.message };
+    }
+
     // Step 6: Ouroboros RSI cycle (autonomous codebase evolution) — gated: no new analysis
     // while the accepted backlog is not being consumed by the kernel's code tier
     try {
@@ -705,6 +716,14 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     console.error('research scout start error:', e.message);
   }
 
+  // Phase AD: general intelligence core — close benchmark/lesson rows a previous process left open
+  try {
+    const gi = startGeneralIntelligence();
+    console.log(`[capability] general intelligence core started (closed ${gi.closedRuns} run(s), ${gi.closedLessons} lesson(s) from a previous boot)`);
+  } catch (e) {
+    console.error('general intelligence start error:', e.message);
+  }
+
   // Phase AC: skill forge — re-register every active forged skill as a fleet tool at boot
   startSkillForge()
     .then(sf => { if (sf.started) console.log(`[skills] forge started: ${sf.loaded} skill(s) registered, ≤ ${sf.perDay}/day, sandbox ${sf.sandboxFlags.join(' ')}`); })
@@ -874,6 +893,7 @@ export function stopDaemon() {
   try { stopSelfModification(); } catch (_) {}
   try { stopResearchScout(); } catch (_) {}
   try { stopSkillForge(); } catch (_) {}
+  try { stopGeneralIntelligence(); } catch (e) { console.error('general intelligence stop error:', e.message); }
   try { stopSelfAudit(); } catch (_) {}
   try { stopHiveMesh(); } catch (_) {}
   try { stopHivePeers(); } catch (_) {}
@@ -932,6 +952,7 @@ export function getDaemonStatus() {
     externalSenses: getExternalSensesStatus(),
     sweeper: (() => { const s = getSweeperStatus(); return { running: s.running, sweeps: s.sweeps, totals: s.totals, currentlyStuck: s.currentlyStuck, lastAt: s.lastAt }; })(),
     researchScout: (() => { try { const s = getResearchStatus(); return { running: s.running, scans: s.scans, lastScanAt: s.lastScanAt, items: s.items, relevantItems: s.relevantItems, proposals: s.proposals, pendingExperiment: s.pendingExperiment && s.pendingExperiment.tunable, pendingCode: s.pendingCode && s.pendingCode.targetFile }; } catch (e) { return { error: e.message }; } })(),
+    generalIntelligence: (() => { try { const s = getGeneralIntelligenceStatus(); return { enabled: s.enabled, running: s.running, g: s.latestAuto?.g ?? null, brier: s.latestAuto?.brier ?? null, baselineDirect: s.baselineDirect?.g ?? null, upliftOverDirect: s.upliftOverDirect, runs: s.runs, lessons: s.lessons, inFlight: s.inFlight, agentCalls: s.reasoner?.agentCalls, cycles: s.cycles }; } catch (e) { return { error: e.message }; } })(),
     skillForge: (() => { try { const s = getSkillForgeStatus(); return { enabled: s.enabled, running: s.running, registered: s.registered, counts: s.counts, calls24h: s.calls24h, compositions: s.compositions, nextCandidate: s.nextCandidate && s.nextCandidate.loopId, outcomes: s.outcomes, cycles: s.cycles, crystallizing: s.crystallizing }; } catch (e) { return { error: e.message }; } })(),
     selfModification: (() => { try { const s = getSelfModificationStatus(); return { enabled: s.enabled, running: s.running, cycles: s.cycles, experiment: s.experiment && { id: s.experiment.id, tunable: s.experiment.tunable, before: s.experiment.before_value, after: s.experiment.after_value, remainingMs: s.experiment.remainingMs }, verdicts: s.verdicts, code: s.code.counts, ouroborosBacklog: s.ouroboros.backlog, objective: s.objectiveNow.objective }; } catch (e) { return { error: e.message }; } })(),
     narrator: (() => { const s = getNarratorStatus(); return { running: s.running, overlayClients: s.overlayClients, spoken: s.spoken, textOnly: s.textOnly, dropped: s.dropped, ttsErrors: s.ttsErrors, queued: s.queued, lastLine: s.lastLine, last24h: s.last24h }; })(),

@@ -47,6 +47,7 @@ export default function SelfModificationPanel({ wsEvent }) {
   const [experiments, setExperiments] = useState([]);
   const [code, setCode] = useState([]);
   const [tab, setTab] = useState('experiments');
+  const [cap, setCap] = useState(null);       // Phase AD capability status + lessons
   const [open, setOpen] = useState(null);     // code proposal id with diff open
   const [diff, setDiff] = useState('');
   const [busy, setBusy] = useState(false);
@@ -60,9 +61,14 @@ export default function SelfModificationPanel({ wsEvent }) {
       const [sj, ej, cj, tj, rj, rij, rpj, skj, sklj] = await Promise.all([s.json(), e.json(), c.json(), t.json(), r.json(), ri.json(), rp.json(), sk.json(), skl.json()]);
       setStatus({ ...sj, tunablesFull: tj.tunables || [], research: { ...rj, itemsList: rij.items || [], proposalsList: rpj.proposals || [] }, skills: { ...skj, list: sklj.skills || [] } }); setExperiments(ej.experiments || []); setCode(cj.proposals || []); setError('');
     } catch (e) { setError(e.message); }
+    try {
+      const [cr, lr] = await Promise.all([fetch('/api/intelligence/capability'), fetch('/api/intelligence/capability/lessons?limit=12')]);
+      const [cj, lj] = await Promise.all([cr.json(), lr.json()]);
+      setCap({ ...cj, lessonList: lj.lessons || [] });
+    } catch (e) { console.warn('capability status unavailable:', e.message); }
   }, []);
   useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, [load]);
-  useEffect(() => { if (wsEvent && /self_modification|tunable|skills/.test(wsEvent.type || wsEvent.topic || '')) load(); }, [wsEvent, load]);
+  useEffect(() => { if (wsEvent && /self_modification|tunable|skills|capability/.test(wsEvent.type || wsEvent.topic || '')) load(); }, [wsEvent, load]);
   const [skillOut, setSkillOut] = useState({});   // skill id → last test result
   const testSkill = async (s) => {
     setBusy(true);
@@ -92,7 +98,7 @@ export default function SelfModificationPanel({ wsEvent }) {
   const convOpen = Object.values(conv.open || {}).reduce((a, b) => a + b, 0);
   const research = status?.research || null;
   const skills = status?.skills || null;
-  const tabs = [['experiments', `Experiments (${experiments.length})`], ['tunables', `Tunables (${status?.tunables?.length || 0})`], ['code', `Code (${cc.ready || 0} ready)`], ['conventions', `Conventions (${convOpen} open)`], ['research', `Research (${research?.relevantItems ?? 0} relevant)`], ['skills', `Skills (${skills?.counts?.active || 0} active)`]];
+  const tabs = [['experiments', `Experiments (${experiments.length})`], ['tunables', `Tunables (${status?.tunables?.length || 0})`], ['code', `Code (${cc.ready || 0} ready)`], ['conventions', `Conventions (${convOpen} open)`], ['research', `Research (${research?.relevantItems ?? 0} relevant)`], ['skills', `Skills (${skills?.counts?.active || 0} active)`], ['capability', `Capability (g ${cap?.latestAuto?.g != null ? cap.latestAuto.g.toFixed(2) : '—'})`]];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, color: C.text, fontSize: 13 }}>
@@ -276,6 +282,68 @@ export default function SelfModificationPanel({ wsEvent }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {tab === 'capability' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 12, color: C.dim }}>General capability, measured on freshly generated problems graded by code — no LLM judges anything here. <b>g</b> is the unweighted mean of per-family accuracy. The reasoner picks a strategy per family from measured results (Thompson sampling); lessons distilled from failures are A/B-tested on new seeds and kept only on gain. Blueprint: <code>docs/AGI-BLUEPRINT.md</code>.</div>
+          {!cap && <div style={{ color: C.dim }}>Loading…</div>}
+          {cap && (<>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Stat label="g (auto strategy)" value={cap.latestAuto?.g != null ? cap.latestAuto.g.toFixed(2) : '—'} color={C.green} />
+              <Stat label="g (direct baseline)" value={cap.baselineDirect?.g != null ? cap.baselineDirect.g.toFixed(2) : '—'} color={C.text} />
+              <Stat label="uplift" value={cap.upliftOverDirect != null ? (cap.upliftOverDirect >= 0 ? '+' : '') + cap.upliftOverDirect.toFixed(2) : '—'} color={cap.upliftOverDirect > 0 ? C.green : C.amber} />
+              <Stat label="Brier (lower = calibrated)" value={cap.latestAuto?.brier != null ? cap.latestAuto.brier.toFixed(2) : '—'} color={C.cyan} />
+              <Stat label="benchmarks" value={cap.runs ?? 0} color={C.purple} />
+              <Stat label="lessons kept / reverted" value={`${cap.lessons?.kept || 0} / ${cap.lessons?.reverted || 0}`} color={C.amber} />
+              <Stat label="agent reason calls 7d" value={cap.reasoner?.agentCalls?.n ?? 0} color={C.cyan} />
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <button disabled={busy || !!cap.inFlight?.benchmark} style={btn(C.green, true)} onClick={() => act('/api/intelligence/capability/run', { strategy: 'auto' }, j => j.started ? `benchmark ${j.runId} started (${j.planned} problems)` : `refused: ${j.reason}`)}>run benchmark (auto)</button>
+              <button disabled={busy || !!cap.inFlight?.benchmark} style={btn(C.dim, true)} onClick={() => act('/api/intelligence/capability/run', { strategy: 'direct' }, j => j.started ? `baseline ${j.runId} started` : `refused: ${j.reason}`)}>run baseline (direct)</button>
+              <button disabled={busy || !!cap.inFlight?.lesson} style={btn(C.amber, true)} onClick={() => act('/api/intelligence/capability/lessons/test', {}, j => j.started ? `lesson test started for ${j.family}` : `no lesson: ${j.reason}`)}>distil + test a lesson</button>
+              <span style={{ fontSize: 11, color: C.dim }}>{cap.inFlight?.benchmark ? `benchmark running: ${cap.inFlight.benchmark.done}/${cap.inFlight.benchmark.planned} (${cap.inFlight.benchmark.strategy})` : cap.inFlight?.lesson ? `testing a lesson for ${cap.inFlight.lesson.family}…` : `every ${Math.round((cap.config?.benchIntervalMs || 0) / 3600000)} h · ${cap.config?.perFamily} per family`}</span>
+            </div>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 10 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Accuracy by family <span style={{ color: C.dim, fontWeight: 400, fontSize: 11 }}>latest auto run vs direct baseline</span></div>
+              {(cap.config?.families || []).map(f => {
+                const a = cap.latestAuto?.byFamily?.[f], d = cap.baselineDirect?.byFamily?.[f];
+                return (
+                  <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, margin: '3px 0' }}>
+                    <span style={{ width: 84, color: C.text }}>{f}</span>
+                    <div style={{ flex: 1, minWidth: 0, height: 10, background: '#0a0a10', borderRadius: 5, position: 'relative', overflow: 'hidden' }}>
+                      <div style={{ position: 'absolute', inset: 0, width: `${(a?.accuracy || 0) * 100}%`, background: C.green, opacity: 0.85 }} />
+                      {d?.accuracy != null && <div style={{ position: 'absolute', top: 0, bottom: 0, left: `calc(${d.accuracy * 100}% - 1px)`, width: 2, background: C.text }} />}
+                    </div>
+                    <span style={{ width: 150, color: C.dim, fontSize: 11 }}>{a?.n ? `${a.correct}/${a.n}` : '—'}{a?.skipped ? ` (${a.skipped} skipped)` : ''} · direct {d?.n ? `${d.correct}/${d.n}` : '—'}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 10 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Strategy arms <span style={{ color: C.dim, fontWeight: 400, fontSize: 11 }}>posterior mean success · pulls · avg seconds — updated only from graded items</span></div>
+              {(cap.reasoner?.arms || []).length === 0 && <div style={{ color: C.dim, fontSize: 12 }}>No graded items yet.</div>}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {(cap.reasoner?.arms || []).map(a => (
+                  <span key={a.family + a.strategy} style={{ fontSize: 11, padding: '3px 7px', borderRadius: 6, border: `1px solid ${C.border}`, color: a.mean >= 0.6 ? C.green : a.mean <= 0.35 ? C.red : C.text }}>{a.family} · {a.strategy} · {a.mean.toFixed(2)} · {a.pulls} · {a.avgMs != null ? Math.round(a.avgMs / 1000) : '—'}s</span>
+                ))}
+              </div>
+            </div>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 10 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Lessons</div>
+              {(cap.lessonList || []).length === 0 && <div style={{ color: C.dim, fontSize: 12 }}>None yet — a lesson is distilled after a benchmark leaves ≥ 2 failures in one family.</div>}
+              {(cap.lessonList || []).map(l => (
+                <div key={l.id} style={{ fontSize: 12, padding: '5px 0', borderTop: `1px solid ${C.border}` }}>
+                  <span style={{ color: l.status === 'kept' ? C.green : l.status === 'testing' ? C.cyan : C.dim, marginRight: 8 }}>{l.status.toUpperCase()}</span>
+                  <span style={{ color: C.purple, marginRight: 8 }}>{l.family}</span>{l.text}
+                  <div style={{ color: C.dim, fontSize: 11 }}>{l.n != null ? `with lesson ${l.lesson_correct}/${l.n}, without ${l.base_correct}/${l.n} — ${l.note || ''}` : (l.note || '')} · {ago(l.created_at)}
+                    {l.status === 'kept' && <button disabled={busy} style={{ ...btn(C.red, true), marginLeft: 8 }} onClick={() => act(`/api/intelligence/capability/lessons/${encodeURIComponent(l.id)}/retire`, {}, () => 'lesson retired')}>retire</button>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>)}
         </div>
       )}
 

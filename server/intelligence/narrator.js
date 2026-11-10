@@ -107,6 +107,12 @@ const LINES = {
     if (p.action === 'composition' && p.status === 'passed') return { kind: 'skills', text: `Two of my skills, ${String(p.a || '').replace(/^skill\./, '')} and ${String(p.b || '').replace(/^skill\./, '')}, combined into a program that proved itself. It will become a third.` };
     return null;
   },
+  // Phase AD: measured capability — benchmark results and lessons that survived an A/B test
+  'system.capability': p => {
+    if (p.action === 'benchmark_completed' && typeof p.g === 'number') return { kind: 'capability', text: `Capability check: ${p.correct} of ${p.n} fresh problems solved, g-score ${p.g.toFixed(2)}.${p.strongest && p.weakest && p.strongest !== p.weakest ? ` Strongest at ${p.strongest}, weakest at ${p.weakest}.` : ''}` };
+    if (p.action === 'lesson_kept') return { kind: 'capability', text: `A lesson about ${p.family} problems held up under test: ${p.withLesson} of ${p.n} right with it, ${p.base} without. I am keeping it.` };
+    return null;
+  },
 };
 export const TOPICS = Object.keys(LINES);
 

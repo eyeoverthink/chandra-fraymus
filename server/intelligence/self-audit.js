@@ -366,11 +366,36 @@ function checkSkillForge() {
   return findings;
 }
 
+// Phase AD: the capability gauge must not stick, must not fall unnoticed, and must have a consumer
+function checkCapability() {
+  const findings = [];
+  const t = now();
+  const stuckRuns = q1(`SELECT COUNT(*) AS c FROM capability_runs WHERE status = 'running' AND created_at < ?`, t - 2 * H);
+  if (stuckRuns?.c) findings.push({ check: 'stuck_transient', subject: 'capability_runs.status', severity: 'REAL', summary: `${stuckRuns.c} capability benchmark(s) stuck in 'running' for over 2 h`, evidence: { count: stuckRuns.c } });
+  const stuckLessons = q1(`SELECT COUNT(*) AS c FROM reasoner_lessons WHERE status = 'testing' AND created_at < ?`, t - 2 * H);
+  if (stuckLessons?.c) findings.push({ check: 'stuck_transient', subject: 'reasoner_lessons.status', severity: 'REAL', summary: `${stuckLessons.c} reasoning lesson(s) stuck in 'testing' for over 2 h`, evidence: { count: stuckLessons.c } });
+  const runs = q(`SELECT g_score, created_at FROM capability_runs WHERE status = 'completed' AND strategy_mode = 'auto' AND g_score IS NOT NULL ORDER BY created_at DESC LIMIT 6`) || [];
+  if (runs.length >= 6) {
+    const mean = a => a.reduce((s, r) => s + r.g_score, 0) / a.length;
+    const recent = mean(runs.slice(0, 3)), prior = mean(runs.slice(3, 6));
+    if (prior - recent >= 0.1) findings.push({ check: 'flat_metric', subject: 'capability_runs.g_score:regression', severity: 'REAL', summary: `g-score fell from ${prior.toFixed(2)} to ${recent.toFixed(2)} across the last six benchmarks — general capability is regressing`, evidence: { recent, prior } });
+    const all = runs.map(r => r.g_score);
+    if (Math.max(...all) - Math.min(...all) < 1e-6) findings.push({ check: 'flat_metric', subject: 'capability_runs.g_score:constant', severity: 'REAL', summary: `g-score has been exactly ${all[0].toFixed(3)} for six benchmarks — suspect the instrument before believing it`, evidence: { value: all[0] } });
+  }
+  const total = q1(`SELECT COUNT(*) AS c, MIN(created_at) AS first FROM capability_runs WHERE status = 'completed'`);
+  if ((total?.c || 0) >= 5 && total.first < t - 2 * DAY) {
+    const calls = q1(`SELECT COUNT(*) AS c FROM reasoner_calls WHERE created_at > ? AND agent_id IS NOT NULL`, t - 7 * DAY)?.c || 0;
+    if (calls === 0) findings.push({ check: 'producer_without_consumer', subject: 'reasoner→agent_calls', severity: 'REAL', summary: `${total.c} capability benchmarks have run and no agent has used the reason tool in 7 days — the reasoner is measured but not used`, evidence: { benchmarks: total.c, agentCalls7d: calls } });
+  }
+  return findings;
+}
+
 const CHECKS = [
   ['repeated_action', checkRepeatedActions],
   ['credit_assignment', checkCreditAssignment],
   ['self_modification', checkSelfModification],
   ['skill_forge', checkSkillForge],
+  ['capability', checkCapability],
   ['flat_metric', checkFlatMetrics],
   ['producer_without_consumer', checkProducersWithoutConsumers],
   ['written_never_read', checkUnreadGrowth],

@@ -26,6 +26,7 @@ import { getSelfModificationStatus, startExperiment, buildCodeProposal, ruleProp
 import { listTunables } from '../intelligence/tunables.js';
 import { getResearchStatus, scanResearch, listResearchItems, listResearchProposals, translateItem } from '../intelligence/research-scout.js';
 import { getSkillForgeStatus, listSkills as listForgedSkills, getSkill as getForgedSkill, invokeSkill as invokeForgedSkill, crystallize as crystallizeSkill } from '../intelligence/skill-forge.js';
+import { reasonForAgent } from '../intelligence/reasoner.js';
 import { getHivePeersStatus, syncBridge, postDigest } from '../intelligence/hive-peers.js';
 import { getAdaptiveStatus, getAdaptiveModifiers, isActionSuppressed, isActionPreferred } from '../intelligence/adaptive-strategy.js';
 import { getSelfModelStatus, getSystemMap, lookupSubsystem, buildSpatialContext, buildSubsystemContext } from '../intelligence/self-model.js';
@@ -549,6 +550,24 @@ export function createFleetTools({ workflowStore }) {
         if (mode === 'test') { const s = getForgedSkill(String(params.skill || '')); if (!s) return { error: 'unknown skill' }; return invokeForgedSkill(s.id, params.input || s.examples[0]?.input || {}, context || {}); }
         if (mode === 'crystallize') { ledger.record('skills.crystallize', { agent: agentId, loopId: params.loopId || null }, 'fleet'); return crystallizeSkill({ loopId: params.loopId || null, trigger: `agent:${agentId}` }); }
         return getSkillForgeStatus();
+      },
+    },
+    {
+      name: 'reason',
+      group: 'skill',
+      forAllAgents: true,
+      risk: 'safe',
+      description: 'Deliberate reasoner (Phase AD). Hand it one hard, self-contained sub-problem — a calculation, a logic puzzle, a rule to infer from examples, a small plan — and it picks a strategy (direct, step-by-step, 3-sample vote, write-and-run a program in the sandbox, or induce a function from examples) and returns { answer, confidence, strategy, verifiedByExecution }. Prefer it over doing arithmetic or multi-step deduction in your head. Example: { "problem": "Compute 37 × 46 + 812 − 9 × 23", "kind": "number" }.',
+      parameters: object({
+        problem: { type: 'string', description: 'the full problem statement, self-contained' },
+        kind: { type: 'string', description: 'expected answer type: "number" | "string" | "list" | "code" (default string)' },
+        strategy: { type: 'string', description: 'optional: "direct" | "cot" | "vote" | "program" | "induce" (default: chosen from measured results)' },
+        examples: { type: 'array', maxItems: 8, items: { type: 'object', properties: { input: { type: 'string' }, output: { type: 'string' } } }, description: 'optional, for rule induction: [{ "input": "…", "output": "…" }, …]' },
+        query: { type: 'string', description: 'optional, with examples: the new input to apply the rule to' },
+      }),
+      execute: async ({ args: params = {} }, context) => {
+        if (!params.problem || typeof params.problem !== 'string') return { error: 'problem (string) is required', example: { problem: 'Compute 37 × 46 + 812', kind: 'number' } };
+        return reasonForAgent({ problem: params.problem.slice(0, 6000), kind: params.kind, strategy: params.strategy, examples: params.examples, query: params.query }, { agentId: context?.agent?.id || context?.agentId || 'agent', runId: context?.runId || context?.run?.id || null });
       },
     },
     {

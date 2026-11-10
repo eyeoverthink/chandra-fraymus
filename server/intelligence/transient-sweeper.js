@@ -44,7 +44,15 @@ export function sweepStaleTransients({ maxAgeMs = MAX_AGE_MS, trigger = 'manual'
   try {
     result.debates = db.prepare(`UPDATE debates SET status = 'failed', verdict = COALESCE(verdict, 'abandoned'), verdict_reasoning = COALESCE(verdict_reasoning, 'swept: never finished'), confidence = COALESCE(confidence, 0) WHERE status = 'running' AND created_at < ?`).run(cutoff).changes;
   } catch (e) { result.errors.push(`debates: ${e.message.slice(0, 100)}`); result.debates = 0; }
-  const total = result.runs + result.verification_loops + result.opeg_proposals + (result.debates || 0);
+  // Phase AD: capability benchmarks and lesson A/B tests are single-flight in memory; a row still open after the cutoff is dead
+  try {
+    result.capability_runs = db.prepare(`UPDATE capability_runs SET status = 'error', error = 'swept: never finished', completed_at = ? WHERE status = 'running' AND created_at < ?`).run(Date.now(), cutoff).changes;
+  } catch (e) { result.errors.push(`capability_runs: ${e.message.slice(0, 100)}`); result.capability_runs = 0; }
+  try {
+    result.reasoner_lessons = db.prepare(`UPDATE reasoner_lessons SET status = 'reverted', note = 'swept: test never finished', completed_at = ? WHERE status = 'testing' AND created_at < ?`).run(Date.now(), cutoff).changes;
+  } catch (e) { result.errors.push(`reasoner_lessons: ${e.message.slice(0, 100)}`); result.reasoner_lessons = 0; }
+  for (const k of ['capability_runs', 'reasoner_lessons']) state.totals[k] = (state.totals[k] || 0) + (result[k] || 0);
+  const total = result.runs + result.verification_loops + result.opeg_proposals + (result.debates || 0) + (result.capability_runs || 0) + (result.reasoner_lessons || 0);
   state.sweeps++; state.lastAt = t; state.lastResult = result;
   state.totals.debates = state.totals.debates || 0;
   for (const k of ['runs', 'verification_loops', 'opeg_proposals', 'debates']) state.totals[k] += result[k] || 0;
@@ -75,6 +83,8 @@ export function getSweeperStatus() {
   try { stuck.verification_loops = db.prepare(`SELECT COUNT(*) c FROM verification_loops WHERE status = 'running' AND created_at < ?`).get(now() - MAX_AGE_MS).c; } catch (_) {}
   try { stuck.opeg_proposals = db.prepare(`SELECT COUNT(*) c FROM opeg_proposals WHERE state IN ('S1_HYPOTHESIS','S2_EXECUTE','S3_SANITIZE') AND created_at < ?`).get(now() - MAX_AGE_MS).c; } catch (_) {}
   try { stuck.debates = db.prepare(`SELECT COUNT(*) c FROM debates WHERE status = 'running' AND created_at < ?`).get(now() - MAX_AGE_MS).c; } catch (_) {}
+  try { stuck.capability_runs = db.prepare(`SELECT COUNT(*) c FROM capability_runs WHERE status = 'running' AND created_at < ?`).get(now() - MAX_AGE_MS).c; } catch (e) { stuck.capability_runs = null; }
+  try { stuck.reasoner_lessons = db.prepare(`SELECT COUNT(*) c FROM reasoner_lessons WHERE status = 'testing' AND created_at < ?`).get(now() - MAX_AGE_MS).c; } catch (e) { stuck.reasoner_lessons = null; }
   return { ...state, intervalMs: INTERVAL_MS, maxAgeMs: MAX_AGE_MS, currentlyStuck: stuck };
 }
 

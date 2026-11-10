@@ -120,6 +120,7 @@ import { installTunableRoutes } from './intelligence/tunables.js';
 import { installSelfModificationRoutes } from './intelligence/self-modification.js';
 import { installResearchRoutes } from './intelligence/research-scout.js';
 import { installSkillForgeRoutes } from './intelligence/skill-forge.js';
+import { installGeneralIntelligenceRoutes } from './intelligence/general-intelligence.js';
 import { installHivePeersRoutes } from './intelligence/hive-peers.js';
 import { installDebateRoutes } from './intelligence/debate.js';
 import { installModelRouterRoutes } from './intelligence/model-router.js';
@@ -361,6 +362,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installSelfModificationRoutes(app);
   installResearchRoutes(app);
   installSkillForgeRoutes(app);
+  installGeneralIntelligenceRoutes(app);
   installHivePeersRoutes(app);
   installDebateRoutes(app);
   installModelRouterRoutes(app);
