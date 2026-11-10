@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { narratedToolCall, nudgeMessage } from '../server/fleet/narration-guard.js';
+import { narratedToolCall, nudgeMessage, recoverTextToolCall } from '../server/fleet/narration-guard.js';
 
 const tools = [{ name: 'reason' }, { name: 'skill.replay_window' }, { name: 'bus_publish' }];
 
@@ -42,4 +42,18 @@ test('a call written as text is caught, and the nudge says when the tool does no
   assert.match(nudgeMessage('weather_lookup', tools), /reason, skill\.replay_window, bus_publish/);
   assert.match(nudgeMessage('reason', tools), /Make the real reason tool call/);
   assert.equal(narratedToolCall('The config is {"name": "prod", "region": "eu"} as before.', tools), null);
+});
+
+test('a text-form call for a tool the agent holds is recovered as a real call', () => {
+  const body = JSON.stringify({ test: 'x \\ "quoted" }' });
+  const reply = ['Here is the JSON for a function call:', '', JSON.stringify({ name: 'reason', parameters: { problem: 'compute {2+2}', body } }), '', 'Done.'].join('\n');
+  const call = recoverTextToolCall(reply, tools);
+  assert.equal(call.function.name, 'reason');
+  assert.equal(call.function.arguments.problem, 'compute {2+2}');
+  assert.equal(call.function.arguments.body, body);
+  assert.equal(recoverTextToolCall(JSON.stringify({ name: 'reason', arguments: JSON.stringify({ problem: 'p' }) }), tools).function.arguments.problem, 'p');
+  assert.equal(recoverTextToolCall(JSON.stringify({ name: 'weather_lookup', parameters: {} }), tools), null, 'unknown tool is not executed');
+  assert.equal(recoverTextToolCall('{"name": "reason", "parameters": {"problem": ', tools), null, 'truncated JSON');
+  assert.equal(recoverTextToolCall('{"name": "reason", "parameters": [1]}', tools), null, 'arguments must be an object');
+  assert.equal(recoverTextToolCall('no call here', tools), null);
 });

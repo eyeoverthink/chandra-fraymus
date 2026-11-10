@@ -140,6 +140,15 @@ function NavGroup({ group, openDrawer, isOpen, onToggle, onClose }) {
 }
 
 const RESPONSIVE_CSS = `
+  /* The nav outgrew one row (6 views + panel groups + search + status ≈ 1770px): above 1024px it
+     never wrapped, so the whole page scrolled sideways and every view was clipped on the left. */
+  .chandra-nav { height: auto !important; min-height: 52px; flex-wrap: wrap; row-gap: 6px; padding-top: 6px !important; padding-bottom: 6px !important; }
+  .nav-panels { flex-wrap: wrap; min-width: 0; justify-content: flex-end; row-gap: 6px; }
+  .nav-status { flex-wrap: wrap; }
+  @media (max-width: 1500px) {
+    .nav-btn-label { display: none !important; }
+    .nav-btn { padding: 4px 8px !important; min-width: 32px; justify-content: center; }
+  }
   @media (max-width: 1024px) {
     .nav-btn-label { display: none !important; }
     .nav-btn { padding: 4px 8px !important; min-width: 32px; justify-content: center; }

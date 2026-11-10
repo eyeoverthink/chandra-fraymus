@@ -6,6 +6,8 @@
 
 import { randomUUID } from 'node:crypto';
 import { isAbort } from './http-error.js';
+import { appendFileSync, mkdirSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
 export const SUGGESTED_PROMPTS = [
   { id: 'health', label: 'System health', text: 'How is the system holding up?' },
@@ -44,8 +46,205 @@ function throwIfAborted(signal) {
   }
 }
 
-export function createCommandService({ db, registry, graph, recipes, voice, broadcast }) {
+export function createCommandService({ db, registry, graph, recipes, voice, broadcast, fleet = null }) {
   const controllers = new Map();
+
+  // ── the brain: fleet-agent bridge ─────────────────────────────────────────
+  // Home commands that are not instant lookups run as a real fleet agent (default fraymus_prime,
+  // which holds every registered tool). Its tool calls are mirrored into fraymus_os_tool_steps so the
+  // "Transcript and tools" panel shows what actually ran; approval-labelled tools pause for a person
+  // and Approve executes the exact call that was shown.
+  const AGENT_ID = process.env.FRAYMUS_HOME_AGENT || 'fraymus_prime';
+  const AGENT_TIMEOUT_MS = Math.max(60_000, parseInt(process.env.FRAYMUS_HOME_AGENT_TIMEOUT_MS, 10) || 600_000);
+  const RECORD_FILE = join(resolve(process.env.CHANDRA_DATA_DIR || 'data'), 'record.jsonl');
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS fraymus_os_agent_threads (session_id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, created_at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS fraymus_os_agent_approvals (step_id TEXT PRIMARY KEY, approval_id TEXT NOT NULL, run_id TEXT, created_at INTEGER NOT NULL);
+    `);
+  } catch (error) { console.error('fraymus-os bridge tables:', error.message); }
+
+  const CAPABILITY_DECK = [
+    { id: 'create', label: 'Create', items: [
+      { id: 'brief', label: 'Research brief', text: 'Draft a research brief about local-first agents' },
+      { id: 'script', label: 'Short script', text: 'Draft a 60-second script about F.R.A.Y.M.U.S.' },
+      { id: 'page', label: 'Landing page', text: 'Build a scroll landing page with hermes.scrollpage: slug "fraymus-intro", title "F.R.A.Y.M.U.S.", a one-sentence tagline, and four sections about what this system can do. Then give me the local URL.', fill: true },
+      { id: 'image', label: 'Image', text: 'Generate an image of ', fill: true },
+    ] },
+    { id: 'research', label: 'Research', items: [
+      { id: 'hn', label: 'Read the news', text: 'Use hermes.rss_read on https://hnrss.org/frontpage and tell me the three most relevant stories for someone building local AI agents.' },
+      { id: 'papers', label: 'New papers', text: 'Use hermes.rss_read on https://rss.arxiv.org/rss/cs.AI with limit 8 and summarise what is new in one paragraph.' },
+      { id: 'handle', label: 'Is a name free?', text: 'Use hermes.username_check to see where the handle "" is taken.', fill: true },
+      { id: 'contracts', label: 'Public records', text: 'Use hermes.osint with source "usaspending" to find federal contracts mentioning ""', fill: true },
+    ] },
+    { id: 'build', label: 'Build', items: [
+      { id: 'wiki', label: 'Code wiki', text: 'Use hermes.code_wiki on F:/Fraymus-Skill-Lab/chandra-fraymus/server/fleet and tell me the three most depended-on modules.' },
+      { id: 'review', label: 'Review my changes', text: 'Use hermes.pr_lens on F:/Fraymus-Skill-Lab/chandra-fraymus (base HEAD~1, head HEAD) and tell me the blast radius and the risk notes.' },
+      { id: 'pkg', label: 'Vet a package', text: 'Use hermes.pkg_audit to check the npm package "" before I install it.', fill: true },
+      { id: 'grill', label: 'Grill my plan', text: 'Use hermes.grill_me on this plan: ', fill: true },
+    ] },
+    { id: 'reason', label: 'Reason', items: [
+      { id: 'math', label: 'Exact answer', text: 'Use the reason tool with kind "number": compute 58 x 73 + 1204 - 17 x 29' },
+      { id: 'audit', label: 'What is broken?', text: 'Use self_audit_status and tell me the open REAL findings and what each means.' },
+    ] },
+    { id: 'operate', label: 'Operate', items: [
+      { id: 'health', label: 'System health', text: 'How is the system holding up?' },
+      { id: 'brief2', label: 'Morning brief', text: 'Use hermes.morning_brief and read it back to me.' },
+      { id: 'recall', label: 'What I know', text: 'What do you remember?' },
+    ] },
+  ];
+
+  function appendRecord(line) {
+    // External continuity (Vaughn's FRAYMUS/DOC-SEAL/1 note): one appended line per finished command.
+    try { mkdirSync(resolve(RECORD_FILE, '..'), { recursive: true }); appendFileSync(RECORD_FILE, JSON.stringify(line) + '\n'); }
+    catch (error) { console.error('fraymus-os record.jsonl:', error.message); }
+  }
+
+  function brain() {
+    const count = (sql, ...params) => { try { return db.prepare(sql).get(...params)?.c ?? 0; } catch { return null; } };
+    const names = fleet?.toolNames ? fleet.toolNames() : [];
+    const groups = {};
+    for (const name of names) { const key = name.includes('.') ? name.split('.')[0] : name.split('_')[0]; groups[key] = (groups[key] || 0) + 1; }
+    let g = null;
+    try { g = db.prepare(`SELECT g_score FROM capability_runs WHERE status = 'completed' AND strategy_mode = 'auto' ORDER BY created_at DESC LIMIT 1`).get()?.g_score ?? null; } catch { /* benchmark table not created yet */ }
+    return {
+      connected: !!fleet,
+      agentId: AGENT_ID,
+      tools: names.length,
+      toolGroups: Object.entries(groups).sort((a, b) => b[1] - a[1]).slice(0, 14).map(([group, n]) => ({ group, n })),
+      hermesTools: names.filter(name => name.startsWith('hermes.') || name === 'spore.read').length,
+      agents: fleet?.listAgents ? fleet.listAgents('local').length : null,
+      skills: count(`SELECT COUNT(*) c FROM forged_skills WHERE status = 'active'`),
+      pendingApprovals: count(`SELECT COUNT(*) c FROM approvals WHERE status = 'pending'`),
+      agentRuns24h: count(`SELECT COUNT(*) c FROM runs WHERE created_at > ?`, Date.now() - 86_400_000),
+      gScore: g,
+    };
+  }
+
+  function parseToolContent(content) {
+    const text = String(content || '');
+    const at = text.indexOf('{');
+    if (at < 0) return { parsed: null, preview: text.slice(0, 700) };
+    try { const parsed = JSON.parse(text.slice(at)); return { parsed, preview: JSON.stringify(parsed.result ?? parsed).slice(0, 700) }; }
+    catch { return { parsed: null, preview: text.slice(0, 700) }; }
+  }
+
+  async function runAgent(turnId, sessionId, text, signal, sources) {
+    const existing = db.prepare('SELECT thread_id FROM fraymus_os_agent_threads WHERE session_id = ?').get(sessionId);
+    const started = fleet.startRun('local', AGENT_ID, text, existing?.thread_id);
+    if (!existing) db.prepare('INSERT OR REPLACE INTO fraymus_os_agent_threads (session_id, thread_id, created_at) VALUES (?, ?, ?)').run(sessionId, started.threadId, Date.now());
+    const callSteps = new Map();      // model tool-call key → step id
+    const openByTool = new Map();     // tool name → [step ids still running]
+    const handled = new Set();        // message ids already mirrored
+    const began = Date.now();
+    let run = null;
+    for (;;) {
+      if (signal?.aborted) {
+        db.prepare(`UPDATE fraymus_os_tool_steps SET status = 'cancelled', updated_at = ? WHERE turn_id = ? AND status = 'running'`).run(Date.now(), turnId);
+        finish(turnId, { state: 'cancelled', sources, answer: null, error: `Stopped watching. Agent run ${started.runId} may still finish in the background.`, model: `${AGENT_ID} (agent)`, endpoint: registry.ollama.url, routeClass: registry.ollama.routeClass });
+        return;
+      }
+      run = db.prepare('SELECT status, error, steps FROM runs WHERE id = ?').get(started.runId);
+      const messages = db.prepare('SELECT id, role, name, content, tool_calls FROM messages WHERE run_id = ? ORDER BY id').all(started.runId);
+      for (const message of messages) {
+        if (handled.has(message.id)) continue;
+        handled.add(message.id);
+        if (message.role === 'assistant' && message.tool_calls) {
+          let calls = [];
+          try { calls = JSON.parse(message.tool_calls) || []; } catch (error) { console.error('fraymus-os bridge tool_calls:', error.message); }
+          calls.forEach((call, index) => {
+            const name = call.function?.name || 'tool';
+            const stepId = randomUUID();
+            const now = Date.now();
+            insertTool.run(stepId, sessionId, turnId, name, JSON.stringify(call.function?.arguments ?? {}).slice(0, 4000), 'running', null, 'routine', now, now);
+            callSteps.set(`${message.id}:${index}`, stepId);
+            if (!openByTool.has(name)) openByTool.set(name, []);
+            openByTool.get(name).push(stepId);
+            emit({ type: 'tool', sessionId, turnId, stepId, tool: name, status: 'running' });
+          });
+        } else if (message.role === 'tool') {
+          const stepId = (openByTool.get(message.name) || []).shift();
+          if (!stepId) continue;
+          const { parsed, preview } = parseToolContent(message.content);
+          const failed = !!(parsed?.result?.error || parsed?.error || parsed?.evidence?.refused);
+          updateTool.run(failed ? 'error' : 'ok', JSON.stringify({ preview, executed: parsed?.evidence?.executed !== false, approvedByHuman: parsed?.evidence?.approved_by_human === true, reason: failed ? String(parsed?.result?.error || parsed?.error || parsed?.result?.reason || 'refused').slice(0, 300) : undefined }), Date.now(), stepId);
+          emit({ type: 'tool', sessionId, turnId, stepId, tool: message.name, status: failed ? 'error' : 'ok' });
+        }
+      }
+      // a tool that needs approval writes no tool message: the run parks and an approvals row appears
+      const pending = db.prepare(`SELECT id, tool, args FROM approvals WHERE run_id = ? AND status = 'pending'`).all(started.runId);
+      for (const approval of pending) {
+        if (db.prepare('SELECT 1 FROM fraymus_os_agent_approvals WHERE approval_id = ?').get(approval.id)) continue;
+        const stepId = (openByTool.get(approval.tool) || []).shift() || randomUUID();
+        const exists = db.prepare('SELECT id FROM fraymus_os_tool_steps WHERE id = ?').get(stepId);
+        if (exists) db.prepare(`UPDATE fraymus_os_tool_steps SET status = 'awaiting_approval', risk = 'approval', result = ?, updated_at = ? WHERE id = ?`).run(JSON.stringify({ reason: 'This tool changes something outside the agent. It runs only if you approve.' }), Date.now(), stepId);
+        else insertTool.run(stepId, sessionId, turnId, approval.tool, String(approval.args || '{}').slice(0, 4000), 'awaiting_approval', JSON.stringify({ reason: 'This tool changes something outside the agent. It runs only if you approve.' }), 'approval', Date.now(), Date.now());
+        db.prepare('INSERT OR REPLACE INTO fraymus_os_agent_approvals (step_id, approval_id, run_id, created_at) VALUES (?, ?, ?, ?)').run(stepId, approval.id, started.runId, Date.now());
+        emit({ type: 'approval_required', sessionId, turnId, stepId, tool: approval.tool });
+      }
+      if (!run || !['running', 'queued'].includes(run.status)) break;
+      if (Date.now() - began > AGENT_TIMEOUT_MS) {
+        finish(turnId, { state: 'error', sources, answer: null, error: `The agent did not finish within ${Math.round(AGENT_TIMEOUT_MS / 60000)} minutes. Run ${started.runId} is still in the fleet.`, model: `${AGENT_ID} (agent)`, endpoint: registry.ollama.url, routeClass: registry.ollama.routeClass });
+        return;
+      }
+      await new Promise(done => setTimeout(done, 700));
+    }
+    const all = db.prepare('SELECT role, content, tool_calls FROM messages WHERE run_id = ? ORDER BY id').all(started.runId);
+    const last = [...all].reverse().find(message => message.role === 'assistant' && !message.tool_calls && String(message.content || '').trim());
+    const unverified = all.some(message => message.role === 'system' && /^\[harness\] The reply above describes output/.test(message.content || ''));
+    const toolCount = callSteps.size;
+    let answer = last ? String(last.content).trim() : '';
+    if (run?.status === 'awaiting_approval') answer = `${answer ? `${answer}\n\n` : ''}I need your approval for the step marked below before I can continue.`;
+    if (unverified) answer += '\n\n⚠ The agent described a tool result without calling the tool. Treat that part as unverified.';
+    const failed = !run || run.status === 'error';
+    finish(turnId, {
+      state: failed ? 'error' : 'idle', sources,
+      answer: answer || null,
+      error: failed ? (run?.error || 'The agent run failed.') : (!answer ? 'The agent finished without a reply.' : null),
+      model: `${AGENT_ID} (agent · ${toolCount} tool call${toolCount === 1 ? '' : 's'})`, endpoint: registry.ollama.url, routeClass: registry.ollama.routeClass,
+    });
+    appendRecord({ ts: new Date().toISOString(), model: AGENT_ID, slot: sessionId, kind: 'home_command', artifact: started.runId, tools: toolCount, self_verified: toolCount > 0 && !unverified, status: run?.status || 'unknown' });
+  }
+
+  // The agent resumes after a decision (it sees the tool result, or that the action was declined).
+  // Its closing reply becomes a new assistant turn in the same session, up to 5 minutes later.
+  async function followUpAfterDecision(stepId, runId) {
+    const step = db.prepare('SELECT session_id AS sessionId FROM fraymus_os_tool_steps WHERE id = ?').get(stepId);
+    if (!step || !runId) return;
+    const before = db.prepare('SELECT COALESCE(MAX(id), 0) AS id FROM messages WHERE run_id = ?').get(runId).id;
+    const turn = randomUUID();
+    const now = Date.now();
+    insertTurn.run(turn, step.sessionId, 'assistant', '', 'thinking', null, null, null, '[]', null, null, now, now);
+    emit({ type: 'state', sessionId: step.sessionId, turnId: turn, state: 'thinking' });
+    const deadline = Date.now() + 300_000;
+    let run = null;
+    for (;;) {
+      await new Promise(done => setTimeout(done, 1000));
+      run = db.prepare('SELECT status, error FROM runs WHERE id = ?').get(runId);
+      if (!run || !['running', 'queued'].includes(run.status) || Date.now() > deadline) break;
+    }
+    const reply = db.prepare(`SELECT content FROM messages WHERE run_id = ? AND id > ? AND role = 'assistant' AND tool_calls IS NULL AND TRIM(COALESCE(content, '')) != '' ORDER BY id DESC LIMIT 1`).get(runId, before);
+    const model = `${AGENT_ID} (agent · after your decision)`;
+    if (run?.status === 'awaiting_approval') finish(turn, { state: 'idle', sources: [], answer: `${reply ? `${String(reply.content).trim()}\n\n` : ''}Another step is waiting for your approval.`, model, endpoint: registry.ollama.url, routeClass: registry.ollama.routeClass });
+    else if (reply) finish(turn, { state: 'idle', sources: [], answer: String(reply.content).trim(), model, endpoint: registry.ollama.url, routeClass: registry.ollama.routeClass });
+    else finish(turn, { state: run?.status === 'error' ? 'error' : 'idle', sources: [], answer: run?.status === 'error' ? null : 'The step is done. The agent added nothing further.', error: run?.status === 'error' ? (run.error || 'The agent run failed after the decision.') : null, model, endpoint: registry.ollama.url, routeClass: registry.ollama.routeClass });
+  }
+
+  const agentApprovalFor = stepId => { try { return db.prepare('SELECT approval_id AS approvalId, run_id AS runId FROM fraymus_os_agent_approvals WHERE step_id = ?').get(stepId) || null; } catch { return null; } };
+
+  async function decideAgentApproval(stepId, approval, decision) {
+    if (!['approve', 'deny'].includes(decision)) { const error = new Error('decision must be approve or deny'); error.status = 400; throw error; }
+    const outcome = await fleet.decideApproval('local', approval.approvalId, decision === 'approve');
+    followUpAfterDecision(stepId, approval.runId).catch(error => console.error('fraymus-os follow-up:', error.message));
+    if (decision === 'deny') {
+      updateTool.run('denied', JSON.stringify({ executed: false, reason: 'You declined. Nothing ran.' }), Date.now(), stepId);
+      return { id: stepId, status: 'denied', executed: false };
+    }
+    const failed = !!outcome.error;
+    updateTool.run(failed ? 'error' : 'ok', JSON.stringify({ executed: true, approvedByHuman: true, reason: failed ? String(outcome.error).slice(0, 300) : undefined, preview: JSON.stringify(outcome.result ?? null).slice(0, 700) }), Date.now(), stepId);
+    return { id: stepId, status: failed ? 'error' : 'ok', executed: true, result: outcome.result ?? null };
+  }
+
 
   const insertSession = db.prepare('INSERT INTO fraymus_os_sessions (id, created_at, updated_at) VALUES (?, ?, ?)');
   const touchSession = db.prepare('UPDATE fraymus_os_sessions SET updated_at = ? WHERE id = ?');
@@ -107,13 +306,19 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
     return { id, manifest, status: 'review' };
   }
 
-  async function execute(turnId, sessionId, text, signal) {
+  async function execute(turnId, sessionId, text, signal, mode = 'auto') {
     const intent = classify(text);
     let sources = [];
     try {
       throwIfAborted(signal);
       sources = await sourcesFor(text);
       throwIfAborted(signal);
+      // The brain: anything that is not an instant lookup goes to a tool-holding fleet agent. Its real
+      // tool calls are mirrored into this session, and approval-labelled tools pause for a person.
+      if (fleet && mode !== 'quick' && (mode === 'agent' || ['chat', 'risky', 'propose_skill'].includes(intent.type))) {
+        await runAgent(turnId, sessionId, text, signal, sources);
+        return;
+      }
       if (intent.type === 'risky') {
         const stepId = randomUUID();
         const now = Date.now();
@@ -265,7 +470,7 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
     emit({ type: 'turn', turnId, state: fields.state });
   }
 
-  function start({ text, sessionId }) {
+  function start({ text, sessionId, mode }) {
     const clean = String(text || '').trim();
     if (!clean) {
       const error = new Error('text is required');
@@ -298,7 +503,7 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
     const controller = new AbortController();
     controllers.set(assistantTurn, controller);
     emit({ type: 'state', sessionId: sid, turnId: assistantTurn, state: 'thinking' });
-    execute(assistantTurn, sid, clean, controller.signal).catch(error => {
+    execute(assistantTurn, sid, clean, controller.signal, ['agent', 'quick'].includes(mode) ? mode : 'auto').catch(error => {
       console.error('fraymus-os command escaped:', error.message);
     });
     return { sessionId: sid, turnId: assistantTurn, state: 'thinking' };
@@ -331,6 +536,8 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
       error.status = 409;
       throw error;
     }
+    const agentApproval = agentApprovalFor(stepId);
+    if (agentApproval) return decideAgentApproval(stepId, agentApproval, decision);
     if (decision === 'deny') {
       updateTool.run('denied', JSON.stringify({ executed: false }), Date.now(), stepId);
       return { id: stepId, status: 'denied', executed: false };
@@ -347,7 +554,7 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
     return { id: stepId, status: 'blocked', executed: false, reason };
   }
 
-  return { start, cancel, decide, session, suggest: SUGGESTED_PROMPTS, classify, proposeSkill };
+  return { start, cancel, decide, session, suggest: SUGGESTED_PROMPTS, classify, proposeSkill, brain, deck: CAPABILITY_DECK, agentId: AGENT_ID };
 }
 
 function renderHealth(snap, voice) {

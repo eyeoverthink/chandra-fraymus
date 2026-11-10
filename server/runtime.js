@@ -24,7 +24,8 @@ import { createAutonomyEngine } from './autonomy.js';
 import { installFraymusRoutes } from './fraymus-routes.js';
 import { createWorkflowStore, installWorkflowRoutes } from './workflow/routes.js';
 import { createFleetTools, seedBuildGates } from './fleet/tools.js';
-import { initFleet, setFleetTools, runAgentAndWait } from './fleet/runtime.js';
+import { initFleet, setFleetTools, runAgentAndWait, startRun as fleetStartRun, getThread as fleetGetThread, decideApproval as fleetDecideApproval, fleetToolNames, listAgents as fleetListAgents } from './fleet/runtime.js';
+import { installHermesRoutes } from './hermes/free-tools.js';
 import { installFleetRoutes } from './fleet/routes.js';
 import { installMcpEndpoint } from './mcp/server.js';
 import { installOAuthRoutes, installAccessRoutes } from './mcp/auth.js';
@@ -452,7 +453,9 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installYouTubeRoutes(app);
   installCommerceRoutes(app, { memoryBridge });
   installCreationRoutes(app, { memoryBridge, broadcast });
-  installFraymusOsRoutes(app, { db, broadcast, ollamaUrl, voiceUrl });
+  // the home screen's brain: commands go to a fleet agent holding the real tool registry
+  installFraymusOsRoutes(app, { db, broadcast, ollamaUrl, voiceUrl, fleet: { startRun: fleetStartRun, getThread: fleetGetThread, decideApproval: fleetDecideApproval, toolNames: fleetToolNames, listAgents: fleetListAgents } });
+  installHermesRoutes(app, { express });
   installDistributionRoutes(app, { memoryBridge, broadcast });
   installAnalyticsRoutes(app, { memoryBridge, broadcast });
   installLearningLoopRoutes(app, { memoryBridge, broadcast });

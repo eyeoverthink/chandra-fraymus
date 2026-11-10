@@ -52,8 +52,8 @@ export function installFleetRoutes(app) {
     res.status(201).json(result);
   }));
 
-  app.post('/api/fleet/approvals/:id', route((req, res) => {
-    const result = decideApproval(req.body?.userId || 'local', req.params.id, req.body?.approve !== false);
+  app.post('/api/fleet/approvals/:id', route(async (req, res) => {
+    const result = await decideApproval(req.body?.userId || 'local', req.params.id, req.body?.approve !== false);
     res.json(result);
   }));
 

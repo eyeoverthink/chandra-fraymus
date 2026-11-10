@@ -25,6 +25,9 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
   const [phase, setPhase] = useState('idle');
   const [banner, setBanner] = useState('');
   const [clock, setClock] = useState(() => new Date());
+  const [mode, setMode] = useState('auto');       // 'auto' = agent with tools, 'quick' = instant lookups + plain chat
+  const [deckTab, setDeckTab] = useState('create');
+  const inputRef = useRef(null);
   const sessionId = useRef(null);
   const turnId = useRef(null);
   const audioRef = useRef(null);
@@ -73,15 +76,16 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
     try {
       const started = await api('/api/fraymus-os/command', {
         method: 'POST',
-        body: JSON.stringify({ text: clean, sessionId: sessionId.current }),
+        body: JSON.stringify({ text: clean, sessionId: sessionId.current, mode }),
       });
       sessionId.current = started.sessionId;
       turnId.current = started.turnId;
       let latest = null;
-      for (let i = 0; i < 120; i += 1) {
+      // an agent run with tools can take minutes on a local model: poll for up to 15 minutes
+      for (let i = 0; i < 900; i += 1) {
         latest = await refresh(started.sessionId);
         if (latest.state !== 'thinking') break;
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
       const assistant = [...(latest?.turns || [])].reverse().find(turn => turn.role === 'assistant');
       if (assistant?.state === 'error') {
@@ -155,7 +159,7 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
           sessionId.current = started.sessionId;
           turnId.current = started.turnId;
           let latest = null;
-          for (let i = 0; i < 120; i += 1) {
+          for (let i = 0; i < 1800; i += 1) { // voice commands reach the agent too: allow 15 minutes
             latest = await refresh(started.sessionId);
             if (latest.state !== 'thinking') break;
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -205,13 +209,30 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
   async function decide(step, decision) {
     try {
       await api(`/api/fraymus-os/approvals/${step.id}`, { method: 'POST', body: JSON.stringify({ decision }) });
-      if (sessionId.current) await refresh(sessionId.current);
+      if (sessionId.current) {
+        await refresh(sessionId.current);
+        // the agent continues after a decision and posts a follow-up turn: keep the transcript fresh
+        const id = sessionId.current;
+        for (let i = 0; i < 90 && sessionId.current === id; i += 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          const body = await refresh(id);
+          if (i > 2 && body.state !== 'thinking') break;
+        }
+      }
     } catch (error) {
       setBanner(error.message);
     }
   }
 
   const prompts = status?.suggestedPrompts || FALLBACK_PROMPTS;
+  const brain = status?.brain;
+  const deck = status?.deck || [];
+  const deckItems = (deck.find(group => group.id === deckTab) || deck[0])?.items || [];
+  const waiting = (session?.tools || []).filter(step => step.status === 'awaiting_approval').length;
+  function pickDeckItem(item) {
+    if (item.fill) { setText(item.text); inputRef.current?.focus(); return; }
+    send(item.text);
+  }
   const models = status?.ollama?.models || [];
   const telemetry = status?.telemetry;
   const memoryPct = status?.host?.memoryTotalBytes
@@ -238,6 +259,22 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
           <span>{clock.toLocaleTimeString()}</span>
         </div>
       </header>
+      {brain && (
+        <div className="brain-strip" aria-label="What the agent can reach">
+          <span className={brain.connected ? 'pill route-local' : 'pill'}>{brain.connected ? `Brain: ${brain.agentId}` : 'Brain not connected'}</span>
+          <span><b>{brain.tools}</b> tools</span>
+          <span><b>{brain.hermesTools}</b> Hermes</span>
+          <span><b>{brain.agents ?? '—'}</b> agents</span>
+          <span><b>{brain.skills ?? '—'}</b> forged skills</span>
+          <span><b>{brain.gScore != null ? brain.gScore.toFixed(2) : '—'}</b> g-score</span>
+          <span><b>{brain.agentRuns24h ?? '—'}</b> runs today</span>
+          <span className={brain.pendingApprovals ? 'needs-you' : ''}><b>{brain.pendingApprovals ?? 0}</b> waiting on you</span>
+          <span className="mode-switch">
+            <button type="button" className={mode === 'auto' ? 'on' : ''} onClick={() => setMode('auto')} title="Requests go to the agent, which can call tools">Agent</button>
+            <button type="button" className={mode === 'quick' ? 'on' : ''} onClick={() => setMode('quick')} title="Instant lookups and plain chat, no tools">Quick</button>
+          </span>
+        </div>
+      )}
       {statusError && <p className="warn banner">Status could not be read: {statusError}</p>}
       {banner && <p className="warn banner">{banner}</p>}
       <div className="command-grid">
@@ -266,7 +303,12 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
             {routeLabel(routeClass)}
           </p>
           <article className="answer">
-            {assistant?.answer || (phase === 'thinking' ? 'Working with the installed model…' : 'Ask for a recall, a health check, or a draft. Publishing stays behind approval and does not run.')}
+            {assistant?.answer || (phase === 'thinking'
+              ? (mode === 'quick' ? 'Working with the installed model…' : 'The agent is working. Tool calls appear in the transcript panel as they happen.')
+              : (brain?.connected && mode !== 'quick'
+                ? 'Ask for anything below, or in your own words. The agent picks tools, shows each call, and stops for your approval before anything leaves this machine.'
+                : 'Ask for a recall, a health check, or a draft.'))}
+            {waiting > 0 && <span className="needs-you inline"> {waiting} step{waiting === 1 ? '' : 's'} waiting for your approval in the transcript panel</span>}
           </article>
           {assistant?.sources?.length > 0 && (
             <div className="chips">
@@ -284,7 +326,8 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
             <input
               value={text}
               onChange={event => setText(event.target.value)}
-              placeholder="Ask F.R.A.Y.M.U.S…"
+              ref={inputRef}
+              placeholder={mode === 'quick' ? 'Ask F.R.A.Y.M.U.S…' : 'Ask, build, research, create…'}
               aria-label="Command"
             />
             {(phase === 'thinking' || phase === 'speaking' || phase === 'listening') && (
@@ -293,11 +336,26 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
             <button type="button" onClick={() => speak(assistant?.answer)} disabled={!assistant?.answer}>Speak</button>
             <button type="submit">Send</button>
           </form>
-          <div className="prompts">
-            {prompts.map(prompt => (
-              <button type="button" key={prompt.id} onClick={() => send(prompt.text)}>{prompt.label}</button>
-            ))}
-          </div>
+          {deck.length > 0 ? (
+            <div className="deck">
+              <div className="deck-tabs" role="tablist">
+                {deck.map(group => (
+                  <button type="button" role="tab" aria-selected={deckTab === group.id} key={group.id} className={deckTab === group.id ? 'on' : ''} onClick={() => setDeckTab(group.id)}>{group.label}</button>
+                ))}
+              </div>
+              <div className="prompts">
+                {deckItems.map(item => (
+                  <button type="button" key={item.id} onClick={() => pickDeckItem(item)} title={item.text} disabled={phase === 'thinking'}>{item.label}{item.fill ? ' …' : ''}</button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="prompts">
+              {prompts.map(prompt => (
+                <button type="button" key={prompt.id} onClick={() => send(prompt.text)}>{prompt.label}</button>
+              ))}
+            </div>
+          )}
         </div>
         <aside className="trace">
           <h2>Transcript and tools</h2>
@@ -314,8 +372,10 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
             {(session?.tools || []).map(step => (
               <div key={step.id} className={`tool ${step.status}`}>
                 <b>{step.tool}</b>
-                <span>{step.status}</span>
+                <span>{step.status.replace('_', ' ')}{step.result?.approvedByHuman ? ' · approved by you' : ''}</span>
+                {step.args && Object.keys(step.args).length > 0 && <p className="tool-args">{JSON.stringify(step.args).slice(0, 220)}</p>}
                 {step.result?.reason && <p>{step.result.reason}</p>}
+                {step.result?.preview && <p className="tool-preview">{step.result.preview}</p>}
                 {step.status === 'awaiting_approval' && (
                   <div className="approval">
                     <button type="button" onClick={() => decide(step, 'approve')}>Approve</button>

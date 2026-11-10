@@ -48,6 +48,16 @@ export function initFleet({ broadcast, vertiso, rsi, memoryBridge }) {
   if (memoryBridgeRef) setMemoryBridgeRef(memoryBridgeRef);
   manifests = loadManifests();
 
+  // Fleet runs live in this process's memory: a row still 'running' or 'queued' at boot belongs to a
+  // process that is gone. Left open they count as concurrent runs in the resource envelope (7 stale
+  // rows pinned it at its limit on 2026-11-10 and every new run sat in the queue until it timed out).
+  // Runs parked on a human approval stay: approving re-drives them.
+  try {
+    const closed = db.prepare(`UPDATE runs SET status = 'error', error = 'interrupted by restart', updated_at = ?
+      WHERE status IN ('running', 'queued') AND thread_id IN (SELECT id FROM threads)`).run(now()).changes;
+    if (closed) console.log(`fleet: closed ${closed} run(s) left open by a previous process`);
+  } catch (e) { console.error('fleet: boot run recovery failed:', e.message); }
+
   // Phase D: hot-reload agent manifests on file changes
   stopManifestWatch();
   const dirs = [
@@ -112,7 +122,7 @@ function getManifest(id) {
   return manifests.get(id);
 }
 
-import { narratedToolCall, nudgeMessage, unverifiedMessage, MAX_NARRATION_NUDGES } from './narration-guard.js';
+import { narratedToolCall, recoverTextToolCall, nudgeMessage, unverifiedMessage, MAX_NARRATION_NUDGES } from './narration-guard.js';
 import { needsApproval, selectToolsForRun } from './tool-select.js';
 import { tunable } from '../intelligence/tunables.js';
 
@@ -537,6 +547,14 @@ async function drive(runId, depth = 0) {
       return;
     }
 
+    // a call written out as text for a tool the agent holds is executed as the call it plainly is
+    if (!res.tool_calls.length) {
+      const recovered = recoverTextToolCall(res.content, tools);
+      if (recovered) {
+        res.tool_calls = [recovered];
+        ledger.record('fleet.text_tool_call_recovered', { agent: agent.id, tool: recovered.function.name, step, runId }, 'fleet');
+      }
+    }
     addMsg(run.thread_id, runId, { role: 'assistant', content: res.content, tool_calls: res.tool_calls.length ? res.tool_calls : undefined });
     setRun(runId, { steps: step + 1 });
     broadcastFn('fleet', { type: 'step', runId, step: step + 1 });
@@ -745,19 +763,47 @@ export async function runAgentAndWait(userId, agentId, message, threadId, timeou
   return { runId, threadId: tid, status: 'timeout' };
 }
 
-export function decideApproval(userId, approvalId, approve) {
+// Approving executes the stored call. Before 2026-11-10 an approval only flipped the run back to
+// 'running' and re-asked the model: the approved tool never ran (no tool message was ever written
+// for it), so the model would call it again and raise a fresh approval. Now the human's yes runs
+// exactly the call that was shown to them — same tool, same arguments — and the result goes into the
+// thread before the agent continues. A rejection is written into the thread too, so the agent can
+// say what did not happen instead of the run ending silently.
+export async function decideApproval(userId, approvalId, approve) {
   const a = db.prepare('SELECT * FROM approvals WHERE id = ? AND user_id = ?').get(approvalId, userId || 'local');
   if (!a) throw new Error('Approval not found');
   if (a.status !== 'pending') throw new Error('Already decided');
   db.prepare('UPDATE approvals SET status = ?, decided_at = ? WHERE id = ?')
     .run(approve ? 'approved' : 'rejected', now(), approvalId);
-  if (approve) {
+  if (!approve) {
+    addMsg(a.thread_id, a.run_id, { role: 'tool', tool_call_id: a.call_id || a.tool, name: a.tool, content: JSON.stringify({ result: { rejected: true, reason: 'A person declined this action. It did not run.' }, evidence: { executed: false } }) });
     setRun(a.run_id, { status: 'running' });
-    drive(a.run_id).catch(() => {});
-  } else {
-    setRun(a.run_id, { status: 'rejected' });
+    drive(a.run_id).catch(e => console.error('fleet: drive after rejection failed:', e.message));
+    return { ok: true, status: 'rejected', executed: false };
   }
-  return { ok: true, status: approve ? 'approved' : 'rejected' };
+  const tool = toolRegistry.find(t => t.name === a.tool);
+  const run = db.prepare('SELECT * FROM runs WHERE id = ?').get(a.run_id);
+  const agent = getManifest(run?.model?.split(':')[0] || 'concierge') || null;
+  let args = {};
+  try { args = JSON.parse(a.args || '{}'); } catch (e) { console.error('fleet: approval args unreadable:', e.message); }
+  const t0 = now();
+  let result;
+  try {
+    if (!tool) result = { error: `tool ${a.tool} is no longer registered` };
+    else result = tool.execute ? await tool.execute({ args }, { runId: a.run_id, threadId: a.thread_id, userId: a.user_id, agent, agentId: agent?.id, approvedBy: 'human', approvalId })
+      : (tool.run ? await tool.run(args, { runId: a.run_id, agent }) : { error: 'tool has no executor' });
+  } catch (e) {
+    result = { error: String(e.message || e).slice(0, 400) };
+  }
+  const sealed = sealToolResult(a.tool, args, result, now() - t0);
+  sealed.evidence.approved_by_human = true;
+  sealed.evidence.approval_id = approvalId;
+  persistEvidence(a.run_id, run?.steps || 0, sealed);
+  ledger.record('fleet.approved_tool_executed', { tool: a.tool, runId: a.run_id, approvalId, ok: !result?.error }, 'fleet');
+  addMsg(a.thread_id, a.run_id, { role: 'tool', tool_call_id: a.call_id || a.tool, name: a.tool, content: JSON.stringify(sealed).slice(0, 8000) });
+  setRun(a.run_id, { status: 'running' });
+  drive(a.run_id).catch(e => console.error('fleet: drive after approval failed:', e.message));
+  return { ok: true, status: 'approved', executed: true, error: result?.error || null, result: sealed.result };
 }
 
 export function listAgents(userId) {

@@ -25,7 +25,7 @@ export function createFraymusOs(options = {}) {
   const voice = createVoiceService({ ...options, telemetry });
   const recipes = createRecipes({ ...options, db: options.db });
   const command = createCommandService({
-    db: options.db, registry, graph, recipes, voice, broadcast: options.broadcast,
+    db: options.db, registry, graph, recipes, voice, broadcast: options.broadcast, fleet: options.fleet || null,
   });
   return { db: options.db, telemetry, registry, graph, voice, recipes, command };
 }

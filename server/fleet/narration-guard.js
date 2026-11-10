@@ -32,7 +32,36 @@ export function narratedToolCall(content, tools) {
   return null;
 }
 
-const missingToolMessage = (tool, names) => `[harness] Your last message described a call to \`${tool}\`, but you have no tool with that name, so nothing ran and any result you wrote was invented. Your tools are: ${names.slice(0, 40).join(', ') || '(none)'}. Use one of them with a real tool call, or say plainly that you cannot do this.`;
+/**
+ * Llama-family models often emit a well-formed call as TEXT — {"name": "tool", "parameters": {…}} —
+ * instead of a structured tool_call. When the named tool is one the agent was actually offered and
+ * the JSON parses, that is an unambiguous intent: return it as a real call so the loop executes it
+ * (through the same approval and manifest gates as any other call) instead of scolding the model.
+ * Returns { id, function: { name, arguments } } or null.
+ */
+export function recoverTextToolCall(content, tools) {
+  const text = String(content || '');
+  const start = text.search(/\{\s*"name"\s*:\s*"/);
+  if (start < 0) return null;
+  let depth = 0, inString = false, escaped = false, end = -1;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) { if (escaped) escaped = false; else if (ch === '\\') escaped = true; else if (ch === '"') inString = false; continue; }
+    if (ch === '"') inString = true;
+    else if (ch === '{') depth++;
+    else if (ch === '}' && --depth === 0) { end = i; break; }
+  }
+  if (end < 0) return null;
+  let call;
+  try { call = JSON.parse(text.slice(start, end + 1)); } catch (_) { return null; }
+  if (!call || typeof call.name !== 'string' || !(tools || []).some(t => t.name === call.name)) return null;
+  let args = call.parameters ?? call.arguments ?? {};
+  if (typeof args === 'string') { try { args = JSON.parse(args); } catch (_) { return null; } }
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return null;
+  return { id: `text_${Date.now().toString(36)}`, function: { name: call.name, arguments: args } };
+}
+
+const missingToolMessage =(tool, names) => `[harness] Your last message described a call to \`${tool}\`, but you have no tool with that name, so nothing ran and any result you wrote was invented. Your tools are: ${names.slice(0, 40).join(', ') || '(none)'}. Use one of them with a real tool call, or say plainly that you cannot do this.`;
 /** tools (optional): the agent's real tools — when the claimed one is not among them, say so. */
 export const nudgeMessage = (tool, tools = null) => Array.isArray(tools) && !tools.some(t => t.name === tool) ? missingToolMessage(tool, tools.map(t => t.name)) : `[harness] Your last message described a call to \`${tool}\` but no tool call was made, so any result you wrote was invented and must not be used. Make the real ${tool} tool call now with its JSON arguments, or answer without claiming any tool output.`;
 export const unverifiedMessage = tool => `[harness] The reply above describes output from \`${tool}\` that was never produced — no tool call was made in this run. Treat that result as unverified.`;

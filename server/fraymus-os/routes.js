@@ -36,6 +36,8 @@ export function installFraymusOsRoutes(app, options = {}) {
       voice,
       telemetry: os.telemetry.summary(),
       suggestedPrompts: os.command.suggest,
+      brain: os.command.brain(),
+      deck: os.command.deck,
     });
   }));
 
@@ -90,7 +92,7 @@ export function installFraymusOsRoutes(app, options = {}) {
   }));
 
   app.post('/api/fraymus-os/command', route((req, res) => {
-    res.status(202).json(os.command.start({ text: req.body?.text, sessionId: req.body?.sessionId }));
+    res.status(202).json(os.command.start({ text: req.body?.text, sessionId: req.body?.sessionId, mode: req.body?.mode }));
   }));
 
   app.post('/api/fraymus-os/command/voice', upload.single('audio'), route(async (req, res) => {
@@ -123,8 +125,8 @@ export function installFraymusOsRoutes(app, options = {}) {
     res.json(os.command.cancel(req.params.id));
   }));
 
-  app.post('/api/fraymus-os/approvals/:id', route((req, res) => {
-    res.json(os.command.decide(req.params.id, req.body?.decision));
+  app.post('/api/fraymus-os/approvals/:id', route(async (req, res) => {
+    res.json(await os.command.decide(req.params.id, req.body?.decision));
   }));
 
   app.get('/api/fraymus-os/recipes', route((_req, res) => {
