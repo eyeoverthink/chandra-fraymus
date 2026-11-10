@@ -1,4 +1,5 @@
 import { mkdirSync, readdirSync, statSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { noteMedia } from './media-meta.js';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { execFile } from 'node:child_process';
@@ -178,6 +179,7 @@ async function edgeTtsSpeak(text, opts, mode) {
   const rate = opts.rate || '+0%';
   const pitch = opts.pitch || '+0Hz';
   const name = outName('mp3');
+  noteMedia(name, 'edgeTtsSpeak', arguments);
   const out = savePath(name);
 
   const args = mode === 'edge-tts'
@@ -198,6 +200,7 @@ async function edgeTtsSpeak(text, opts, mode) {
 async function piperSpeak(text, opts) {
   const model = opts.model || 'en_US-amy-medium';
   const name = outName('wav');
+  noteMedia(name, 'piperSpeak', arguments);
   const out = savePath(name);
   const tmpInput = join(tmpdir(), `chandra-tts-${randomBytes(4).toString('hex')}.txt`);
   writeFileSync(tmpInput, text);
@@ -220,6 +223,7 @@ async function sapiSpeak(text, opts) {
   const voice = opts.voice || '';
   const rate = opts.rate != null ? parseInt(opts.rate) : 0;
   const name = outName('wav');
+  noteMedia(name, 'sapiSpeak', arguments);
   const out = savePath(name);
   const escaped = text.replace(/'/g, "''").replace(/`/g, '``');
 

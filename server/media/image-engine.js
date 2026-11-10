@@ -3,6 +3,7 @@ import { mkdirSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { DATA_DIR } from '../config.js';
+import { noteMedia, notePromptJob, notePromptFile } from './media-meta.js';
 
 const MEDIA_DIR = join(DATA_DIR, 'media');
 mkdirSync(MEDIA_DIR, { recursive: true });
@@ -52,6 +53,7 @@ export async function imageResize(input, { width, height, fit = 'inside' } = {})
   if (!w && !h) throw new Error('width or height required');
   const result = await sharp(buf).resize(w, h, { fit }).png().toBuffer();
   const name = outName('png');
+  noteMedia(name, 'imageResize', arguments);
   await sharp(result).toFile(savePath(name));
   const meta = await sharp(result).metadata();
   return { url: mediaUrl(name), path: savePath(name), width: meta.width, height: meta.height, size: result.length };
@@ -64,6 +66,7 @@ export async function imageCrop(input, { left, top, width, height }) {
     .extract({ left: Number(left), top: Number(top), width: Number(width), height: Number(height) })
     .png().toBuffer();
   const name = outName('png');
+  noteMedia(name, 'imageCrop', arguments);
   await sharp(result).toFile(savePath(name));
   return { url: mediaUrl(name), path: savePath(name), width: Number(width), height: Number(height), size: result.length };
 }
@@ -81,6 +84,7 @@ export async function imageConvert(input, { format = 'png', quality = 80 } = {})
   else pipeline = pipeline.png();
   const result = await pipeline.toBuffer();
   const name = outName(ext === 'jpg' ? 'jpeg' : ext);
+  noteMedia(name, 'imageConvert', arguments);
   await sharp(result).toFile(savePath(name));
   const meta = await sharp(result).metadata();
   return { url: mediaUrl(name), path: savePath(name), format: ext, width: meta.width, height: meta.height, size: result.length };
@@ -102,6 +106,7 @@ export async function imageEffects(input, opts = {}) {
   if (opts.normalize || opts.normalise) pipeline = pipeline.normalize();
   const result = await pipeline.png().toBuffer();
   const name = outName('png');
+  noteMedia(name, 'imageEffects', arguments);
   await sharp(result).toFile(savePath(name));
   const meta = await sharp(result).metadata();
   return { url: mediaUrl(name), path: savePath(name), width: meta.width, height: meta.height, size: result.length, effects: Object.keys(opts).filter(k => opts[k]) };
@@ -122,6 +127,7 @@ export async function imageComposite(baseInput, overlays = []) {
   }
   const result = await sharp(baseBuf).composite(compositeInputs).png().toBuffer();
   const name = outName('png');
+  noteMedia(name, 'imageComposite', arguments);
   await sharp(result).toFile(savePath(name));
   const meta = await sharp(result).metadata();
   return { url: mediaUrl(name), path: savePath(name), width: meta.width, height: meta.height, size: result.length, layers: overlays.length + 1 };
@@ -147,6 +153,7 @@ export async function imageWatermark(input, text = 'CHANDRA', opts = {}) {
     .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
     .png().toBuffer();
   const name = outName('png');
+  noteMedia(name, 'imageWatermark', arguments);
   await sharp(result).toFile(savePath(name));
   return { url: mediaUrl(name), path: savePath(name), width: meta.width, height: meta.height, size: result.length, watermark: text };
 }
@@ -157,6 +164,7 @@ export async function imageThumbnail(input, size = 256) {
   const buf = toBuffer(input);
   const result = await sharp(buf).resize(s, s, { fit: 'cover' }).png().toBuffer();
   const name = outName('png');
+  noteMedia(name, 'imageThumbnail', arguments);
   await sharp(result).toFile(savePath(name));
   return { url: mediaUrl(name), path: savePath(name), width: s, height: s, size: result.length };
 }
@@ -172,6 +180,7 @@ export async function imageUpscale(input, scale = 2) {
     .resize(newW, newH, { kernel: 'lanczos3' })
     .png().toBuffer();
   const name = outName('png');
+  noteMedia(name, 'imageUpscale', arguments);
   await sharp(result).toFile(savePath(name));
   return { url: mediaUrl(name), path: savePath(name), width: newW, height: newH, size: result.length, scale: s, method: 'lanczos3' };
 }
@@ -184,6 +193,7 @@ export async function imageCreate({ width = 512, height = 512, color = '#000000'
     create: { width: w, height: h, channels: 4, background: color },
   }).png().toBuffer();
   const name = outName('png');
+  noteMedia(name, 'imageCreate', arguments);
   await sharp(result).toFile(savePath(name));
   return { url: mediaUrl(name), path: savePath(name), width: w, height: h, size: result.length };
 }
@@ -239,6 +249,7 @@ export async function comfyuiGenerate(prompt, { width = 1024, height = 1024, ste
   });
   if (!res.ok) throw new Error(`ComfyUI error: HTTP ${res.status}`);
   const data = await res.json();
+  notePromptJob(data.prompt_id, prompt, { seed: s, width, height, steps, cfg, model: 'flux1-schnell' });
   return { promptId: data.prompt_id, seed: s, width, height, steps, cfg, status: 'queued' };
 }
 
@@ -255,6 +266,7 @@ export async function comfyuiResult(promptId) {
     if (nodeOut.images) {
       for (const img of nodeOut.images) {
         images.push({ filename: img.filename, subfolder: img.subfolder, type: img.type });
+        notePromptFile(img.filename, promptId);
       }
     }
   }
@@ -267,6 +279,7 @@ export async function comfyuiFetchImage(filename, subfolder = '') {
   if (!res.ok) throw new Error(`ComfyUI fetch error: HTTP ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
   const name = outName('png');
+  noteMedia(name, 'comfyuiFetchImage', arguments);
   await sharp(buf).png().toFile(savePath(name));
   const meta = await sharp(buf).metadata();
   return { url: mediaUrl(name), path: savePath(name), width: meta.width, height: meta.height, size: buf.length };

@@ -23,6 +23,7 @@ import os from 'node:os';
 import { db } from '../db.js';
 import { chatOllama, parseJSON } from '../commerce/shared.js';
 import { classifyHost } from '../fraymus-os/registry.js';
+import { mediaMetaFor, searchMediaFiles } from '../media/media-meta.js';
 import { PORT as SERVER_PORT } from '../config.js'; // CHANDRA_PORT first: a dev launcher may set PORT to the client's port
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -440,7 +441,7 @@ export function mediaFile(kind, id) {
 }
 
 /** kinds: site (opens in the browser) · wiki | client | report | draft (read in the viewer) · image | video | audio (played in the viewer). */
-export function listArtifacts({ limit = 24, kind = null } = {}) {
+export function listArtifacts({ limit = 24, kind = null, q = '' } = {}) {
   const out = [];
   const port = SERVER_PORT;
   for (const d of dirEntries(SITES_DIR)) if (d.isDirectory() && existsSync(join(SITES_DIR, d.name, 'index.html'))) out.push({ kind: 'site', id: d.name, title: firstHeading(join(SITES_DIR, d.name, 'index.html'), d.name), detail: `${dirEntries(join(SITES_DIR, d.name)).length} file(s)`, url: `http://127.0.0.1:${port}/sites/${d.name}/`, at: mtime(join(SITES_DIR, d.name, 'index.html')) });
@@ -452,12 +453,30 @@ export function listArtifacts({ limit = 24, kind = null } = {}) {
   const counts = out.reduce((m, a) => (m[a.kind] = (m[a.kind] || 0) + 1, m), {});
   for (const k of Object.keys(media)) if (media[k].length) counts[k] = media[k].length;
   const total = out.length + media.image.length + media.video.length + media.audio.length;
-  const pool = kind ? (media[kind] || out.filter(a => a.kind === kind)) : [...out, ...media.image, ...media.video, ...media.audio.slice(0, UNFILTERED_AUDIO_CAP)];
-  const artifacts = pool.sort((a, b) => b.at - a.at).slice(0, limit);
+  const needle = String(q || '').trim().toLowerCase().slice(0, 80);
+  let pool;
+  if (needle) {
+    // search looks at everything, including all audio: titles and details, recorded prompts/operations, and spoken text
+    const byMeta = searchMediaFiles(needle);
+    let spokenHits = new Set();
+    try { const like = `%${needle.replace(/[\\%_]/g, m => `\\${m}`)}%`; spokenHits = new Set(db.prepare(`SELECT audio_url FROM narrations WHERE text LIKE ? ESCAPE '\\' AND audio_url IS NOT NULL ORDER BY created_at DESC LIMIT 500`).all(like).map(r => String(r.audio_url).replace(/^\/tts\//, ''))); } catch (e) { if (!/no such table/.test(e.message)) console.error('[hermes] narration search:', e.message); }
+    const all = [...out, ...media.image, ...media.video, ...media.audio];
+    pool = (kind ? all.filter(a => a.kind === kind) : all).filter(a => `${a.title} ${a.detail} ${a.id}`.toLowerCase().includes(needle) || byMeta.has(a.id) || spokenHits.has(a.id));
+  } else {
+    pool = kind ? (media[kind] || out.filter(a => a.kind === kind)) : [...out, ...media.image, ...media.video, ...media.audio.slice(0, UNFILTERED_AUDIO_CAP)];
+  }
+  const matched = pool.length;
+  // an engine attempt that failed can leave an empty file behind (edge-tts does): never show those.
+  // Only the candidates for this page are stat-ed, not the whole folder.
+  const playable = a => { if (!a.media) return true; const f = mediaFile(a.kind, a.id); try { return !!f && statSync(f.path).size > 0; } catch (_) { return false; } };
+  const artifacts = pool.sort((a, b) => b.at - a.at).slice(0, limit * 2 + 4).filter(playable).slice(0, limit);
+  // what made each media file: the recorded prompt becomes the title, the operation goes in the detail line
+  const made = mediaMetaFor(artifacts.filter(a => a.media).map(a => a.id));
+  for (const a of artifacts) { const m = made.get(a.id); if (!m) continue; a.op = m.op; a.params = m.params; if (m.prompt) { a.prompt = m.prompt; a.title = clip(m.prompt, 110); } else a.title = `${a.kind[0].toUpperCase()}${a.kind.slice(1)} · ${m.op} · ${when(a.at)}`; a.detail = `${m.op} · ${a.detail}`; }
   // spoken lines get their text as the title (the narrator stores what each file says)
   const spoken = artifacts.filter(a => a.kind === 'audio');
   if (spoken.length) { try { const find = db.prepare(`SELECT text FROM narrations WHERE audio_url = ? LIMIT 1`); for (const a of spoken) { const row = find.get(`/tts/${a.id}`); if (row?.text) { a.title = clip(row.text, 110); a.detail = `narration · ${a.detail}`; } } } catch (e) { if (!/no such table/.test(e.message)) console.error('[hermes] narration titles:', e.message); } }
-  return { total, counts, artifacts };
+  return { total, counts, matched, query: needle || null, artifacts };
 }
 
 /** Text of one non-site artifact. Names are checked against a strict pattern; nothing outside data/ is readable. */
@@ -486,7 +505,7 @@ export function installHermesRoutes(app, { express } = {}) {
   app.get('/api/hermes', route((req, res) => res.json(hermesStatus())));
   app.get('/api/hermes/skills', route((req, res) => res.json({ skills: HERMES_SKILLS })));
   app.get('/api/hermes/brief', route((req, res) => res.json(morningBrief())));
-  app.get('/api/hermes/artifacts', route((req, res) => res.json(listArtifacts({ limit: Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 24)), kind: ['site', 'wiki', 'client', 'report', 'draft', 'image', 'video', 'audio'].includes(req.query.kind) ? req.query.kind : null }))));
+  app.get('/api/hermes/artifacts', route((req, res) => res.json(listArtifacts({ q: typeof req.query.q === 'string' ? req.query.q : '', limit: Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 24)), kind: ['site', 'wiki', 'client', 'report', 'draft', 'image', 'video', 'audio'].includes(req.query.kind) ? req.query.kind : null }))));
   // media bytes go through /api so the dev proxy and the built client both reach them same-origin
   app.get('/api/hermes/artifacts/media', (req, res, next) => { try { const f = mediaFile(String(req.query.kind || ''), String(req.query.id || '')); if (!f) return res.status(404).json({ error: 'media not found' }); res.setHeader('Content-Type', f.mime); res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Cache-Control', 'private, max-age=3600'); res.sendFile(f.path, err => { if (err && !res.headersSent) next(err); }); } catch (e) { next(e); } });
   app.get('/api/hermes/artifacts/read', route((req, res) => { const a = readArtifact(String(req.query.kind || ''), String(req.query.id || '')); return a ? res.json(a) : res.status(404).json({ error: 'artifact not found' }); }));

@@ -45,6 +45,8 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
   const inputRef = useRef(null);
   const [shelf, setShelf] = useState({ total: 0, counts: {}, artifacts: [] });
   const [shelfKind, setShelfKind] = useState('');
+  const [shelfQuery, setShelfQuery] = useState('');
+  const [shelfSearch, setShelfSearch] = useState('');   // debounced copy of shelfQuery
   const [viewer, setViewer] = useState(null);
   const sessionId = useRef(null);
   const turnId = useRef(null);
@@ -78,7 +80,7 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
     let stop = false;
     async function pull() {
       try {
-        const body = await api(`/api/hermes/artifacts?limit=12${shelfKind ? `&kind=${shelfKind}` : ''}`);
+        const body = await api(`/api/hermes/artifacts?limit=12${shelfKind ? `&kind=${shelfKind}` : ''}${shelfSearch ? `&q=${encodeURIComponent(shelfSearch)}` : ''}`);
         if (!stop) setShelf(body);
       } catch (error) {
         console.warn('artifact shelf unavailable:', error.message);
@@ -87,11 +89,16 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
     pull();
     const timer = setInterval(pull, 10000);
     return () => { stop = true; clearInterval(timer); };
-  }, [shelfKind, phase]);
+  }, [shelfKind, shelfSearch, phase]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShelfSearch(shelfQuery.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [shelfQuery]);
 
   async function openArtifact(item) {
     if (item.kind === 'site') { window.open(item.url, '_blank', 'noopener'); return; }
-    if (MEDIA_KINDS.includes(item.kind)) { setViewer({ kind: item.kind, title: item.title, format: 'media', media: item.media, detail: item.detail }); return; }
+    if (MEDIA_KINDS.includes(item.kind)) { setViewer({ kind: item.kind, title: item.title, format: 'media', media: item.media, detail: item.detail, prompt: item.prompt, op: item.op, params: item.params, file: item.id }); return; }
     try {
       setViewer(await api(`/api/hermes/artifacts/read?kind=${encodeURIComponent(item.kind)}&id=${encodeURIComponent(item.id)}`));
     } catch (error) {
@@ -400,11 +407,12 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
               ))}
             </div>
           )}
-          {shelf.total > 0 && (
+          {(shelf.total > 0 || shelfSearch) && (
             <div className="shelf" aria-label="Made on this machine">
               <div className="shelf-head">
                 <b>Made here</b>
-                <span>{shelf.total} item{shelf.total === 1 ? '' : 's'}</span>
+                <span>{shelfSearch ? `${shelf.matched ?? 0} of ${shelf.total} match` : `${shelf.total} item${shelf.total === 1 ? '' : 's'}`}</span>
+                <input className="shelf-search" type="search" value={shelfQuery} onChange={event => setShelfQuery(event.target.value)} placeholder="Search what was made…" aria-label="Search artifacts" />
                 {SHELF_KINDS.filter(k => shelf.counts?.[k.id]).map(k => (
                   <button type="button" key={k.id} className={shelfKind === k.id ? 'on' : ''} onClick={() => setShelfKind(shelfKind === k.id ? '' : k.id)}>{k.label} {shelf.counts[k.id]}</button>
                 ))}
@@ -472,7 +480,9 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
                 {viewer.kind === 'image' && <img src={viewer.media} alt={viewer.title} />}
                 {viewer.kind === 'video' && <video src={viewer.media} controls autoPlay playsInline />}
                 {viewer.kind === 'audio' && <audio src={viewer.media} controls autoPlay />}
-                <p className="muted">{viewer.detail}</p>
+                {viewer.prompt && <p className="viewer-prompt"><b>{viewer.kind === 'audio' ? 'Says' : 'Prompt / text'}:</b> {viewer.prompt}</p>}
+                <p className="muted">{viewer.detail}{viewer.params && Object.keys(viewer.params).length > 0 ? ` · ${Object.entries(viewer.params).slice(0, 8).map(([key, value]) => `${key} ${value}`).join(' · ')}` : ''}</p>
+                {!viewer.op && <p className="muted">Made before provenance was recorded: nothing is known about how.</p>}
               </div>
             ) : (
               <pre className={viewer.format === 'code' ? 'code' : ''}>{viewer.text}</pre>

@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { DATA_DIR } from '../config.js';
+import { noteMedia } from './media-meta.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -99,6 +100,7 @@ export async function videoThumbnail(input, opts = {}) {
   const tmp = writeTempInput(buf);
   const time = opts.time || '00:00:01';
   const name = outName('png');
+  noteMedia(name, 'videoThumbnail', arguments);
   const out = savePath(name);
   try {
     await runFF('ffmpeg', [
@@ -116,6 +118,7 @@ export async function videoTrim(input, opts = {}) {
   const tmp = writeTempInput(buf);
   const ext = opts.format || 'mp4';
   const name = outName(ext);
+  noteMedia(name, 'videoTrim', arguments);
   const out = savePath(name);
   const args = ['-y', '-i', tmp];
   if (opts.start) args.push('-ss', String(opts.start));
@@ -138,6 +141,7 @@ export async function videoResize(input, opts = {}) {
   const scale = `scale=${w}:${h}`;
   const ext = opts.format || 'mp4';
   const name = outName(ext);
+  noteMedia(name, 'videoResize', arguments);
   const out = savePath(name);
   try {
     await runFF('ffmpeg', [
@@ -156,6 +160,7 @@ export async function videoConvert(input, opts = {}) {
   const tmp = writeTempInput(buf);
   const ext = opts.format || 'webm';
   const name = outName(ext);
+  noteMedia(name, 'videoConvert', arguments);
   const out = savePath(name);
   const args = ['-y', '-i', tmp];
   if (ext === 'webm') {
@@ -181,6 +186,7 @@ export async function videoExtractAudio(input, opts = {}) {
   const tmp = writeTempInput(buf);
   const ext = opts.format || 'mp3';
   const name = outName(ext);
+  noteMedia(name, 'videoExtractAudio', arguments);
   const out = savePath(name);
   const args = ['-y', '-i', tmp, '-vn'];
   if (ext === 'mp3') args.push('-c:a', 'libmp3lame', '-q:a', '2');
@@ -202,6 +208,7 @@ export async function videoToGif(input, opts = {}) {
   const width = opts.width || 480;
   const fps = opts.fps || 10;
   const name = outName('gif');
+  noteMedia(name, 'videoToGif', arguments);
   const out = savePath(name);
   const args = ['-y', '-i', tmp];
   if (opts.start) args.push('-ss', String(opts.start));
@@ -230,6 +237,7 @@ export async function videoConcat(inputs, opts = {}) {
   writeFileSync(listFile, listContent);
   const ext = opts.format || 'mp4';
   const name = outName(ext);
+  noteMedia(name, 'videoConcat', arguments);
   const out = savePath(name);
   try {
     await runFF('ffmpeg', [
@@ -255,6 +263,7 @@ export async function videoOverlayText(input, text, opts = {}) {
   const escapedText = text.replace(/'/g, "'\\''").replace(/:/g, '\\:');
   const ext = opts.format || 'mp4';
   const name = outName(ext);
+  noteMedia(name, 'videoOverlayText', arguments);
   const out = savePath(name);
   try {
     await runFF('ffmpeg', [

@@ -127,3 +127,9 @@ The home screen now has a **Made here** shelf under the capability deck: every s
 **Images, video and audio are on the shelf** (added the same evening): thumbnails on the cards, an in-page player, and a filter per kind. At build time: 18 images, 8 videos, 1,098 audio files. Audio is limited to the two newest in the mixed view because the narrator records a line every few minutes; the Audio filter shows all of them, titled with what was said. Images and videos are titled only by kind and time — no prompt is stored with them yet.
 
 Not on the shelf: forged skills (they have their own tab in Self-Mod).
+
+## 8. Built since: provenance and search
+
+Every image, video and audio file the engines write is now recorded with what made it: the operation, the text it was given (generation prompt, watermark, overlay, spoken line) and its options. The shelf shows that text as the title, the viewer shows prompt and options, and a search box finds artifacts by what they were made from — including all 1,100 narration lines by what they say.
+
+Files made before this was added have no record; the viewer says so rather than guessing. The ComfyUI generation path is unit-tested but was not run live (ComfyUI was not running).

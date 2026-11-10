@@ -373,3 +373,9 @@
 .viewer-media img, .viewer-media video { max-width: 100%; max-height: 66vh; border-radius: 10px; background: #03060a; }
 .viewer-media audio { width: min(520px, 100%); }
 .viewer-link { color: var(--cyan); font-size: 13px; text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; }
+
+/* Shelf search + provenance */
+.shelf-search { flex: 1 1 160px; min-width: 120px; max-width: 280px; background: rgba(7, 12, 18, 0.9); border: 1px solid var(--line); border-radius: 999px; color: var(--ink); padding: 4px 12px; font-size: 12px; }
+.shelf-search:focus { outline: none; border-color: var(--cyan); }
+.viewer-prompt { margin: 0; max-width: 70ch; text-align: center; line-height: 1.5; overflow-wrap: anywhere; }
+.viewer-prompt b { color: var(--cyan); font-weight: 600; }
