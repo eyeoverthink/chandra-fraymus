@@ -23,6 +23,7 @@ import os from 'node:os';
 import { db } from '../db.js';
 import { chatOllama, parseJSON } from '../commerce/shared.js';
 import { classifyHost } from '../fraymus-os/registry.js';
+import { PORT as SERVER_PORT } from '../config.js'; // CHANDRA_PORT first: a dev launcher may set PORT to the client's port
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DATA_DIR = resolve(process.env.CHANDRA_DATA_DIR || join(REPO_ROOT, 'data'));
@@ -235,7 +236,7 @@ function writeSite(slug, files) {
     writeFileSync(full, String(f.content ?? ''));
     bytes += Buffer.byteLength(String(f.content ?? ''));
   }
-  return { slug: slugify(slug), dir, files: files.length, bytes, url: `http://127.0.0.1:${process.env.PORT || 8787}/sites/${slugify(slug)}/`, note: 'Served locally only. Nothing was published to the internet.' };
+  return { slug: slugify(slug), dir, files: files.length, bytes, url: `http://127.0.0.1:${SERVER_PORT}/sites/${slugify(slug)}/`, note: 'Served locally only. Nothing was published to the internet.' };
 }
 
 export function morningBrief() {
@@ -412,12 +413,55 @@ export function hermesStatus() {
   return { skills: HERMES_SKILLS.length, counts, tools: createHermesTools().map(t => ({ name: t.name, risk: t.risk, description: t.description })), calls7d: calls, roots: ROOTS, sitesDir: SITES_DIR };
 }
 
+// ── artifact shelf: everything the agents have made on this machine, newest first ───────────────
+const REA_DIR = join(DATA_DIR, 'rea');
+const safeName = s => /^[\w.-]{1,120}$/.test(String(s || '')) && !String(s).includes('..');
+function dirEntries(dir) { try { return readdirSync(dir, { withFileTypes: true }); } catch (_) { return []; } }
+function mtime(p) { try { return statSync(p).mtimeMs; } catch (_) { return 0; } }
+function firstHeading(file, fallback) { try { const m = readFileSync(file, 'utf8').slice(0, 2000).match(/^#\s+(.+)$/m) || readFileSync(file, 'utf8').slice(0, 4000).match(/<title>([^<]+)<\/title>/i); return m ? decodeEntities(m[1]).trim().slice(0, 120) : fallback; } catch (_) { return fallback; } }
+
+/** kinds: site (opens in the browser), wiki | client | report | draft (read in the viewer). */
+export function listArtifacts({ limit = 24, kind = null } = {}) {
+  const out = [];
+  const port = SERVER_PORT;
+  for (const d of dirEntries(SITES_DIR)) if (d.isDirectory() && existsSync(join(SITES_DIR, d.name, 'index.html'))) out.push({ kind: 'site', id: d.name, title: firstHeading(join(SITES_DIR, d.name, 'index.html'), d.name), detail: `${dirEntries(join(SITES_DIR, d.name)).length} file(s)`, url: `http://127.0.0.1:${port}/sites/${d.name}/`, at: mtime(join(SITES_DIR, d.name, 'index.html')) });
+  for (const d of dirEntries(WIKI_DIR)) if (d.isDirectory()) for (const f of dirEntries(join(WIKI_DIR, d.name))) if (f.isFile() && f.name.endsWith('.md')) out.push({ kind: 'wiki', id: `${d.name}/${f.name}`, title: firstHeading(join(WIKI_DIR, d.name, f.name), `${d.name} — ${f.name}`), detail: f.name, at: mtime(join(WIKI_DIR, d.name, f.name)) });
+  for (const f of dirEntries(HAR_DIR)) if (f.isFile() && f.name.endsWith('.mjs')) out.push({ kind: 'client', id: f.name, title: `API client: ${f.name.replace(/\.mjs$/, '')}`, detail: 'ES module', at: mtime(join(HAR_DIR, f.name)) });
+  for (const f of dirEntries(REA_DIR)) if (f.isFile() && f.name.endsWith('.md')) out.push({ kind: 'report', id: f.name, title: firstHeading(join(REA_DIR, f.name), `REA report ${f.name}`), detail: 'reverse-engineering report', at: mtime(join(REA_DIR, f.name)) });
+  try { for (const r of db.prepare(`SELECT id, preset, topic, status, created_at FROM fraymus_os_artifacts ORDER BY created_at DESC LIMIT 40`).all()) out.push({ kind: 'draft', id: r.id, title: r.topic, detail: `${String(r.preset).replace(/-/g, ' ')} · ${r.status}`, at: r.created_at }); } catch (e) { if (!/no such table/.test(e.message)) console.error('[hermes] draft artifacts:', e.message); }
+  const filtered = kind ? out.filter(a => a.kind === kind) : out;
+  const counts = out.reduce((m, a) => (m[a.kind] = (m[a.kind] || 0) + 1, m), {});
+  return { total: out.length, counts, artifacts: filtered.sort((a, b) => b.at - a.at).slice(0, limit) };
+}
+
+/** Text of one non-site artifact. Names are checked against a strict pattern; nothing outside data/ is readable. */
+export function readArtifact(kind, id) {
+  const MAX = 200_000;
+  if (kind === 'draft') {
+    const r = db.prepare(`SELECT preset, topic, status, payload, error, created_at FROM fraymus_os_artifacts WHERE id = ?`).get(String(id));
+    if (!r) return null;
+    let p = null; try { p = r.payload ? JSON.parse(r.payload) : null; } catch (_) { /* shown raw below */ }
+    const lines = [`# ${r.topic}`, `_${String(r.preset).replace(/-/g, ' ')} · ${r.status} · ${new Date(r.created_at).toISOString().slice(0, 16).replace('T', ' ')}_`];
+    if (r.error) lines.push(`\n**Error:** ${r.error}`);
+    const walk = (v, depth) => { if (v == null) return; if (typeof v !== 'object') { lines.push(String(v)); return; } for (const [k, x] of Object.entries(v)) { if (x == null || x === '') continue; if (typeof x === 'object') { lines.push(`\n${'#'.repeat(Math.min(4, depth + 2))} ${k.replace(/_/g, ' ')}`); if (Array.isArray(x)) x.forEach((it, i) => (typeof it === 'object' ? (lines.push(`\n**${i + 1}.**`), walk(it, depth + 1)) : lines.push(`- ${it}`))); else walk(x, depth + 1); } else lines.push(`- **${k.replace(/_/g, ' ')}:** ${x}`); } };
+    if (p) walk(p, 0); else if (r.payload) lines.push(r.payload);
+    return { kind, id, title: r.topic, format: 'markdown', text: lines.join('\n').slice(0, MAX) };
+  }
+  const read = (file, format) => (existsSync(file) ? { kind, id, title: firstHeading(file, id), format, text: readFileSync(file, 'utf8').slice(0, MAX), path: file } : null);
+  if (kind === 'wiki') { const [name, file] = String(id).split('/'); return safeName(name) && safeName(file) && file.endsWith('.md') ? read(join(WIKI_DIR, name, file), 'markdown') : null; }
+  if (kind === 'client') return safeName(id) && String(id).endsWith('.mjs') ? read(join(HAR_DIR, id), 'code') : null;
+  if (kind === 'report') return safeName(id) && String(id).endsWith('.md') ? read(join(REA_DIR, id), 'markdown') : null;
+  return null;
+}
+
 export function installHermesRoutes(app, { express } = {}) {
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
   const tools = createHermesTools();
   app.get('/api/hermes', route((req, res) => res.json(hermesStatus())));
   app.get('/api/hermes/skills', route((req, res) => res.json({ skills: HERMES_SKILLS })));
   app.get('/api/hermes/brief', route((req, res) => res.json(morningBrief())));
+  app.get('/api/hermes/artifacts', route((req, res) => res.json(listArtifacts({ limit: Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 24)), kind: ['site', 'wiki', 'client', 'report', 'draft'].includes(req.query.kind) ? req.query.kind : null }))));
+  app.get('/api/hermes/artifacts/read', route((req, res) => { const a = readArtifact(String(req.query.kind || ''), String(req.query.id || '')); return a ? res.json(a) : res.status(404).json({ error: 'artifact not found' }); }));
   app.get('/api/hermes/sites', route((req, res) => { let sites = []; try { sites = readdirSync(SITES_DIR, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => ({ slug: d.name, url: `/sites/${d.name}/` })); } catch (_) { /* no sites yet */ } res.json({ sites }); }));
   // operator call of a safe tool; approval-labelled tools only run through an agent's approval flow
   app.post('/api/hermes/run/:tool', route(async (req, res) => { const t = tools.find(x => x.name === req.params.tool); if (!t) return res.status(404).json({ error: 'unknown hermes tool' }); if (t.risk !== 'safe') return res.status(403).json({ error: 'this tool needs approval — call it through an agent' }); res.json(await t.execute({ args: req.body || {} }, { agentId: 'operator' })); }));

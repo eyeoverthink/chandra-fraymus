@@ -343,3 +343,24 @@
   .side { order: 3; max-height: 260px; }
   .answer { max-height: 46vh; }
 }
+
+/* Artifact shelf + viewer */
+.shelf { width: 100%; margin-top: 6px; display: flex; flex-direction: column; gap: 8px; }
+.shelf-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.shelf-head b { color: var(--cyan); letter-spacing: 0.12em; text-transform: uppercase; font-size: 12px; }
+.shelf-head button { padding: 2px 9px; font-size: 11px; }
+.shelf-head button.on { border-color: var(--cyan); color: var(--cyan); }
+.shelf-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.command button.shelf-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 10px; border-radius: 12px; min-width: 0; height: auto; white-space: normal; }
+.shelf-card strong { font-size: 13px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.shelf-kind { font: 600 10px/1 ui-monospace, monospace; letter-spacing: 0.14em; text-transform: uppercase; color: var(--cyan); }
+.kind-draft .shelf-kind { color: var(--amber); }
+.kind-site .shelf-kind { color: #7ee2a8; }
+.shelf-meta { font-size: 11px; color: var(--muted); }
+.viewer-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(2, 5, 9, 0.72); display: grid; place-items: center; padding: 16px; }
+.viewer { width: min(920px, 100%); max-height: 86vh; display: flex; flex-direction: column; gap: 8px; background: #070c12; border: 1px solid var(--line); border-radius: 16px; padding: 14px; color: var(--ink); }
+.viewer header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: center; }
+.viewer header > div { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
+.viewer header strong { overflow-wrap: anywhere; }
+.viewer pre { margin: 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.55 "Segoe UI", system-ui, sans-serif; border-top: 1px solid var(--line); padding-top: 10px; }
+.viewer pre.code { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }

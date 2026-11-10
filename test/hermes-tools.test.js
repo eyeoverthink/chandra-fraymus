@@ -71,3 +71,15 @@ test('a tool call that hits a guard returns an error object instead of throwing'
   const r = await scrape.execute({ args: { url: 'http://127.0.0.1:8787/api/health' } }, {});
   assert.match(r.error, /not a public host/);
 });
+
+test('artifact shelf lists what exists and refuses to read outside its folders', async () => {
+  const { listArtifacts, readArtifact } = await import('../server/hermes/free-tools.js');
+  const all = listArtifacts({ limit: 100 });
+  assert.equal(typeof all.total, 'number');
+  assert.ok(all.artifacts.every(a => ['site', 'wiki', 'client', 'report', 'draft'].includes(a.kind) && a.title && a.at >= 0));
+  assert.deepEqual([...all.artifacts].sort((a, b) => b.at - a.at).map(a => a.id), all.artifacts.map(a => a.id), 'newest first');
+  for (const a of all.artifacts.filter(x => x.kind === 'site')) assert.match(a.url, /^http:\/\/127\.0\.0\.1:\d+\/sites\/[a-z0-9-]+\/$/);
+  for (const a of all.artifacts.filter(x => x.kind !== 'site').slice(0, 6)) { const r = readArtifact(a.kind, a.id); assert.ok(r && typeof r.text === 'string' && r.text.length > 0, `${a.kind} ${a.id}`); }
+  assert.ok(listArtifacts({ kind: 'wiki' }).artifacts.every(a => a.kind === 'wiki'));
+  for (const [kind, id] of [['wiki', '../../.env'], ['wiki', '..%2F..%2F.env/x.md'], ['wiki', 'a/../../.env'], ['client', '../chandra.db'], ['client', 'x.js'], ['report', '../../package.json'], ['report', 'C:/Windows/win.ini'], ['site', 'anything'], ['nope', 'x'], ['draft', 'no-such-id']]) assert.equal(readArtifact(kind, id), null, `${kind}:${id}`);
+});

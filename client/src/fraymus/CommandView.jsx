@@ -10,6 +10,19 @@ const FALLBACK_PROMPTS = [
   { id: 'script', label: 'Short script', text: 'Draft a 60-second script about F.R.A.Y.M.U.S.' },
 ];
 
+const SHELF_KINDS = [
+  { id: 'site', label: 'Sites' }, { id: 'wiki', label: 'Wikis' }, { id: 'draft', label: 'Drafts' },
+  { id: 'report', label: 'Reports' }, { id: 'client', label: 'API clients' },
+];
+
+function ago(ms) {
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (s < 90) return 'just now';
+  if (s < 5400) return `${Math.round(s / 60)} min ago`;
+  if (s < 129600) return `${Math.round(s / 3600)} h ago`;
+  return `${Math.round(s / 86400)} d ago`;
+}
+
 function routeLabel(routeClass) {
   if (routeClass === 'local') return 'LOCAL';
   if (routeClass === 'private') return 'PRIVATE NODE';
@@ -28,6 +41,9 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
   const [mode, setMode] = useState('auto');       // 'auto' = agent with tools, 'quick' = instant lookups + plain chat
   const [deckTab, setDeckTab] = useState('create');
   const inputRef = useRef(null);
+  const [shelf, setShelf] = useState({ total: 0, counts: {}, artifacts: [] });
+  const [shelfKind, setShelfKind] = useState('');
+  const [viewer, setViewer] = useState(null);
   const sessionId = useRef(null);
   const turnId = useRef(null);
   const audioRef = useRef(null);
@@ -54,6 +70,31 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
     const timer = setInterval(pull, 4000);
     return () => { stop = true; clearInterval(timer); };
   }, []);
+
+  // the shelf: what the agents have made on this machine; refreshed while idle and after each turn
+  useEffect(() => {
+    let stop = false;
+    async function pull() {
+      try {
+        const body = await api(`/api/hermes/artifacts?limit=12${shelfKind ? `&kind=${shelfKind}` : ''}`);
+        if (!stop) setShelf(body);
+      } catch (error) {
+        console.warn('artifact shelf unavailable:', error.message);
+      }
+    }
+    pull();
+    const timer = setInterval(pull, 10000);
+    return () => { stop = true; clearInterval(timer); };
+  }, [shelfKind, phase]);
+
+  async function openArtifact(item) {
+    if (item.kind === 'site') { window.open(item.url, '_blank', 'noopener'); return; }
+    try {
+      setViewer(await api(`/api/hermes/artifacts/read?kind=${encodeURIComponent(item.kind)}&id=${encodeURIComponent(item.id)}`));
+    } catch (error) {
+      setBanner(`Could not open ${item.title}: ${error.message}`);
+    }
+  }
 
   useEffect(() => () => {
     audioRef.current?.pause();
@@ -356,6 +397,26 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
               ))}
             </div>
           )}
+          {shelf.total > 0 && (
+            <div className="shelf" aria-label="Made on this machine">
+              <div className="shelf-head">
+                <b>Made here</b>
+                <span>{shelf.total} item{shelf.total === 1 ? '' : 's'}</span>
+                {SHELF_KINDS.filter(k => shelf.counts?.[k.id]).map(k => (
+                  <button type="button" key={k.id} className={shelfKind === k.id ? 'on' : ''} onClick={() => setShelfKind(shelfKind === k.id ? '' : k.id)}>{k.label} {shelf.counts[k.id]}</button>
+                ))}
+              </div>
+              <div className="shelf-row">
+                {shelf.artifacts.map(item => (
+                  <button type="button" key={item.kind + item.id} className={`shelf-card kind-${item.kind}`} onClick={() => openArtifact(item)} title={item.kind === 'site' ? 'Opens in a new tab' : 'Opens here'}>
+                    <span className="shelf-kind">{item.kind}</span>
+                    <strong>{item.title}</strong>
+                    <span className="shelf-meta">{item.detail} · {ago(item.at)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <aside className="trace">
           <h2>Transcript and tools</h2>
@@ -388,6 +449,22 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
           <BrainGraph compact onOpen={() => onOpenSurface('brain')} />
         </aside>
       </div>
+      {viewer && (
+        <div className="viewer-backdrop" onClick={() => setViewer(null)}>
+          <div className="viewer" role="dialog" aria-label={viewer.title} onClick={event => event.stopPropagation()}>
+            <header>
+              <div><span className="shelf-kind">{viewer.kind}</span><strong>{viewer.title}</strong></div>
+              <div>
+                <button type="button" onClick={() => { navigator.clipboard?.writeText(viewer.text).then(() => setBanner('Copied.'), () => setBanner('Copy was blocked by the browser.')); }}>Copy</button>
+                <button type="button" onClick={() => { setText(`About "${viewer.title}": `); setViewer(null); inputRef.current?.focus(); }}>Ask about it</button>
+                <button type="button" onClick={() => setViewer(null)}>Close</button>
+              </div>
+            </header>
+            {viewer.path && <p className="muted">{viewer.path}</p>}
+            <pre className={viewer.format === 'code' ? 'code' : ''}>{viewer.text}</pre>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

@@ -114,8 +114,14 @@ flow now enforce in running code.
 | # | What | Why | Blocker |
 |---|------|-----|---------|
 | 1 | Agent chooses among creation tools with a **plan step** (brief → assets → assemble → publish locally) | One request should produce a finished artifact, not one tool call | Needs a few days of real home use to see where the 8B model stalls |
-| 2 | **Artifact shelf on the home screen**: sites, wikis, images, videos, HAR clients the agent made, with open/preview | Outputs currently live only in the transcript and on disk | None — next UI step |
+| 2 | ~~Artifact shelf on the home screen~~ — **built**, see below | | |
 | 3 | **JS-rendered scraping** through the existing Puppeteer browser tools, behind `hermes.scrape` | Static HTML covers docs and blogs, not SPAs | Decide whether agents may drive a headless browser unattended |
 | 4 | **Media check**: which of ComfyUI/FLUX, ffmpeg, Piper, faster-whisper are actually installed here, shown on the deck | "Generate an image" should not be offered if ComfyUI is not running | A read of each engine's status endpoint |
 | 5 | `canvas`, SEC EDGAR, SearXNG, 1Password | Each needs one value from you | Your tokens / contact string / instance URL |
 | 6 | Re-send `HUMAN-BRAIN-v11-OBSIDIAN.zip` | The file received is a web page, not the archive | Yours |
+
+## 7. Built since: the artifact shelf
+
+The home screen now has a **Made here** shelf under the capability deck: every site, code wiki, API client, reverse-engineering report and draft the agents have produced, newest first, with a filter per kind. Sites open in a new tab; everything else opens in an in-page viewer with Copy and "Ask about it" (which starts a question about that artifact). At first load it listed six real items: one site, two wiki pages, two REA reports and one script draft.
+
+Not on the shelf yet: generated images, video and audio (they live under the media engine's own folders and need a thumbnail view), and forged skills (they have their own tab in Self-Mod).
