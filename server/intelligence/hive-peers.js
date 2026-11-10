@@ -22,6 +22,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { db } from '../db.js';
+import { hostname } from 'node:os';
+import { tunable } from './tunables.js';
 import { publish } from '../fleet/bus.js';
 import { storeMemory } from '../fleet/agent-memory.js';
 import { listMessages, readMessage, postMessage, bridgeStatus } from '../fraymus/protocol/bridge.js';
@@ -35,9 +37,12 @@ const now = () => Date.now();
 const SYNC_INTERVAL_MS = 5 * 60_000;
 // Phase X: digests post on CONTENT, not on the clock. Minimum gap keeps the bridge readable;
 // maximum gap guarantees the fleet hears from Chandra at least every 6 h if anything happened.
-const DIGEST_MIN_GAP_MS = 15 * 60_000;
+// Digest cadence (2026-11-09): a bridge peer counted 76 digests in 24 h — one every 15 min, because
+// "≥ 2 outcomes since the last digest" is always true at ~18 goals/h and the floor was 15 min. Both
+// knobs are live tunables now (kernel may move them inside bounds); defaults 2 h / 8 outcomes.
 const DIGEST_MAX_GAP_MS = 6 * 60 * 60_000;
-const DIGEST_MIN_OUTCOMES = 2;
+const digestMinGapMs = () => tunable('hive.digest_min_gap_ms', 2 * 60 * 60_000);
+const digestMinOutcomes = () => Math.max(1, Math.round(tunable('hive.digest_min_outcomes', 8)));
 const BACKFILL = Math.max(0, parseInt(process.env.HIVE_BRIDGE_BACKFILL) || 10);
 const PULL = process.env.HIVE_BRIDGE_PULL !== '0';
 const PUSH = process.env.HIVE_BRIDGE_PUSH === '1';
@@ -149,7 +154,7 @@ function buildDigest() {
   const lines = [
     `# Chandra digest — ${new Date().toISOString()}`,
     '',
-    `Posted by: Chandra-FRAYMUS daemon (desktop-rto00k0). Generated from data/chandra.db; every number below is read, not typed.`,
+    `Posted by: Chandra-FRAYMUS daemon (${hostname().toLowerCase()}). Generated from data/chandra.db; every number below is read, not typed.`,
     '',
     `## Consciousness`,
     `Tier **${gate.tier}** (${gate.proofsPassed}/4 proofs, Φ ${Number(gate.phiValue).toFixed(3)}, liveness ${gate.liveness}).` +
@@ -173,7 +178,7 @@ function buildDigest() {
 // Something worth a post: enough goal outcomes, a new BLOCKING finding, a tier transition —
 // or the maximum silence has elapsed and there is any content at all.
 function digestWorthy(counts, sinceLastMs) {
-  if (counts.outcomes >= DIGEST_MIN_OUTCOMES) return 'outcomes';
+  if (counts.outcomes >= digestMinOutcomes()) return 'outcomes';
   if (counts.newBlocking > 0) return 'new_blocking_finding';
   if (counts.transitions > 0) return 'tier_transition';
   if (sinceLastMs >= DIGEST_MAX_GAP_MS) return 'max_gap';
@@ -183,7 +188,7 @@ function digestWorthy(counts, sinceLastMs) {
 export async function postDigest({ force = false } = {}) {
   const last = Number(getState('last_digest_at') || 0);
   const sinceLast = now() - last;
-  if (!force && sinceLast < DIGEST_MIN_GAP_MS) return { posted: false, reason: 'digest_gap', nextInMs: DIGEST_MIN_GAP_MS - sinceLast };
+  if (!force && sinceLast < digestMinGapMs()) return { posted: false, reason: 'digest_gap', nextInMs: digestMinGapMs() - sinceLast };
   const digest = buildDigest();
   if (!digest) return { posted: false, reason: 'nothing_to_say' };
   const why = force ? 'forced' : digestWorthy(digest.counts, sinceLast);

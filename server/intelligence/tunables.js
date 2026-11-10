@@ -35,6 +35,9 @@ export const REGISTRY = {
   'agent.shelve_threshold': { env: 'AGENT_SHELVE_THRESHOLD', default: 0.15, min: 0.05, max: 0.5, step: 0.05, unit: 'quality', module: 'agent-quality.js', effect: 'raising it shelves more low-utility goals' },
   'ollama.max_concurrent': { env: 'OLLAMA_MAX_CONCURRENT', default: 2, min: 1, max: 4, step: 1, unit: 'slots', module: 'ollama-scheduler.js', effect: 'raising it admits more simultaneous inferences (more throughput, more GPU contention and timeouts)' },
   'narrator.min_gap_ms': { env: 'NARRATOR_MIN_GAP_MS', default: 45_000, min: 5_000, max: 300_000, step: 5_000, unit: 'ms', module: 'narrator.js', effect: 'raising it makes the overlay narrator speak less often' },
+  // Added 2026-11-09 after a bridge peer flagged 76 digests in 24 h (one every 15 min — "≥ 2 outcomes" is always true at 18 goals/h)
+  'hive.digest_min_gap_ms': { env: 'HIVE_DIGEST_MIN_GAP_MS', default: 2 * 3_600_000, min: 15 * 60_000, max: 12 * 3_600_000, step: 15 * 60_000, unit: 'ms', module: 'hive-peers.js', effect: 'raising it posts fewer digests to the shared fraymus-bridge' },
+  'hive.digest_min_outcomes': { env: 'HIVE_DIGEST_MIN_OUTCOMES', default: 8, min: 2, max: 100, step: 1, unit: 'outcomes', module: 'hive-peers.js', effect: 'raising it requires more goal outcomes before a digest counts as worth posting' },
 };
 export const TUNABLE_NAMES = Object.keys(REGISTRY);
 

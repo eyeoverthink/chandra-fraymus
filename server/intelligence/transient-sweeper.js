@@ -39,11 +39,17 @@ export function sweepStaleTransients({ maxAgeMs = MAX_AGE_MS, trigger = 'manual'
     const verdict = JSON.stringify({ decision: 'ABANDONED', reason: 'swept: proposal never left S1–S3 (process restarted mid-pipeline)', sweptAt: t });
     result.opeg_proposals = db.prepare(`UPDATE opeg_proposals SET state = 'S4_UPDATE', sanitize_verdict = COALESCE(sanitize_verdict, ?), completed_at = ?, updated_at = ? WHERE state IN ('S1_HYPOTHESIS', 'S2_EXECUTE', 'S3_SANITIZE') AND created_at < ?`).run(verdict, t, t, cutoff).changes;
   } catch (e) { result.errors.push(`opeg_proposals: ${e.message.slice(0, 100)}`); }
-  const total = result.runs + result.verification_loops + result.opeg_proposals;
+  // debates (2026-11-09): sweepStaleDebates() only ran at boot; a debate left 'running' mid-day sat for hours
+  // and the self-audit flagged it as stuck_transient (occurrences 46) — now swept hourly like the others
+  try {
+    result.debates = db.prepare(`UPDATE debates SET status = 'failed', verdict = COALESCE(verdict, 'abandoned'), verdict_reasoning = COALESCE(verdict_reasoning, 'swept: never finished'), confidence = COALESCE(confidence, 0) WHERE status = 'running' AND created_at < ?`).run(cutoff).changes;
+  } catch (e) { result.errors.push(`debates: ${e.message.slice(0, 100)}`); result.debates = 0; }
+  const total = result.runs + result.verification_loops + result.opeg_proposals + (result.debates || 0);
   state.sweeps++; state.lastAt = t; state.lastResult = result;
-  for (const k of ['runs', 'verification_loops', 'opeg_proposals']) state.totals[k] += result[k];
+  state.totals.debates = state.totals.debates || 0;
+  for (const k of ['runs', 'verification_loops', 'opeg_proposals', 'debates']) state.totals[k] += result[k] || 0;
   if (total) {
-    console.log(`[sweeper] closed ${total} stale transient row(s): runs ${result.runs}, verifier ${result.verification_loops}, opeg ${result.opeg_proposals} (> ${Math.round(maxAgeMs / 60000)} min, ${trigger})`);
+    console.log(`[sweeper] closed ${total} stale transient row(s): runs ${result.runs}, verifier ${result.verification_loops}, opeg ${result.opeg_proposals}, debates ${result.debates || 0} (> ${Math.round(maxAgeMs / 60000)} min, ${trigger})`);
     try { publish('sweeper', 'system.sweeper', JSON.stringify({ ...result, total })); } catch (_) {}
   }
   return { ...result, total };
@@ -68,6 +74,7 @@ export function getSweeperStatus() {
   try { stuck.runs = db.prepare(`SELECT COUNT(*) c FROM runs WHERE status IN ('running','queued') AND created_at < ?`).get(now() - MAX_AGE_MS).c; } catch (_) {}
   try { stuck.verification_loops = db.prepare(`SELECT COUNT(*) c FROM verification_loops WHERE status = 'running' AND created_at < ?`).get(now() - MAX_AGE_MS).c; } catch (_) {}
   try { stuck.opeg_proposals = db.prepare(`SELECT COUNT(*) c FROM opeg_proposals WHERE state IN ('S1_HYPOTHESIS','S2_EXECUTE','S3_SANITIZE') AND created_at < ?`).get(now() - MAX_AGE_MS).c; } catch (_) {}
+  try { stuck.debates = db.prepare(`SELECT COUNT(*) c FROM debates WHERE status = 'running' AND created_at < ?`).get(now() - MAX_AGE_MS).c; } catch (_) {}
   return { ...state, intervalMs: INTERVAL_MS, maxAgeMs: MAX_AGE_MS, currentlyStuck: stuck };
 }
 
