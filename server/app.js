@@ -399,7 +399,10 @@ listenThenInitialize(server,{host:HOST,port:PORT,initialize:async()=>{
   // call site), so a static tool declared for every agent must be registered here to be callable.
   // Deliberately narrow: only group 'skill' + forAllAgents (today: `reason`) — the same contract as
   // forged skills. Giving the fleet the other ~250 tools is an operator decision, not a side effect.
-  try { const n = addFleetTools((runtime.fleetTools || []).filter(t => t.group === 'skill' && t.forAllAgents)); console.log(`fleet: ${n} tool(s) in the run-loop registry after static skill tools`); } catch(e) { console.error(`Fleet static skill tools: ${e.message}`); }
+  // 2026-11-10, Vaughn's decision: the fleet gets every tool (FLEET_ALL_TOOLS=0 restores skills only).
+  // Approval-labelled tools still stop for a human, and each run is offered only the most relevant
+  // fleet.max_tools_per_run schemas (fleet/tool-select.js) — the registry is not the prompt.
+  try { const all = process.env.FLEET_ALL_TOOLS !== '0'; const n = addFleetTools(all ? (runtime.fleetLoopTools || []) : (runtime.fleetTools || []).filter(t => t.group === 'skill' && t.forAllAgents)); console.log(`fleet: ${n} tool(s) in the run-loop registry after static skill tools`); } catch(e) { console.error(`Fleet static skill tools: ${e.message}`); }
   if (runtime.memoryBridge) setBrainMemoryBridge(runtime.memoryBridge);
   try { await initMcp(join(DATA_DIR, 'mcp-servers.json')); } catch(e) { console.error(`MCP client deferred: ${e.message}`); }
   try {

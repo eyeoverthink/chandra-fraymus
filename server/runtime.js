@@ -588,7 +588,20 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
       res.status(response.status).type(response.headers.get('content-type') || 'application/json').send(Buffer.concat(chunks));
     } catch (error) { res.status(503).json({ ok: false, ready: false, error: `Local voice service unavailable: ${error.message}` }); }
   }));
-  return { agent, artifacts, web, desktop, tasks, autonomy, workflowStore, fleetTools, vertiso, rsi, memoryBridge, async close() {
+  // Fleet run-loop tools: every tool family that works outside the durable agent's own run context.
+  // Left out on purpose: extension/desktop/task/semantic/vision/OCR tools — they are bound to that
+  // agent's run ids, artifacts and desktop broker and would fail or mis-file receipts in a fleet run.
+  const fleetLoopTools = (() => {
+    const seen = new Set(), out = [];
+    let fraymus = [];
+    try { fraymus = createFraymusTools(); } catch (e) { console.error('runtime: fraymus tools for fleet failed:', e.message); }
+    for (const t of normTools([...fleetTools, ...fraymus, ...mcpImported, ...browserTools, ...vertisoTools, ...youtubeTools, ...commerceTools, ...streamingTools, ...creationTools, ...distributionTools, ...analyticsTools, ...learningLoopTools, ...calendarTools, ...abTestingTools, ...trendRadarTools, ...audienceTools, ...repurposeTools, ...chainTools])) {
+      if (!t || !t.name || seen.has(t.name)) continue;
+      seen.add(t.name); out.push(t);
+    }
+    return out;
+  })();
+  return { agent, artifacts, web, desktop, tasks, autonomy, workflowStore, fleetTools, fleetLoopTools, vertiso, rsi, memoryBridge, async close() {
     autonomy.stop();
     const scheduling=await tasks.close();
     if(!scheduling.cleanupConfirmed)return {safeToCloseDatabase:false,scheduling};

@@ -113,6 +113,8 @@ function getManifest(id) {
 }
 
 import { narratedToolCall, nudgeMessage, unverifiedMessage, MAX_NARRATION_NUDGES } from './narration-guard.js';
+import { needsApproval, selectToolsForRun } from './tool-select.js';
+import { tunable } from '../intelligence/tunables.js';
 
 function matchesTool(allow, name) {
   if (allow === '*') return true;
@@ -376,6 +378,14 @@ async function executeTool(toolName, args, ctx) {
     return sealed;
   }
 
+  // Manifest boundary: with the whole server's tools in the registry, an agent may only execute what
+  // its manifest grants (plus for-all-agents skill tools) — being able to name a tool is not a grant.
+  if (ctx.agent && !(matchesTool(ctx.agent.tools, toolName) || (tool.group === 'skill' && tool.forAllAgents))) {
+    const sealed = sealRefusal(toolName, "tool '" + toolName + "' is not in this agent's manifest");
+    persistEvidence(ctx.runId, ctx.step || 0, sealed);
+    return sealed;
+  }
+
   // Permission check (harness-enforced)
   if (ctx.agent) {
     const perm = checkPermission(ctx.agent, toolName);
@@ -404,7 +414,7 @@ async function executeTool(toolName, args, ctx) {
     return sealed;
   }
 
-  if (tool.risk === 'approval') {
+  if (needsApproval(tool)) {
     const approvalId = randomUUID();
     db.prepare(`INSERT INTO approvals (id, run_id, thread_id, user_id, call_id, tool, args, status, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`).run(
@@ -445,7 +455,7 @@ async function drive(runId, depth = 0) {
   const agent = getManifest(run.model?.split(':')[0] || 'concierge') || getManifest('concierge');
   if (!agent) { setRun(runId, { status: 'error', error: 'Agent manifest not found' }); return; }
 
-  const tools = agentTools(agent);
+  const permitted = agentTools(agent);
   const userId = run.user_id || 'local';
 
   // Clock-honesty check: warn if system clock is suspect at run start
@@ -461,6 +471,10 @@ async function drive(runId, depth = 0) {
   // Harness: create run envelope for audit trail
   const lastUserMsg = db.prepare("SELECT content FROM messages WHERE thread_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1").get(run.thread_id);
   const envelope = createRunEnvelope(runId, agent.id, lastUserMsg?.content || '');
+  // The registry can hold every tool the server has; the model is offered only the most relevant
+  // few for this task. Tools the manifest names explicitly are pinned ahead of wildcard matches.
+  const tools = selectToolsForRun(permitted, lastUserMsg?.content || '', { max: Math.round(tunable('fleet.max_tools_per_run', 24)), pinned: Array.isArray(agent.tools) ? agent.tools.filter(n => !n.includes('*')) : [] });
+  if (tools.length < permitted.length) ledger.record('fleet.tools_offered', { agent: agent.id, runId, offered: tools.map(t => t.name), permitted: permitted.length }, 'fleet');
 
   // Perspective auto-assess: frame the run before the agent starts (top-level only)
   if (depth === 0 && lastUserMsg?.content) {
@@ -557,7 +571,7 @@ async function drive(runId, depth = 0) {
     const canParallel = res.tool_calls.length > 1 &&
       res.tool_calls.every(tc => {
         const t = toolRegistry.find(x => x.name === tc.function?.name);
-        return t && t.risk !== 'approval_required' && t.risk !== 'approval';
+        return t && !needsApproval(t);
       });
 
     const executeOne = async (tc) => {
