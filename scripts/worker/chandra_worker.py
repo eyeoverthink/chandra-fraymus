@@ -45,7 +45,7 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
 SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{2,60}$")
@@ -152,10 +152,26 @@ class Worker:
             return None
 
     def _models(self, sub):
+        found = set()
+        for base in (os.path.join(self.a.comfy_dir or "", "models"), self.a.models_dir):
+            try:
+                found.update(f for f in os.listdir(os.path.join(base, sub)) if f.lower().endswith((".safetensors", ".ckpt")))
+            except Exception:
+                pass
+        return sorted(found)
+
+    def render_workers(self):
+        """How many processes the studio may use for frames. Its parallel mode needs fork, or the spawn fix in studio/core.py."""
+        if self.a.studio_workers > 0:
+            return self.a.studio_workers
+        cores = max(1, min(8, (os.cpu_count() or 2) - 1))
+        if sys.platform != "win32":
+            return cores
         try:
-            return sorted(f for f in os.listdir(os.path.join(self.a.comfy_dir, "models", sub)) if f.lower().endswith((".safetensors", ".ckpt")))
+            with open(os.path.join(self.a.studio_dir, "studio", "core.py"), encoding="utf-8") as f:
+                return cores if "initializer=_init_worker" in f.read() else 1
         except Exception:
-            return []
+            return 1
 
     def capabilities(self, fresh=False):
         if self._cap and not fresh and time.time() - self._cap_at < 60:
@@ -198,9 +214,22 @@ class Worker:
         if not shutil.which("ffmpeg"):
             video["problems"].append("ffmpeg is not on PATH")
         video["ready"] = not video["problems"]
+        video["workers"] = self.render_workers() if self.a.studio_dir else None
+        video["wordTiming"] = "faster-whisper " + self.studio_env().get("STUDIO_WHISPER", "") if "STUDIO_WHISPER" in self.studio_env() else "estimated from text length"
         self._cap = {"stills": stills, "video": video}
         self._cap_at = time.time()
         return self._cap
+
+    def studio_env(self):
+        """Extra environment for the render, from --studio-env KEY=VALUE. Word timing by Whisper is off unless a model is named, so nothing is downloaded."""
+        extra = {}
+        for item in self.a.studio_env or []:
+            k, _, v = item.partition("=")
+            if k.strip():
+                extra[k.strip()] = v
+        if "STUDIO_WHISPER" not in extra:
+            extra["STUDIO_NO_WHISPER"] = "1"
+        return extra
 
     def health(self):
         return {"ok": True, "name": self.name, "host": socket.gethostname(), "version": VERSION, "platform": sys.platform, "gpus": self.gpus(),
@@ -397,10 +426,10 @@ class Worker:
         env.update({"PYTHONUNBUFFERED": "1", "PYTHONDONTWRITEBYTECODE": "1", "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8", "NO_PROXY": "127.0.0.1,localhost," + self.a.bind,
                     "STUDIO_TTS_URL": f"http://{self.a.bind}:{self.a.port}/voice/{j['id']}", "STUDIO_TTS_TOKEN": self.token,
                     "PYTHONPATH": os.pathsep.join([self.a.studio_dir] + ([self.shim] if cap["soundfile"] != "installed" else []))})
+        env.update(self.studio_env())
         if os.path.exists(os.path.join(d, "in", "cast.json")):
             env["CHANDRA_SPRITES"] = os.path.join(d, "in", "cast.json")
-        # the studio renders in parallel by fork; Windows has none, so one worker there
-        workers = "1" if sys.platform == "win32" else str(max(1, min(8, (os.cpu_count() or 2) - 1)))
+        workers = str(self.render_workers())
         args = [cap["python"], self.launcher, "render", script] + (["--set", "video=false"] if pages_only else []) + ["--recipe", style, "-o", out_dir, "--workers", workers, "--voice", "silent" if silent else "http", "--format", fmt]
         j["stage"] = "rendering"
         tail = []
@@ -538,6 +567,9 @@ def main(argv=None):
     ap.add_argument("--comfy-url", default=os.environ.get("CHANDRA_WORKER_COMFY_URL", "http://127.0.0.1:8188"))
     ap.add_argument("--checkpoint", default="sd_xl_base_1.0.safetensors")
     ap.add_argument("--vae", default="sdxl_vae.safetensors")
+    ap.add_argument("--models-dir", default=os.environ.get("CHANDRA_WORKER_MODELS_DIR", ""), help="a folder with checkpoints/ and vae/ outside ComfyUI (listed in its extra_model_paths.yaml)")
+    ap.add_argument("--studio-workers", type=int, default=0, help="processes for frame rendering; 0 = decide (1 on Windows unless the studio has the spawn fix)")
+    ap.add_argument("--studio-env", action="append", default=[], metavar="KEY=VALUE", help="extra environment for the render, e.g. STUDIO_WHISPER=small.en HF_HOME=D:/Models/huggingface HF_HUB_OFFLINE=1")
     ap.add_argument("--lowvram", action="store_true", help="start ComfyUI with --lowvram (cards with 8 GB)")
     ap.add_argument("--ollama-url", default=os.environ.get("CHANDRA_WORKER_OLLAMA_URL", ""), help="a local Ollama to unload before painting, e.g. http://127.0.0.1:11434")
     ap.add_argument("--studio-dir", default=os.environ.get("CHANDRA_WORKER_STUDIO_DIR"))

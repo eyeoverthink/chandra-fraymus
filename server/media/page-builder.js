@@ -23,6 +23,7 @@ import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { DATA_DIR, PORT } from '../config.js';
+import { kitBrief, applyKits } from './page-kit.js';
 
 export const SITES_DIR = join(DATA_DIR, 'sites');
 export const MAX_PAGE_BYTES = 300_000;
@@ -47,7 +48,9 @@ export function pageMessages(request, feedback = null) {
     '- Keep it under 250 lines unless the request truly needs more.',
   ].join('\n');
   const user = `Build this page: ${request}` + (feedback ? `\n\nYour previous page was opened in a browser and did not pass. This is what happened:\n${feedback}\nWrite the whole page again with that fixed.` : '');
-  return [{ role: 'system', content: system }, { role: 'user', content: user }];
+  // a tested component for what a model cannot make from memory (real coastlines); see page-kit.js
+  const kit = kitBrief(request);
+  return [{ role: 'system', content: kit ? `${system}\n\nCOMPONENT FOR THIS REQUEST\n${kit}` : system }, { role: 'user', content: user }];
 }
 
 /** Pull the HTML document out of a model reply (a fenced block, or a bare document). */
@@ -170,18 +173,22 @@ export async function buildPage({ id, request, ask, writers = [], draftsDir, onS
     const html = extractHtml(reply);
     if (html) writeFileSync(join(draftsDir, `attempt-${n}.html`), html, 'utf8');
     let problems = staticCheck(html);
+    // components are added after the static rules, which judge only what the writer wrote
+    const kit = html ? applyKits(html, request) : { html, used: [], problems: [] };
+    problems = problems.concat(kit.problems);
+    const finalHtml = kit.html;
     let seen = null, slug = null;
     if (!problems.length) {
       slug = slugFor(titleOf(html), `${id}${n}`);
       const dir = join(SITES_DIR, slug);
       mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, 'index.html'), html, 'utf8');
+      writeFileSync(join(dir, 'index.html'), finalHtml, 'utf8');
       onStage(`opening it in a browser${n > 1 ? `, attempt ${n}` : ''}`);
       seen = await verifyPage(`http://127.0.0.1:${PORT}/sites/${slug}/`, { motionExpected: wantsMotion(request) });
       problems = seen.problems;
       if (seen.ok) {
         if (seen.screenshot) writeFileSync(join(dir, 'preview.png'), seen.screenshot);
-        const page = { slug, title: titleOf(html), request, bytes: Buffer.byteLength(html), lines: html.split('\n').length, writtenBy: by, attempts: n,
+        const page = { slug, title: titleOf(html), request, bytes: Buffer.byteLength(finalHtml), lines: html.split('\n').length, components: kit.used, writtenBy: by, attempts: n,
           checked: { inBrowser: true, javascriptErrors: 0, blockedRequests: 0, colours: seen.colours, movedFraction: seen.moved, motionExpected: seen.motionExpected }, madeAt: new Date().toISOString() };
         writeFileSync(join(dir, 'page.json'), JSON.stringify({ ...page, job: id, earlierAttempts: log }, null, 2), 'utf8');
         return { ...page, dir, log, hasPreview: !!seen.screenshot };

@@ -372,7 +372,7 @@ async function makePage(id, plan) {
   setJob(id, { title: page.title });
   try { writeFileSync(join(dir, 'lineage.json'), JSON.stringify({ job: id, request: plan.request, plan, kept: true, page: { ...page, dir: undefined, log: undefined }, earlierAttempts: page.log, madeAt: page.madeAt }, null, 2), 'utf8'); }
   catch (e) { console.error('[creation] lineage:', e.message); }
-  return { kind: 'page', file: page.slug, slug: page.slug, url: `/sites/${page.slug}/`, openAt: `http://127.0.0.1:${PORT}/sites/${page.slug}/`, title: page.title, bytes: page.bytes, lines: page.lines,
+  return { kind: 'page', file: page.slug, slug: page.slug, url: `/sites/${page.slug}/`, openAt: `http://127.0.0.1:${PORT}/sites/${page.slug}/`, title: page.title, bytes: page.bytes, lines: page.lines, components: page.components,
     writtenBy: page.writtenBy, attempts: page.attempts, earlierAttempts: page.log, checked: page.checked, preview: page.hasPreview ? `/sites/${page.slug}/preview.png` : null, folder: page.dir };
 }
 

@@ -364,3 +364,9 @@ page is written as one file, opened in a real browser, and kept in the library o
 the request asks for motion, moves. The agent now reports exactly what the tool said, and no longer writes its own account.
 The check proves a page runs, not that it is good: the spinning Earth that passed is a blue disc with a green shape,
 labelled as not a real map.
+
+**2026-11-10, final — fraymus-home joins, and the Earth is real.** The second machine now paints and renders for the
+hub: a 32-second film takes about a minute and a half, and an explainer under two minutes where it took nearly thirteen.
+It follows that machine's own folder rules and listens to nothing but itself; the hub reaches it over SSH. This is the
+"house as one body" from section 7 with two limbs working. Separately, a page that asks for the Earth now gets a tested
+globe with true coastlines, checked in a browser at nine places on the map.

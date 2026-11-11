@@ -11,6 +11,10 @@
  *   artifact    every output file is checked against the SHA-256 in the receipt before it is used
  *
  * Configuration: CHANDRA_WORKERS="home=http://100.x.y.z:47210,other=http://…" (private hosts only) and a
+ * worker may instead be written name=ssh://user@host:port — the hub then opens an SSH tunnel to it and talks to
+ * the worker over that. The worker listens on its own 127.0.0.1 only: nothing new is exposed on the network and no
+ * firewall rule is added on the worker's machine. Key login (no password) to that host must already work.
+ *
  * shared token in CHANDRA_WORKER_TOKEN_FILE (default data/worker-token.txt, created on first use; copy it
  * to the worker). CHANDRA_WORKERS unset = everything runs on this machine, as before.
  *
@@ -20,6 +24,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
+import { spawn } from 'node:child_process';
+import { connect } from 'node:net';
 import { db } from '../db.js';
 import { DATA_DIR } from '../config.js';
 import { classifyUrl } from '../fraymus-os/registry.js';
@@ -35,7 +41,18 @@ export function parseWorkers(spec) {
   for (const part of String(spec || '').split(',').map(s => s.trim()).filter(Boolean)) {
     const i = part.indexOf('=');
     const name = (i > 0 ? part.slice(0, i) : '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
-    const c = classifyUrl(i > 0 ? part.slice(i + 1).trim() : '');
+    const viaSsh = /^ssh:\/\/([A-Za-z0-9._-]+)@([A-Za-z0-9.-]+):(\d{2,5})$/.exec(i > 0 ? part.slice(i + 1).trim() : '');
+    if (viaSsh) {
+      const h = classifyUrl(`http://${viaSsh[2]}`);
+      if (!name || !h.url) { refused.push({ entry: clip(part, 60), reason: 'expected name=ssh://user@host:port' }); continue; }
+      if (h.routeClass === 'public') { refused.push({ entry: name, reason: 'public host: workers must be on the private network' }); continue; }
+      if (out.some(w => w.name === name)) { refused.push({ entry: name, reason: 'duplicate name' }); continue; }
+      const localPort = 47300 + out.length;
+      out.push({ name, url: `http://127.0.0.1:${localPort}`, host: viaSsh[2], routeClass: h.routeClass, tunnel: { user: viaSsh[1], host: viaSsh[2], remotePort: Number(viaSsh[3]), localPort } });
+      continue;
+    }
+    const target = i > 0 ? part.slice(i + 1).trim() : '';
+    const c = /^https?:\/\//i.test(target) ? classifyUrl(target) : { url: null };   // only http(s) here; ssh:// was handled above, anything else is a mistake
     if (!name || !c.url) { refused.push({ entry: clip(part, 60), reason: 'expected name=http://host:port' }); continue; }
     if (c.routeClass === 'public') { refused.push({ entry: name, reason: 'public host: workers must be on the private network' }); continue; }
     if (out.some(w => w.name === name)) { refused.push({ entry: name, reason: 'duplicate name' }); continue; }
@@ -80,7 +97,30 @@ function token() {
   return readFileSync(TOKEN_FILE, 'utf8').trim();
 }
 
+const tunnels = new Map(); // worker name → ssh child
+process.once('exit', () => { for (const c of tunnels.values()) { try { c.kill(); } catch (_) { /* process is ending */ } } });
+
+const portOpen = port => new Promise(res => { const sock = connect({ host: '127.0.0.1', port }); const done = ok => { sock.destroy(); res(ok); }; sock.once('connect', () => done(true)); sock.once('error', () => done(false)); sock.setTimeout(1500, () => done(false)); });
+
+/** Make sure the SSH tunnel to a worker is up. The tunnel is this process's child; it is restarted when it has died. */
+async function ensureTunnel(worker) {
+  const t = worker.tunnel;
+  if (tunnels.has(worker.name) && await portOpen(t.localPort)) return;
+  if (!tunnels.has(worker.name)) {
+    const child = spawn('ssh', ['-N', '-o', 'BatchMode=yes', '-o', 'ExitOnForwardFailure=yes', '-o', 'ServerAliveInterval=30', '-o', 'ServerAliveCountMax=3', '-o', 'ConnectTimeout=8',
+      '-L', `127.0.0.1:${t.localPort}:127.0.0.1:${t.remotePort}`, `${t.user}@${t.host}`], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
+    let err = '';
+    child.stderr.on('data', d => { err = (err + d).slice(-300); });
+    child.on('exit', code => { tunnels.delete(worker.name); if (code) console.error(`[workers] tunnel to ${worker.name} closed (${code}): ${err.trim().split('\n').pop() || ''}`); });
+    child.on('error', e => { tunnels.delete(worker.name); console.error(`[workers] tunnel to ${worker.name}: ${e.message}`); });
+    tunnels.set(worker.name, child);
+  }
+  for (let i = 0; i < 20; i++) { if (await portOpen(t.localPort)) return; if (!tunnels.has(worker.name)) break; await new Promise(r => setTimeout(r, 400)); }
+  throw new Error(`no SSH tunnel to ${t.user}@${t.host} (is key login set up, and is the worker running on port ${t.remotePort}?)`);
+}
+
 async function call(worker, path, { method = 'GET', body, timeoutMs = 15_000, raw = false } = {}) {
+  if (worker.tunnel) await ensureTunnel(worker);
   const res = await fetch(`${worker.url}${path}`, { method, headers: { Authorization: `Bearer ${token()}`, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(timeoutMs) });
   if (raw) { if (!res.ok) throw new Error(`HTTP ${res.status}`); return Buffer.from(await res.arrayBuffer()); }
   const json = await res.json().catch(() => ({}));
@@ -167,7 +207,7 @@ export function workersConfigured() { return CONFIG.workers.length; }
 export function installWorkerRoutes(app) {
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
   app.get('/api/studio/workers', route(async (req, res) => res.json({
-    configured: CONFIG.workers.map(w => ({ name: w.name, url: w.url, routeClass: w.routeClass })), refused: CONFIG.refused,
+    configured: CONFIG.workers.map(w => ({ name: w.name, url: w.url, host: w.host, routeClass: w.routeClass, via: w.tunnel ? `ssh tunnel to ${w.tunnel.user}@${w.tunnel.host}:${w.tunnel.remotePort}` : 'direct' })), refused: CONFIG.refused,
     tokenFile: TOKEN_FILE, status: await workersStatus({ fresh: req.query.fresh === '1' }), jobs: workerJobs(req.query.limit),
   })));
 }

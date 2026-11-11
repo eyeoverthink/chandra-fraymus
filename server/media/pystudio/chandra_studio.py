@@ -1,14 +1,21 @@
 """Run fraymus-video-studio with a cast supplied by Chandra.
 
-The studio's pixel recipes draw two built-in sprites. This launcher leaves the studio's files untouched
-and, in memory only, teaches its pixel recipe to draw the sprites Chandra forged for this film
-(server/media/sprite-forge.js): each one is a 16x16 grid of letters plus its own colours.
+The studio's pixel recipes draw two built-in sprites, and its cartoon and comic recipes two people whose
+only variable is a shirt colour. This launcher leaves the studio's files untouched and, in memory only,
+teaches those recipes the cast Chandra chose for this film:
 
     python chandra_studio.py render script.md --recipe 8bit -o out ...      (same arguments as `studio`)
 
-CHANDRA_SPRITES = path of a JSON file {"cast": [{"name", "rows": [16 strings], "colors": {letter: "#rrggbb"}, "closed": letter}]}.
+CHANDRA_SPRITES = path of a JSON file holding either or both of
+    {"cast":   [{"name", "rows": [16 strings], "colors": {letter: "#rrggbb"}, "closed": letter}]}   pixel sprites
+    {"people": [{"name", "color": "#rrggbb", "skin": "#rrggbb", "hair": "#rrggbb"}]}                cartoon / comic
 Without it, or for a cast name that is not in the file, the studio behaves exactly as it always has.
 The studio package must be importable (Chandra puts its checkout on PYTHONPATH).
+
+The patches are applied when this module is IMPORTED, not only when it is run. The studio renders frames
+in worker processes; where those are started by "spawn" (Windows), each worker imports this file afresh
+as its main module before it receives the recipe, so it draws the same cast as the parent. Applying the
+patches only under `if __name__ == "__main__"` would leave every worker drawing the built-in figures.
 """
 import json
 import os
@@ -23,6 +30,7 @@ def _rgb(hex_colour):
 
 
 def install(spec):
+    """Pixel recipes: draw Chandra's forged 16x16 sprites."""
     from studio.recipes import pixel
 
     sprites = {}
@@ -84,17 +92,27 @@ def install_people(people):
     return sorted(table)
 
 
-def main():
+def install_from_env():
+    """Apply whatever CHANDRA_SPRITES describes. Returns the lines to report."""
     path = os.environ.get("CHANDRA_SPRITES")
-    if path:
-        with open(path, encoding="utf-8") as f:
-            spec = json.load(f)
-        if spec.get("cast"):
-            names = install(spec)
-            print(f"[chandra] cast sprites installed: {', '.join(names)}", file=sys.stderr, flush=True)
-        if spec.get("people"):
-            names = install_people(spec["people"])
-            print(f"[chandra] cast people installed: {', '.join(names)}", file=sys.stderr, flush=True)
+    if not path:
+        return []
+    with open(path, encoding="utf-8") as f:
+        spec = json.load(f)
+    said = []
+    if spec.get("cast"):
+        said.append("[chandra] cast sprites installed: " + ", ".join(install(spec)))
+    if spec.get("people"):
+        said.append("[chandra] cast people installed: " + ", ".join(install_people(spec["people"])))
+    return said
+
+
+_REPORT = install_from_env()      # at import: the parent process and every spawned render worker
+
+
+def main():
+    for line in _REPORT:
+        print(line, file=sys.stderr, flush=True)
     from studio.cli import main as studio_main
     studio_main()
 

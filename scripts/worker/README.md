@@ -7,37 +7,49 @@ One file, Python standard library only: `chandra_worker.py`.
 
 | | Status |
 |---|---|
-| The protocol (token, capability report, refusals, digest agreement between hub and worker) | Unit-tested: `test/workers.test.js` |
-| A whole film through a worker: three backdrops painted, six lines voiced on the hub, film rendered, receipts checked | Tested 2026-11-10 with the worker running **on the hub PC itself**, reached over its Tailscale address |
+| The protocol (token, capability report, refusals, digest agreement between hub and worker) | Unit-tested: `test/workers.test.js`, `test/workers-tunnel.test.js` |
+| A worker on the hub PC itself, reached over its Tailscale address | Tested 2026-11-10: backdrops, a film, comic pages; receipts checked |
 | Hub falls back to its own card when the worker is down | Tested 2026-11-10 |
-| **Running on fraymus-home (RTX 5070)** | **Not tested.** Nothing could be started on that machine from the hub: only its Ollama port answers. The steps below are what was done on the hub PC; the PyTorch build for a 50-series card is the one line that differs and has not been tried |
+| **fraymus-home (RTX 5070), reached through an SSH tunnel** | **Tested 2026-11-10:** an 8-bit film (2 backdrops in 40 s, render 28 s with 8 processes, about 90 s end to end) and an explainer (105 s end to end; 12 min 47 s on the hub's own card). The film's own sprites were drawn by all eight render processes |
+| Linux or macOS workers, two workers at once, a worker dying mid-job, the 24-hour clean-up | Not tested |
 
-## Set up on the machine with the card (run these there)
+## How fraymus-home is set up (2026-11-10)
 
-1. **Get the code** — a checkout of this repository (the worker uses `server/media/pystudio` and `server/media/pyshim` from it) and of
-   `fraymus-video-studio`.
-2. **Image engine** — ComfyUI with SDXL, the same layout as the hub's (`F:\Chandra-Studio\INSTALLED.md` lists the exact versions, sources
-   and SHA-256 hashes): ComfyUI v0.44.0, its own Python environment with PyTorch, `sd_xl_base_1.0.safetensors` in `models/checkpoints`,
-   `sdxl_vae.safetensors` in `models/vae`. On an RTX 50-series card PyTorch must be a CUDA 12.8 build (`--index-url https://download.pytorch.org/whl/cu128`).
-   About 12 GB of downloads.
-3. **Film renderer** — the Python you point `--studio-python` at needs `numpy`, `pillow` and `scipy` (ComfyUI's environment already has them)
-   and `ffmpeg` on PATH. `soundfile` is optional: without it Chandra's WAV stand-in is used.
-4. **Token** — copy the hub's `data/worker-token.txt` to this machine. It is full trust: whoever holds it can make this machine render.
-5. **Check, then run** (replace the paths; `--bind` is this machine's Tailscale address):
+| What | Where |
+|---|---|
+| ComfyUI v0.44.0 (same commit as the hub) + Python 3.12 environment, PyTorch 2.11.0+cu128 | `E:\Chandra-Studio` |
+| SDXL base 1.0 and the VAE fix | `D:\Models\comfyui` (ComfyUI finds them through `extra_model_paths.yaml`) |
+| The video studio, with Vaughn's Windows fix and its own `.venv` | `E:\Projects\fraymus-video-studio` (used as it is, not replaced) |
+| This worker, its launcher copy, `start-worker.ps1`, the token | `E:\Projects\chandra-worker` |
+| Job files while a job runs | `D:\Scratch\chandra-worker` |
 
-   ```
-   python chandra_worker.py --check --bind 100.99.98.101 --token-file worker-token.txt --comfy-dir D:\Chandra-Studio\ComfyUI --comfy-python D:\Chandra-Studio\comfyui-env\Scripts\python.exe --studio-dir D:\fraymus-video-studio --studio-python D:\Chandra-Studio\comfyui-env\Scripts\python.exe --ollama-url http://127.0.0.1:11434
-   ```
+Every folder has a dated README and is listed in its parent's index. The scripts that did this are kept in
+`F:\Claude-Work\chandra-superintelligence\fraymus-home\` on the hub.
 
-   `--check` prints what the machine can do and exits non-zero if either kind of work is not ready, naming what is missing.
-   Drop `--check` to serve. Allow inbound TCP 47210 on the Tailscale interface in Windows Firewall.
+- **Private.** The worker listens on `127.0.0.1` only, and so does ComfyUI. The hub reaches the worker through SSH
+  (`CHANDRA_WORKERS=home=ssh://eyeov@100.99.98.101:47210` — the hub opens the tunnel and keeps it up). No firewall rule
+  was added for the worker.
+- **Sharing the card with Ollama.** Before painting, the worker asks the local Ollama to unload what it holds (the same as
+  `ollama stop <model>`); Ollama's settings are untouched and it reloads on its next use. The receipt lists what was unloaded.
+- **It does not start by itself after a reboot.** On fraymus-home: `powershell -ExecutionPolicy Bypass -File E:\Projects\chandra-worker\start-worker.ps1`.
+- After changing `chandra_worker.py` or `server/media/pystudio/chandra_studio.py` here, copy them to `E:\Projects\chandra-worker` again.
 
-6. **Tell the hub** — in the hub's `.env`: `CHANDRA_WORKERS=home=http://100.99.98.101:47210`, restart, then
-   `GET /api/studio/workers?fresh=1` shows the worker, its card and whether `stills` and `video` are ready.
+## Setting up another machine
+
+1. A checkout of `fraymus-video-studio`, with a Python that has `numpy`, `pillow`, `scipy` (and ideally `soundfile`), and `ffmpeg` on PATH.
+2. ComfyUI with SDXL base 1.0 and `sdxl_vae.safetensors`. On an RTX 50-series card PyTorch must be a CUDA 12.8 build. Use Python 3.12.
+3. Copy `chandra_worker.py`, `server/media/pystudio/chandra_studio.py` and the hub's `data/worker-token.txt` to it.
+4. `python chandra_worker.py --check …` prints what the machine can do and exits non-zero, naming what is missing, if either kind of work is not ready.
+5. Either listen on loopback and let the hub tunnel in (`name=ssh://user@host:port`, needs key login), or listen on the
+   private address (`--bind <tailscale address>`, `name=http://host:port`) with a firewall rule limited to the private network.
+
+Useful options: `--models-dir` (weights outside ComfyUI), `--ollama-url` (unload before painting), `--studio-workers N`
+(0 = decide: 1 on Windows unless the studio has the spawn fix), `--studio-env KEY=VALUE` (for example
+`STUDIO_WHISPER=small.en HF_HOME=… HF_HUB_OFFLINE=1` for exact word timing with no download), `--lowvram` (8 GB cards).
 
 ## What the hub sends and what it never sends
 
-- **Stills:** prompts and sizes. **Video:** the script, the cast sprites, the backdrop pictures and the **already recorded** lines.
+- **Stills:** prompts and sizes. **Video:** the script, the cast, the backdrop pictures and the **already recorded** lines.
 - The voices themselves stay on the hub: VoiceStudio is never called from the worker. Only finished WAV files travel.
 - No program travels. The worker runs only ComfyUI, ffmpeg and the studio launcher that are already on it.
 
@@ -51,5 +63,3 @@ One file, Python standard library only: `chandra_worker.py`.
 - One job at a time (429 while busy). A kind the machine cannot do is refused (422) with the reason.
 - A finished job carries a receipt: the caller's nonce, the content digest, and the SHA-256 of every output. The hub checks all three
   before it uses a file, then acknowledges, and the worker deletes the job folder. Unacknowledged jobs are removed after 24 hours.
-
-On Windows the film renders with one process (the studio's parallel mode uses `fork`); on Linux or macOS the worker uses the cores it has.
