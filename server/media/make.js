@@ -177,7 +177,7 @@ function renderWithStudio(id, plan, scriptPath, outDir, ready) {
   return new Promise((resolveP, reject) => {
     const args = ['-m', 'studio', 'render', scriptPath, '--recipe', plan.style, '-o', outDir, '--workers', '1', '--voice', plan.voice === 'silent' ? 'silent' : 'http', '--format', plan.format];
     // A short, explicit environment: the child needs a PATH for ffmpeg and nothing of the server's secrets.
-    const env = { PYTHONUNBUFFERED: '1', PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8', NO_PROXY: '127.0.0.1,localhost', STUDIO_TTS_URL: `http://127.0.0.1:${PORT}/api/studio/create/voice/${id}` };
+    const env = { PYTHONUNBUFFERED: '1', PYTHONDONTWRITEBYTECODE: '1', PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8', NO_PROXY: '127.0.0.1,localhost', STUDIO_TTS_URL: `http://127.0.0.1:${PORT}/api/studio/create/voice/${id}` };
     for (const k of ['PATH', 'Path', 'SystemRoot', 'SYSTEMROOT', 'TEMP', 'TMP', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'HOME']) if (process.env[k]) env[k] = process.env[k];
     if (ready.soundfile !== 'installed') env.PYTHONPATH = SHIM_DIR;
     const log = [];

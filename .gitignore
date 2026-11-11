@@ -9,3 +9,6 @@ dist/
 .DS_Store
 Thumbs.db
 *.log
+
+# Python bytecode (the soundfile stand-in is imported by a child process)
+__pycache__/
