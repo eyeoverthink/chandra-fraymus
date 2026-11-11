@@ -142,3 +142,53 @@ test('a keyword match is scored on meaning too, so a half-embedded store does no
   const fair = fuse(kw, vec, { limit: 4, cosFor: id => (id === 'k1' ? 0.9 : null) });
   assert.equal(fair[0].id, 'k1'); assert.equal(fair[0].cos, 0.9); assert.equal(fair.find(r => r.id === 'k2').cos, null);
 });
+
+test('real-store gold: pooling is blind and repeatable, replies are read strictly, agreement and scores are arithmetic', async () => {
+  const { poolCandidates, shuffleSeeded, judgeMessages, parseGrades, agreement, scoreGold } = await import('../server/intelligence/memory-gold.js');
+  const pool = poolCandidates({ a: [1, 2, 3, 4, 5, 6], b: [3, 9, 8], c: [] }, { depth: 3, seed: 5 });
+  assert.deepEqual([...pool].sort((x, y) => x - y), [1, 2, 3, 8, 9]);                           // top 3 of each, once
+  assert.deepEqual(pool, poolCandidates({ b: [3, 9, 8], a: [1, 2, 3] }, { depth: 3, seed: 5 }));  // the order does not reveal which system proposed what
+  assert.notDeepEqual(pool, poolCandidates({ a: [1, 2, 3], b: [3, 9, 8] }, { depth: 3, seed: 6 }));
+  assert.deepEqual(shuffleSeeded([1, 2, 3, 4], 2), shuffleSeeded([1, 2, 3, 4], 2));
+  const msgs = judgeMessages('Find the cause of the timeout', ['note one', 'note two']);
+  assert.match(msgs[0].content, /exactly 2 numbers/); assert.match(msgs[1].content, /1\. note one\n2\. note two/); assert.ok(!/keyword|hybrid|vector/.test(msgs[0].content + msgs[1].content));
+  assert.deepEqual(parseGrades('{"grades": [2, 0, 1]}', 3), [2, 0, 1]); assert.deepEqual(parseGrades('sure: {"grades":["1","0"]}', 2), [1, 0]);
+  for (const bad of ['{"grades": [2, 0]}', '{"grades": [3, 0, 1]}', '{"grades": "2,0,1"}', 'no', '{"grades": [1.5, 0, 1]}']) assert.equal(parseGrades(bad, 3), null, bad);
+  assert.deepEqual(agreement([2, 0, 1, 0], [2, 0, 1, 0]), { pairs: 4, exact: 1, binary: 1, kappa: 1 });
+  const ag = agreement([2, 0, 1, 0], [1, 0, 0, 1]); assert.equal(ag.exact, 0.25); assert.equal(ag.binary, 0.5); assert.equal(ag.kappa, 0);
+  assert.equal(agreement([], []).pairs, 0);
+  const gold = { queries: [{ id: 'q1', grades: { 1: 2, 2: 1, 3: 0 } }, { id: 'q2', grades: { 7: 1 } }] };
+  const s = scoreGold(gold, { good: { q1: [1, 2, 3], q2: [7] }, bad: { q1: [3, 99], q2: [] } }, 5);
+  assert.equal(s.good.mrr, 1); assert.equal(s.good.p5, 0.3); assert.equal(s.good.useful5, 0.1); assert.equal(s.good.judgedShare, 1); assert.equal(s.good.answeredNothing, 0);
+  assert.equal(s.bad.mrr, 0); assert.equal(s.bad.answeredNothing, 1); assert.equal(s.bad.judgedShare, 0.5);   // a memory nobody judged counts as not relevant, and is counted
+});
+
+// From the first real gold set: the stored echo of a task carries a prefix, so an exact-prefix test missed it.
+test('a task said back is not a memory of it; an outcome that quotes its goal is', async () => {
+  const { isTaskEcho } = await import('../server/intelligence/memory-rank.js');
+  const task = "Integrate probabilistic frameworks for predicting novel mediator-aware relationships between high-confidence categories and low-confidence areas.";
+  assert.equal(isTaskEcho({ value: task }, task), true);
+  assert.equal(isTaskEcho({ value: `Autonomous objective (high priority, complex complexity): ${task}` }, task), true);
+  assert.equal(isTaskEcho({ value: `  ${task.toUpperCase()}  ` }, task), true);
+  assert.equal(isTaskEcho({ value: `Goal "${task}" completed. Key finding: the probabilistic framework reduced prediction error by a third on held-out pairs.` }, task), false);
+  assert.equal(isTaskEcho({ value: 'A different note about mediator-aware relationships.' }, task), false);
+  assert.equal(isTaskEcho({ value: 'short' }, 'short'), false); assert.equal(isTaskEcho(null, task), false);
+});
+
+// Measured on the live store with 22 % embedded: keyword nDCG@5 0.68, hybrid 0.39 — the vector arm proposed whatever had a vector.
+test('the vector arm does not vote until nearly all of the scope is embedded', async () => {
+  let n = 0; const base = conceptEmbedder(), some = async t => { n++; return base(t); };
+  const { ms, db } = store([{ value: 'The rapid car purchased the boat near the harbor.' }, { value: 'The silent doctor repaired the engine near the museum.' }, { value: 'The ancient teacher painted the picture near the valley.' }, { value: 'The joyful singer praised the film near the castle.' }], some);
+  await ms.indexPending({ max: 2 });                                                          // half of the store
+  const half = await ms.search('a', 'fast automobile that chose to buy something');
+  assert.equal(half.arms.vector.found, 0); assert.match(half.arms.vector.note, /only 50% of the memories in scope are embedded/);
+  await ms.indexPending();
+  const full = await ms.search('a', 'fast automobile that chose to buy something');
+  assert.ok(full.arms.vector.found > 0); assert.equal(full.results[0].id, 1);
+  // one agent's memories can be embedded first
+  db.prepare(`INSERT INTO agent_memories (agent_id, key, value, created_at, updated_at) VALUES ('b', 'kb', 'The frigid river concealed the letter.', 50, 50), ('c', 'kc', 'The brave soldier examined the engine.', 60, 60)`).run();
+  assert.deepEqual(await ms.indexPending({ agentId: 'b' }), { indexed: 1, pending: 1 });
+  assert.ok((await ms.search('b', 'cold stream hide message')).arms.vector.found > 0);
+  assert.equal((await ms.search('c', 'courageous trooper inspect motor')).arms.vector.found, 0);
+  db.close();
+});

@@ -1,5 +1,6 @@
 import { db } from '../db.js';
 import { relevantMemories } from '../intelligence/memory-search-service.js';
+import { isTaskEcho } from '../intelligence/memory-rank.js';
 
 const now = () => Date.now();
 
@@ -85,7 +86,7 @@ export function agentMemoryStats(agentId) {
  */
 export function buildPromptContext(agentId, taskText) {
   const task = String(taskText || '').trim();
-  const relevant = task ? relevantMemories(agentId, task, { limit: 8 }).filter(m => String(m.value).trim().slice(0, 200) !== task.slice(0, 200)).slice(0, 6) : [];
+  const relevant = task ? relevantMemories(agentId, task, { limit: 8 }).filter(m => !isTaskEcho(m, task)).slice(0, 6) : [];
   const seen = new Set(relevant.map(m => m.id));
   const recent = recallMemories(agentId, { limit: 10 }).filter(m => !seen.has(m.id)).slice(0, 10 - relevant.length);
   if (relevant.length) { const up = db.prepare(`UPDATE agent_memories SET access_count = access_count + 1 WHERE id = ?`); for (const m of relevant) up.run(m.id); }

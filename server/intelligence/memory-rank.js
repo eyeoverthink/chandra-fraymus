@@ -69,6 +69,21 @@ export function fuse(keyword, vector, { limit = 10, textOf = null, dupAbove = 0.
   return rows.slice(0, limit);
 }
 
+/**
+ * Is this memory only the task said back? The runtime stores a line when a run begins ("task:…", or
+ * "Autonomous objective (…): <task>"); finding it later is not remembering anything. A memory that goes on to say
+ * what happened — an outcome that quotes its goal — is not an echo.
+ */
+export function isTaskEcho(memory, task) {
+  const norm = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const t = norm(task).slice(0, 120), v = norm(memory?.value);
+  if (t.length < 20 || !v) return false;
+  const at = v.indexOf(t);
+  if (at < 0) return false;
+  const rest = v.length - (at + Math.min(norm(task).length, v.length - at));   // what the memory says after the task text
+  return rest < 40 && at < 90;
+}
+
 // ── measures ─────────────────────────────────────────────────────────────────────────────────────────
 
 /** `ranked` is a list of ids; `grades` maps id → relevance grade (> 0 means relevant). */

@@ -24,7 +24,10 @@ const hashOf = s => createHash('sha256').update(s).digest('hex').slice(0, 32);
 const toBlob = v => Buffer.from(new Float32Array(v).buffer);
 const fromBlob = b => new Float32Array(b.buffer, b.byteOffset, Math.floor(b.byteLength / 4));
 
-export function createMemorySearch({ db, embed = null, model = EMBED_MODEL } = {}) {
+/** The share of the memories in scope that must have a vector before the vector arm may vote. */
+export const MIN_VECTOR_COVERAGE = 0.9;
+
+export function createMemorySearch({ db, embed = null, model = EMBED_MODEL, minCoverage = MIN_VECTOR_COVERAGE } = {}) {
   const stats = { searches: 0, keywordOnly: 0, hybrid: 0, embedErrors: 0, indexed: 0, lastIndexAt: null, lastError: null };
   let cache = { agent: undefined, stamp: null, rows: [] };
 
@@ -72,6 +75,9 @@ export function createMemorySearch({ db, embed = null, model = EMBED_MODEL } = {
     if (!embed) return { rows: [], why: 'no embedding model configured' };
     const rows = vectorsFor(agentId).filter(r => !category || r.category === category);
     if (!rows.length) return { rows: [], why: 'no memory in scope has been embedded yet' };
+    // an arm that can only see part of the store proposes whatever happens to be embedded, and out-votes better keyword matches
+    const s = scope(agentId, category), inScope = db.prepare(`SELECT COUNT(*) n FROM agent_memories m WHERE 1 = 1${s.where}`).get(...s.params).n;
+    if (inScope && rows.length / inScope < minCoverage) return { rows: [], why: `only ${Math.round(100 * rows.length / inScope)}% of the memories in scope are embedded so far (the vector arm waits for ${Math.round(minCoverage * 100)}%)`, coverage: +(rows.length / inScope).toFixed(3) };
     let q;
     try { [q] = await embed([QUERY_PREFIX + query], { kind: 'query' }); } catch (e) { stats.embedErrors++; stats.lastError = String(e.message).slice(0, 160); return { rows: [], why: `the embedding model did not answer (${String(e.message).slice(0, 60)})` }; }
     if (!q || q.length !== rows[0].vec.length) return { rows: [], why: 'the query vector does not match the stored ones' };
@@ -122,9 +128,9 @@ export function createMemorySearch({ db, embed = null, model = EMBED_MODEL } = {
   }
 
   /** Embed memories that have no vector yet, or whose text changed. Small batches; safe to call often. */
-  async function indexPending({ max = 96, batch = 32 } = {}) {
+  async function indexPending({ max = 96, batch = 32, agentId = null } = {}) {
     if (!embed) return { indexed: 0, pending: null, note: 'no embedding model configured' };
-    const rows = db.prepare(`SELECT m.id, m.key, m.value, v.content_hash FROM agent_memories m LEFT JOIN agent_memory_vectors v ON v.memory_id = m.id AND v.model = ? WHERE v.memory_id IS NULL OR v.updated_at < m.updated_at ORDER BY m.updated_at DESC LIMIT ?`).all(model, max * 3);
+    const rows = db.prepare(`SELECT m.id, m.key, m.value, v.content_hash FROM agent_memories m LEFT JOIN agent_memory_vectors v ON v.memory_id = m.id AND v.model = ? WHERE (v.memory_id IS NULL OR v.updated_at < m.updated_at)${agentId ? ' AND m.agent_id = ?' : ''} ORDER BY m.updated_at DESC LIMIT ?`).all(model, ...(agentId ? [agentId] : []), max * 3);
     const todo = rows.map(r => ({ id: r.id, text: textOfRow(r), old: r.content_hash })).map(r => ({ ...r, hash: hashOf(r.text) }));
     const up = db.prepare(`INSERT INTO agent_memory_vectors (memory_id, model, dim, vec, content_hash, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(memory_id) DO UPDATE SET model = excluded.model, dim = excluded.dim, vec = excluded.vec, content_hash = excluded.content_hash, updated_at = excluded.updated_at`);
     const touchOnly = db.prepare(`UPDATE agent_memory_vectors SET updated_at = ? WHERE memory_id = ?`);

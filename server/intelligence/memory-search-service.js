@@ -7,6 +7,11 @@ import { db } from '../db.js';
 import { OLLAMA_URL } from '../config.js';
 import { withOllama } from './ollama-scheduler.js';
 import { createMemorySearch, runMemoryBench, EMBED_MODEL } from './memory-search.js';
+import { scoreGold } from './memory-gold.js';
+import { isTaskEcho } from './memory-rank.js';
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { DATA_DIR } from '../config.js';
 
 const now = () => Date.now();
 const INDEX_EVERY_MS = Math.max(15_000, parseInt(process.env.MEMORY_INDEX_INTERVAL_MS, 10) || 60_000);
@@ -83,6 +88,37 @@ export async function benchMemorySearch({ seed = 42 } = {}) {
   } finally { benchRunning = false; }
 }
 
+const GOLD_DIR = join(DATA_DIR, 'memory-gold');
+/** The newest frozen gold file built from real tasks, or null. */
+export function latestRealGold() {
+  if (!existsSync(GOLD_DIR)) return null;
+  const files = readdirSync(GOLD_DIR).filter(f => /^real-[\w-]+\.json$/.test(f)).sort();
+  if (!files.length) return null;
+  const file = files[files.length - 1];
+  try { return { file, gold: JSON.parse(readFileSync(join(GOLD_DIR, file), 'utf8')) }; } catch (e) { return { file, error: e.message }; }
+}
+
+/**
+ * Score the live store against the frozen gold set: the same real tasks, the same judged memories, today's search.
+ * A memory the judge never saw counts as not relevant; `judgedShare` says how much of each system's answer was judged,
+ * and it falls as the store grows — rebuild the gold set when it gets low.
+ */
+export async function rescoreRealGold({ k = 5 } = {}) {
+  ensure();
+  const latest = latestRealGold();
+  if (!latest) return { available: false, note: 'no gold file yet: run F:/Claude-Work/chandra-superintelligence/memory/build-real-gold.mjs' };
+  if (latest.error) return { available: false, note: `${latest.file} could not be read: ${latest.error}` };
+  const { gold } = latest, t0 = now(), systems = ['recent', 'like', 'keyword', 'hybrid'], rankings = Object.fromEntries(systems.map(x => [x, {}]));
+  const notEcho = (rows, text) => rows.filter(r => !isTaskEcho(r, text));
+  for (const q of gold.queries) {
+    rankings.recent[q.id] = notEcho(db.prepare(`SELECT id, value FROM agent_memories WHERE agent_id = ? ORDER BY updated_at DESC, id DESC LIMIT 14`).all(q.agent), q.text).slice(0, 10).map(r => r.id);
+    for (const mode of ['like', 'keyword', 'hybrid']) rankings[mode][q.id] = notEcho((await memorySearch.search(q.agent, q.text, { mode, limit: 14 })).results, q.text).slice(0, 10).map(r => r.id);
+  }
+  const scores = scoreGold(gold, rankings, k);
+  return { available: true, file: latest.file, builtAt: gold.builtAt, judge: gold.judge, tasks: gold.queries.length, agents: gold.agents, judging: gold.judging, whenBuilt: gold.scores, now: scores, seconds: +((now() - t0) / 1000).toFixed(1),
+    note: 'graded by a local model, not by a person; "whenBuilt" was scored on a fully embedded copy, "now" on the live store with whatever is embedded so far' };
+}
+
 export function memorySearchStatus() {
   try {
     ensure();
@@ -102,7 +138,13 @@ export function installMemorySearchRoutes(app) {
     const out = await searchMemories(req.query.agent ? String(req.query.agent).slice(0, 80) : null, q, { mode, limit: Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 10)), category: req.query.category ? String(req.query.category).slice(0, 50) : null });
     res.json({ query: q, ...out, results: out.results.map(r => ({ id: r.id, agent: r.agent_id, category: r.category, key: r.key, value: String(r.value).slice(0, 400), score: r.score, cos: r.cos, arms: r.arms })) });
   }));
-  app.post('/api/intelligence/memory-search/index', route(async (_req, res) => res.json(await indexTick() || { indexed: 0, note: 'vectors are switched off' })));
+  app.get('/api/intelligence/memory-search/real', route(async (_req, res) => res.json(await rescoreRealGold())));
+  app.post('/api/intelligence/memory-search/index', route(async (req, res) => {
+    // with {"agent": "..."} that agent's memories are embedded first (an operator filling one scope so its vector arm can vote)
+    const agent = req.body?.agent ? String(req.body.agent).slice(0, 80) : null;
+    if (agent && embed) { ensure(); return res.json(await memorySearch.indexPending({ max: INDEX_BATCH, agentId: agent })); }
+    res.json(await indexTick() || { indexed: 0, note: 'vectors are switched off' });
+  }));
   app.post('/api/intelligence/memory-search/bench', route(async (req, res) => {
     const seed = Math.min(1_000_000, Math.max(1, parseInt(req.body?.seed, 10) || 42));
     res.json(await benchMemorySearch({ seed }));
