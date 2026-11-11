@@ -37,7 +37,8 @@ Every folder has a dated README and is listed in its parent's index. The scripts
   By hand: `powershell -ExecutionPolicy Bypass -File E:\Projects\chandra-worker\start-worker.ps1`.
   Remove the task: `Unregister-ScheduledTask -TaskName 'Chandra Worker' -Confirm:$false`.
   Seen 2026-11-11: the PC rebooted overnight, the hub reported the worker unreachable, and a start by hand brought it back.
-  The task itself has been test-run (result 0) but not yet through a real reboot and sign-in.
+  **Proven through a real reboot the same morning:** boot 09:10:34, task fired 09:11:31, worker listening 09:11:34,
+  and the hub's tunnel reached it (stills and video ready) with nothing done by hand.
 - After changing `chandra_worker.py` or `server/media/pystudio/chandra_studio.py` here, copy them to `E:\Projects\chandra-worker` again.
 
 ## Setting up another machine
