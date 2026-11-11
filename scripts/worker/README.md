@@ -31,7 +31,13 @@ Every folder has a dated README and is listed in its parent's index. The scripts
   was added for the worker.
 - **Sharing the card with Ollama.** Before painting, the worker asks the local Ollama to unload what it holds (the same as
   `ollama stop <model>`); Ollama's settings are untouched and it reloads on its next use. The receipt lists what was unloaded.
-- **It does not start by itself after a reboot.** On fraymus-home: `powershell -ExecutionPolicy Bypass -File E:\Projects\chandra-worker\start-worker.ps1`.
+- **It starts by itself at sign-in (since 2026-11-11).** A scheduled task named `Chandra Worker` runs `launch-worker.ps1`
+  45 seconds after `eyeov` signs in to Windows — hidden, without administrator rights, and it does nothing when the worker is
+  already up. After a reboot nothing runs until someone signs in; until then the hub does the work on its own card and says why.
+  By hand: `powershell -ExecutionPolicy Bypass -File E:\Projects\chandra-worker\start-worker.ps1`.
+  Remove the task: `Unregister-ScheduledTask -TaskName 'Chandra Worker' -Confirm:$false`.
+  Seen 2026-11-11: the PC rebooted overnight, the hub reported the worker unreachable, and a start by hand brought it back.
+  The task itself has been test-run (result 0) but not yet through a real reboot and sign-in.
 - After changing `chandra_worker.py` or `server/media/pystudio/chandra_studio.py` here, copy them to `E:\Projects\chandra-worker` again.
 
 ## Setting up another machine
