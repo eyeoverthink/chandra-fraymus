@@ -42,7 +42,7 @@ import { buildPage } from './page-builder.js';
 import { pickWorker, runOnWorker, workersStatus, workersConfigured, installWorkerRoutes } from './workers.js';
 import { pixelateBuffer, STYLES } from './pixel-art.js';
 import { forgeCast, spritePixels } from './sprite-forge.js';
-import { planCreation, settleKind, describePlan, scriptMessages, normalizeScript, buildStudioMarkdown, speakerLines, normalizeLine, stillPrompt, backdropPrompt, backdropNegative, subjectOf, extractJson, WIRED_STYLES, PIXEL_STYLES, RECIPES } from './make-plan.js';
+import { planCreation, settleKind, describePlan, scriptMessages, normalizeScript, buildStudioMarkdown, speakerLines, normalizeLine, stillPrompt, backdropPrompt, backdropNegative, conditionsOf, subjectOf, extractJson, WIRED_STYLES, PIXEL_STYLES, RECIPES } from './make-plan.js';
 import { scriptMessagesFor, normalizeFor, buildMarkdownFor, paintsBackdrops, forgePeople } from './make-looks.js';
 
 const execFileAsync = promisify(execFile);
@@ -300,7 +300,8 @@ async function paintBackdrops(id, plan, script) {
   const looks = script.places?.length ? script.places : [subjectOf(plan)];
   const from = script.places?.length ? 'the script' : 'the request (the script named no place)';
   setJob(id, { stage: 'painting backdrops', progress: 0.04 });
-  const items = looks.map(look => ({ prompt: backdropPrompt(plan, look), negative: backdropNegative(plan), width: 1024, height: 576, steps: 22, seed: Math.floor(Math.random() * 2 ** 31) }));
+  const conditions = looks.map(look => { const c = conditionsOf(plan, look); return { shown: c.words, fromRequest: c.fromRequest }; });
+  const items = looks.map(look => ({ prompt: backdropPrompt(plan, look), negative: backdropNegative(plan, look), width: 1024, height: 576, steps: 22, seed: Math.floor(Math.random() * 2 ** 31) }));
   let workerNote = null;
   const picked = await pickWorker('stills');
   if (picked.worker) {
@@ -317,7 +318,7 @@ async function paintBackdrops(id, plan, script) {
         return join(MEDIA_DIR, name);
       });
       const made = files.filter(Boolean).length;
-      return { files, info: { asked: looks.length, made, seconds: r.seconds, placesFrom: from, paintedOn: picked.worker.name, receipt: { digest: r.receipt.digest, finishedAt: r.receipt.finishedAt },
+      return { files, info: { asked: looks.length, made, seconds: r.seconds, placesFrom: from, conditions, paintedOn: picked.worker.name, receipt: { digest: r.receipt.digest, finishedAt: r.receipt.finishedAt },
         items: looks.map((look, i) => detail[i]?.ok ? { look, file: basename(files[i]), seed: detail[i].seed, seconds: detail[i].seconds } : { look, error: detail[i]?.error || 'not painted' }),
         note: made < looks.length ? 'scenes whose backdrop failed use the built-in landscape' : null } };
     } catch (e) { workerNote = `${clip(e.message, 200)}; painted on this PC instead`; console.error('[creation] worker stills:', e.message); }
@@ -327,7 +328,7 @@ async function paintBackdrops(id, plan, script) {
       { source: 'creation', purpose: `backdrops for ${id}`, onProgress: (i, n) => setJob(id, { stage: `painting backdrop ${i + 1} of ${n}` }) });
     const painted = batch.results.map((r, i) => r.ok ? { look: looks[i], file: basename(r.path), seed: r.seed, seconds: r.seconds } : { look: looks[i], error: r.error });
     const made = batch.results.filter(r => r.ok).length;
-    return { files: batch.results.map(r => r.ok ? r.path : null), info: { asked: looks.length, made, seconds: batch.seconds, placesFrom: from, paintedOn: 'this PC', workerNote, items: painted, note: made < looks.length ? 'scenes whose backdrop failed use the built-in landscape' : null } };
+    return { files: batch.results.map(r => r.ok ? r.path : null), info: { asked: looks.length, made, seconds: batch.seconds, placesFrom: from, conditions, paintedOn: 'this PC', workerNote, items: painted, note: made < looks.length ? 'scenes whose backdrop failed use the built-in landscape' : null } };
   } catch (e) {
     console.error('[creation] backdrops:', e.message);
     return { files: [], info: { asked: looks.length, made: 0, placesFrom: from, note: `no backdrops, built-in landscape used: ${clip(e.code === 'gpu_unavailable' ? 'the graphics card was in use' : e.message, 200)}` } };

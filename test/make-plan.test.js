@@ -226,3 +226,32 @@ test('a character does not talk to itself by name', () => {
   assert.ok(normalizeScript(bad, plan, { final: true }).fixes.some(f => /own name/.test(f)));
   assert.match(scriptMessages(plan)[1].content + scriptMessages(plan)[0].content, /never praises or addresses itself/);
 });
+
+// "…who spot a ship in the fog" was painted as a clear day (2026-11-11): the place the writer named did not say fog.
+test('weather and time of day in the request reach every outdoor backdrop', async () => {
+  const { backdropPrompt, backdropNegative, conditionsOf } = await import('../server/media/make-plan.js');
+  const plan = planCreation('a 25 second 8-bit short about a lighthouse keeper and her dog who spot a ship in the fog');
+  const place = 'lighthouse at the edge of a stormy cliff';
+  assert.deepEqual(conditionsOf(plan, place).words, ['storm', 'fog']);                       // the place's own weather is kept, the request's is added
+  const p = backdropPrompt(plan, place);
+  assert.ok(p.startsWith(place + ','));
+  assert.match(p, /thick fog/); assert.match(p, /storm clouds/);
+  assert.match(backdropNegative(plan, place), /clear sky/);
+  assert.match(backdropNegative(plan, place), /people/);                                      // the look's own exclusions stay
+  // nothing said, nothing added
+  const calm = planCreation('an 8-bit short about a baker and a cat');
+  assert.deepEqual(conditionsOf(calm, 'a small bakery on a village street').words, []);
+  assert.equal(backdropNegative(calm, 'a village street'), backdropNegative(calm));
+  // the place's own time of day wins over the request's; weather from the request still applies
+  const night = planCreation('an 8-bit short about two owls on a rainy night');
+  assert.deepEqual(conditionsOf(night, 'a barn roof at dawn').words, ['dawn', 'rain']);
+  assert.deepEqual(conditionsOf(night, 'an old oak tree in a field').words, ['rain', 'night']);
+  assert.match(backdropNegative(night, 'an old oak tree in a field'), /daylight/);
+  // indoors has no weather
+  assert.deepEqual(conditionsOf(night, 'inside a warm kitchen with a stove').words, []);
+  // words that only look like weather are not weather
+  assert.deepEqual(conditionsOf(planCreation('an 8-bit short about a knight and a snowman named Misty'), 'a castle gate').words, []);
+  // every look gets it
+  assert.match(backdropPrompt(planCreation('explain why fog forms in valleys'), 'a valley at sunrise'), /fog/);
+  assert.match(backdropPrompt(planCreation('a comic about a snowy mountain rescue'), 'a mountain hut'), /falling snow/);
+});

@@ -396,19 +396,56 @@ export function subjectOf(plan) {
     .replace(/\s+/g, ' ').replace(/^[\s,.:-]+/, '').trim(), 400) || clip(plan.request, 400);
 }
 
-/** Prompt for one backdrop: the place, empty, with open ground at the bottom where the characters stand. */
-export function backdropPrompt(plan, look) {
-  if (plan.style === 'explainer') return `${look}, cinematic wide photograph, dramatic natural light, rich detail, no text, no captions`;
-  if (plan.style === 'comic') return `${look}, comic book illustration, bold black ink lines, flat colours, wide establishing shot, nobody in the foreground, no text, no speech bubbles`;
-  const art = plan.style === '2bit' ? 'Game Boy style pixel art background, four shades, high contrast' : '8-bit NES style pixel art background, limited colour palette';
-  return `${look}, wide side view, empty scene with nobody in it, flat open ground along the bottom of the picture, ${art}, flat colours, bold simple shapes, no text`;
+/**
+ * Weather and time of day a picture must show. A place description from the script often leaves out what the
+ * request said about the whole film ("…who spot a ship in the fog"), and an image model paints fair weather unless told.
+ * Matching is case-sensitive after the first letter, so a character called Misty is not weather.
+ */
+const CONDITIONS = [
+  { word: 'fog', kind: 'weather', re: /\b(fog|foggy|mist|misty|haze|hazy)\b/, show: 'thick fog, low visibility, distant shapes fading into pale grey mist', avoid: 'clear sky, blue sky, sunshine, sharp horizon' },
+  { word: 'rain', kind: 'weather', re: /\b(rain|rainy|raining|rainstorm|downpour|drizzle)\b/, show: 'heavy rain falling, wet ground with puddles, dark rain clouds', avoid: 'clear sky, sunshine, dry ground' },
+  { word: 'storm', kind: 'weather', re: /\b(storm|stormy|thunder|thunderstorm|lightning|gale|tempest)\b/, show: 'dark storm clouds, rough weather', avoid: 'clear sky, sunshine' },
+  { word: 'snow', kind: 'weather', re: /\b(snow|snowy|snowing|snowfall|snowstorm|blizzard)\b/, show: 'falling snow, snow-covered ground', avoid: 'green grass, summer' },
+  { word: 'night', kind: 'time', re: /\b(night|midnight|nighttime|moonlit|moonlight|starry)\b/, show: 'night, dark sky', avoid: 'daylight, bright sky, sun' },
+  { word: 'dawn', kind: 'time', re: /\b(dawn|sunrise|daybreak|early morning)\b/, show: 'dawn, low sun on the horizon, soft early light', avoid: 'night sky, midday sun' },
+  { word: 'sunset', kind: 'time', re: /\b(sunset|dusk|twilight|evening)\b/, show: 'sunset, orange sky, long shadows', avoid: 'night sky, midday sun' },
+];
+const INDOORS = /\b(inside|interior|indoors?|room|kitchen|cellar|basement|cave|hallway|corridor|office|library|classroom|bedroom|attic|workshop)\b/;
+const unCap = s => { const t = String(s || '').trim(); return t ? t[0].toLowerCase() + t.slice(1) : ''; };
+
+/**
+ * What the picture of this place must show: the place's own conditions first, then what the request says about
+ * the whole film. The place's time of day wins over the request's; indoors there is neither.
+ * @returns {{ words: string[], show: string[], avoid: string[], fromRequest: string[] }}
+ */
+export function conditionsOf(plan, look) {
+  const place = unCap(look), req = unCap(plan?.request);
+  if (INDOORS.test(place)) return { words: [], show: [], avoid: [], fromRequest: [] };
+  const own = CONDITIONS.filter(c => c.re.test(place));
+  const timed = own.some(c => c.kind === 'time');
+  const added = CONDITIONS.filter(c => !own.includes(c) && c.re.test(req) && !(c.kind === 'time' && timed));
+  // the request can name two times ("from dusk to dawn"): one picture shows one, the first that was said
+  const firstTime = added.filter(c => c.kind === 'time').sort((a, b) => req.search(a.re) - req.search(b.re))[0];
+  const all = [...own, ...added.filter(c => c.kind !== 'time' || c === firstTime)];
+  return { words: all.map(c => c.word), show: all.map(c => c.show), avoid: [...new Set(all.flatMap(c => c.avoid.split(', ')))], fromRequest: added.filter(c => all.includes(c)).map(c => c.word) };
 }
 
-/** What a backdrop must not contain, per look. */
-export function backdropNegative(plan) {
-  if (plan.style === 'explainer') return 'text, letters, captions, watermark, logo, blurry, deformed, low quality';
-  if (plan.style === 'comic') return 'text, letters, speech bubble, watermark, photo, photograph, blurry, deformed';
-  return 'people, person, character, figure, face, animal, photo, photograph, blurry, gradient, text, letters, watermark';
+/** Prompt for one backdrop: the place, empty, with open ground at the bottom where the characters stand. */
+export function backdropPrompt(plan, look) {
+  const c = conditionsOf(plan, look), place = c.show.length ? `${look}, ${c.show.join(', ')}` : look;
+  if (plan.style === 'explainer') return `${place}, cinematic wide photograph, dramatic natural light, rich detail, no text, no captions`;
+  if (plan.style === 'comic') return `${place}, comic book illustration, bold black ink lines, flat colours, wide establishing shot, nobody in the foreground, no text, no speech bubbles`;
+  const art = plan.style === '2bit' ? 'Game Boy style pixel art background, four shades, high contrast' : '8-bit NES style pixel art background, limited colour palette';
+  return `${place}, wide side view, empty scene with nobody in it, flat open ground along the bottom of the picture, ${art}, flat colours, bold simple shapes, no text`;
+}
+
+/** What a backdrop must not contain, per look — plus the opposite of the weather it must show, when a place is given. */
+export function backdropNegative(plan, look) {
+  const base = plan.style === 'explainer' ? 'text, letters, captions, watermark, logo, blurry, deformed, low quality'
+    : plan.style === 'comic' ? 'text, letters, speech bubble, watermark, photo, photograph, blurry, deformed'
+    : 'people, person, character, figure, face, animal, photo, photograph, blurry, gradient, text, letters, watermark';
+  const avoid = look == null ? [] : conditionsOf(plan, look).avoid;
+  return avoid.length ? `${base}, ${avoid.join(', ')}` : base;
 }
 
 export { cleanLine, cleanPlace, cleanTitle, readCast, toAscii, words as wordsOf, TITLE_SECONDS, OUTRO_SECONDS, SCENE_PAD, WORDS_PER_SECOND };
