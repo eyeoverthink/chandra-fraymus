@@ -57,8 +57,8 @@ export function sweepStaleTransients({ maxAgeMs = MAX_AGE_MS, trigger = 'manual'
   } catch (e) { result.errors.push(`creation_jobs: ${e.message.slice(0, 100)}`); result.creation_jobs = 0; }
   // Remote jobs are polled by one in-memory loop; a row still 'running' after the cutoff has nobody waiting for it
   try {
-    result.worker_jobs = db.prepare().run(Date.now(), cutoff).changes;
-  } catch (e) { result.errors.push(); result.worker_jobs = 0; }
+    result.worker_jobs = db.prepare(`UPDATE worker_jobs SET state = 'error', error = 'swept: never finished', completed_at = ? WHERE state = 'running' AND created_at < ?`).run(Date.now(), cutoff).changes;
+  } catch (e) { result.errors.push(`worker_jobs: ${e.message.slice(0, 100)}`); result.worker_jobs = 0; }
   state.totals.worker_jobs = (state.totals.worker_jobs || 0) + (result.worker_jobs || 0);
   for (const k of ['capability_runs', 'reasoner_lessons', 'creation_jobs']) state.totals[k] = (state.totals[k] || 0) + (result[k] || 0);
   const total = result.runs + result.verification_loops + result.opeg_proposals + (result.debates || 0) + (result.capability_runs || 0) + (result.reasoner_lessons || 0) + (result.creation_jobs || 0) + (result.worker_jobs || 0);
