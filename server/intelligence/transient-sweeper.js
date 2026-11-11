@@ -60,7 +60,11 @@ export function sweepStaleTransients({ maxAgeMs = MAX_AGE_MS, trigger = 'manual'
     result.worker_jobs = db.prepare(`UPDATE worker_jobs SET state = 'error', error = 'swept: never finished', completed_at = ? WHERE state = 'running' AND created_at < ?`).run(Date.now(), cutoff).changes;
   } catch (e) { result.errors.push(`worker_jobs: ${e.message.slice(0, 100)}`); result.worker_jobs = 0; }
   state.totals.worker_jobs = (state.totals.worker_jobs || 0) + (result.worker_jobs || 0);
-  for (const k of ['capability_runs', 'reasoner_lessons', 'creation_jobs']) state.totals[k] = (state.totals[k] || 0) + (result[k] || 0);
+  // a memory experiment is two agent runs a pair and can take over an hour; one still 'running' after four hours (or the usual limit, if longer) is dead
+  try {
+    result.memory_experiments = db.prepare("UPDATE memory_experiments SET status = 'error', error = 'swept: never finished', finished_at = ? WHERE status = 'running' AND started_at < ?").run(t, Math.min(cutoff, t - 4 * 3600_000)).changes;
+  } catch (e) { if (!/no such table/.test(e.message)) result.errors.push('memory_experiments: ' + e.message.slice(0, 100)); result.memory_experiments = 0; }
+  for (const k of ['capability_runs', 'reasoner_lessons', 'creation_jobs', 'memory_experiments']) state.totals[k] = (state.totals[k] || 0) + (result[k] || 0);
   const total = result.runs + result.verification_loops + result.opeg_proposals + (result.debates || 0) + (result.capability_runs || 0) + (result.reasoner_lessons || 0) + (result.creation_jobs || 0) + (result.worker_jobs || 0);
   state.sweeps++; state.lastAt = t; state.lastResult = result;
   state.totals.debates = state.totals.debates || 0;

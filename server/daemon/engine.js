@@ -15,6 +15,7 @@ import { scanTrends } from '../trend-radar/radar.js';
 import { startNarrator, stopNarrator, getNarratorStatus } from '../intelligence/narrator.js';
 import { startTransientSweeper, stopTransientSweeper, getSweeperStatus } from '../intelligence/transient-sweeper.js';
 import { startMemoryIndexer, stopMemoryIndexer, memorySearchStatus } from '../intelligence/memory-search-service.js';
+import { startFactsReader, stopFactsReader, factsStatus } from '../intelligence/facts-service.js';
 import { startSelfModification, stopSelfModification, getSelfModificationStatus, selfModificationCycle, maybeBuildFromBacklog, checkOuroborosAllowed } from '../intelligence/self-modification.js';
 import { startResearchScout, stopResearchScout, getResearchStatus, runResearchDemos } from '../intelligence/research-scout.js';
 import { startSkillForge, stopSkillForge, getSkillForgeStatus, skillForgeCycle } from '../intelligence/skill-forge.js';
@@ -705,6 +706,10 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
   try { const mi = startMemoryIndexer(); if (!mi.started) console.log(`[memory-search] indexer not started: ${mi.reason}`); }
   catch (e) { console.error('memory indexer start error:', e.message); }
 
+  // Facts: read a few stored memories for checkable facts every ten minutes, at background priority
+  try { const fr = startFactsReader(); if (!fr.started) console.log(`[facts] reader not started: ${fr.reason}`); }
+  catch (e) { console.error('facts reader start error:', e.message); }
+
   // Phase Y: self-modification kernel (5-min experiment timer; code builds run from the daemon cycle)
   try {
     const smk = startSelfModification();
@@ -896,6 +901,7 @@ export function stopDaemon() {
   try { stopNarrator(); } catch (_) {}
   try { stopTransientSweeper(); } catch (_) {}
   try { stopMemoryIndexer(); } catch (e) { console.error('[daemon] memory indexer stop:', e.message); }
+  try { stopFactsReader(); } catch (e) { console.error('[daemon] facts reader stop:', e.message); }
   try { stopSelfModification(); } catch (_) {}
   try { stopResearchScout(); } catch (_) {}
   try { stopSkillForge(); } catch (_) {}
@@ -956,6 +962,7 @@ export function getDaemonStatus() {
     metacognitive: getMetacognitiveStatus(),
     goalExecutor: getGoalExecutorStatus(),
     externalSenses: getExternalSensesStatus(),
+    facts: (() => { const f = factsStatus(); return f.error ? { error: f.error } : { total: f.total, current: f.current, superseded: f.superseded, entities: f.entities, memoriesRead: f.reader.read, accepted: f.reader.accepted, dropped: f.reader.dropped, memoriesWaiting: f.reader.memoriesWaiting }; })(),
     memorySearch: (() => { const m = memorySearchStatus(); return m.error ? { error: m.error } : { memories: m.memories, vectors: m.vectors, vectorCoverage: m.vectorCoverage, searches: m.searches, hybrid: m.hybrid, keywordOnly: m.keywordOnly, embedErrors: m.embedErrors, indexerBusy: m.indexer.busy, lastBenchMrr: m.lastBench?.overall?.[m.lastBench.systems[m.lastBench.systems.length - 1]]?.mrr ?? null }; })(),
     sweeper: (() => { const s = getSweeperStatus(); return { running: s.running, sweeps: s.sweeps, totals: s.totals, currentlyStuck: s.currentlyStuck, lastAt: s.lastAt }; })(),
     researchScout: (() => { try { const s = getResearchStatus(); return { running: s.running, scans: s.scans, lastScanAt: s.lastScanAt, items: s.items, relevantItems: s.relevantItems, proposals: s.proposals, pendingExperiment: s.pendingExperiment && s.pendingExperiment.tunable, pendingCode: s.pendingCode && s.pendingCode.targetFile }; } catch (e) { return { error: e.message }; } })(),

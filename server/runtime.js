@@ -104,6 +104,8 @@ import { installBusRoutes } from './fleet/bus-routes.js';
 import { initTriggers, installTriggerRoutes } from './fleet/bus-triggers.js';
 import { installAgentMemoryRoutes } from './fleet/agent-memory.js';
 import { installMemorySearchRoutes } from './intelligence/memory-search-service.js';
+import { installMemoryExperimentRoutes } from './intelligence/memory-experiment.js';
+import { installFactsRoutes } from './intelligence/facts-service.js';
 import { initHealthMonitor, installHealthRoutes } from './health/monitor.js';
 import { installForgeRoutes } from './fleet/forge.js';
 import { installHarnessRoutes } from './fleet/harness-routes.js';
@@ -348,6 +350,8 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installTriggerRoutes(app);
   installAgentMemoryRoutes(app);
   installMemorySearchRoutes(app);
+  installMemoryExperimentRoutes(app);
+  installFactsRoutes(app);
   initHealthMonitor({ broadcast, ollamaBaseUrl: ollamaUrl });
   installHealthRoutes(app);
   installForgeRoutes(app);

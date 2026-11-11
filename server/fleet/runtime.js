@@ -9,6 +9,7 @@ import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
 import { sanitizeOllamaContent, sanitizeDeep } from '../fraymus/intelligence/ollama-sanitize.js';
 import { setMemoryBridgeRef } from './tools.js';
 import { buildPromptContext, autoStoreFromCompletion } from './agent-memory.js';
+import { factsPromptContext } from '../intelligence/facts-service.js';
 import { getActiveFraming, assessSituation, recordOutcome } from '../intelligence/perspective.js';
 import {
   sealToolResult, sealRefusal, budgetBands, bandDirective,
@@ -229,6 +230,8 @@ async function systemPrompt(agent, userId, taskText = '') {
   try {
     agentMemBlock = buildPromptContext(agent.id, taskText);
   } catch (_) {}
+  // Known facts: what is currently true about the things this task names (replaced versions are not shown)
+  try { agentMemBlock += factsPromptContext(taskText); } catch (e) { console.error('fleet facts block:', e.message); }
 
   // Akashic Record — cross-agent structured knowledge (decisions, entities, verified modules)
   let akashicBlock = '';

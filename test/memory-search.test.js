@@ -192,3 +192,13 @@ test('the vector arm does not vote until nearly all of the scope is embedded', a
   assert.equal((await ms.search('c', 'courageous trooper inspect motor')).arms.vector.found, 0);
   db.close();
 });
+
+test('paired experiment arithmetic: differences, wins and losses, and too-few-pairs is said plainly', async () => {
+  // the module opens the live database, so only its pure summary is tested here, re-stated to stay hermetic
+  const { signFlipP: sf } = await import('../server/intelligence/memory-rank.js');
+  const pairs = Array.from({ length: 8 }, (_, i) => ({ recent: { quality: 0.4, judge: 0.4, deterministic: 0.4 }, relevant: { quality: i < 6 ? 0.6 : 0.35, judge: 0.6, deterministic: 0.5, aboutTask: 5 } }));
+  const a = pairs.map(p => p.relevant.quality), b = pairs.map(p => p.recent.quality), d = a.map((x, i) => x - b[i]);
+  assert.equal(d.filter(x => x > 0.02).length, 6); assert.equal(d.filter(x => x < -0.02).length, 2);
+  assert.ok(Math.abs(d.reduce((s, x) => s + x, 0) / 8 - 0.1375) < 1e-9);
+  const p = sf(a, b); assert.ok(p > 0.01 && p < 0.5, `six wins and two losses in eight is suggestive, not proof (${p})`);
+});

@@ -84,12 +84,38 @@ export function agentMemoryStats(agentId) {
  * are the newest. Without a task it is the ten newest, as before. The task's own echo (the line auto-stored when the
  * run began) is not counted as a memory of it.
  */
-export function buildPromptContext(agentId, taskText) {
-  const task = String(taskText || '').trim();
-  const relevant = task ? relevantMemories(agentId, task, { limit: 8 }).filter(m => !isTaskEcho(m, task)).slice(0, 6) : [];
+/**
+ * An operator's or an experiment's override of the memory block for one agent: `mode` 'recent' is the block as it
+ * was before task-relevant recall (the ten newest), 'relevant' the block as it is now; `maxId` hides memories stored
+ * after a point, so two runs being compared read the same store. `null` removes the override.
+ */
+const contextOverride = new Map();
+export function setMemoryContextMode(agentId, mode, { maxId = null } = {}) {
+  if (!mode) { contextOverride.delete(agentId); return { agentId, mode: null }; }
+  contextOverride.set(agentId, { mode: mode === 'recent' ? 'recent' : 'relevant', maxId: Number.isFinite(maxId) ? maxId : null });
+  return { agentId, ...contextOverride.get(agentId) };
+}
+
+function pickContext(agentId, taskText, override = contextOverride.get(agentId)) {
+  const task = String(taskText || '').trim(), mode = override?.mode || 'relevant', maxId = override?.maxId ?? null;
+  const visible = m => maxId == null || m.id <= maxId;
+  const relevant = task && mode === 'relevant' ? relevantMemories(agentId, task, { limit: 14 }).filter(m => visible(m) && !isTaskEcho(m, task)).slice(0, 6) : [];
   const seen = new Set(relevant.map(m => m.id));
-  const recent = recallMemories(agentId, { limit: 10 }).filter(m => !seen.has(m.id)).slice(0, 10 - relevant.length);
-  if (relevant.length) { const up = db.prepare(`UPDATE agent_memories SET access_count = access_count + 1 WHERE id = ?`); for (const m of relevant) up.run(m.id); }
+  const newest = db.prepare(`SELECT * FROM agent_memories WHERE agent_id = ?${maxId == null ? '' : ' AND id <= ?'} ORDER BY updated_at DESC LIMIT 10`).all(...(maxId == null ? [agentId] : [agentId, maxId]));
+  const recent = newest.filter(m => !seen.has(m.id)).slice(0, 10 - relevant.length);
+  return { relevant, recent, mode };
+}
+
+/** What the block would hold, without touching anything: for experiments and for looking. */
+export function memoryContextPreview(agentId, taskText, mode = null, { maxId = null } = {}) {
+  const c = pickContext(agentId, taskText, mode ? { mode, maxId } : undefined);
+  return { mode: c.mode, aboutTask: c.relevant.length, shown: c.relevant.length + c.recent.length, ids: [...c.relevant, ...c.recent].map(m => m.id) };
+}
+
+export function buildPromptContext(agentId, taskText) {
+  const { relevant, recent } = pickContext(agentId, taskText);
+  const up = db.prepare(`UPDATE agent_memories SET access_count = access_count + 1 WHERE id = ?`);
+  for (const m of [...relevant, ...recent]) up.run(m.id);
   const memories = [...relevant, ...recent];
   if (memories.length === 0) return '';
 
