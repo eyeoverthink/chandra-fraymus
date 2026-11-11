@@ -23,7 +23,8 @@
  */
 import { spawn, execFile } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, rmSync } from 'node:fs';
-import { join, resolve, dirname, basename } from 'node:path';
+import { join, resolve, dirname, basename, delimiter, extname } from 'node:path';
+import sharp from 'sharp';
 import { fileURLToPath } from 'node:url';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { promisify } from 'node:util';
@@ -37,12 +38,15 @@ import { VIDEO_DIR } from './video-engine.js';
 import { ttsSpeak } from './tts-engine.js';
 import { renderStill, renderStillBatch } from './studio.js';
 import { classifyUrl } from '../fraymus-os/registry.js';
+import { pickWorker, runOnWorker, workersStatus, workersConfigured, installWorkerRoutes } from './workers.js';
 import { pixelateBuffer, STYLES } from './pixel-art.js';
+import { forgeCast, spritePixels } from './sprite-forge.js';
 import { planCreation, settleKind, describePlan, scriptMessages, normalizeScript, buildStudioMarkdown, speakerLines, normalizeLine, stillPrompt, backdropPrompt, subjectOf, extractJson, WIRED_STYLES } from './make-plan.js';
 
 const execFileAsync = promisify(execFile);
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SHIM_DIR = join(HERE, 'pyshim');
+const LAUNCHER = join(HERE, 'pystudio', 'chandra_studio.py');   // runs the studio with this film's forged cast
 const STUDIO_REPO = resolve(process.env.VIDEO_STUDIO_DIR || 'F:/Claude-Work/vaughn-systems/fraymus-video-studio');
 const ENGINE_DIR = resolve(process.env.CHANDRA_STUDIO_DIR || 'F:/Chandra-Studio');
 const CREATIONS_DIR = join(DATA_DIR, 'creations');
@@ -144,19 +148,46 @@ async function decideKind(request) {
   return { kind: 'video', why: 'not stated and the model gave no answer — defaulted to video' };
 }
 
+/**
+ * Who writes the script. CREATION_WRITERS="model@http://host:11434,…" lists Ollama servers on the private
+ * network, best first (measured 2026-11-10: qwen3:14b on the RTX 5070 wrote a usable script first time in
+ * 4–14 s; the local 8B model took 16–126 s and half the length). The local model is always the last resort.
+ * A writer whose call fails is skipped for this film; a writer that answers gets all three attempts.
+ */
+const WRITERS = (process.env.CREATION_WRITERS || '').split(',').map(x => x.trim()).filter(Boolean).map(x => {
+  const i = x.lastIndexOf('@'); const c = classifyUrl(i > 0 ? x.slice(i + 1) : '');
+  return i > 0 && c.url && c.routeClass !== 'public' ? { model: x.slice(0, i), url: c.url, label: `${x.slice(0, i)} on ${c.host}` } : null;
+}).filter(Boolean);
+const LOCAL_WRITER = { model: null, url: null, label: `${process.env.FRAYMUS_DEFAULT_MODEL || 'the local model'} on this PC` };
+const WRITER_TIMEOUT_MS = 180_000;
+
+async function askWriter(w, messages) {
+  if (!w.url) return chatOllama(messages, { format: 'json', priority: 'agent_run', temperature: 0.8, maxTokens: 1500, timeoutMs: 240_000, label: 'creation:script' });
+  const send = think => fetch(`${w.url}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(WRITER_TIMEOUT_MS),
+    body: JSON.stringify({ model: w.model, messages, stream: false, format: 'json', ...(think ? {} : { think: false }), options: { temperature: 0.8, num_predict: 1500 } }) });
+  let r = await send(false);
+  if (r.status === 400) r = await send(true);               // a model without a thinking switch refuses the flag
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+  return j.message?.content || '';
+}
+
 async function writeScript(plan, onAttempt) {
-  let feedback = null, lastError = null;
   const refusals = [];
-  for (let attempt = 1; attempt <= SCRIPT_ATTEMPTS; attempt++) {
-    onAttempt?.(attempt);
-    let raw;
-    try { raw = await chatOllama(scriptMessages(plan, feedback), { format: 'json', priority: 'agent_run', temperature: 0.8, maxTokens: 1500, timeoutMs: 240_000, label: 'creation:script' }); }
-    catch (e) { lastError = e.message; refusals.push(`attempt ${attempt}: model call failed: ${clip(e.message, 120)}`); continue; }
-    const s = normalizeScript(raw, plan, { final: attempt === SCRIPT_ATTEMPTS });
-    if (s.ok) return { ...s, attempts: attempt, refusals, writtenBy: process.env.FRAYMUS_DEFAULT_MODEL || 'local model' };
-    feedback = s.reason; lastError = s.reason; refusals.push(`attempt ${attempt}: ${s.reason}`);
+  let lastError = null;
+  for (const w of [...WRITERS, LOCAL_WRITER]) {
+    let feedback = null;
+    for (let attempt = 1; attempt <= SCRIPT_ATTEMPTS; attempt++) {
+      onAttempt?.(attempt, w.label);
+      let raw;
+      try { raw = await askWriter(w, scriptMessages(plan, feedback)); }
+      catch (e) { lastError = e.message; refusals.push(`${w.label}: call failed: ${clip(e.message, 120)}`); if (w.url || attempt >= 2) break; continue; }
+      const s = normalizeScript(raw, plan, { final: attempt === SCRIPT_ATTEMPTS });
+      if (s.ok) return { ...s, attempts: refusals.length + 1, refusals, writtenBy: w.label };
+      feedback = s.reason; lastError = s.reason; refusals.push(`${w.label}, attempt ${attempt}: ${s.reason}`);
+    }
   }
-  throw new Error(`no usable script after ${SCRIPT_ATTEMPTS} attempts: ${clip(lastError, 200)}`);
+  throw new Error(`no usable script after ${refusals.length} attempts: ${clip(lastError, 200)}`);
 }
 
 // ── voice bridge ─────────────────────────────────────────────────────────────────────────────────────
@@ -194,9 +225,10 @@ async function speakWithVoiceStudio(text, voice) {
 async function speakLine(jobId, text) {
   const v = voiceJobs.get(jobId);
   if (!v) throw Object.assign(new Error('no render is waiting for a voice under that id'), { status: 404 });
-  const speaker = v.lines.get(normalizeLine(text)) || 'hero';
+  const speaker = v.lines.get(normalizeLine(text)) || v.names[0];
+  const role = speaker === v.names[1] ? 'robot' : 'hero';   // voice slot: first cast member, second cast member
   if (v.engine === 'voicestudio') {
-    const voice = VS_VOICES[speaker];
+    const voice = VS_VOICES[role];
     const t0 = now();
     const { buf, ext } = await speakWithVoiceStudio(text, voice);
     const raw = join(v.dir, `line-${String(++v.n).padStart(2, '0')}-${speaker}.src.${ext}`), wavOut = raw.replace(/\.src\.\w+$/, '.wav');
@@ -206,7 +238,7 @@ async function speakLine(jobId, text) {
     v.engines.add('voicestudio'); v.voices.add(`${speaker}: ${voice}`); v.seconds += (now() - t0) / 1000;
     return readFileSync(wavOut);
   }
-  const spoken = await ttsSpeak(text, TTS_ENGINE ? { ...VOICES[speaker], engine: TTS_ENGINE } : VOICES[speaker]);
+  const spoken = await ttsSpeak(text, TTS_ENGINE ? { ...VOICES[role], engine: TTS_ENGINE } : VOICES[role]);
   const wav = join(v.dir, `line-${String(++v.n).padStart(2, '0')}-${speaker}.wav`);
   await execFileAsync('ffmpeg', ['-v', 'error', '-y', '-i', spoken.path, '-ac', '1', '-ar', '24000', '-c:a', 'pcm_s16le', wav], { timeout: 60_000, windowsHide: true });
   v.engines.add(spoken.engine || 'unknown'); if (spoken.voice) v.voices.add(`${speaker}: ${spoken.voice}`);
@@ -220,13 +252,14 @@ process.once('exit', () => { try { child?.kill(); } catch (_) { /* process is en
 
 const STAGE_PROGRESS = { plan: 0.08, audio: 0.18, frames: 0.22, encode: 0.93 };
 
-function renderWithStudio(id, plan, scriptPath, outDir, ready) {
+function renderWithStudio(id, plan, scriptPath, outDir, ready, spritesPath = null) {
   return new Promise((resolveP, reject) => {
-    const args = ['-m', 'studio', 'render', scriptPath, '--recipe', plan.style, '-o', outDir, '--workers', '1', '--voice', plan.voice === 'silent' ? 'silent' : 'http', '--format', plan.format];
+    const args = [LAUNCHER, 'render', scriptPath, '--recipe', plan.style, '-o', outDir, '--workers', '1', '--voice', plan.voice === 'silent' ? 'silent' : 'http', '--format', plan.format];
     // A short, explicit environment: the child needs a PATH for ffmpeg and nothing of the server's secrets.
     const env = { PYTHONUNBUFFERED: '1', PYTHONDONTWRITEBYTECODE: '1', PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8', NO_PROXY: '127.0.0.1,localhost', STUDIO_TTS_URL: `http://127.0.0.1:${PORT}/api/studio/create/voice/${id}` };
     for (const k of ['PATH', 'Path', 'SystemRoot', 'SYSTEMROOT', 'TEMP', 'TMP', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'HOME']) if (process.env[k]) env[k] = process.env[k];
-    if (ready.soundfile !== 'installed') env.PYTHONPATH = SHIM_DIR;
+    env.PYTHONPATH = ready.soundfile !== 'installed' ? [STUDIO_REPO, SHIM_DIR].join(delimiter) : STUDIO_REPO;
+    if (spritesPath) env.CHANDRA_SPRITES = spritesPath;
     const log = [];
     let stderrBuf = '';
     child = spawn(ready.python, args, { cwd: STUDIO_REPO, env, windowsHide: true });
@@ -265,16 +298,61 @@ async function paintBackdrops(id, plan, script) {
   const looks = script.places?.length ? script.places : [subjectOf(plan)];
   const from = script.places?.length ? 'the script' : 'the request (the script named no place)';
   setJob(id, { stage: 'painting backdrops', progress: 0.04 });
+  const items = looks.map(look => ({ prompt: backdropPrompt(plan, look), negative: 'people, person, character, figure, face, animal, photo, photograph, blurry, gradient, text, letters, watermark', width: 1024, height: 576, steps: 22, seed: Math.floor(Math.random() * 2 ** 31) }));
+  let workerNote = null;
+  const picked = await pickWorker('stills');
+  if (picked.worker) {
+    try {
+      const r = await runOnWorker(picked.worker, { id: `${id}-stills`, kind: 'stills', spec: { items }, purpose: `backdrops for ${id}` },
+        { outDir: join(CREATIONS_DIR, id, 'from-worker'), onProgress: stage => setJob(id, { stage: `${picked.worker.name}: ${stage}` }), timeoutMs: 1_800_000 });
+      const detail = r.receipt.detail?.items || [];
+      const files = looks.map((_, i) => {
+        const d = detail[i], o = d?.ok ? r.outputs.find(x => x.name === d.file) : null;
+        if (!o) return null;
+        const name = mediaName('png');
+        copyFileSync(o.path, join(MEDIA_DIR, name));
+        noteMedia(name, 'generate', [items[i].prompt, { seed: d.seed, width: d.width, height: d.height, steps: d.steps, model: 'sdxl-base-1.0', paintedOn: picked.worker.name, job: id }], { source: 'creation' });
+        return join(MEDIA_DIR, name);
+      });
+      const made = files.filter(Boolean).length;
+      return { files, info: { asked: looks.length, made, seconds: r.seconds, placesFrom: from, paintedOn: picked.worker.name, receipt: { digest: r.receipt.digest, finishedAt: r.receipt.finishedAt },
+        items: looks.map((look, i) => detail[i]?.ok ? { look, file: basename(files[i]), seed: detail[i].seed, seconds: detail[i].seconds } : { look, error: detail[i]?.error || 'not painted' }),
+        note: made < looks.length ? 'scenes whose backdrop failed use the built-in landscape' : null } };
+    } catch (e) { workerNote = `${clip(e.message, 200)}; painted on this PC instead`; console.error('[creation] worker stills:', e.message); }
+  } else if (workersConfigured()) workerNote = `no worker took it (${clip(picked.why, 200)}); painted on this PC`;
   try {
-    const batch = await renderStillBatch(looks.map(look => ({ prompt: backdropPrompt(plan, look), negative: 'people, person, character, figure, face, animal, photo, photograph, blurry, gradient, text, letters, watermark', width: 1024, height: 576, steps: 22 })),
+    const batch = await renderStillBatch(items,
       { source: 'creation', purpose: `backdrops for ${id}`, onProgress: (i, n) => setJob(id, { stage: `painting backdrop ${i + 1} of ${n}` }) });
-    const items = batch.results.map((r, i) => r.ok ? { look: looks[i], file: basename(r.path), seed: r.seed, seconds: r.seconds } : { look: looks[i], error: r.error });
+    const painted = batch.results.map((r, i) => r.ok ? { look: looks[i], file: basename(r.path), seed: r.seed, seconds: r.seconds } : { look: looks[i], error: r.error });
     const made = batch.results.filter(r => r.ok).length;
-    return { files: batch.results.map(r => r.ok ? r.path : null), info: { asked: looks.length, made, seconds: batch.seconds, placesFrom: from, items, note: made < looks.length ? 'scenes whose backdrop failed use the built-in landscape' : null } };
+    return { files: batch.results.map(r => r.ok ? r.path : null), info: { asked: looks.length, made, seconds: batch.seconds, placesFrom: from, paintedOn: 'this PC', workerNote, items: painted, note: made < looks.length ? 'scenes whose backdrop failed use the built-in landscape' : null } };
   } catch (e) {
     console.error('[creation] backdrops:', e.message);
     return { files: [], info: { asked: looks.length, made: 0, placesFrom: from, note: `no backdrops, built-in landscape used: ${clip(e.code === 'gpu_unavailable' ? 'the graphics card was in use' : e.message, 200)}` } };
   }
+}
+
+/**
+ * Render on a worker: the lines are recorded HERE first (the voices never leave this machine as a service — only
+ * the finished recordings travel), then script, cast, backdrops and recordings go as one bundle.
+ */
+async function renderOnWorker(worker, id, plan, script, backdropFiles, spritesPath, outDir) {
+  const lines = [];
+  if (plan.voice !== 'silent') {
+    for (const [i, sc] of script.scenes.entries()) {
+      setJob(id, { stage: `voicing line ${i + 1} of ${script.scenes.length}`, progress: 0.06 });
+      lines.push({ text: sc.say, file: `line-${String(i + 1).padStart(2, '0')}.wav`, wav: await speakLine(id, sc.say) });
+    }
+  }
+  const rel = backdropFiles.map((f, i) => (f ? `backdrop-${i}${extname(f).toLowerCase()}` : null));
+  const files = { 'script.md': Buffer.from(buildStudioMarkdown(plan, script, rel), 'utf8'), 'cast.json': readFileSync(spritesPath) };
+  backdropFiles.forEach((f, i) => { if (f) files[rel[i]] = readFileSync(f); });
+  for (const l of lines) files[l.file] = l.wav;
+  const r = await runOnWorker(worker, { id: `${id}-video`, kind: 'video', purpose: `render ${id}`, files,
+    spec: { style: plan.style, format: plan.format, voice: plan.voice === 'silent' ? 'silent' : 'lines', lines: lines.map(l => ({ text: l.text, file: l.file })) } },
+    { outDir, onProgress: (stage, p) => setJob(id, { stage: `${worker.name}: ${stage}`, progress: Math.max(0.08, Number(p) || 0) }), timeoutMs: RENDER_TIMEOUT_MS + 600_000 });
+  if (!r.outputs.some(o => /_master\.mp4$/i.test(o.name))) throw new Error('the worker returned no master video');
+  return { result: { ok: true, files: r.outputs.map(o => o.path), duration_s: r.receipt.detail?.duration_s, render_s: r.receipt.detail?.render_s }, log: [], receipt: r.receipt };
 }
 
 async function makeVideo(id, plan, opts) {
@@ -282,15 +360,25 @@ async function makeVideo(id, plan, opts) {
   if (!ready.ready) throw new Error(`the video studio cannot run here: ${ready.problems.join('; ')}`);
   let script;
   if (Array.isArray(opts.scenes) && opts.scenes.length) {
-    script = normalizeScript({ title: opts.title, scenes: opts.scenes }, plan, { final: true });
+    script = normalizeScript({ title: opts.title, cast: opts.cast, scenes: opts.scenes }, plan, { final: true });
     if (!script.ok) throw new Error(`the supplied script was refused: ${script.reason}`);
     script.attempts = 0; script.writtenBy = 'supplied by the caller';
   } else {
     setJob(id, { stage: 'writing', progress: 0.02 });
-    script = await writeScript(plan, attempt => setJob(id, { stage: attempt > 1 ? `writing (attempt ${attempt})` : 'writing' }));
+    script = await writeScript(plan, (attempt, who) => setJob(id, { stage: `writing: ${who}${attempt > 1 ? `, attempt ${attempt}` : ''}` }));
   }
   const dir = join(CREATIONS_DIR, id), outDir = join(dir, 'out');
   mkdirSync(outDir, { recursive: true });
+  // The cast: one sprite per character, forged from the script's description of each
+  const sprites = forgeCast(script.cast, { style: plan.style });
+  script.cast.forEach((c, i) => { if (sprites[i].name !== c.name) { for (const sc of script.scenes) if (sc.speaker === c.name) sc.speaker = sprites[i].name; c.name = sprites[i].name; } });
+  const spritesPath = join(dir, 'cast.json');
+  writeFileSync(spritesPath, JSON.stringify({ cast: sprites.map(s => ({ name: s.name, rows: s.rows, colors: s.colors, closed: s.closed })) }, null, 1), 'utf8');
+  try {
+    const S = 10, tiles = [];
+    for (const [i, s] of sprites.entries()) for (const talk of [false, true]) tiles.push({ input: await sharp(spritePixels(s, { talk }), { raw: { width: 16, height: 16, channels: 4 } }).resize(16 * S, 16 * S, { kernel: 'nearest' }).png().toBuffer(), left: (i * 2 + (talk ? 1 : 0)) * 16 * S, top: 0 });
+    await sharp({ create: { width: sprites.length * 2 * 16 * S, height: 16 * S, channels: 3, background: plan.style === '2bit' ? '#9bbc0f' : '#3cbcfc' } }).composite(tiles).png().toFile(join(dir, 'cast.png'));
+  } catch (e) { console.error('[creation] cast preview:', e.message); }
   const backdrops = await paintBackdrops(id, plan, script);
   if (cancelled.has(id)) throw new Error('cancelled');
   const markdown = buildStudioMarkdown(plan, script, backdrops.files);
@@ -299,11 +387,17 @@ async function makeVideo(id, plan, opts) {
   setJob(id, { script: markdown, title: script.title, stage: 'voicing', progress: 0.05 });
 
   const picked = plan.voice === 'silent' ? { engine: 'silent', why: 'asked for no voice' } : await pickVoiceEngine();
-  const voice = { lines: speakerLines(script), dir, n: 0, engines: new Set(), voices: new Set(), engine: picked.engine, seconds: 0 };
+  const voice = { lines: speakerLines(script), names: script.cast.map(c => c.name), dir, n: 0, engines: new Set(), voices: new Set(), engine: picked.engine, seconds: 0 };
   voiceJobs.set(id, voice);
-  let done;
-  try { done = await renderWithStudio(id, plan, scriptPath, outDir, ready); }
-  finally { voiceJobs.delete(id); }
+  let done, renderedOn = 'this PC', renderNote = null;
+  try {
+    const pw = await pickWorker('video');
+    if (pw.worker) {
+      try { done = await renderOnWorker(pw.worker, id, plan, script, backdrops.files, spritesPath, outDir); renderedOn = pw.worker.name; }
+      catch (e) { if (cancelled.has(id)) throw e; renderNote = `${clip(e.message, 200)}; rendered on this PC instead`; console.error('[creation] worker render:', e.message); }
+    } else if (workersConfigured()) renderNote = `no worker took it (${clip(pw.why, 200)}); rendered on this PC`;
+    if (!done) done = await renderWithStudio(id, plan, scriptPath, outDir, ready, spritesPath);
+  } finally { voiceJobs.delete(id); }
 
   const master = (done.result.files || []).find(f => /_master\.mp4$/i.test(f));
   if (!master || !existsSync(master)) throw new Error('the studio finished without a master video');
@@ -314,16 +408,17 @@ async function makeVideo(id, plan, opts) {
   try { rmSync(join(outDir, 'work'), { recursive: true, force: true }); } catch (e) { console.error('[creation] cleanup:', e.message); }
   // Lineage: everything needed to say how this file came to be, and to make it again or change one line
   try {
-    writeFileSync(join(dir, 'lineage.json'), JSON.stringify({ job: id, request: plan.request, plan, script: { title: script.title, places: script.places, scenes: script.scenes, writtenBy: script.writtenBy, attempts: script.attempts, refusals: script.refusals || [], fixes: script.fixes },
+    writeFileSync(join(dir, 'lineage.json'), JSON.stringify({ job: id, request: plan.request, plan, cast: sprites.map(s => ({ name: s.name, look: s.look, kind: s.kind, template: s.template, colors: s.colors, why: s.why })),
+      script: { title: script.title, places: script.places, scenes: script.scenes, writtenBy: script.writtenBy, attempts: script.attempts, refusals: script.refusals || [], fixes: script.fixes },
       backdrops: backdrops.info,
       voice: { engine: voiced, voices: [...voice.voices], chosen: picked, synthSeconds: +voice.seconds.toFixed(1), offline: voiced === 'sapi' || voiced === 'piper' || voiced === 'silent' || (voiced === 'voicestudio' && VOICESTUDIO.routeClass === 'local') }, wordTiming: ready.wordTiming,
-      renderer: { name: 'fraymus-video-studio', recipe: plan.style, repo: STUDIO_REPO, python: ready.pythonVersion, workers: 1, renderSeconds: done.result.render_s },
+      renderer: { name: 'fraymus-video-studio', renderedOn, note: renderNote, receipt: done.receipt ? { digest: done.receipt.digest, worker: done.receipt.worker, finishedAt: done.receipt.finishedAt } : null, recipe: plan.style, repo: STUDIO_REPO, python: ready.pythonVersion, workers: 1, renderSeconds: done.result.render_s },
       output: { file: name, seconds: done.result.duration_s }, madeAt: new Date().toISOString() }, null, 2), 'utf8');
   } catch (e) { console.error('[creation] lineage:', e.message); }
   return {
     kind: 'video', file: name, url: `/api/hermes/artifacts/media?kind=video&id=${name}`, title: script.title, seconds: done.result.duration_s, renderSeconds: done.result.render_s,
     scenes: script.scenes.length, words: script.words, scriptAttempts: script.attempts, scriptRefusals: script.refusals || [], scriptBy: script.writtenBy, scriptFixes: script.fixes,
-    backdrops: backdrops.info, voice: voiced, voiceWhy: picked.why, voices: [...voice.voices], wordTiming: ready.wordTiming, folder: dir, files: (done.result.files || []).map(f => basename(f)),
+    cast: sprites.map(s => ({ name: s.name, look: s.look, sprite: s.template })), backdrops: backdrops.info, voice: voiced, voiceWhy: picked.why, voices: [...voice.voices], wordTiming: ready.wordTiming, renderedOn, renderNote, folder: dir, files: (done.result.files || []).map(f => basename(f)),
   };
 }
 
@@ -379,7 +474,7 @@ async function runJob(id, opts) {
  * Accept a typed request. Returns at once; the work happens in the queue.
  * @returns {{ accepted: boolean, id?, status?, plan, summary, reason?, message? }}
  */
-export async function createFromRequest({ request, kind, style, seconds, format, palette, voice, backdrops, image, scenes, title, source = 'api', agentId = null } = {}) {
+export async function createFromRequest({ request, kind, style, seconds, format, palette, voice, backdrops, image, scenes, cast, title, source = 'api', agentId = null } = {}) {
   const text = clip(request, 1500).replace(/\s+/g, ' ').trim();
   if (text.length < 3) throw Object.assign(new Error('request is required: say what to make'), { status: 400 });
   let plan = planCreation(text, { kind: image ? 'still' : kind, style, seconds, format, palette, voice, backdrops });
@@ -403,7 +498,7 @@ export async function createFromRequest({ request, kind, style, seconds, format,
   const id = `make-${randomUUID().slice(0, 10)}`;
   db.prepare(`INSERT INTO creation_jobs (id, request, kind, style, status, stage, plan, source, agent_id, created_at) VALUES (?, ?, ?, ?, 'queued', 'queued', ?, ?, ?, ?)`)
     .run(id, text, plan.kind, plan.style, JSON.stringify(plan), source, agentId, now());
-  const opts = { image: image || null, scenes: Array.isArray(scenes) ? scenes.slice(0, 30) : null, title: title ? clip(title, 60) : null };
+  const opts = { image: image || null, scenes: Array.isArray(scenes) ? scenes.slice(0, 30) : null, cast: Array.isArray(cast) ? cast.slice(0, 2) : null, title: title ? clip(title, 60) : null };
   tail = tail.then(() => runJob(id, opts)).catch(e => console.error('[creation] queue:', e.message));
   return { accepted: true, id, status: 'queued', plan, summary: describePlan(plan) };
 }
@@ -431,7 +526,7 @@ export async function creationStatus() {
   } catch (e) { console.error('[creation] status:', e.message); }
   return {
     wired: { styles: WIRED_STYLES, kinds: ['video', 'still'], looks: STYLES, videoFormats: ['16:9'], stillFormats: ['16:9', '9:16', '1:1'] },
-    studio: ready, voices: VOICES, voiceStudio: { ...(await pickVoiceEngine()), url: VOICESTUDIO.url || null, routeClass: VOICESTUDIO.routeClass || null, voices: VS_VOICES }, ttsEngine: TTS_ENGINE || 'cascade (edge-tts online first, then offline SAPI)', running: currentId, counts, timing, agentCapPerDay: MAX_AGENT_JOBS_PER_DAY, jobs: listCreations(8),
+    writers: [...WRITERS, LOCAL_WRITER].map(w => w.label), workers: await workersStatus(), studio: ready, voices: VOICES, voiceStudio: { ...(await pickVoiceEngine()), url: VOICESTUDIO.url || null, routeClass: VOICESTUDIO.routeClass || null, voices: VS_VOICES }, ttsEngine: TTS_ENGINE || 'cascade (edge-tts online first, then offline SAPI)', running: currentId, counts, timing, agentCapPerDay: MAX_AGENT_JOBS_PER_DAY, jobs: listCreations(8),
   };
 }
 
@@ -477,6 +572,7 @@ export function createMakeTools() {
 
 export function installMakeRoutes(app) {
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
+  installWorkerRoutes(app);
   app.get('/api/studio/create', route(async (req, res) => res.json(await creationStatus())));
   app.post('/api/studio/create/plan', route((req, res) => {
     const b = req.body || {};
@@ -493,7 +589,7 @@ export function installMakeRoutes(app) {
   app.post('/api/studio/create', route(async (req, res) => {
     const b = req.body || {};
     try {
-      const r = await createFromRequest({ request: b.request, kind: b.kind, style: b.style, seconds: b.seconds, format: b.format, palette: b.palette, voice: b.voice, backdrops: b.backdrops, image: b.image, scenes: b.scenes, title: b.title, source: 'api' });
+      const r = await createFromRequest({ request: b.request, kind: b.kind, style: b.style, seconds: b.seconds, format: b.format, palette: b.palette, voice: b.voice, backdrops: b.backdrops, image: b.image, scenes: b.scenes, cast: b.cast, title: b.title, source: 'api' });
       res.status(r.accepted ? 202 : r.reason === 'queue_full' ? 429 : 422).json(r);
     } catch (e) { if (e.status === 400) return res.status(400).json({ error: e.message }); throw e; }
   }));

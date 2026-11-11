@@ -1,0 +1,173 @@
+/**
+ * Workers — other machines on the private network that paint and render for this hub.
+ *
+ * The hub never listens beyond loopback; it calls out to scripts/worker/chandra_worker.py running on a
+ * machine with a graphics card. Three contracts (see docs/UNIFIED-SYSTEM-AND-DREAM.md §4):
+ *
+ *   capability  GET /health        — what the machine has and which kinds of work are ready
+ *   work        POST /jobs         — {id, nonce, kind, spec, files}; the same id + content is the same job,
+ *               GET /jobs/:id        so a retry never runs twice; the result carries a receipt bound to the nonce
+ *               POST /jobs/:id/ack — the hub confirms it holds the outputs
+ *   artifact    every output file is checked against the SHA-256 in the receipt before it is used
+ *
+ * Configuration: CHANDRA_WORKERS="home=http://100.x.y.z:47210,other=http://…" (private hosts only) and a
+ * shared token in CHANDRA_WORKER_TOKEN_FILE (default data/worker-token.txt, created on first use; copy it
+ * to the worker). CHANDRA_WORKERS unset = everything runs on this machine, as before.
+ *
+ * Every remote job is a row in worker_jobs with its receipt. A worker that fails or is busy is never
+ * fatal: callers fall back to local work and record why.
+ */
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join, basename } from 'node:path';
+import { createHash, randomBytes } from 'node:crypto';
+import { db } from '../db.js';
+import { DATA_DIR } from '../config.js';
+import { classifyUrl } from '../fraymus-os/registry.js';
+
+const TOKEN_FILE = process.env.CHANDRA_WORKER_TOKEN_FILE || join(DATA_DIR, 'worker-token.txt');
+const now = () => Date.now();
+const clip = (s, n) => String(s ?? '').slice(0, n);
+const sha256 = buf => createHash('sha256').update(buf).digest('hex');
+
+/** Parse "name=url,name=url"; hosts on the public internet are dropped with a reason. */
+export function parseWorkers(spec) {
+  const out = [], refused = [];
+  for (const part of String(spec || '').split(',').map(s => s.trim()).filter(Boolean)) {
+    const i = part.indexOf('=');
+    const name = (i > 0 ? part.slice(0, i) : '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    const c = classifyUrl(i > 0 ? part.slice(i + 1).trim() : '');
+    if (!name || !c.url) { refused.push({ entry: clip(part, 60), reason: 'expected name=http://host:port' }); continue; }
+    if (c.routeClass === 'public') { refused.push({ entry: name, reason: 'public host: workers must be on the private network' }); continue; }
+    if (out.some(w => w.name === name)) { refused.push({ entry: name, reason: 'duplicate name' }); continue; }
+    out.push({ name, url: c.url, host: c.host, routeClass: c.routeClass });
+  }
+  return { workers: out, refused };
+}
+
+/** The content identity the worker computes too: kind + spec + the hash of every input file, key order irrelevant. */
+export function jobDigest(kind, spec, files) {
+  const sorted = v => Array.isArray(v) ? v.map(sorted) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, sorted(v[k])])) : v;
+  const hashes = Object.fromEntries(Object.keys(files).sort().map(k => [k, sha256(files[k])]));
+  return sha256(Buffer.from(pyJson(sorted({ kind, spec, files: hashes }))));
+}
+
+/** JSON exactly as Python's json.dumps(sort_keys=True, separators=(",", ":")) writes it (non-ASCII escaped), so both sides hash the same bytes. */
+function pyJson(v) {
+  if (v === null || v === undefined) return 'null';
+  if (typeof v === 'string') return JSON.stringify(v).replace(/[\u0080-\uffff]/g, ch => '\\u' + ch.charCodeAt(0).toString(16).padStart(4, '0'));
+  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : String(v);
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  if (Array.isArray(v)) return '[' + v.map(pyJson).join(',') + ']';
+  return '{' + Object.keys(v).sort().map(k => `${pyJson(k)}:${pyJson(v[k])}`).join(',') + '}';
+}
+
+const CONFIG = parseWorkers(process.env.CREATION_WORKERS === 'off' ? '' : process.env.CHANDRA_WORKERS);
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS worker_jobs (
+      id TEXT PRIMARY KEY, worker TEXT NOT NULL, kind TEXT NOT NULL, state TEXT NOT NULL, digest TEXT, receipt TEXT, error TEXT,
+      purpose TEXT, seconds REAL, created_at INTEGER NOT NULL, completed_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_worker_jobs_created ON worker_jobs(created_at);
+  `);
+  const closed = db.prepare(`UPDATE worker_jobs SET state = 'error', error = 'interrupted by restart', completed_at = ? WHERE state = 'running'`).run(now()).changes;
+  if (closed) console.log(`[workers] closed ${closed} remote job(s) left open by a previous process`);
+} catch (e) { console.error('[workers] table setup failed:', e.message); }
+
+function token() {
+  if (!existsSync(TOKEN_FILE)) { mkdirSync(DATA_DIR, { recursive: true }); writeFileSync(TOKEN_FILE, randomBytes(32).toString('hex') + '\n', { mode: 0o600 }); }
+  return readFileSync(TOKEN_FILE, 'utf8').trim();
+}
+
+async function call(worker, path, { method = 'GET', body, timeoutMs = 15_000, raw = false } = {}) {
+  const res = await fetch(`${worker.url}${path}`, { method, headers: { Authorization: `Bearer ${token()}`, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(timeoutMs) });
+  if (raw) { if (!res.ok) throw new Error(`HTTP ${res.status}`); return Buffer.from(await res.arrayBuffer()); }
+  const json = await res.json().catch(() => ({}));
+  return { status: res.status, ok: res.ok, json };
+}
+
+let healthCache = { at: 0, list: [] };
+
+/** Health and capabilities of every configured worker (cached 20 s). Unreachable workers are listed with the reason. */
+export async function workersStatus({ fresh = false } = {}) {
+  if (!fresh && now() - healthCache.at < 20_000) return healthCache.list;
+  const list = await Promise.all(CONFIG.workers.map(async w => {
+    try {
+      const r = await call(w, '/health', { timeoutMs: 6000 });
+      if (r.status === 401) return { ...w, reachable: true, ok: false, error: 'the worker refused the token (copy data/worker-token.txt to it)' };
+      if (!r.ok) return { ...w, reachable: true, ok: false, error: `HTTP ${r.status}` };
+      return { ...w, reachable: true, ok: true, host: r.json.host, version: r.json.version, platform: r.json.platform, gpus: r.json.gpus, capabilities: r.json.capabilities, busy: r.json.busy };
+    } catch (e) { return { ...w, reachable: false, ok: false, error: clip(e.cause?.code || e.message, 80) }; }
+  }));
+  healthCache = { at: now(), list };
+  return list;
+}
+
+/** The first worker that is up, idle and ready for this kind of work, or null with the reasons. */
+export async function pickWorker(kind) {
+  if (!CONFIG.workers.length) return { worker: null, why: 'no workers are configured' };
+  const list = await workersStatus({ fresh: true });
+  const ready = list.find(w => w.ok && !w.busy && w.capabilities?.[kind]?.ready);
+  if (ready) return { worker: ready, why: `${ready.name} is ready` };
+  return { worker: null, why: list.map(w => `${w.name}: ${!w.ok ? w.error : w.busy ? 'busy' : (w.capabilities?.[kind]?.problems || ['not ready']).join('; ')}`).join(' | ') };
+}
+
+/**
+ * Run one job on a worker and bring its outputs home.
+ * @param files   { name: Buffer } inputs
+ * @returns {{ receipt, outputs: [{ name, path, bytes, sha256 }], seconds }}
+ * Throws on any failure; the worker_jobs row keeps the reason.
+ */
+export async function runOnWorker(worker, { id, kind, spec, files = {}, purpose = '' }, { outDir, onProgress, timeoutMs = 3_600_000 } = {}) {
+  const nonce = randomBytes(16).toString('hex');
+  const digest = jobDigest(kind, spec, files);
+  const t0 = now();
+  db.prepare(`INSERT OR REPLACE INTO worker_jobs (id, worker, kind, state, digest, purpose, created_at) VALUES (?, ?, ?, 'running', ?, ?, ?)`).run(id, worker.name, kind, digest, clip(purpose, 200), t0);
+  const fail = msg => { db.prepare(`UPDATE worker_jobs SET state = 'error', error = ?, seconds = ?, completed_at = ? WHERE id = ?`).run(clip(msg, 500), +((now() - t0) / 1000).toFixed(1), now(), id); return new Error(`worker ${worker.name}: ${msg}`); };
+  try {
+    const sent = await call(worker, '/jobs', { method: 'POST', timeoutMs: 120_000, body: { id, nonce, kind, spec, files: Object.fromEntries(Object.entries(files).map(([k, v]) => [k, v.toString('base64')])) } });
+    if (!sent.ok) throw new Error(sent.json.error || `HTTP ${sent.status}`);
+    if (sent.json.digest !== digest) throw new Error('the worker computed a different content digest: hub and worker disagree about what was asked');
+    const deadline = now() + timeoutMs;
+    let job = sent.json, misses = 0;
+    while (job.state === 'running') {
+      if (now() > deadline) throw new Error(`no result after ${Math.round(timeoutMs / 60000)} min`);
+      await new Promise(r => setTimeout(r, 2000));
+      try { const r = await call(worker, `/jobs/${id}`); if (!r.ok) throw new Error(r.json.error || `HTTP ${r.status}`); job = r.json; misses = 0; onProgress?.(job.stage, job.progress); }
+      catch (e) { if (++misses >= 8) throw new Error(`lost contact while it worked: ${clip(e.message, 100)}`); }
+    }
+    if (job.state !== 'done') throw new Error(job.error || 'the job failed');
+    const receipt = job.receipt;
+    if (!receipt || receipt.nonce !== nonce || receipt.digest !== digest || receipt.id !== id) throw new Error('the receipt does not match this request');
+    mkdirSync(outDir, { recursive: true });
+    const outputs = [];
+    for (const f of job.files || []) {
+      if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(f.name)) throw new Error('the worker returned an unsafe file name');
+      const buf = await call(worker, `/jobs/${id}/files/${f.name}`, { raw: true, timeoutMs: 300_000 });
+      if (sha256(buf) !== f.sha256 || receipt.outputs?.[f.name] !== f.sha256) throw new Error(`${f.name} does not match the hash in the receipt`);
+      const path = join(outDir, basename(f.name));
+      writeFileSync(path, buf);
+      outputs.push({ name: f.name, path, bytes: buf.length, sha256: f.sha256 });
+    }
+    try { await call(worker, `/jobs/${id}/ack`, { method: 'POST', body: { nonce } }); } catch (e) { console.error('[workers] ack:', e.message); }
+    const seconds = +((now() - t0) / 1000).toFixed(1);
+    db.prepare(`UPDATE worker_jobs SET state = 'done', receipt = ?, seconds = ?, completed_at = ? WHERE id = ?`).run(JSON.stringify(receipt), seconds, now(), id);
+    return { receipt, outputs, seconds };
+  } catch (e) { throw fail(e.message); }
+}
+
+export function workerJobs(limit = 20) {
+  try { return db.prepare(`SELECT id, worker, kind, state, purpose, seconds, error, created_at FROM worker_jobs ORDER BY created_at DESC LIMIT ?`).all(Math.min(100, Math.max(1, parseInt(limit, 10) || 20))); }
+  catch (e) { console.error('[workers] list:', e.message); return []; }
+}
+
+export function workersConfigured() { return CONFIG.workers.length; }
+
+export function installWorkerRoutes(app) {
+  const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
+  app.get('/api/studio/workers', route(async (req, res) => res.json({
+    configured: CONFIG.workers.map(w => ({ name: w.name, url: w.url, routeClass: w.routeClass })), refused: CONFIG.refused,
+    tokenFile: TOKEN_FILE, status: await workersStatus({ fresh: req.query.fresh === '1' }), jobs: workerJobs(req.query.limit),
+  })));
+}

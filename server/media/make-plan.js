@@ -13,7 +13,11 @@
  * silently turned into pixel art.
  */
 
+import { castName } from './sprite-forge.js';
+
 export const WIRED_STYLES = ['8bit', '2bit'];
+/** The cast used when a script does not name its own: the studio's two built-in figures. */
+export const DEFAULT_CAST = Object.freeze([Object.freeze({ name: 'hero', look: 'a kid' }), Object.freeze({ name: 'robot', look: 'a robot' })]);
 export const CAST = ['hero', 'robot'];           // the two sprites the pixel recipes can draw
 export const MIN_SECONDS = 8, MAX_SECONDS = 180, DEFAULT_SECONDS = 30;
 const TITLE_SECONDS = 2.5, OUTRO_SECONDS = 1.0, SCENE_PAD = 0.8, WORDS_PER_SECOND = 2.6;
@@ -147,15 +151,17 @@ export function scriptMessages(plan, feedback = null) {
   const b = scriptBudget(plan.seconds);
   const system = [
     'You write scripts for very short retro pixel-art films.',
-    'Exactly two characters can appear on screen: HERO (a human) and ROBOT (a robot). They talk to each other. There is no narrator and no other speaker.',
-    'Reply with JSON only, in this shape: {"title": "…", "scenes": [{"speaker": "hero", "place": "…", "say": "…"}, {"speaker": "robot", "place": "…", "say": "…"}]}',
+    'Exactly two characters appear on screen and talk to each other. You choose who they are from the request. There is no narrator and no other speaker.',
+    'Reply with JSON only, in this shape: {"title": "…", "cast": [{"name": "…", "look": "…"}, {"name": "…", "look": "…"}], "scenes": [{"speaker": "…", "place": "…", "say": "…"}]}',
     'Rules:',
+    '- "cast" has exactly two entries. "name" is one short lowercase word. "look" says in 4 to 12 words what kind of being it is (person, robot, cat, dog, bird, ghost, alien, astronaut) and its colours, hair or clothing.',
+    '- Every "speaker" is exactly one of the two cast names. Both characters must speak.',
     `- ${b.minScenes} to ${b.maxScenes} scenes, about ${b.words} words of dialogue in total.`,
     `- Each "say" is one or two short plain sentences, at most 28 words, and is exactly what the character says out loud.`,
     '- No stage directions, no brackets, no emoji, no quotation marks inside a line. Plain ASCII punctuation only.',
     '- "title" is at most 22 characters.',
     `- "place" is where the scene happens, as a picture: 5 to 12 words naming the location, its main object and the time of day or weather (no people, no dialogue). Invent it from this story; do not reuse wording from these rules. Use at most ${MAX_PLACES} different places in the whole film and repeat the exact same words while the place does not change.`,
-    '- Tell a complete small story: a beginning, a turn, and an ending. The last line must land the ending.',
+    '- Tell a complete small story: a beginning, a turn, and an ending. The last line must land the ending: it is a statement, never a question.',
     '- Stay on what was asked for. Do not mention pixels, video games or the fact that this is a film unless asked.',
   ].join('\n');
   const user = `Request: ${plan.request}` + (feedback ? `\n\nYour previous script was refused: ${feedback} Write it again and fix that.` : '');
@@ -166,14 +172,22 @@ const toAscii = s => String(s ?? '')
   .replace(/[‘’‚′]/g, "'").replace(/[“”„″]/g, '"').replace(/[–—−]/g, '-').replace(/…/g, '...')
   .normalize('NFKD').replace(/[^\x20-\x7E]/g, '');
 
-function cleanLine(raw) {
+function cleanLine(raw, names = []) {
   let s = toAscii(raw).replace(/\[[^\]]*\]|\([^)]*\)|\*[^*]*\*/g, ' ');        // stage directions
-  s = s.replace(/^\s*(?:hero|robot|narrator)\s*:\s*/i, '').replace(/["#>_`|\\]/g, ' ').replace(/\s+/g, ' ').trim();
+  const prefix = new RegExp(`^\\s*(?:${['hero', 'robot', 'narrator', ...names].map(n => n.replace(/[^a-z0-9]/gi, '')).filter(Boolean).join('|')})\\s*:\\s*`, 'i');
+  s = s.replace(prefix, '').replace(/["#>_`|\\]/g, ' ').replace(/\s+/g, ' ').trim();
   const w = words(s);
   if (w.length > MAX_WORDS_PER_LINE) {
     const cut = w.slice(0, MAX_WORDS_PER_LINE).join(' ');
     const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
     s = end > cut.length * 0.5 ? cut.slice(0, end + 1) : cut.replace(/[,;:\s-]+$/, '') + '.';
+  }
+  if (words(s).length >= 2) {
+    // a spoken line reads as a sentence: capital first letter, capital "I", closing punctuation
+    s = s[0].toUpperCase() + s.slice(1);
+    s = s.replace(/\bi\b(?=[ ',.!?]|$)/g, 'I');
+    s = s.replace(/(?<![.]{2})([.!?]\s+)([a-z])/g, (_, gap, ch) => gap + ch.toUpperCase());   // not after an ellipsis
+    if (!/[.!?]$/.test(s)) s = s.replace(/[,;:\s-]+$/, '') + '.';
   }
   return s;
 }
@@ -217,13 +231,18 @@ export function normalizeScript(raw, plan, { final = false } = {}) {
   let scenes = [];
   const places = [], placeIndex = new Map();
   let lastPlace = null;
+  const cast = readCast(obj.cast, fixes);
+  const names = cast.map(c => c.name);
   for (const item of list) {
-    const say = cleanLine(typeof item === 'string' ? item : item?.say ?? item?.line ?? item?.text ?? '');
+    const say = cleanLine(typeof item === 'string' ? item : item?.say ?? item?.line ?? item?.text ?? '', names);
     if (words(say).length < 2) continue;
-    let speaker = String((typeof item === 'object' && item?.speaker) || '').toLowerCase().trim();
-    if (!CAST.includes(speaker)) {
+    const said = String((typeof item === 'object' && item?.speaker) || '').toLowerCase().trim();
+    let speaker = names.includes(said) ? said : names.find(n => castName(said, '') === n) || null;
+    if (!speaker) {
       const prev = scenes[scenes.length - 1]?.speaker;
-      speaker = /robot|bot|machine|android/.test(speaker) ? 'robot' : prev === 'hero' ? 'robot' : 'hero';
+      // a loose match on the name or the look ("the bot" → the robot), otherwise the two simply take turns
+      const loose = said && cast.filter(c => said.includes(c.name) || c.name.includes(said) || (/robot|bot|machine|android/.test(said) && /robot|android|machine/.test(`${c.name} ${c.look}`)));
+      speaker = loose && loose.length === 1 ? loose[0].name : prev === names[0] ? names[1] : names[0];
       fixes.push(`scene ${scenes.length + 1}: speaker set to ${speaker}`);
     }
     const look = cleanPlace(typeof item === 'object' ? item?.place ?? item?.setting ?? item?.location : '');
@@ -248,11 +267,36 @@ export function normalizeScript(raw, plan, { final = false } = {}) {
     while (scenes.length > 3 && total > b.words * 1.4) { const gone = scenes.splice(scenes.length - 2, 1)[0]; total -= words(gone.say).length; }
     fixes.push(`cut lines before the ending to fit (${total} words)`);
   }
-  if (total < b.words * 0.4 && !final) return { ok: false, reason: `${total} words is too short; aim for about ${b.words}.`, scenes, fixes };
-  if (total < b.words * 0.4) fixes.push(`shorter than asked (${total} of about ${b.words} words)`);
-  if (!scenes.some(s => s.speaker === 'robot') || !scenes.some(s => s.speaker === 'hero')) fixes.push('only one character speaks');
+  if (total < b.words * 0.6 && !final) return { ok: false, reason: `${total} words is too short; write about ${b.words} words of dialogue.`, scenes, fixes };
+  if (total < b.words * 0.6) fixes.push(`shorter than asked (${total} of about ${b.words} words)`);
+  const oneVoice = names.some(n => !scenes.some(s => s.speaker === n));
+  if (oneVoice && !final) return { ok: false, reason: `Only one character speaks; both ${names[0]} and ${names[1]} must have lines.`, scenes, fixes };
+  if (oneVoice) fixes.push('only one character speaks');
+  const last = scenes[scenes.length - 1].say;
+  if (/\?\s*$/.test(last)) {
+    if (!final) return { ok: false, reason: 'The last line is a question. End with a statement that finishes the story.', scenes, fixes };
+    fixes.push('the last line is a question; the story may feel unfinished');
+  }
   const title = cleanTitle(obj.title, plan.request);
-  return { ok: true, title, scenes, places, words: total, estSeconds: estimateSeconds(scenes), fixes };
+  return { ok: true, title, cast, scenes, places, words: total, estSeconds: estimateSeconds(scenes), fixes };
+}
+
+/** Two characters with a name and a look, from the script; the built-in pair when the script does not give two. */
+function readCast(raw, fixes) {
+  const out = [];
+  for (const c of Array.isArray(raw) ? raw : []) {
+    if (out.length === 2) { fixes.push('more than two characters: only the first two appear'); break; }
+    const src = typeof c === 'string' ? { name: c, look: c } : c && typeof c === 'object' ? c : null;
+    if (!src) continue;
+    const look = words(toAscii(src.look ?? src.description ?? src.name ?? '').replace(/[^A-Za-z0-9 ,'-]/g, ' ')).slice(0, 20).join(' ');
+    let name = castName(src.name || look, '');
+    if (!name) continue;
+    if (out.some(o => o.name === name)) name = `${name.slice(0, 10)}2`;
+    out.push({ name, look: look || name });
+  }
+  if (out.length === 2) return out;
+  if (Array.isArray(raw) && raw.length) fixes.push('the cast was not two usable characters: the built-in kid and robot are used');
+  return DEFAULT_CAST.map(c => ({ ...c }));
 }
 
 /** "LIGHTHOUSE KEEPER" → "LIGHTHOUSE | KEEPER": title cards hold about twelve big characters a line. */
@@ -269,7 +313,7 @@ export function headline(title) {
 export function buildStudioMarkdown(plan, script, backdrops = []) {
   // backdrops[i] is the picture file for script.places[i] (or for the whole film when the script named no place); null = use the built-in landscape
   const visual = place => { const f = backdrops[place ?? 0]; return f ? [`visual: ${String(f).replace(/\\/g, '/')}`] : []; };
-  const front = ['---', `title: ${script.title}`, `recipe: ${plan.style}`, `cast: ${CAST.join(', ')}`, `palette: ${plan.palette}`, `format: ${plan.format}`, '---'];
+  const front = ['---', `title: ${script.title}`, `recipe: ${plan.style}`, `cast: ${(script.cast?.length ? script.cast.map(c => c.name) : CAST).join(', ')}`, `palette: ${plan.palette}`, `format: ${plan.format}`, '---'];
   const body = ['## title', `# ${headline(script.title)}`, 'sub: PRESS START', `dur: ${TITLE_SECONDS}`, ...visual(script.scenes[0]?.place), ''];
   script.scenes.forEach((sc, i) => body.push(`## line${String(i + 1).padStart(2, '0')}`, `speaker: ${sc.speaker}`, ...visual(sc.place), `say: ${sc.say}`, ''));
   return front.concat(body).join('\n');

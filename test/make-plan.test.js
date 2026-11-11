@@ -68,7 +68,7 @@ test('the script budget grows with length and the prompt carries it', () => {
   assert.ok(a.scenes >= 2);
   const msgs = scriptMessages(planCreation('a 40 second 8-bit short about a robot'), 'too long');
   assert.equal(msgs.length, 2);
-  assert.match(msgs[0].content, /HERO/); assert.match(msgs[1].content, /refused: too long/);
+  assert.match(msgs[0].content, /"cast"/); assert.match(msgs[1].content, /refused: too long/);
 });
 
 const PLAN = settleKind(planCreation('a 30 second 8-bit short about a robot who finds a lighthouse'), 'video');

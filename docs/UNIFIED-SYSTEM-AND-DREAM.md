@@ -342,3 +342,13 @@ and 2-bit.
 this PC with your cloned voices: the kid speaks as `vaughn-one`, the robot as `overlord`. That also makes the
 voice local, which corrects the "online voice" note above. If VoiceStudio is not running, the film falls back to the
 old voices and says so; it never switches voice half way through.
+
+**2026-11-10, night — Better scripts, matching characters, and a worker.**
+
+- Scripts are now written on fraymus-home by a larger model, in seconds, with the local model as the fallback. This is the
+  first real work the RTX 5070 does for the hub.
+- Each film has its own two characters, drawn as sprites from how the script describes them: people with different
+  hair, hats, beards and clothes, astronauts, robots, cats, dogs, birds, ghosts and aliens.
+- A worker program now exists for the other machines (the three contracts of section 4, built): it paints and renders on
+  request and returns a receipt the hub checks. It was tested end to end on this PC. It has **not** run on fraymus-home,
+  because nothing can be started on that machine from here. `scripts/worker/README.md` has the steps.
