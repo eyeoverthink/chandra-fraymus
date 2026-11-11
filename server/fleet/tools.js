@@ -5,6 +5,7 @@ import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
 import { FraymusStrangeLoopSubstrate, proofEffectiveInformation, proofPhiMIP, proofMirrorProtocol, proofCounterfactualBranching } from '../fraymus/intelligence/ouroboros.js';
 import { publish, directMessage, inbox } from './bus.js';
 import { storeMemory, recallMemories, agentMemoryStats } from './agent-memory.js';
+import { searchMemories } from '../intelligence/memory-search-service.js';
 import { forgeAgent, listForgedAgents } from './forge.js';
 import { synthesizeWorkflow } from '../workflow/synthesizer.js';
 import { runVerifierLoop, listLoops as listVerifierLoops } from '../intelligence/verifier-loop.js';
@@ -993,14 +994,18 @@ export function createFleetTools({ workflowStore }) {
       name: 'agent_recall',
       group: 'fleet',
       risk: 'safe',
-      description: 'Search your persistent memory. Returns memories matching the query or category.',
+      description: 'Search your persistent memory by meaning: ask in your own words ("what did we decide about the worker on the second machine"). Returns the best matches first. Without a query, returns the newest memories in a category.',
       parameters: object({
-        query: string(500, { description: 'Search text (matches key and value)' }),
+        query: string(500, { description: 'What you are looking for, in plain words; it does not have to match the stored text exactly' }),
         category: string(50, { description: 'Filter by category' }),
         limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Max results (default 10)' },
       }),
       execute: async ({ args }, ctx) => {
         const agentId = ctx?.agentId || 'unknown';
+        if (args.query && String(args.query).trim()) {
+          const found = await searchMemories(agentId, args.query, { category: args.category || null, limit: Math.min(50, Math.max(1, parseInt(args.limit) || 10)), touch: true });
+          return { memories: found.results.map(m => ({ id: m.id, category: m.category, key: m.key, value: m.value, confidence: m.confidence, verified: !!m.verified_at, score: m.score, matchedBy: m.arms })), count: found.results.length, searchedBy: found.arms };
+        }
         const memories = recallMemories(agentId, {
           query: args.query || undefined,
           category: args.category || undefined,

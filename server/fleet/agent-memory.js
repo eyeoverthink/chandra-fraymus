@@ -1,4 +1,5 @@
 import { db } from '../db.js';
+import { relevantMemories } from '../intelligence/memory-search-service.js';
 
 const now = () => Date.now();
 
@@ -76,16 +77,26 @@ export function agentMemoryStats(agentId) {
   return { total, agents };
 }
 
+/**
+ * The memories an agent carries into a run. With the task in hand, up to six are the ones that are ABOUT the task
+ * (keyword search over everything the agent ever stored, synchronous — a prompt never waits on a model) and the rest
+ * are the newest. Without a task it is the ten newest, as before. The task's own echo (the line auto-stored when the
+ * run began) is not counted as a memory of it.
+ */
 export function buildPromptContext(agentId, taskText) {
-  const memories = recallMemories(agentId, { limit: 10 });
+  const task = String(taskText || '').trim();
+  const relevant = task ? relevantMemories(agentId, task, { limit: 8 }).filter(m => String(m.value).trim().slice(0, 200) !== task.slice(0, 200)).slice(0, 6) : [];
+  const seen = new Set(relevant.map(m => m.id));
+  const recent = recallMemories(agentId, { limit: 10 }).filter(m => !seen.has(m.id)).slice(0, 10 - relevant.length);
+  if (relevant.length) { const up = db.prepare(`UPDATE agent_memories SET access_count = access_count + 1 WHERE id = ?`); for (const m of relevant) up.run(m.id); }
+  const memories = [...relevant, ...recent];
   if (memories.length === 0) return '';
 
-  const lines = memories.map(m => {
-    const verified = m.verified_at ? ' [verified]' : ' [unverified]';
-    return `- [${m.category}] ${m.key}: ${String(m.value).slice(0, 300)}${verified}`;
-  });
-
-  return `\n--- Agent Memory (${memories.length} entries) ---\n${lines.join('\n')}\n--- End Memory ---\n`;
+  const line = m => `- [${m.category}] ${m.key}: ${String(m.value).slice(0, 300)}${m.verified_at ? ' [verified]' : ' [unverified]'}`;
+  const body = relevant.length
+    ? `About this task (${relevant.length}):\n${relevant.map(line).join('\n')}${recent.length ? `\nMost recent (${recent.length}):\n${recent.map(line).join('\n')}` : ''}`
+    : memories.map(line).join('\n');
+  return `\n--- Agent Memory (${memories.length} entries) ---\n${body}\n--- End Memory ---\n`;
 }
 
 export function autoStoreFromCompletion(agentId, task, result) {

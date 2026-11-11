@@ -378,3 +378,9 @@ numbered rules before a frame exists, cut to the narrator's words, and measured 
 was taken from a tutorial built on paid tools and rebuilt on free ones; see `docs/FLAT-ANIMATION-METHOD.md`.
 The same day the worker on fraymus-home came back by itself after a reboot, films began to land on the asked
 length, and backdrops began to follow the weather. gbrain was read; none of it is built yet.
+
+**2026-11-11, later — Recall by meaning.** Agents now find a memory by what it means instead of by an exact
+substring, and the memories that go into a prompt are the ones about the task in hand. On a generated set of 120
+questions with known answers the first correct memory moved from rank four on average to rank one (mean reciprocal
+rank 0.25 to 0.975), and a regression gate keeps it there. This is the first mechanism taken from gbrain; the
+number measures the mechanism, not yet the usefulness of what the organism has chosen to remember.

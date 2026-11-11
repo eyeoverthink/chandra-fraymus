@@ -157,7 +157,7 @@ function searchMemories(userId, query, limit = 8) {
     .map(x => ({ id: x.r.id, text: x.r.text, agent: x.r.agent_id }));
 }
 
-async function systemPrompt(agent, userId) {
+async function systemPrompt(agent, userId, taskText = '') {
   const memories = searchMemories(userId, agent.name + ' ' + (agent.role || ''), 5);
   const memBlock = memories.length
     ? `\n\nRelevant memories:\n${memories.map(m => `- ${m.text}`).join('\n')}`
@@ -227,7 +227,7 @@ async function systemPrompt(agent, userId) {
   // Agent Persistent Memory — per-agent knowledge store (inspired by Niles Continuity Plasmid verified/against pattern)
   let agentMemBlock = '';
   try {
-    agentMemBlock = buildPromptContext(agent.id);
+    agentMemBlock = buildPromptContext(agent.id, taskText);
   } catch (_) {}
 
   // Akashic Record — cross-agent structured knowledge (decisions, entities, verified modules)
@@ -532,7 +532,7 @@ async function drive(runId, depth = 0) {
       } catch (_) {}
     }
 
-    const sysContent = (await systemPrompt(agent, userId)) + emotionNote;
+    const sysContent = (await systemPrompt(agent, userId, typeof lastUser?.content === 'string' ? lastUser.content : '')) + emotionNote;
     const messages = [{ role: 'system', content: sysContent }, ...getHistory(run.thread_id)];
 
     let res;

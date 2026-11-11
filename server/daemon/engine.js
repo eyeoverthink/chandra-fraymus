@@ -14,6 +14,7 @@ import { startWorldPollers, stopWorldPollers, getWorldPollersStatus, setTrendSca
 import { scanTrends } from '../trend-radar/radar.js';
 import { startNarrator, stopNarrator, getNarratorStatus } from '../intelligence/narrator.js';
 import { startTransientSweeper, stopTransientSweeper, getSweeperStatus } from '../intelligence/transient-sweeper.js';
+import { startMemoryIndexer, stopMemoryIndexer, memorySearchStatus } from '../intelligence/memory-search-service.js';
 import { startSelfModification, stopSelfModification, getSelfModificationStatus, selfModificationCycle, maybeBuildFromBacklog, checkOuroborosAllowed } from '../intelligence/self-modification.js';
 import { startResearchScout, stopResearchScout, getResearchStatus, runResearchDemos } from '../intelligence/research-scout.js';
 import { startSkillForge, stopSkillForge, getSkillForgeStatus, skillForgeCycle } from '../intelligence/skill-forge.js';
@@ -700,6 +701,10 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     console.error('transient sweeper start error:', e.message);
   }
 
+  // Memory search: embed memories that have no vector yet, a batch a minute at background priority
+  try { const mi = startMemoryIndexer(); if (!mi.started) console.log(`[memory-search] indexer not started: ${mi.reason}`); }
+  catch (e) { console.error('memory indexer start error:', e.message); }
+
   // Phase Y: self-modification kernel (5-min experiment timer; code builds run from the daemon cycle)
   try {
     const smk = startSelfModification();
@@ -890,6 +895,7 @@ export function stopDaemon() {
   try { stopWorldPollers(); } catch (_) {}
   try { stopNarrator(); } catch (_) {}
   try { stopTransientSweeper(); } catch (_) {}
+  try { stopMemoryIndexer(); } catch (e) { console.error('[daemon] memory indexer stop:', e.message); }
   try { stopSelfModification(); } catch (_) {}
   try { stopResearchScout(); } catch (_) {}
   try { stopSkillForge(); } catch (_) {}
@@ -950,6 +956,7 @@ export function getDaemonStatus() {
     metacognitive: getMetacognitiveStatus(),
     goalExecutor: getGoalExecutorStatus(),
     externalSenses: getExternalSensesStatus(),
+    memorySearch: (() => { const m = memorySearchStatus(); return m.error ? { error: m.error } : { memories: m.memories, vectors: m.vectors, vectorCoverage: m.vectorCoverage, searches: m.searches, hybrid: m.hybrid, keywordOnly: m.keywordOnly, embedErrors: m.embedErrors, indexerBusy: m.indexer.busy, lastBenchMrr: m.lastBench?.overall?.[m.lastBench.systems[m.lastBench.systems.length - 1]]?.mrr ?? null }; })(),
     sweeper: (() => { const s = getSweeperStatus(); return { running: s.running, sweeps: s.sweeps, totals: s.totals, currentlyStuck: s.currentlyStuck, lastAt: s.lastAt }; })(),
     researchScout: (() => { try { const s = getResearchStatus(); return { running: s.running, scans: s.scans, lastScanAt: s.lastScanAt, items: s.items, relevantItems: s.relevantItems, proposals: s.proposals, pendingExperiment: s.pendingExperiment && s.pendingExperiment.tunable, pendingCode: s.pendingCode && s.pendingCode.targetFile }; } catch (e) { return { error: e.message }; } })(),
     generalIntelligence: (() => { try { const s = getGeneralIntelligenceStatus(); return { enabled: s.enabled, running: s.running, g: s.latestAuto?.g ?? null, brier: s.latestAuto?.brier ?? null, baselineDirect: s.baselineDirect?.g ?? null, upliftOverDirect: s.upliftOverDirect, runs: s.runs, lessons: s.lessons, inFlight: s.inFlight, agentCalls: s.reasoner?.agentCalls, cycles: s.cycles }; } catch (e) { return { error: e.message }; } })(),
