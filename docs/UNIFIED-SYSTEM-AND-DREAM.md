@@ -313,3 +313,20 @@ and it is rarer than the other kind.
 Decisions that are yours: whether the first channel is monetised (it decides the voice model);
 whether the stub publishers and the paid music calls in Chandra are replaced; and whether you want
 the Java engine and the model modules read in full before anything touches the workspace.
+
+---
+
+## 9. Built since this was written
+
+**2026-11-10 — item 1 of section 8, first slice.** A typed sentence now becomes an 8-bit or 2-bit video or still on the
+shelf (`server/media/make.js`; details and measurements in `CLAUDE.md` under "Make").
+
+- Built: the router (reads kind, look, length and shape from the sentence and says why), the script writer (a local
+  model, checked and retried), two voices per piece, the still mode, a lineage file beside every video, a fleet tool
+  and two home-screen prompts. The video studio runs from its own checkout as a child process; it was not merged.
+- Measured: a 32-second short from one sentence in about seven minutes; a still from an existing picture in half a
+  second; a generated still in about two minutes.
+- Still missing from section 6: backdrops that match the story (every short uses the recipe's one landscape), more
+  than two characters, parallel rendering on Windows, and every look other than 8-bit and 2-bit.
+- One correction to "offline": the voices currently come from an online Microsoft service unless
+  `CREATION_TTS_ENGINE=sapi` is set. Everything else in the path is local.

@@ -28,6 +28,7 @@ import { initFleet, setFleetTools, runAgentAndWait, startRun as fleetStartRun, g
 import { installHermesRoutes } from './hermes/free-tools.js';
 import { installGpuLeaseRoutes } from './media/gpu-lease.js';
 import { installStudioRoutes } from './media/studio.js';
+import { installMakeRoutes } from './media/make.js';
 import { installFleetRoutes } from './fleet/routes.js';
 import { installMcpEndpoint } from './mcp/server.js';
 import { installOAuthRoutes, installAccessRoutes } from './mcp/auth.js';
@@ -460,6 +461,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installHermesRoutes(app, { express });
   installGpuLeaseRoutes(app);
   installStudioRoutes(app);
+  installMakeRoutes(app);
   installDistributionRoutes(app, { memoryBridge, broadcast });
   installAnalyticsRoutes(app, { memoryBridge, broadcast });
   installLearningLoopRoutes(app, { memoryBridge, broadcast });

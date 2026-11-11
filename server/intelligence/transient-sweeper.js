@@ -51,8 +51,12 @@ export function sweepStaleTransients({ maxAgeMs = MAX_AGE_MS, trigger = 'manual'
   try {
     result.reasoner_lessons = db.prepare(`UPDATE reasoner_lessons SET status = 'reverted', note = 'swept: test never finished', completed_at = ? WHERE status = 'testing' AND created_at < ?`).run(Date.now(), cutoff).changes;
   } catch (e) { result.errors.push(`reasoner_lessons: ${e.message.slice(0, 100)}`); result.reasoner_lessons = 0; }
-  for (const k of ['capability_runs', 'reasoner_lessons']) state.totals[k] = (state.totals[k] || 0) + (result[k] || 0);
-  const total = result.runs + result.verification_loops + result.opeg_proposals + (result.debates || 0) + (result.capability_runs || 0) + (result.reasoner_lessons || 0);
+  // Creation jobs run one at a time with a 40-minute render limit; a row still 'running' after the cutoff has no process behind it
+  try {
+    result.creation_jobs = db.prepare(`UPDATE creation_jobs SET status = 'error', error = 'swept: never finished', completed_at = ? WHERE status = 'running' AND COALESCE(started_at, created_at) < ?`).run(Date.now(), cutoff).changes;
+  } catch (e) { result.errors.push(`creation_jobs: ${e.message.slice(0, 100)}`); result.creation_jobs = 0; }
+  for (const k of ['capability_runs', 'reasoner_lessons', 'creation_jobs']) state.totals[k] = (state.totals[k] || 0) + (result[k] || 0);
+  const total = result.runs + result.verification_loops + result.opeg_proposals + (result.debates || 0) + (result.capability_runs || 0) + (result.reasoner_lessons || 0) + (result.creation_jobs || 0);
   state.sweeps++; state.lastAt = t; state.lastResult = result;
   state.totals.debates = state.totals.debates || 0;
   for (const k of ['runs', 'verification_loops', 'opeg_proposals', 'debates']) state.totals[k] += result[k] || 0;

@@ -70,6 +70,8 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
       { id: 'script', label: 'Short script', text: 'Draft a 60-second script about F.R.A.Y.M.U.S.' },
       { id: 'page', label: 'Landing page', text: 'Build a scroll landing page with hermes.scrollpage: slug "fraymus-intro", title "F.R.A.Y.M.U.S.", a one-sentence tagline, and four sections about what this system can do. Then give me the local URL.', fill: true },
       { id: 'image', label: 'Image', text: 'Generate an image of ', fill: true },
+      { id: 'pixelshort', label: '8-bit short', text: 'Use studio.create to make a 30 second 8-bit short about ', fill: true },
+      { id: 'pixelstill', label: '2-bit still', text: 'Use studio.create to make a 2-bit still of ', fill: true },
     ] },
     { id: 'research', label: 'Research', items: [
       { id: 'hn', label: 'Read the news', text: 'Use hermes.rss_read on https://hnrss.org/frontpage and tell me the three most relevant stories for someone building local AI agents.' },
