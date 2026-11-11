@@ -330,3 +330,10 @@ shelf (`server/media/make.js`; details and measurements in `CLAUDE.md` under "Ma
   than two characters, parallel rendering on Windows, and every look other than 8-bit and 2-bit.
 - One correction to "offline": the voices currently come from an online Microsoft service unless
   `CREATION_TTS_ENGINE=sapi` is set. Everything else in the path is local.
+
+**2026-11-10, later — Backdrops that match the story.** The script now names where each scene happens (up to three
+places); each place is painted once by the local image model, all in one borrowing of the graphics card, and the
+studio turns it into pixel art behind the characters. A short about a lighthouse now opens on a lighthouse at dusk
+and moves inside it. If the card is busy the film still gets made, on the old landscape, and says so. Two places
+added about three and a half minutes. Still missing: characters that match the story, and looks other than 8-bit
+and 2-bit.

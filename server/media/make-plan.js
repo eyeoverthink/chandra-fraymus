@@ -18,6 +18,7 @@ export const CAST = ['hero', 'robot'];           // the two sprites the pixel re
 export const MIN_SECONDS = 8, MAX_SECONDS = 180, DEFAULT_SECONDS = 30;
 const TITLE_SECONDS = 2.5, OUTRO_SECONDS = 1.0, SCENE_PAD = 0.8, WORDS_PER_SECOND = 2.6;
 const MAX_WORDS_PER_LINE = 34;
+export const MAX_PLACES = 3;                      // distinct backdrops per film: each one is an image render
 
 const NUMBER_WORDS = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, half: 0.5 };
 const STYLE_2BIT = /\b2[\s-]?bit\b|\btwo[\s-]bit\b|game\s?boy|\bdmg\b|four[\s-]shades?\b/i;
@@ -94,8 +95,9 @@ export function planCreation(text, overrides = {}) {
   const paletteOverride = typeof overrides.palette === 'string' && overrides.palette ? overrides.palette : null;
   const palette = pick('palette', paletteOverride, p.palette, defaultPalette, `the ${style} palette`);
   const voice = overrides.voice === 'silent' || (overrides.voice == null && p.silent) ? 'silent' : 'spoken';
+  const backdrops = overrides.backdrops === false || overrides.backdrops === 'false' ? false : !/\bno (?:backdrops?|backgrounds?|scenery)\b|\bplain background\b/i.test(request);
 
-  return { request, kind, style, seconds, format, palette, voice, cast: [...CAST], decided, notes, blocked, wired: [...WIRED_STYLES] };
+  return { request, kind, style, seconds, format, palette, voice, backdrops, cast: [...CAST], decided, notes, blocked, wired: [...WIRED_STYLES] };
 }
 
 /**
@@ -124,7 +126,7 @@ export function describePlan(plan) {
   const parts = [kind, `${plan.style} (${why('style')})`];
   if (plan.seconds) parts.push(`${plan.seconds} s (${why('seconds')})`);
   parts.push(`${plan.format} (${why('format')})`);
-  if (plan.kind !== 'still') parts.push(plan.voice === 'silent' ? 'no voice' : 'two voices');
+  if (plan.kind !== 'still') parts.push(plan.voice === 'silent' ? 'no voice' : 'two voices', plan.backdrops === false ? 'built-in landscape' : 'painted backdrops');
   return parts.join(', ') + (plan.notes.length ? '. ' + plan.notes.join(' ') : '');
 }
 
@@ -146,12 +148,13 @@ export function scriptMessages(plan, feedback = null) {
   const system = [
     'You write scripts for very short retro pixel-art films.',
     'Exactly two characters can appear on screen: HERO (a human) and ROBOT (a robot). They talk to each other. There is no narrator and no other speaker.',
-    'Reply with JSON only, in this shape: {"title": "…", "scenes": [{"speaker": "hero", "say": "…"}, {"speaker": "robot", "say": "…"}]}',
+    'Reply with JSON only, in this shape: {"title": "…", "scenes": [{"speaker": "hero", "place": "…", "say": "…"}, {"speaker": "robot", "place": "…", "say": "…"}]}',
     'Rules:',
     `- ${b.minScenes} to ${b.maxScenes} scenes, about ${b.words} words of dialogue in total.`,
     `- Each "say" is one or two short plain sentences, at most 28 words, and is exactly what the character says out loud.`,
     '- No stage directions, no brackets, no emoji, no quotation marks inside a line. Plain ASCII punctuation only.',
     '- "title" is at most 22 characters.',
+    `- "place" is where the scene happens, as a picture: 5 to 12 words naming the location, its main object and the time of day or weather (no people, no dialogue). Invent it from this story; do not reuse wording from these rules. Use at most ${MAX_PLACES} different places in the whole film and repeat the exact same words while the place does not change.`,
     '- Tell a complete small story: a beginning, a turn, and an ending. The last line must land the ending.',
     '- Stay on what was asked for. Do not mention pixels, video games or the fact that this is a film unless asked.',
   ].join('\n');
@@ -173,6 +176,14 @@ function cleanLine(raw) {
     s = end > cut.length * 0.5 ? cut.slice(0, end + 1) : cut.replace(/[,;:\s-]+$/, '') + '.';
   }
   return s;
+}
+
+/** A place description: plain words only, at most sixteen. */
+function cleanPlace(raw) {
+  if (typeof raw !== 'string') return '';
+  const s = toAscii(raw).replace(/[^A-Za-z0-9 ,'-]/g, ' ').replace(/\s+/g, ' ').trim().replace(/^[,' -]+|[,' -]+$/g, '');
+  const w = words(s);
+  return w.length < 2 ? '' : w.slice(0, 16).join(' ');
 }
 
 function cleanTitle(raw, fallbackFrom) {
@@ -204,6 +215,8 @@ export function normalizeScript(raw, plan, { final = false } = {}) {
   const b = scriptBudget(plan.seconds ?? DEFAULT_SECONDS);
   const fixes = [];
   let scenes = [];
+  const places = [], placeIndex = new Map();
+  let lastPlace = null;
   for (const item of list) {
     const say = cleanLine(typeof item === 'string' ? item : item?.say ?? item?.line ?? item?.text ?? '');
     if (words(say).length < 2) continue;
@@ -213,9 +226,18 @@ export function normalizeScript(raw, plan, { final = false } = {}) {
       speaker = /robot|bot|machine|android/.test(speaker) ? 'robot' : prev === 'hero' ? 'robot' : 'hero';
       fixes.push(`scene ${scenes.length + 1}: speaker set to ${speaker}`);
     }
-    scenes.push({ speaker, say });
+    const look = cleanPlace(typeof item === 'object' ? item?.place ?? item?.setting ?? item?.location : '');
+    if (look) {
+      const k = normalizeLine(look);
+      if (placeIndex.has(k)) lastPlace = placeIndex.get(k);
+      else if (places.length < MAX_PLACES) { placeIndex.set(k, places.length); lastPlace = places.length; places.push(look); }
+      else if (!fixes.includes(`more than ${MAX_PLACES} places: later scenes reuse the last one`)) fixes.push(`more than ${MAX_PLACES} places: later scenes reuse the last one`);
+    }
+    scenes.push({ speaker, say, place: lastPlace });
   }
-  if (scenes.length < 2) return { ok: false, reason: 'Fewer than two usable lines of dialogue.', scenes, fixes };
+  const firstPlace = scenes.find(s => s.place != null)?.place ?? null;
+  for (const s of scenes) if (s.place == null) s.place = firstPlace;      // lines before the first named place happen there too
+  if (scenes.length < 2) return { ok: false, reason: 'Fewer than two usable lines of dialogue.', scenes, places, fixes };
   if (scenes.length > b.maxScenes + 4) {
     if (!final) return { ok: false, reason: `${scenes.length} scenes is too many; use at most ${b.maxScenes}.`, scenes, fixes };
     scenes = [...scenes.slice(0, b.maxScenes - 1), scenes[scenes.length - 1]]; fixes.push(`trimmed to ${scenes.length} scenes, ending kept`);
@@ -230,7 +252,7 @@ export function normalizeScript(raw, plan, { final = false } = {}) {
   if (total < b.words * 0.4) fixes.push(`shorter than asked (${total} of about ${b.words} words)`);
   if (!scenes.some(s => s.speaker === 'robot') || !scenes.some(s => s.speaker === 'hero')) fixes.push('only one character speaks');
   const title = cleanTitle(obj.title, plan.request);
-  return { ok: true, title, scenes, words: total, estSeconds: estimateSeconds(scenes), fixes };
+  return { ok: true, title, scenes, places, words: total, estSeconds: estimateSeconds(scenes), fixes };
 }
 
 /** "LIGHTHOUSE KEEPER" → "LIGHTHOUSE | KEEPER": title cards hold about twelve big characters a line. */
@@ -244,10 +266,12 @@ export function headline(title) {
 }
 
 /** The script in fraymus-video-studio's markdown format (front matter + one "## scene" block per line of dialogue). */
-export function buildStudioMarkdown(plan, script) {
+export function buildStudioMarkdown(plan, script, backdrops = []) {
+  // backdrops[i] is the picture file for script.places[i] (or for the whole film when the script named no place); null = use the built-in landscape
+  const visual = place => { const f = backdrops[place ?? 0]; return f ? [`visual: ${String(f).replace(/\\/g, '/')}`] : []; };
   const front = ['---', `title: ${script.title}`, `recipe: ${plan.style}`, `cast: ${CAST.join(', ')}`, `palette: ${plan.palette}`, `format: ${plan.format}`, '---'];
-  const body = ['## title', `# ${headline(script.title)}`, 'sub: PRESS START', `dur: ${TITLE_SECONDS}`, ''];
-  script.scenes.forEach((sc, i) => body.push(`## line${String(i + 1).padStart(2, '0')}`, `speaker: ${sc.speaker}`, `say: ${sc.say}`, ''));
+  const body = ['## title', `# ${headline(script.title)}`, 'sub: PRESS START', `dur: ${TITLE_SECONDS}`, ...visual(script.scenes[0]?.place), ''];
+  script.scenes.forEach((sc, i) => body.push(`## line${String(i + 1).padStart(2, '0')}`, `speaker: ${sc.speaker}`, ...visual(sc.place), `say: ${sc.say}`, ''));
   return front.concat(body).join('\n');
 }
 
@@ -258,6 +282,22 @@ export function speakerLines(script) {
   const map = new Map();
   for (const sc of script.scenes) map.set(normalizeLine(sc.say), sc.speaker);
   return map;
+}
+
+/** The request with the words that are instructions to us, not part of the picture, taken out. */
+export function subjectOf(plan) {
+  return clip(plan.request
+    .replace(/\b(make|create|draw|generate|render|give me|i want|i'd like|please|me)\b/gi, ' ')
+    .replace(/\b(an?|the)?\s*\d+(?:\.\d+)?\s*-?\s*(seconds?|secs?|minutes?|mins?)\b/gi, ' ')
+    .replace(/\b(8|2|eight|two)[\s-]?bit\b|\bpixel[\s-]?art\b|\bgame\s?boy\b|\bnes\b/gi, ' ')
+    .replace(/\b(short|video|movie|film|animation|animated|clip|still|image|picture)\b\s*(?:about|of|where|in which)?/gi, ' ')
+    .replace(/\s+/g, ' ').replace(/^[\s,.:-]+/, '').trim(), 400) || clip(plan.request, 400);
+}
+
+/** Prompt for one backdrop: the place, empty, with open ground at the bottom where the characters stand. */
+export function backdropPrompt(plan, look) {
+  const art = plan.style === '2bit' ? 'Game Boy style pixel art background, four shades, high contrast' : '8-bit NES style pixel art background, limited colour palette';
+  return `${look}, wide side view, empty scene with nobody in it, flat open ground along the bottom of the picture, ${art}, flat colours, bold simple shapes, no text`;
 }
 
 /** Prompt for the local image model when a still has no source picture. */

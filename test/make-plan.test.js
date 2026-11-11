@@ -146,3 +146,58 @@ test('helpers', () => {
   const p = stillPrompt(settleKind(planCreation('make a 2-bit still of a lighthouse in a storm'), 'still'));
   assert.match(p, /lighthouse in a storm/); assert.match(p, /Game Boy/); assert.ok(!/^make/i.test(p));
 });
+
+// ── backdrops ──────────────────────────────────────────────────────────────────────────────────────────
+
+test('places named by the script are collected, deduplicated and capped', async () => {
+  const { MAX_PLACES } = await import('../server/media/make-plan.js');
+  const raw = { title: 'Tide', scenes: [
+    { speaker: 'hero', say: 'This line comes before any place is named at all.' },
+    { speaker: 'robot', place: 'A rocky cliff with an old lighthouse at dusk!', say: 'I found a tower with a lamp on top of it.' },
+    { speaker: 'hero', place: 'a rocky cliff with an old   lighthouse at dusk', say: 'That is a lighthouse and it guides ships home.' },
+    { speaker: 'robot', place: 'inside the lamp room, brass gears, night', say: 'The gears still turn after all these years alone.' },
+    { speaker: 'hero', place: 'a harbour at sunrise', say: 'Look down there, the harbour is waking up now.' },
+    { speaker: 'robot', place: 'the open sea in a storm', say: 'A fourth place is one more than this film can paint.' },
+    { speaker: 'hero', place: 42, say: 'A place that is not text is simply ignored here.' },
+  ] };
+  const s = normalizeScript(raw, settleKind(planCreation('a 60 second 8-bit short about a lighthouse'), 'video'), { final: true });
+  assert.equal(s.ok, true);
+  assert.equal(MAX_PLACES, 3);
+  assert.deepEqual(s.places, ['A rocky cliff with an old lighthouse at dusk', 'inside the lamp room, brass gears, night', 'a harbour at sunrise']);
+  assert.deepEqual(s.scenes.map(x => x.place), [0, 0, 0, 1, 2, 2, 2]);       // first line inherits; overflow and junk reuse the last place
+  assert.ok(s.fixes.some(f => /more than 3 places/.test(f)));
+});
+
+test('a script that names no place has none, and every scene points at the single film backdrop', () => {
+  const s = normalizeScript(GOOD, PLAN);
+  assert.deepEqual(s.places, []);
+  assert.ok(s.scenes.every(x => x.place === null));
+  const md = buildStudioMarkdown(PLAN, s, ['F:\\data\\media\\one.png']);
+  assert.equal((md.match(/^visual: F:\/data\/media\/one\.png$/gm) || []).length, 5);   // title card + four lines, forward slashes
+});
+
+test('backdrops are attached per place, and a failed one leaves that scene on the built-in landscape', () => {
+  const raw = { title: 'Two Rooms', scenes: [
+    { speaker: 'hero', place: 'a kitchen at night', say: 'I cannot sleep so I came down for some tea.' },
+    { speaker: 'robot', place: 'a garden under the moon', say: 'Then come outside and look at the moon with me.' },
+  ] };
+  const s = normalizeScript(raw, PLAN, { final: true });
+  const md = buildStudioMarkdown(PLAN, s, ['C:/a/kitchen.png', null]);
+  assert.match(md, /## title\n# TWO ROOMS\nsub: PRESS START\ndur: 2\.5\nvisual: C:\/a\/kitchen\.png\n/);
+  assert.match(md, /## line01\nspeaker: hero\nvisual: C:\/a\/kitchen\.png\nsay: /);
+  assert.match(md, /## line02\nspeaker: robot\nsay: /);                                  // no visual line for the failed backdrop
+  assert.equal(buildStudioMarkdown(PLAN, s).includes('visual:'), false);
+});
+
+test('the plan carries the backdrop choice and the prompts are about the place, not the instruction', async () => {
+  const { backdropPrompt, subjectOf } = await import('../server/media/make-plan.js');
+  assert.equal(planCreation('an 8-bit short about a cat').backdrops, true);
+  assert.equal(planCreation('an 8-bit short about a cat, no backdrops').backdrops, false);
+  assert.equal(planCreation('an 8-bit short about a cat', { backdrops: false }).backdrops, false);
+  assert.match(describePlan(settleKind(planCreation('an 8-bit short about a cat'), 'video')), /painted backdrops/);
+  assert.match(scriptMessages(PLAN)[0].content, /"place"/);
+  const subject = subjectOf(planCreation('Make me a 35 second 8-bit short about a robot who finds a lighthouse'));
+  assert.equal(subject, 'a robot who finds a lighthouse');
+  const p = backdropPrompt(planCreation('x y z', { style: '2bit' }), 'a harbour at sunrise');
+  assert.match(p, /^a harbour at sunrise, /); assert.match(p, /nobody in it/); assert.match(p, /Game Boy/);
+});

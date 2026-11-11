@@ -120,6 +120,31 @@ function sdxlWorkflow({ prompt, negative, width, height, steps, cfg, seed, useVa
 
 const even64 = (v, d) => Math.min(1536, Math.max(512, Math.round((parseInt(v, 10) || d) / 64) * 64));
 
+/** Submit one SDXL workflow to a running lease and bring the image home. Call only while holding the GPU lease. */
+async function runWorkflow(text, p) {
+    await ensureComfy();
+    const useVae = studioInstalled().vae;
+    const res = await fetch(`${COMFY_URL}/prompt`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: sdxlWorkflow({ prompt: text, ...p, useVae }) }), signal: AbortSignal.timeout(60_000) });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body.prompt_id) throw new Error(`ComfyUI refused the workflow: ${clip(JSON.stringify(body.error || body.node_errors || body), 300)}`);
+    notePromptJob(body.prompt_id, text, { seed: p.seed, width: p.width, height: p.height, steps: p.steps, cfg: p.cfg, model: 'sdxl-base-1.0', licence: 'openrail++' });
+    const deadline = now() + RENDER_TIMEOUT_MS;
+    let image = null;
+    while (now() < deadline) {
+      await new Promise(r => setTimeout(r, 2000));
+      heartbeatGpuLease(OWNER, RENDER_TIMEOUT_MS + 240_000);
+      const h = await fetch(`${COMFY_URL}/history/${body.prompt_id}`, { signal: AbortSignal.timeout(10_000) }).then(r => r.json()).catch(() => ({}));
+      const entry = h[body.prompt_id];
+      if (!entry) { if (!child && !(await comfyAlive())) throw new Error(`ComfyUI stopped during the render: ${childLog.slice(-3).join(' | ')}`); continue; }
+      if (entry.status?.status_str === 'error') throw new Error(`ComfyUI render failed: ${clip(JSON.stringify(entry.status.messages?.slice(-1)), 300)}`);
+      image = Object.values(entry.outputs || {}).flatMap(o => o.images || [])[0];
+      if (image) break;
+    }
+    if (!image) throw new Error(`no image after ${RENDER_TIMEOUT_MS / 1000} s`);
+    notePromptFile(image.filename, body.prompt_id);
+    return comfyuiFetchImage(image.filename, image.subfolder || '');
+}
+
 /**
  * Render one still with SDXL. Resolves { jobId, url, path, width, height, seconds, seed, vram }.
  * Throws with code 'gpu_unavailable' when another job holds the card.
@@ -135,27 +160,7 @@ export async function renderStill({ prompt, negative = 'blurry, low quality, wat
     const result = await withGpuLease(OWNER, { purpose: `still: ${clip(text, 80)}`, ttlMs: RENDER_TIMEOUT_MS + 240_000 }, async lease => {
       db.prepare(`UPDATE studio_jobs SET status = 'running', lease_id = ? WHERE id = ?`).run(lease.leaseId, jobId);
       emit({ action: 'still_started', jobId, prompt: clip(text, 120) });
-      await ensureComfy();
-      const useVae = studioInstalled().vae;
-      const res = await fetch(`${COMFY_URL}/prompt`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: sdxlWorkflow({ prompt: text, ...p, useVae }) }), signal: AbortSignal.timeout(60_000) });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok || !body.prompt_id) throw new Error(`ComfyUI refused the workflow: ${clip(JSON.stringify(body.error || body.node_errors || body), 300)}`);
-      notePromptJob(body.prompt_id, text, { seed: p.seed, width: p.width, height: p.height, steps: p.steps, cfg: p.cfg, model: 'sdxl-base-1.0', licence: 'openrail++' });
-      const deadline = now() + RENDER_TIMEOUT_MS;
-      let image = null;
-      while (now() < deadline) {
-        await new Promise(r => setTimeout(r, 2000));
-        heartbeatGpuLease(OWNER, RENDER_TIMEOUT_MS + 240_000);
-        const h = await fetch(`${COMFY_URL}/history/${body.prompt_id}`, { signal: AbortSignal.timeout(10_000) }).then(r => r.json()).catch(() => ({}));
-        const entry = h[body.prompt_id];
-        if (!entry) { if (!child && !(await comfyAlive())) throw new Error(`ComfyUI stopped during the render: ${childLog.slice(-3).join(' | ')}`); continue; }
-        if (entry.status?.status_str === 'error') throw new Error(`ComfyUI render failed: ${clip(JSON.stringify(entry.status.messages?.slice(-1)), 300)}`);
-        image = Object.values(entry.outputs || {}).flatMap(o => o.images || [])[0];
-        if (image) break;
-      }
-      if (!image) throw new Error(`no image after ${RENDER_TIMEOUT_MS / 1000} s`);
-      notePromptFile(image.filename, body.prompt_id);
-      const saved = await comfyuiFetchImage(image.filename, image.subfolder || '');
+      const saved = await runWorkflow(text, p);
       const peak = await vramSnapshot();
       await comfyFree();
       return { ...saved, vramDuring: peak };
@@ -170,6 +175,50 @@ export async function renderStill({ prompt, negative = 'blurry, low quality, wat
     emit({ action: 'still_failed', jobId, error: clip(e.message, 160) });
     throw e;
   }
+}
+
+/**
+ * Render several stills under ONE GPU lease, so the model is loaded once (most of a single still's
+ * time is model load after the card was emptied). items: [{ prompt, negative?, width?, height?, steps?, cfg?, seed? }], at most 8.
+ * One item failing does not stop the rest. Resolves { seconds, results: [{ ok, jobId, path?, url?, seed?, seconds, error? }] } in input order.
+ * Throws with code 'gpu_unavailable' when another job holds the card.
+ */
+export async function renderStillBatch(items, { source = 'api', purpose = 'stills', onProgress } = {}) {
+  const list = (Array.isArray(items) ? items : []).slice(0, 8).map(it => {
+    const text = clip(it?.prompt, 1500).trim();
+    return { text, p: { width: even64(it?.width, 1024), height: even64(it?.height, 1024), steps: Math.min(60, Math.max(8, parseInt(it?.steps, 10) || 28)), cfg: Math.min(15, Math.max(1, Number(it?.cfg) || 6.5)), seed: Number.isInteger(it?.seed) ? it.seed : Math.floor(Math.random() * 2 ** 32), negative: clip(it?.negative ?? 'blurry, low quality, watermark, text, deformed', 600), model: CHECKPOINT } };
+  }).filter(it => it.text);
+  if (!list.length) throw Object.assign(new Error('at least one prompt is required'), { status: 400 });
+  const ids = list.map(() => `still-${randomUUID().slice(0, 10)}`);
+  list.forEach((it, i) => db.prepare(`INSERT INTO studio_jobs (id, kind, status, prompt, params, created_at) VALUES (?, 'still', 'queued', ?, ?, ?)`).run(ids[i], it.text, JSON.stringify({ ...it.p, source, batch: ids[0] }), now()));
+  const closeOpen = reason => { for (const id of ids) db.prepare(`UPDATE studio_jobs SET status = 'error', error = ?, completed_at = ? WHERE id = ? AND status IN ('queued', 'running')`).run(clip(reason, 400), now(), id); };
+  const t0 = now();
+  try {
+    const results = await withGpuLease(OWNER, { purpose: `${purpose} (${list.length})`, ttlMs: RENDER_TIMEOUT_MS + 240_000 }, async lease => {
+      const out = [];
+      for (let i = 0; i < list.length; i++) {
+        const { text, p } = list[i], jobId = ids[i], s0 = now();
+        db.prepare(`UPDATE studio_jobs SET status = 'running', lease_id = ? WHERE id = ?`).run(lease.leaseId, jobId);
+        onProgress?.(i, list.length);
+        try {
+          const saved = await runWorkflow(text, p);
+          const seconds = +((now() - s0) / 1000).toFixed(1);
+          const r = { ok: true, jobId, url: saved.url, path: saved.path, width: saved.width, height: saved.height, seed: p.seed, steps: p.steps, seconds };
+          db.prepare(`UPDATE studio_jobs SET status = 'completed', output = ?, seconds = ?, completed_at = ? WHERE id = ?`).run(JSON.stringify(r), seconds, now(), jobId);
+          out.push(r);
+        } catch (e) {
+          const seconds = +((now() - s0) / 1000).toFixed(1);
+          db.prepare(`UPDATE studio_jobs SET status = 'error', error = ?, seconds = ?, completed_at = ? WHERE id = ?`).run(clip(e.message, 400), seconds, now(), jobId);
+          out.push({ ok: false, jobId, seconds, error: clip(e.message, 300) });
+        }
+      }
+      await comfyFree();
+      return out;
+    });
+    const seconds = +((now() - t0) / 1000).toFixed(1);
+    emit({ action: 'still_batch_completed', count: results.length, ok: results.filter(r => r.ok).length, seconds });
+    return { seconds, results };
+  } catch (e) { closeOpen(e.message); emit({ action: 'still_batch_failed', error: clip(e.message, 160) }); throw e; }
 }
 
 export async function studioStatus() {

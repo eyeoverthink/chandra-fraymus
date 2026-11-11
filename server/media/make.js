@@ -35,9 +35,9 @@ import { noteMedia } from './media-meta.js';
 import { MEDIA_DIR } from './image-engine.js';
 import { VIDEO_DIR } from './video-engine.js';
 import { ttsSpeak } from './tts-engine.js';
-import { renderStill } from './studio.js';
+import { renderStill, renderStillBatch } from './studio.js';
 import { pixelateBuffer, STYLES } from './pixel-art.js';
-import { planCreation, settleKind, describePlan, scriptMessages, normalizeScript, buildStudioMarkdown, speakerLines, normalizeLine, stillPrompt, extractJson, WIRED_STYLES } from './make-plan.js';
+import { planCreation, settleKind, describePlan, scriptMessages, normalizeScript, buildStudioMarkdown, speakerLines, normalizeLine, stillPrompt, backdropPrompt, subjectOf, extractJson, WIRED_STYLES } from './make-plan.js';
 
 const execFileAsync = promisify(execFile);
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -208,6 +208,28 @@ function renderWithStudio(id, plan, scriptPath, outDir, ready) {
   });
 }
 
+/**
+ * Paint one backdrop per place the script names (or one for the whole film from the request), all under a
+ * single GPU lease. Never fails the job: without the card or the image model the film keeps the recipe's
+ * built-in landscape and the result says why.
+ */
+async function paintBackdrops(id, plan, script) {
+  if (plan.backdrops === false) return { files: [], info: { asked: 0, made: 0, note: 'not asked for' } };
+  const looks = script.places?.length ? script.places : [subjectOf(plan)];
+  const from = script.places?.length ? 'the script' : 'the request (the script named no place)';
+  setJob(id, { stage: 'painting backdrops', progress: 0.04 });
+  try {
+    const batch = await renderStillBatch(looks.map(look => ({ prompt: backdropPrompt(plan, look), negative: 'people, person, character, figure, face, animal, photo, photograph, blurry, gradient, text, letters, watermark', width: 1024, height: 576, steps: 22 })),
+      { source: 'creation', purpose: `backdrops for ${id}`, onProgress: (i, n) => setJob(id, { stage: `painting backdrop ${i + 1} of ${n}` }) });
+    const items = batch.results.map((r, i) => r.ok ? { look: looks[i], file: basename(r.path), seed: r.seed, seconds: r.seconds } : { look: looks[i], error: r.error });
+    const made = batch.results.filter(r => r.ok).length;
+    return { files: batch.results.map(r => r.ok ? r.path : null), info: { asked: looks.length, made, seconds: batch.seconds, placesFrom: from, items, note: made < looks.length ? 'scenes whose backdrop failed use the built-in landscape' : null } };
+  } catch (e) {
+    console.error('[creation] backdrops:', e.message);
+    return { files: [], info: { asked: looks.length, made: 0, placesFrom: from, note: `no backdrops, built-in landscape used: ${clip(e.code === 'gpu_unavailable' ? 'the graphics card was in use' : e.message, 200)}` } };
+  }
+}
+
 async function makeVideo(id, plan, opts) {
   const ready = await studioReadiness();
   if (!ready.ready) throw new Error(`the video studio cannot run here: ${ready.problems.join('; ')}`);
@@ -222,7 +244,9 @@ async function makeVideo(id, plan, opts) {
   }
   const dir = join(CREATIONS_DIR, id), outDir = join(dir, 'out');
   mkdirSync(outDir, { recursive: true });
-  const markdown = buildStudioMarkdown(plan, script);
+  const backdrops = await paintBackdrops(id, plan, script);
+  if (cancelled.has(id)) throw new Error('cancelled');
+  const markdown = buildStudioMarkdown(plan, script, backdrops.files);
   const scriptPath = join(dir, 'script.md');
   writeFileSync(scriptPath, markdown, 'utf8');
   setJob(id, { script: markdown, title: script.title, stage: 'voicing', progress: 0.05 });
@@ -238,11 +262,12 @@ async function makeVideo(id, plan, opts) {
   const name = mediaName('mp4');
   copyFileSync(master, join(VIDEO_DIR, name));
   const voiced = plan.voice === 'silent' ? 'silent' : [...voice.engines].join('+') || 'none';
-  noteMedia(name, 'create', [plan.request, { style: plan.style, palette: plan.palette, format: plan.format, seconds: done.result.duration_s, scenes: script.scenes.length, title: script.title, voice: voiced, job: id, renderer: 'fraymus-video-studio' }], { source: 'creation' });
+  noteMedia(name, 'create', [plan.request, { style: plan.style, palette: plan.palette, format: plan.format, seconds: done.result.duration_s, scenes: script.scenes.length, backdrops: backdrops.info.made, title: script.title, voice: voiced, job: id, renderer: 'fraymus-video-studio' }], { source: 'creation' });
   try { rmSync(join(outDir, 'work'), { recursive: true, force: true }); } catch (e) { console.error('[creation] cleanup:', e.message); }
   // Lineage: everything needed to say how this file came to be, and to make it again or change one line
   try {
-    writeFileSync(join(dir, 'lineage.json'), JSON.stringify({ job: id, request: plan.request, plan, script: { title: script.title, scenes: script.scenes, writtenBy: script.writtenBy, attempts: script.attempts, refusals: script.refusals || [], fixes: script.fixes },
+    writeFileSync(join(dir, 'lineage.json'), JSON.stringify({ job: id, request: plan.request, plan, script: { title: script.title, places: script.places, scenes: script.scenes, writtenBy: script.writtenBy, attempts: script.attempts, refusals: script.refusals || [], fixes: script.fixes },
+      backdrops: backdrops.info,
       voice: { engine: voiced, voices: [...voice.voices], offline: voiced === 'sapi' || voiced === 'piper' || voiced === 'silent' }, wordTiming: ready.wordTiming,
       renderer: { name: 'fraymus-video-studio', recipe: plan.style, repo: STUDIO_REPO, python: ready.pythonVersion, workers: 1, renderSeconds: done.result.render_s },
       output: { file: name, seconds: done.result.duration_s }, madeAt: new Date().toISOString() }, null, 2), 'utf8');
@@ -250,7 +275,7 @@ async function makeVideo(id, plan, opts) {
   return {
     kind: 'video', file: name, url: `/api/hermes/artifacts/media?kind=video&id=${name}`, title: script.title, seconds: done.result.duration_s, renderSeconds: done.result.render_s,
     scenes: script.scenes.length, words: script.words, scriptAttempts: script.attempts, scriptRefusals: script.refusals || [], scriptBy: script.writtenBy, scriptFixes: script.fixes,
-    voice: voiced, voices: [...voice.voices], wordTiming: ready.wordTiming, folder: dir, files: (done.result.files || []).map(f => basename(f)),
+    backdrops: backdrops.info, voice: voiced, voices: [...voice.voices], wordTiming: ready.wordTiming, folder: dir, files: (done.result.files || []).map(f => basename(f)),
   };
 }
 
@@ -306,10 +331,10 @@ async function runJob(id, opts) {
  * Accept a typed request. Returns at once; the work happens in the queue.
  * @returns {{ accepted: boolean, id?, status?, plan, summary, reason?, message? }}
  */
-export async function createFromRequest({ request, kind, style, seconds, format, palette, voice, image, scenes, title, source = 'api', agentId = null } = {}) {
+export async function createFromRequest({ request, kind, style, seconds, format, palette, voice, backdrops, image, scenes, title, source = 'api', agentId = null } = {}) {
   const text = clip(request, 1500).replace(/\s+/g, ' ').trim();
   if (text.length < 3) throw Object.assign(new Error('request is required: say what to make'), { status: 400 });
-  let plan = planCreation(text, { kind: image ? 'still' : kind, style, seconds, format, palette, voice });
+  let plan = planCreation(text, { kind: image ? 'still' : kind, style, seconds, format, palette, voice, backdrops });
   if (plan.blocked) return { accepted: false, reason: plan.blocked.reason, message: describePlan(plan), plan, summary: describePlan(plan) };
   if (plan.kind) plan = settleKind(plan, plan.kind);
   if (plan.kind !== 'still') {
@@ -420,7 +445,7 @@ export function installMakeRoutes(app) {
   app.post('/api/studio/create', route(async (req, res) => {
     const b = req.body || {};
     try {
-      const r = await createFromRequest({ request: b.request, kind: b.kind, style: b.style, seconds: b.seconds, format: b.format, palette: b.palette, voice: b.voice, image: b.image, scenes: b.scenes, title: b.title, source: 'api' });
+      const r = await createFromRequest({ request: b.request, kind: b.kind, style: b.style, seconds: b.seconds, format: b.format, palette: b.palette, voice: b.voice, backdrops: b.backdrops, image: b.image, scenes: b.scenes, title: b.title, source: 'api' });
       res.status(r.accepted ? 202 : r.reason === 'queue_full' ? 429 : 422).json(r);
     } catch (e) { if (e.status === 400) return res.status(400).json({ error: e.message }); throw e; }
   }));
