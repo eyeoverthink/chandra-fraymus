@@ -53,9 +53,20 @@ function parseSeconds(text) {
   return null;
 }
 
+// A web page is not a picture or a film: "a single page web application of a spinning earth" must not be read as a 3D film.
+const PAGE_RE = new RegExp([
+  // words that only ever mean a page
+  '\\bweb[\\s-]?(?:app|application|page|site|game|tool)s?\\b', '\\bwebsite\\b', '\\bsingle[\\s-]page\\b', '\\blanding page\\b', '\\bhtml (?:page|file|app)\\b', '\\bbrowser[\\s-]game\\b',
+  '\\binteractive (?:page|demo|map|chart|globe|visuali[sz]ation)\\b', '\\bSPA\\b',
+].join('|'), 'i');
+// words that mean a page only when something is being built ("build me a calculator"), and never when the sentence names a film or a look
+const PAGE_BUILD_RE = /\b(?:make|build|create|write|code)\s+(?:me\s+)?(?:an?|the)\s+(?:[\w-]+\s+){0,3}(?:app|application|dashboard|calculator|widget|game)\b/i;
+const FILM_WORD_RE = /\b(?:video|film|movie|cartoon|comics?|explainer|short|animation|still|picture|image|8[\s-]?bit|2[\s-]?bit)\b/i;
+
 /** What the sentence itself says. Fields it does not mention are null. */
 export function parseRequest(text) {
   const t = String(text || '');
+  if (PAGE_RE.test(t) || (PAGE_BUILD_RE.test(t) && !FILM_WORD_RE.test(t))) return { kind: 'page', style: 'web', otherStyle: null, seconds: null, format: null, palette: null, silent: false };
   // A pixel look named outright wins ("an 8-bit cartoon" is 8-bit); then the looks that are a form of their own
   const style = STYLE_2BIT.test(t) ? '2bit' : STYLE_8BIT.test(t) ? '8bit' : STYLE_COMIC.test(t) ? 'comic' : STYLE_CARTOON.test(t) ? 'cartoon' : STYLE_EXPLAINER.test(t) ? 'explainer' : null;
   const other = style ? null : (OTHER_STYLES.find(([, re]) => re.test(t)) || [null])[0];
@@ -88,6 +99,11 @@ export function planCreation(text, overrides = {}) {
   };
   const notes = [];
   let blocked = null;
+
+  if (overrides.kind === 'page' || (p.kind === 'page' && !['still', 'video'].includes(overrides.kind))) {
+    decided.kind = { value: 'page', why: overrides.kind === 'page' ? 'set explicitly' : 'from your words' };
+    return { request, kind: 'page', style: 'web', seconds: null, format: null, palette: null, voice: 'silent', backdrops: false, cast: [], decided, notes, blocked: null, wired: [...WIRED_STYLES] };
+  }
 
   const styleOverride = overrides.style != null && overrides.style !== '' ? String(overrides.style).toLowerCase().replace(/[\s-]/g, '').replace(/^comic.*$/, 'comic') : null;
   if (styleOverride && !WIRED_STYLES.includes(styleOverride)) blocked = { reason: 'style_not_wired', style: overrides.style };
@@ -128,6 +144,7 @@ export function planCreation(text, overrides = {}) {
  */
 export function settleKind(plan, kind, why = 'decided from the request') {
   const next = { ...plan, decided: { ...plan.decided }, notes: [...plan.notes] };
+  if (next.kind === 'page') return next;
   if (!next.kind) { next.kind = kind === 'still' ? 'still' : 'video'; next.decided.kind = { value: next.kind, why }; }
   if (next.kind === 'video') {
     if (!next.seconds) { next.seconds = DEFAULT_SECONDS; next.decided.seconds = { value: DEFAULT_SECONDS, why: 'default length' }; }
@@ -141,6 +158,7 @@ export function settleKind(plan, kind, why = 'decided from the request') {
 
 /** One line a person can read back: what will be made and why each choice. */
 export function describePlan(plan) {
+  if (plan.kind === 'page') return `a web page (${plan.decided.kind?.why === 'from your words' ? 'you said so' : plan.decided.kind?.why}): one self-contained file, opened in a real browser to check that it runs before it is saved to the library`;
   if (plan.blocked?.reason === 'still_not_wired') return `A ${plan.blocked.style} is a film here; a still in that look is not wired. Ask for it as a video, or ask for an 8-bit, 2-bit or comic still.`;
   if (plan.blocked) return `"${plan.blocked.style}" is not wired yet. Wired looks: ${plan.wired.join(', ')}. Say one of those and it will be made in that look.`;
   const d = plan.decided, why = k => (d[k]?.why === 'from your words' ? 'you said so' : d[k]?.why);

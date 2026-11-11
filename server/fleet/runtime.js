@@ -658,6 +658,24 @@ async function drive(runId, depth = 0) {
       });
     }
     if (awaitingApproval) return;
+
+    // A tool that owns the reply: what it returned already is what the person should be told (a job was
+    // started, or refused for a stated reason). The model is not asked to paraphrase it — an 8B model
+    // answered an accepted page job by pasting unrelated library code and calling it working.
+    if (toolResults.length === 1) {
+      const { fn, result } = toolResults[0];
+      const def = tools.find(t => t.name === fn.name);
+      const reply = def?.ownsReply === true && result?.evidence?.executed !== false ? result?.result?.replyToUser : null;
+      if (typeof reply === 'string' && reply.trim()) {
+        addMsg(run.thread_id, runId, { role: 'assistant', content: reply.trim().slice(0, 4000) });
+        setRun(runId, { status: 'done', steps: step + 1 });
+        ledger.record('fleet.tool_owned_reply', { agent: agent.id, tool: fn.name, runId }, 'fleet');
+        broadcastFn('fleet', { type: 'done', runId, status: 'done', harness: { steps: envelope.steps.length, evidence: true, replyFrom: fn.name } });
+        try { autoStoreFromCompletion(agent.id, lastUser?.content, reply.trim()); } catch (_) {}
+        if (depth === 0) try { recordOutcome({ success: true, summary: `${agent.id} completed in ${step + 1} steps (reply from ${fn.name})`, effectivePerspectives: null }); } catch (_) {}
+        return;
+      }
+    }
   }
 
   setRun(runId, { status: 'done' });

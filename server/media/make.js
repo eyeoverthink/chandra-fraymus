@@ -38,6 +38,7 @@ import { VIDEO_DIR } from './video-engine.js';
 import { ttsSpeak } from './tts-engine.js';
 import { renderStill, renderStillBatch } from './studio.js';
 import { classifyUrl } from '../fraymus-os/registry.js';
+import { buildPage } from './page-builder.js';
 import { pickWorker, runOnWorker, workersStatus, workersConfigured, installWorkerRoutes } from './workers.js';
 import { pixelateBuffer, STYLES } from './pixel-art.js';
 import { forgeCast, spritePixels } from './sprite-forge.js';
@@ -334,6 +335,48 @@ async function paintBackdrops(id, plan, script) {
 }
 
 /**
+ * Who writes a web page. CREATION_CODERS="model@http://host:11434,…" (same form as CREATION_WRITERS, which is used when it is unset),
+ * then the local coding model. A coder whose call fails is skipped; the next one is asked.
+ */
+const CODERS = (process.env.CREATION_CODERS || process.env.CREATION_WRITERS || '').split(',').map(x => x.trim()).filter(Boolean).map(x => {
+  const i = x.lastIndexOf('@'); const c = classifyUrl(i > 0 ? x.slice(i + 1) : '');
+  return i > 0 && c.url && c.routeClass !== 'public' ? { model: x.slice(0, i), url: c.url, label: `${x.slice(0, i)} on ${c.host}` } : null;
+}).filter(Boolean);
+const LOCAL_CODER_MODEL = process.env.CREATION_CODE_MODEL || process.env.SMK_CODE_MODEL || 'qwen2.5-coder:7b';
+
+async function askCoder(messages) {
+  let lastError = null;
+  for (const w of CODERS) {
+    try {
+      const send = think => fetch(`${w.url}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(480_000),
+        body: JSON.stringify({ model: w.model, messages, stream: false, ...(think ? {} : { think: false }), options: { temperature: 0.4, num_predict: 7000, num_ctx: 12288 } }) });
+      let r = await send(false);
+      if (r.status === 400) r = await send(true);
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      if (j.message?.content) return { reply: j.message.content, by: w.label };
+      throw new Error('empty reply');
+    } catch (e) { lastError = e; console.error(`[creation] coder ${w.label}:`, e.message); }
+  }
+  try { return { reply: await chatOllama(messages, { model: LOCAL_CODER_MODEL, priority: 'agent_run', temperature: 0.4, maxTokens: 7000, timeoutMs: 600_000, label: 'creation:page' }), by: `${LOCAL_CODER_MODEL} on this PC` }; }
+  catch (e) { throw new Error(`no coding model answered (${clip(lastError?.message || '', 80)}; local: ${clip(e.message, 80)})`); }
+}
+
+/** A web page: written, checked, opened in a browser, and only then saved where the library lists it. */
+async function makePage(id, plan) {
+  const dir = join(CREATIONS_DIR, id);
+  mkdirSync(dir, { recursive: true });
+  let page;
+  try { page = await buildPage({ id, request: plan.request, ask: askCoder, draftsDir: dir, onStage: stage => setJob(id, { stage, progress: stage.startsWith('opening') ? 0.7 : 0.3 }) }); }
+  catch (e) { try { writeFileSync(join(dir, 'lineage.json'), JSON.stringify({ job: id, request: plan.request, plan, kept: false, attempts: e.log || [], madeAt: new Date().toISOString() }, null, 2), 'utf8'); } catch (_) { /* the error below is what matters */ } throw e; }
+  setJob(id, { title: page.title });
+  try { writeFileSync(join(dir, 'lineage.json'), JSON.stringify({ job: id, request: plan.request, plan, kept: true, page: { ...page, dir: undefined, log: undefined }, earlierAttempts: page.log, madeAt: page.madeAt }, null, 2), 'utf8'); }
+  catch (e) { console.error('[creation] lineage:', e.message); }
+  return { kind: 'page', file: page.slug, slug: page.slug, url: `/sites/${page.slug}/`, openAt: `http://127.0.0.1:${PORT}/sites/${page.slug}/`, title: page.title, bytes: page.bytes, lines: page.lines,
+    writtenBy: page.writtenBy, attempts: page.attempts, earlierAttempts: page.log, checked: page.checked, preview: page.hasPreview ? `/sites/${page.slug}/preview.png` : null, folder: page.dir };
+}
+
+/**
  * Render on a worker: the lines are recorded HERE first (the voices never leave this machine as a service — only
  * the finished recordings travel), then script, cast, backdrops and recordings go as one bundle.
  */
@@ -473,7 +516,7 @@ async function runJob(id, opts) {
   try {
     if (!plan.kind) { const k = await decideKind(plan.request); plan = settleKind(plan, k.kind, k.why); setJob(id, { plan: JSON.stringify(plan), kind: plan.kind }); }
     emit({ action: 'creation_started', id, kind: plan.kind, style: plan.style });
-    const output = plan.kind === 'still' && plan.style !== 'comic' ? await makeStill(id, plan, opts) : await makeVideo(id, plan, opts);
+    const output = plan.kind === 'page' ? await makePage(id, plan) : plan.kind === 'still' && plan.style !== 'comic' ? await makeStill(id, plan, opts) : await makeVideo(id, plan, opts);
     if (cancelled.has(id)) throw new Error('cancelled');
     const seconds = +((now() - t0) / 1000).toFixed(1);
     setJob(id, { status: 'completed', stage: 'done', progress: 1, output: JSON.stringify(output), seconds, completed_at: now() });
@@ -495,8 +538,8 @@ export async function createFromRequest({ request, kind, style, seconds, format,
   let plan = planCreation(text, { kind: image ? 'still' : kind, style, seconds, format, palette, voice, backdrops });
   if (plan.blocked) return { accepted: false, reason: plan.blocked.reason, message: describePlan(plan), plan, summary: describePlan(plan) };
   if (plan.kind) plan = settleKind(plan, plan.kind);
-  if (image && !PIXEL_STYLES.includes(plan.style)) return { accepted: false, reason: 'image_needs_pixel_look', message: 'Turning a picture into pixel art needs the 8-bit or 2-bit look.', plan, summary: describePlan(plan) };
-  if (plan.kind !== 'still' || plan.style === 'comic') {
+  if (image && plan.kind !== 'page' && !PIXEL_STYLES.includes(plan.style)) return { accepted: false, reason: 'image_needs_pixel_look', message: 'Turning a picture into pixel art needs the 8-bit or 2-bit look.', plan, summary: describePlan(plan) };
+  if (plan.kind !== 'page' && (plan.kind !== 'still' || plan.style === 'comic')) {
     const ready = await studioReadiness();
     if (!ready.ready) return { accepted: false, reason: 'studio_not_ready', message: `The video studio cannot run here: ${ready.problems.join('; ')}`, plan, summary: describePlan(plan) };
   }
@@ -542,7 +585,7 @@ export async function creationStatus() {
   } catch (e) { console.error('[creation] status:', e.message); }
   return {
     wired: { styles: WIRED_STYLES, kinds: ['video', 'still'], looks: STYLES, videoFormats: ['16:9'], stillFormats: ['16:9', '9:16', '1:1'] },
-    writers: [...WRITERS, LOCAL_WRITER].map(w => w.label), workers: await workersStatus(), studio: ready, voices: VOICES, voiceStudio: { ...(await pickVoiceEngine()), url: VOICESTUDIO.url || null, routeClass: VOICESTUDIO.routeClass || null, voices: VS_VOICES }, ttsEngine: TTS_ENGINE || 'cascade (edge-tts online first, then offline SAPI)', running: currentId, counts, timing, agentCapPerDay: MAX_AGENT_JOBS_PER_DAY, jobs: listCreations(8),
+    writers: [...WRITERS, LOCAL_WRITER].map(w => w.label), coders: [...CODERS.map(w => w.label), `${LOCAL_CODER_MODEL} on this PC`], workers: await workersStatus(), studio: ready, voices: VOICES, voiceStudio: { ...(await pickVoiceEngine()), url: VOICESTUDIO.url || null, routeClass: VOICESTUDIO.routeClass || null, voices: VS_VOICES }, ttsEngine: TTS_ENGINE || 'cascade (edge-tts online first, then offline SAPI)', running: currentId, counts, timing, agentCapPerDay: MAX_AGENT_JOBS_PER_DAY, jobs: listCreations(8),
   };
 }
 
@@ -551,11 +594,11 @@ export async function creationStatus() {
 export function createMakeTools() {
   return [
     {
-      name: 'studio.create', group: 'studio', risk: 'safe',
-      description: 'Make a picture or a short film from a plain sentence — animation, 8-bit or 2-bit pixel art, a flat cartoon, a comic strip (pages and a film of them), a narrated explainer video, a still image, a movie, a short with dialogue. Pass the user\'s own words as `request`; the kind (still or video), look, length and shape are read from the sentence, so do not ask the user to choose a category. Runs on this machine, no paid service. Returns a job id at once; the finished file appears on the home screen shelf. Check progress with studio.create_status.',
+      name: 'studio.create', group: 'studio', risk: 'safe', ownsReply: true,
+      description: 'Make something from a plain sentence and save it to the library: a web page or small web app (one self-contained file, opened in a real browser to check it runs), or a picture or a short film — animation, 8-bit or 2-bit pixel art, a flat cartoon, a comic strip (pages and a film of them), a narrated explainer video, a still image, a movie, a short with dialogue. Pass the user\'s own words as `request`; the kind (still or video), look, length and shape are read from the sentence, so do not ask the user to choose a category. Runs on this machine, no paid service. Returns a job id at once; the finished file appears on the home screen shelf. Check progress with studio.create_status. When the user asks for a web page, an app, a game or anything else to build, call this tool — never paste code into the chat as the result: pasted code is not saved, not checked, and is not in the library. If this tool refuses, tell the user exactly what it said; do not ask them to pick a look unless they asked for a picture or a film.',
       parameters: { type: 'object', required: ['request'], properties: {
         request: { type: 'string', description: 'what to make, in the user\'s words, e.g. "a 40 second 8-bit short about a robot who finds a lighthouse"' },
-        kind: { type: 'string', description: 'optional: "still" or "video" (only if the user said so explicitly)' },
+        kind: { type: 'string', description: 'optional: "page", "still" or "video" (only if the user said so explicitly)' },
         style: { type: 'string', description: 'optional: "8bit", "2bit", "cartoon", "comic" or "explainer" (only if the user named the look)' },
         seconds: { type: 'integer', description: 'optional video length in seconds (8-180)' },
         image: { type: 'string', description: 'optional: file name of a picture already in data/media to turn into pixel art instead of generating one' },
@@ -563,9 +606,15 @@ export function createMakeTools() {
       execute: async ({ args = {} } = {}, ctx = {}) => {
         try {
           const r = await createFromRequest({ request: args.request, kind: args.kind, style: args.style, seconds: args.seconds, image: args.image, source: 'agent', agentId: ctx?.agent?.id || ctx?.agentId || null });
-          return r.accepted
-            ? { accepted: true, jobId: r.id, status: r.status, willMake: r.summary, note: r.message || 'Queued. The file will appear on the shelf when it is finished; a video takes a few minutes. Tell the user what will be made and that it is in progress — do not claim it is finished.' }
-            : { accepted: false, reason: r.reason, message: r.message };
+          if (!r.accepted) return { accepted: false, reason: r.reason, message: r.message, replyToUser: `I did not start anything. ${r.message}` };
+          const what = r.plan.kind === 'page' ? 'a web page' : r.plan.kind === 'still' ? (r.plan.style === 'comic' ? 'comic pages' : `a ${r.plan.style} still`) : r.plan.kind === 'video' ? `a ${r.plan.style} film` : `something in the ${r.plan.style} look`;
+          const where = r.plan.kind === 'page' ? 'under Sites' : r.plan.kind === 'still' ? 'under Images' : 'under Video';
+          const wait = r.plan.kind === 'page' ? 'a few minutes' : r.plan.kind === 'still' && r.plan.style !== 'comic' ? 'about two minutes' : r.plan.style === 'explainer' ? 'around ten minutes' : 'a few minutes';
+          const replyToUser = r.duplicateOf
+            ? `${r.message} It is job ${r.id}, currently ${r.status}.`
+            : `I have started ${what}. Here is how I read your request: ${r.summary}.\n\nIt is not finished yet. It takes ${wait}, and it will appear in the library on this screen ("Made here", ${where}) when it is done` +
+              (r.plan.kind === 'page' ? ' — but only if it runs without errors when opened in a real browser. If it never passes that check, nothing is added and the job will say what went wrong.' : '.') + ` Job ${r.id}.`;
+          return { accepted: true, jobId: r.id, status: r.status, willMake: r.summary, replyToUser };
         } catch (e) { return { error: clip(e.message, 300) }; }
       },
     },

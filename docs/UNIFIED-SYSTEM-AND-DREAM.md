@@ -358,3 +358,9 @@ cartoon with speech bubbles, a comic (pages, a PDF and a film of the pages; or t
 with headline words over a painted picture, in your voice. One of each was made and looked at. Two cautions: an
 explainer takes about thirteen minutes on this PC, and the one I made about tides stated a cause wrongly — a script
 written by a local model needs reading before it is shown to anyone.
+
+**2026-11-10, last — Web pages, checked in a browser.** A request for a web page is no longer mistaken for a film. The
+page is written as one file, opened in a real browser, and kept in the library only if it loads without errors and, where
+the request asks for motion, moves. The agent now reports exactly what the tool said, and no longer writes its own account.
+The check proves a page runs, not that it is good: the spinning Earth that passed is a blue disc with a green shape,
+labelled as not a real map.
