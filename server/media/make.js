@@ -416,7 +416,7 @@ async function makeVideo(id, plan, opts) {
   mkdirSync(outDir, { recursive: true });
   // The cast: one sprite per character, forged from the script's description of each
   const pixel = PIXEL_STYLES.includes(plan.style), pagesOnly = plan.kind === 'still';
-  const sprites = pixel ? forgeCast(script.cast, { style: plan.style }) : [];
+  const sprites = pixel ? forgeCast(script.cast, { style: plan.style, request: plan.request }) : [];
   const people = !pixel && plan.style !== 'explainer' ? forgePeople(script.cast) : [];
   const castInfo = pixel ? sprites.map(s => ({ name: s.name, look: s.look, kind: s.kind, template: s.template, colors: s.colors, why: s.why }))
     : people.length ? people.map(p => ({ name: p.name, look: p.look, kind: 'person', template: 'flat cartoon person', colors: { clothes: p.color, skin: p.skin, hair: p.hair }, why: p.why }))

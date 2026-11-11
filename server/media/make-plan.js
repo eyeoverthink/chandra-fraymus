@@ -25,6 +25,7 @@ export const CAST = ['hero', 'robot'];           // the two sprites the pixel re
 export const MIN_SECONDS = 8, MAX_SECONDS = 180, DEFAULT_SECONDS = 30;
 const TITLE_SECONDS = 2.5, OUTRO_SECONDS = 1.0, SCENE_PAD = 0.8, WORDS_PER_SECOND = 2.6;
 const MAX_WORDS_PER_LINE = 34;
+const MIN_LENGTH_SHARE = 0.8;      // a film may come out this much shorter than asked before the script is sent back
 export const MAX_PLACES = 3;                      // distinct backdrops per film: each one is an image render
 
 const NUMBER_WORDS = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, half: 0.5 };
@@ -203,6 +204,8 @@ export function scriptMessages(plan, feedback = null) {
     `- "place" is where the scene happens, as a picture: 5 to 12 words naming the location, its main object and the time of day or weather (no people, no dialogue). Invent it from this story; do not reuse wording from these rules. Use at most ${MAX_PLACES} different places in the whole film and repeat the exact same words while the place does not change.`,
     '- Tell a complete small story: a beginning, a turn, and an ending. The last line must land the ending: it is a statement, never a question.',
     '- Stay on what was asked for. Do not mention pixels, video games or the fact that this is a film unless asked.',
+    '- When a character is a person, "look" says whether it is a woman, a man, a girl or a boy, as the request implies.',
+    '- Every line must make sense from the mouth of the one who says it: a character never praises or addresses itself, and never says its own name to itself. An animal may talk, in simple words.',
   ].join('\n');
   const user = `Request: ${plan.request}` + (feedback ? `\n\nYour previous script was refused: ${feedback} Write it again and fix that.` : '');
   return [{ role: 'system', content: system }, { role: 'user', content: user }];
@@ -317,8 +320,13 @@ export function normalizeScript(raw, plan, { final = false, narration = false } 
     fixes.push(`cut lines before the ending to fit (${total} words)`);
   }
   // say it as a shape the writer can copy: a bare word count was ignored twice in a row by the 14B model
-  if (total < b.words * 0.6 && !final) return { ok: false, reason: `${total} words is too short; write about ${b.words} words of dialogue: ${b.scenes + 1} lines of roughly ${Math.round(b.words / (b.scenes + 1))} words each.`, scenes, fixes };
-  if (total < b.words * 0.6) fixes.push(`shorter than asked (${total} of about ${b.words} words)`);
+  const asked = plan.seconds ?? DEFAULT_SECONDS, est = estimateSeconds(scenes);
+  const tooShort = total < b.words * 0.6 || est < asked * MIN_LENGTH_SHARE;
+  if (tooShort && !final) return { ok: false, reason: `${total} words is too short: it would run about ${Math.round(est)} seconds and ${asked} seconds were asked for. Write about ${b.words} words of dialogue: ${b.scenes + 1} lines of roughly ${Math.round(b.words / (b.scenes + 1))} words each.`, scenes, fixes };
+  if (tooShort) fixes.push(`shorter than asked (${total} of about ${b.words} words, about ${Math.round(est)} of ${asked} seconds)`);
+  const selfTalk = scenes.find(s => s.speaker && new RegExp(`\\b${s.speaker}\\b`, 'i').test(s.say));
+  if (selfTalk && !final) return { ok: false, reason: `${selfTalk.speaker} says its own name ("${selfTalk.say.slice(0, 60)}"). A character does not talk to itself: give that line to the other character or reword it.`, scenes, fixes };
+  if (selfTalk) fixes.push(`${selfTalk.speaker} says its own name in a line; it may be the other character's line`);
   const oneVoice = names.some(n => !scenes.some(s => s.speaker === n));
   if (oneVoice && !final) return { ok: false, reason: `Only one character speaks; both ${names[0]} and ${names[1]} must have lines.`, scenes, fixes };
   if (oneVoice) fixes.push('only one character speaks');

@@ -70,6 +70,10 @@ const KIND = [
   ['robot', /\b(robot|android|droid|machine|automaton|bot|drone|cyborg|mech)\b/], ['astronaut', /\b(astronauts?|cosmonauts?|space\s?suit|spaceman|spacewoman|diver)\b/],
 ];
 
+const FEMALE = /\b(long hair|long-haired|girl|woman|lady|princess|queen|mother|mom|grandma|grandmother|sister|daughter|aunt|heroine|she|her|hers)\b/;
+const MALE = /\b(man|boy|king|prince|father|dad|grandpa|grandfather|brother|son|uncle|he|his|him|beard|bearded)\b/;
+const NECKWEAR = /^(collar|scarf|bandana|bow|tie)$/;
+
 const hash = s => { let h = 2166136261; for (const ch of String(s)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
 const pick = (list, seed) => list[seed % list.length];
 const lumOf = hex => { const n = parseInt(hex.slice(1), 16); return 0.3 * ((n >> 16) & 255) + 0.59 * ((n >> 8) & 255) + 0.11 * (n & 255); };
@@ -90,20 +94,21 @@ export function readLook(look, name = '') {
   if (kind === 'human') {
     template = /\b(bald|shaved)\b/.test(text) ? 'human-bald'
       : /\b(hat|cap|crown|helmet|hood|wizard|witch|chef|captain|pirate|cowboy|sailor|king|queen|soldier|guard|miner|firefighter)\b/.test(text) ? 'human-hat'
-      : /\b(beard|bearded|grandpa|grandfather|dwarf|old man|elder|hermit|keeper)\b/.test(text) ? 'human-beard'
-      : /\b(long hair|long-haired|girl|woman|lady|princess|mother|mom|grandma|grandmother|sister|daughter|she|her)\b/.test(text) ? 'human-long' : 'human-short';
+      : /\b(beard|bearded)\b/.test(text) ? 'human-beard'
+      : FEMALE.test(text) ? 'human-long'
+      : /\b(grandpa|grandfather|dwarf|old man|elder|hermit)\b/.test(text) ? 'human-beard' : 'human-short';
   }
   const apron = kind === 'human' && /\b(apron|baker|cook|blacksmith|smith|butcher|barista|painter|gardener|doctor|nurse|scientist|lab coat)\b/.test(text);
-  const said = {}, loose = [];
+  const said = {}, loose = [], nouns = {};
   const tokens = text.replace(/[^a-z0-9 -]/g, ' ').split(/[\s-]+/).filter(Boolean);
   tokens.forEach((tok, i) => {
     if (!Object.hasOwn(COLOURS, tok)) return;
     const next = tokens.slice(i + 1, i + 3);
     let part = null;
     for (const n of next) { const hit = PART.find(([, re]) => re.test(n)); if (hit) { part = hit[0]; break; } if (KIND.some(([k, re]) => k === kind && re.test(n))) { part = 'primary'; break; } }
-    if (part) { if (!(part in said)) said[part] = tok; } else loose.push(tok);
+    if (part) { if (!(part in said)) { said[part] = tok; nouns[part] = next.find(n => PART.some(([p, re]) => p === part && re.test(n))) || null; } } else loose.push(tok);
   });
-  return { kind, template, apron, said, loose };
+  return { kind, template, apron, said, loose, nouns };
 }
 
 /**
@@ -111,12 +116,16 @@ export function readLook(look, name = '') {
  * characters nobody described still look different.
  * @returns {{ name, look, kind, template, rows: string[16], closed, colors: {K,S,H,C,P,A,W,M}, why: string[] }}
  */
-export function forgeSprite({ name, look }, { style = '8bit', taken = new Set() } = {}) {
+export function forgeSprite({ name, look }, { style = '8bit', taken = new Set(), female = false } = {}) {
   const id = castName(name), r = readLook(look, name), seed = hash(id + '|' + String(look || ''));
+  // the script's description gave no gender but the request did ("a keeper and her dog")
+  const fromRequest = female && r.template === 'human-short';
+  if (fromRequest) r.template = 'human-long';
   const t = TEMPLATES[r.template];
   let rows = [...t.rows];
   if (r.apron) rows = [...rows.slice(0, 8), ...APRON_BODY];
   const why = [`${r.template}${r.apron ? ' with apron' : ''} (from "${String(look || name).slice(0, 60)}")`];
+  if (fromRequest) why.push('long hair: the request says she is a woman');
   const col = w => COLOURS[w];
   const loose = [...r.loose];
   const takeLoose = () => loose.shift();
@@ -144,14 +153,16 @@ export function forgeSprite({ name, look }, { style = '8bit', taken = new Set() 
     colors.H = col(primaryWord) || col(r.said.hair) || COLOURS[pick(furs.filter(c => !taken.has(COLOURS[c])).concat(furs[0]), seed >>> 5)];
     colors.C = col(r.said.main) || (r.kind === 'ghost' ? colors.H : lumOf(colors.H) > 200 ? COLOURS.grey : COLOURS.cream);
     colors.P = col(r.said.legs) || (r.kind === 'ghost' ? colors.H : lumOf(colors.H) > 200 ? COLOURS.grey : COLOURS.white);
-    colors.A = col(r.said.accent) || (r.kind === 'bird' ? COLOURS.orange : r.kind === 'dog' ? (lumOf(colors.H) > 150 ? COLOURS.brown : COLOURS.dark) : COLOURS.pink);
+    // a collar, scarf or bow goes round the neck (letter S, unused in these figures); it must not recolour a dog's ears
+    const neck = (r.kind === 'cat' || r.kind === 'dog') && NECKWEAR.test(r.nouns.accent || '') && col(r.said.accent);
+    if (neck) { rows[8] = rows[8].replace(/C/g, 'S'); colors.S = neck === '#000000' ? '#7c7c7c' : neck; why.push(`${r.said.accent} ${r.nouns.accent} drawn at the neck`); }
+    colors.A = (!neck && col(r.said.accent)) || (r.kind === 'bird' ? COLOURS.orange : r.kind === 'dog' ? (lumOf(colors.H) > 150 ? COLOURS.brown : COLOURS.dark) : COLOURS.pink);
     colors.W = r.kind === 'cat' ? COLOURS.lime : '#fcfcfc';
     colors.M = r.kind === 'ghost' ? '#000000' : COLOURS.pink;
     if (r.kind === 'ghost') colors.W = '#000000';
   }
   // A body or accent in pure outline-black would erase the drawing; hair, fur and legs may be black.
   for (const k of ['C', 'A']) if (colors[k] === '#000000') colors[k] = '#7c7c7c';
-  if (r.kind === 'cat' || r.kind === 'dog' || r.kind === 'bird') { if (colors.H === '#000000') colors.H = '#7c7c7c'; }
   // Parts that touch must differ, or the hat disappears into the coat and the face into the helmet.
   if (r.kind === 'human' && colors.A === colors.C) colors.A = [COLOURS.yellow, COLOURS.white, COLOURS.navy].find(c => c !== colors.C && c !== colors.S);
   if ((r.kind === 'human' || r.kind === 'astronaut') && (colors.S === colors.A || colors.S === colors.C)) colors.S = [SKIN.default, SKIN.brown, SKIN.dark].find(c => c !== colors.A && c !== colors.C);
@@ -159,7 +170,7 @@ export function forgeSprite({ name, look }, { style = '8bit', taken = new Set() 
   if (style === '2bit') {
     // Four shades only: place every role on its own step of the luminance ramp so the figure stays readable in any 4-colour palette.
     const step = { d0: '#202020', d1: '#606060', l0: '#a0a0a0', l1: '#e0e0e0' };
-    const ramp = animal ? { K: step.d0, H: step.l0, C: step.l1, P: step.l1, A: step.d1, S: step.l1, W: step.l1, M: step.d0 }
+    const ramp = animal ? { K: step.d0, H: step.l0, C: step.l1, P: step.l1, A: step.d1, S: step.d1, W: step.l1, M: step.d0 }
       : r.kind === 'robot' || r.kind === 'alien' ? { K: step.d0, C: step.l0, P: step.d1, A: step.l1, S: step.l1, H: step.d1, W: step.l1, M: step.d0 }
       : { K: step.d0, S: step.l1, H: step.d1, C: step.l0, P: step.d1, A: lumOf(colors.A) > 150 ? step.l1 : step.d1, W: step.l1, M: step.d0 };
     if (r.kind === 'ghost') { ramp.H = step.l1; ramp.C = step.l1; ramp.W = step.d0; }
@@ -172,10 +183,15 @@ export function forgeSprite({ name, look }, { style = '8bit', taken = new Set() 
 }
 
 /** Forge a whole cast with distinct names and, where nothing was said, distinct colours. */
-export function forgeCast(cast, { style = '8bit' } = {}) {
+export function forgeCast(cast, { style = '8bit', request = '' } = {}) {
   const taken = new Set(), names = new Set(), out = [];
+  // "a keeper and her dog": when exactly one cast member is a person and no description gives a gender, the request's word applies to that person
+  const looks = (cast || []).map(c => `${c?.look || ''} ${c?.name || ''}`.toLowerCase());
+  const people = looks.map((l, i) => readLook(cast[i]?.look || '', cast[i]?.name || '').kind === 'human' ? i : -1).filter(i => i >= 0);
+  const req = String(request || '').toLowerCase();
+  const she = people.length === 1 && FEMALE.test(req) && !/\b(he|his|him)\b/.test(req) && !looks.some(l => FEMALE.test(l) || MALE.test(l)) ? people[0] : -1;
   for (const [i, c] of (cast || []).entries()) {
-    const s = forgeSprite({ name: c?.name || `p${i + 1}`, look: c?.look || c?.name || '' }, { style, taken });
+    const s = forgeSprite({ name: c?.name || `p${i + 1}`, look: c?.look || c?.name || '' }, { style, taken, female: i === she });
     let n = s.name; let k = 2;
     while (names.has(n)) n = `${s.name.slice(0, 10)}${k++}`;
     names.add(n); out.push({ ...s, name: n });

@@ -140,3 +140,35 @@ test('endings and silent characters are refused with a reason, accepted only as 
   const mono = { ...SCRIPT, scenes: SCRIPT.scenes.map(x => ({ ...x, speaker: 'baker' })) };
   assert.match(normalizeScript(mono, PLAN).reason, /Only one character speaks; both baker and cat/);
 });
+
+// From the first film made after fraymus-home's reboot (2026-11-11): "a lighthouse keeper and her dog".
+test('a keeper is not bearded unless the description says so, and a woman never is by default', () => {
+  assert.equal(readLook('tall lighthouse keeper with red hair and a green coat', 'lila').template, 'human-short');
+  assert.equal(readLook('the lighthouse keeper, bearded, navy coat', 'keeper').template, 'human-beard');
+  assert.equal(readLook('an old woman, keeper of the light', 'ines').template, 'human-long');
+  assert.equal(readLook('a grandmother with a white beard', 'oma').template, 'human-beard');      // said outright wins
+});
+
+test('the request can say who is a woman when the script forgot to', () => {
+  const cast = [{ name: 'lila', look: 'tall lighthouse keeper with red hair and a green coat' }, { name: 'barny', look: 'large black dog with a glowing green collar' }];
+  const [keeper] = forgeCast(cast, { request: 'a 25 second 8-bit short about a lighthouse keeper and her dog' });
+  assert.equal(keeper.template, 'human-long');
+  assert.ok(keeper.why.some(w => /request/.test(w)));
+  assert.equal(forgeCast(cast, { request: 'a keeper and his dog' })[0].template, 'human-short');
+  // two people: the request cannot tell which one, so nobody is changed
+  const two = [{ name: 'a', look: 'a keeper in a coat' }, { name: 'b', look: 'a sailor in blue' }];
+  assert.equal(forgeCast(two, { request: 'a keeper and her friend' })[0].template, 'human-short');
+});
+
+test('a black dog is black, and a collar is a collar, not its ears', () => {
+  const dog = forgeSprite({ name: 'barny', look: 'large black dog with a glowing green collar' });
+  assert.equal(dog.colors.H, COLOURS.black);
+  assert.notEqual(dog.colors.A, COLOURS.green);                             // ears keep an ear colour
+  assert.ok(dog.rows.join('').includes('S'), 'a collar is drawn');
+  assert.equal(dog.colors.S, COLOURS.green);
+  assert.notEqual(dog.colors.C, COLOURS.black);                             // the chest still reads against the fur
+  const plain = forgeSprite({ name: 'rex', look: 'a brown dog' });
+  assert.ok(!plain.rows.join('').includes('S'), 'no collar unless one is described');
+  const cat = forgeSprite({ name: 'tom', look: 'a black cat with a red collar' });
+  assert.equal(cat.colors.H, COLOURS.black); assert.equal(cat.colors.S, COLOURS.red);
+});

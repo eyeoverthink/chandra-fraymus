@@ -201,3 +201,28 @@ test('the plan carries the backdrop choice and the prompts are about the place, 
   const p = backdropPrompt(planCreation('x y z', { style: '2bit' }), 'a harbour at sunrise');
   assert.match(p, /^a harbour at sunrise, /); assert.match(p, /nobody in it/); assert.match(p, /Game Boy/);
 });
+
+// From the first film made after fraymus-home's reboot (2026-11-11): 25 s asked, 16.8 s made, accepted first time.
+test('a script that would run well short of the asked length is sent back with the numbers', () => {
+  const plan = settleKind(planCreation('a 25 second 8-bit short about a lighthouse keeper and her dog'), 'video', 'test');
+  const cast = [{ name: 'lila', look: 'a woman keeper in a green coat' }, { name: 'barny', look: 'a black dog' }];
+  const thin = { title: 'Fog', cast, scenes: [
+    { speaker: 'lila', say: "The fog is thick, Barny. I can't see a thing." }, { speaker: 'barny', say: "Woof! I smell a ship, Lila. It's close." },
+    { speaker: 'lila', say: "You're right, Barny. I see the lights now." }, { speaker: 'barny', say: 'Good boy. We saved them, Lila.' }] };
+  const r = normalizeScript(thin, plan);
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /too short/); assert.match(r.reason, /25 seconds/);
+  const kept = normalizeScript(thin, plan, { final: true });
+  assert.equal(kept.ok, true); assert.ok(kept.fixes.some(f => /shorter than asked/.test(f)));
+});
+
+test('a character does not talk to itself by name', () => {
+  const plan = settleKind(planCreation('a 20 second 8-bit short about a keeper and her dog'), 'video', 'test');
+  const cast = [{ name: 'lila', look: 'a woman keeper' }, { name: 'barny', look: 'a brown dog' }];
+  const line = 'We watched the grey water all night and waited.';
+  const bad = { title: 'Fog', cast, scenes: [{ speaker: 'lila', say: line }, { speaker: 'barny', say: 'Good boy, Barny. ' + line }, { speaker: 'lila', say: line.replace('We', 'Then we') }] };
+  const r = normalizeScript(bad, plan);
+  assert.equal(r.ok, false); assert.match(r.reason, /barny/i); assert.match(r.reason, /own name/);
+  assert.ok(normalizeScript(bad, plan, { final: true }).fixes.some(f => /own name/.test(f)));
+  assert.match(scriptMessages(plan)[1].content + scriptMessages(plan)[0].content, /never praises or addresses itself/);
+});
