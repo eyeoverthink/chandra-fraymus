@@ -255,3 +255,42 @@ test('weather and time of day in the request reach every outdoor backdrop', asyn
   assert.match(backdropPrompt(planCreation('explain why fog forms in valleys'), 'a valley at sunrise'), /fog/);
   assert.match(backdropPrompt(planCreation('a comic about a snowy mountain rescue'), 'a mountain hut'), /falling snow/);
 });
+
+// Measured 2026-11-11 over eight pixel films voiced by VoiceStudio: 3.16 words a second and 0.94 s a scene
+// (F:/Claude-Work/chandra-superintelligence/measure-pace.py). The default 2.6 made every such film come out short.
+test('the script budget and the length estimate follow the pace of the voice that will speak', async () => {
+  const { PACES, paceOf, estimateSeconds } = await import('../server/media/make-plan.js');
+  assert.deepEqual(paceOf({}), PACES.default);
+  assert.deepEqual(paceOf({ pace: PACES.voicestudio }), PACES.voicestudio);
+  assert.deepEqual(paceOf({ pace: { wps: 99, pad: -1 } }), PACES.default);                    // nonsense is not believed
+  assert.equal(scriptBudget(25).words, 48);                                                    // unchanged for the other engines
+  assert.ok(scriptBudget(25, PACES.voicestudio).words > 50);                                   // a faster voice needs more words for the same time
+  // the estimate reproduces the films that were measured, within 2.5 s
+  const film = (words, scenes) => Array.from({ length: scenes }, (_, i) => ({ say: Array(Math.round(words / scenes) + (i < words % scenes ? 0 : 0)).fill('word').join(' ') }));
+  for (const [words, scenes, real] of [[32, 4, 16.8], [40, 5, 20.8], [57, 5, 26.2], [54, 6, 24.8], [69, 8, 32.2]]) {
+    const est = estimateSeconds(film(words, scenes), PACES.voicestudio);
+    assert.ok(Math.abs(est - real) <= 2.5, `${words} words in ${scenes} scenes: estimated ${est}, was ${real}`);
+  }
+  // the prompt and the check use the plan's pace
+  const plan = { ...settleKind(planCreation('a 25 second 8-bit short about a keeper and her dog'), 'video', 'test'), pace: PACES.voicestudio };
+  assert.match(scriptMessages(plan)[0].content, new RegExp(`about ${scriptBudget(25, PACES.voicestudio).words} words`));
+  const cast = [{ name: 'liz', look: 'a woman keeper' }, { name: 'max', look: 'a black dog' }];
+  const forty = { title: 'Fog', cast, scenes: ['The fog is too thick to see the shore.', 'I hear a horn somewhere out in the distance.', 'We should light the beacon right away then.', 'The ship is heading straight for the rocks now.', 'The beacon is on and the ship is turning.'].map((say, i) => ({ speaker: i % 2 ? 'max' : 'liz', say })) };
+  assert.equal(normalizeScript(forty, { ...plan, pace: undefined }).ok, true);                  // enough at the slow pace
+  assert.match(normalizeScript(forty, plan).reason, /too short/);                              // not enough for this voice
+});
+
+// First calibrated 40-second film (2026-11-11): asked for 7 lines of 14 words, the writer wrote 76, 66, then 62 words and the last was kept.
+test('the time is filled with more lines of the length the writer writes, and the closest draft is the one kept', async () => {
+  const { PACES, bestDraft } = await import('../server/media/make-plan.js');
+  const b = scriptBudget(40, PACES.voicestudio);
+  assert.ok(b.scenes >= 8, `${b.scenes} scenes`);
+  assert.ok(b.words / b.scenes <= 12, 'about ten words a line');
+  assert.equal(scriptBudget(40).scenes, 6);                                                    // the other engines keep their shape
+  const d = (est, reason, ok = true) => ({ script: { ok, estSeconds: est }, reason });
+  assert.equal(bestDraft([d(35, 'x is too short'), d(31, 'y is too short'), d(30, null)], 40).script.estSeconds, 35);
+  assert.equal(bestDraft([d(39, 'The last line is a question.'), d(30, null)], 40).script.estSeconds, 30);   // refused for another reason: not eligible
+  assert.equal(bestDraft([d(52, 'z is too long'), d(41, null)], 40).script.estSeconds, 41);
+  assert.equal(bestDraft([d(35, 'too short', false)], 40), null);
+  assert.equal(bestDraft([], 40), null);
+});

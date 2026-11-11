@@ -42,7 +42,7 @@ import { buildPage } from './page-builder.js';
 import { pickWorker, runOnWorker, workersStatus, workersConfigured, installWorkerRoutes } from './workers.js';
 import { pixelateBuffer, STYLES } from './pixel-art.js';
 import { forgeCast, spritePixels } from './sprite-forge.js';
-import { planCreation, settleKind, describePlan, scriptMessages, normalizeScript, buildStudioMarkdown, speakerLines, normalizeLine, stillPrompt, backdropPrompt, backdropNegative, conditionsOf, subjectOf, extractJson, WIRED_STYLES, PIXEL_STYLES, RECIPES } from './make-plan.js';
+import { planCreation, settleKind, describePlan, scriptMessages, normalizeScript, buildStudioMarkdown, speakerLines, normalizeLine, stillPrompt, backdropPrompt, backdropNegative, conditionsOf, subjectOf, PACES, bestDraft, extractJson, WIRED_STYLES, PIXEL_STYLES, RECIPES } from './make-plan.js';
 import { scriptMessagesFor, normalizeFor, buildMarkdownFor, paintsBackdrops, forgePeople } from './make-looks.js';
 
 const execFileAsync = promisify(execFile);
@@ -179,13 +179,20 @@ async function writeScript(plan, onAttempt) {
   let lastError = null;
   for (const w of [...WRITERS, LOCAL_WRITER]) {
     let feedback = null;
+    const drafts = [];      // earlier replies refused only for their length: one of them may beat the last attempt
     for (let attempt = 1; attempt <= SCRIPT_ATTEMPTS; attempt++) {
       onAttempt?.(attempt, w.label);
       let raw;
       try { raw = await askWriter(w, scriptMessagesFor(plan, feedback)); }
       catch (e) { lastError = e.message; refusals.push(`${w.label}: call failed: ${clip(e.message, 120)}`); if (w.url || attempt >= 2) break; continue; }
       const s = normalizeFor(raw, plan, { final: attempt === SCRIPT_ATTEMPTS });
-      if (s.ok) return { ...s, attempts: refusals.length + 1, refusals, writtenBy: w.label };
+      if (s.ok) {
+        const offLength = (s.fixes || []).some(f => /shorter than asked|cut lines/.test(f));
+        const best = offLength && plan.seconds ? bestDraft([...drafts, { script: s, reason: null, attempt }], plan.seconds) : null;
+        if (best && best.script !== s) return { ...best.script, fixes: [...(best.script.fixes || []), `attempt ${best.attempt} of ${attempt} kept: it was the closest to the asked length`], attempts: refusals.length + 1, refusals, writtenBy: w.label };
+        return { ...s, attempts: refusals.length + 1, refusals, writtenBy: w.label };
+      }
+      if (/too short|too long/.test(s.reason || '')) { const kept = normalizeFor(raw, plan, { final: true }); if (kept.ok) drafts.push({ script: kept, reason: s.reason, attempt }); }
       feedback = s.reason; lastError = s.reason; refusals.push(`${w.label}, attempt ${attempt}: ${s.reason}`);
     }
   }
@@ -404,6 +411,9 @@ async function renderOnWorker(worker, id, plan, script, backdropFiles, spritesPa
 async function makeVideo(id, plan, opts) {
   const ready = await studioReadiness();
   if (!ready.ready) throw new Error(`the video studio cannot run here: ${ready.problems.join('; ')}`);
+  // The voice is chosen before the script is written: how many words fill the asked time depends on who speaks them.
+  const picked = plan.voice === 'silent' ? { engine: 'silent', why: 'asked for no voice' } : await pickVoiceEngine();
+  if (PACES[picked.engine] && plan.style !== 'explainer') plan = { ...plan, pace: PACES[picked.engine] };
   let script;
   if (Array.isArray(opts.scenes) && opts.scenes.length) {
     script = normalizeFor({ title: opts.title, cast: opts.cast, scenes: opts.scenes, panels: opts.scenes }, plan, { final: true });
@@ -437,7 +447,6 @@ async function makeVideo(id, plan, opts) {
   writeFileSync(scriptPath, markdown, 'utf8');
   setJob(id, { script: markdown, title: script.title, stage: 'voicing', progress: 0.05 });
 
-  const picked = plan.voice === 'silent' ? { engine: 'silent', why: 'asked for no voice' } : await pickVoiceEngine();
   const voice = { lines: speakerLines(script), names: script.cast.map(c => c.name), dir, n: 0, engines: new Set(), voices: new Set(), engine: picked.engine, seconds: 0 };
   voiceJobs.set(id, voice);
   let done, renderedOn = 'this PC', renderNote = null;

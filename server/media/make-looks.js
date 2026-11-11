@@ -12,7 +12,7 @@
  * the check of what the writer returned, and the script in the studio's own format — and never branches
  * on the look itself. Pure: no database, no model, no clock.
  */
-import { scriptMessages, normalizeScript, buildStudioMarkdown, scriptBudget, extractJson, headline, normalizeLine, cleanLine, cleanPlace, cleanTitle,
+import { scriptMessages, normalizeScript, buildStudioMarkdown, scriptBudget, paceOf, extractJson, headline, normalizeLine, cleanLine, cleanPlace, cleanTitle,
   wordsOf, MAX_PLACES, PIXEL_STYLES, DEFAULT_SECONDS, TITLE_SECONDS, OUTRO_SECONDS, WORDS_PER_SECOND } from './make-plan.js';
 import { readLook, COLOURS } from './sprite-forge.js';
 
@@ -62,7 +62,7 @@ function peopleCast(script) {
 // ── cartoon ──────────────────────────────────────────────────────────────────────────────────────────
 
 function cartoonMessages(plan, feedback) {
-  const b = scriptBudget(plan.seconds ?? DEFAULT_SECONDS);
+  const b = scriptBudget(plan.seconds ?? DEFAULT_SECONDS, paceOf(plan));
   const system = [
     'You write scripts for very short flat cartoons in which two people talk in speech bubbles.',
     'Reply with JSON only, in this shape: {"title": "…", "cast": [{"name": "…", "look": "…"}, {"name": "…", "look": "…"}], "scenes": [{"speaker": "…", "mood": "happy", "set": "day", "say": "…"}]}',
@@ -98,7 +98,7 @@ function comicBudget(plan) {
 }
 
 function comicMessages(plan, feedback) {
-  const b = comicBudget(plan), words = scriptBudget(plan.seconds ?? DEFAULT_SECONDS).words;
+  const b = comicBudget(plan), words = scriptBudget(plan.seconds ?? DEFAULT_SECONDS, paceOf(plan)).words;
   const system = [
     'You write short comic strips. Each panel is either a narration panel (a caption over a picture of the place, nobody speaking) or a dialogue panel (one of two people speaks in a balloon).',
     'Reply with JSON only, in this shape: {"title": "…", "cast": [{"name": "…", "look": "…"}, {"name": "…", "look": "…"}], "panels": [{"speaker": "", "place": "…", "say": "…"}, {"speaker": "…", "mood": "happy", "set": "day", "say": "…", "sfx": ""}]}',

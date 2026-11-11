@@ -25,7 +25,24 @@ export const CAST = ['hero', 'robot'];           // the two sprites the pixel re
 export const MIN_SECONDS = 8, MAX_SECONDS = 180, DEFAULT_SECONDS = 30;
 const TITLE_SECONDS = 2.5, OUTRO_SECONDS = 1.0, SCENE_PAD = 0.8, WORDS_PER_SECOND = 2.6;
 const MAX_WORDS_PER_LINE = 34;
-const MIN_LENGTH_SHARE = 0.8;      // a film may come out this much shorter than asked before the script is sent back
+const MIN_LENGTH_SHARE = 0.8;
+/**
+ * How fast a voice engine speaks, measured from finished films (words a second, seconds of pause a scene) and how far
+ * under the asked length a script may be estimated before it is sent back. `voicestudio`: eight pixel films on
+ * 2026-11-11, fitted by F:/Claude-Work/chandra-superintelligence/measure-pace.py, error about 1.1 s — so its share can
+ * be strict. `default` is the original guess; the two edge-tts films on record suggest about 2.1, too few to adopt.
+ */
+export const PACES = Object.freeze({
+  default: Object.freeze({ wps: WORDS_PER_SECOND, pad: SCENE_PAD, minShare: MIN_LENGTH_SHARE }),
+  // lineWords: the 14B writer writes lines of about ten words whatever it is asked (asked for 14, it wrote 9), so the
+  // time is filled with more lines of that length, not with longer lines it will not write
+  voicestudio: Object.freeze({ wps: 3.15, pad: 0.95, minShare: 0.9, lineWords: 10 }),
+});
+/** The pace a plan carries, if it is believable; otherwise the default. */
+export function paceOf(plan) {
+  const p = plan?.pace;
+  return p && p.wps >= 1.5 && p.wps <= 5 && p.pad >= 0 && p.pad <= 3 && p.minShare >= 0.5 && p.minShare <= 1 ? p : PACES.default;
+}      // a film may come out this much shorter than asked before the script is sent back
 export const MAX_PLACES = 3;                      // distinct backdrops per film: each one is an image render
 
 const NUMBER_WORDS = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, half: 0.5 };
@@ -176,20 +193,33 @@ export function describePlan(plan) {
 }
 
 /** How much dialogue fits: scenes and words for the requested length. */
-export function scriptBudget(seconds) {
+export function scriptBudget(seconds, pace = PACES.default) {
   const speech = Math.max(4, seconds - TITLE_SECONDS - OUTRO_SECONDS);
-  const scenes = Math.min(20, Math.max(2, Math.round(speech / 6)));
-  const total = Math.max(12, Math.round((speech - scenes * SCENE_PAD) * WORDS_PER_SECOND));
+  const perScene = pace.lineWords ? pace.lineWords / pace.wps + pace.pad : 6;
+  const scenes = Math.min(20, Math.max(2, Math.round(speech / perScene)));
+  const total = Math.max(12, Math.round((speech - scenes * pace.pad) * pace.wps));
   return { scenes, words: total, minScenes: Math.max(2, scenes - 2), maxScenes: Math.min(24, scenes + 2) };
 }
 
-export function estimateSeconds(scenes) {
-  return +(TITLE_SECONDS + OUTRO_SECONDS + scenes.reduce((s, sc) => s + words(sc.say).length / WORDS_PER_SECOND + SCENE_PAD, 0)).toFixed(1);
+export function estimateSeconds(scenes, pace = PACES.default) {
+  return +(TITLE_SECONDS + OUTRO_SECONDS + scenes.reduce((s, sc) => s + words(sc.say).length / pace.wps + pace.pad, 0)).toFixed(1);
+}
+
+/**
+ * When the last attempt had to be accepted off-length, an earlier draft may have been closer: a writer told
+ * "too short" three times wrote 76, then 66, then 62 words. Among the drafts refused only for their length,
+ * and the accepted one, return the one whose estimated length is nearest to what was asked.
+ * @param {{script: object, reason: string|null}[]} drafts  each `script` normalised with `final: true`
+ */
+export function bestDraft(drafts, asked) {
+  const usable = (drafts || []).filter(d => d?.script?.ok && Number.isFinite(d.script.estSeconds) && (d.reason == null || /too short|too long/.test(d.reason)));
+  if (!usable.length) return null;
+  return usable.reduce((best, d) => Math.abs(d.script.estSeconds - asked) < Math.abs(best.script.estSeconds - asked) ? d : best);
 }
 
 /** Chat messages asking a local model for the script. `feedback` carries the reason a previous attempt was refused. */
 export function scriptMessages(plan, feedback = null) {
-  const b = scriptBudget(plan.seconds);
+  const b = scriptBudget(plan.seconds, paceOf(plan));
   const system = [
     'You write scripts for very short retro pixel-art films.',
     'Exactly two characters appear on screen and talk to each other. You choose who they are from the request. There is no narrator and no other speaker.',
@@ -270,7 +300,7 @@ export function normalizeScript(raw, plan, { final = false, narration = false } 
   const obj = extractJson(raw);
   const list = obj && (Array.isArray(obj.scenes) ? obj.scenes : Array.isArray(obj.panels) ? obj.panels : Array.isArray(obj.lines) ? obj.lines : Array.isArray(obj.dialogue) ? obj.dialogue : null);
   if (!list) return { ok: false, reason: 'The reply was not JSON with a "scenes" list.', scenes: [], fixes: [] };
-  const b = scriptBudget(plan.seconds ?? DEFAULT_SECONDS);
+  const pace = paceOf(plan), b = scriptBudget(plan.seconds ?? DEFAULT_SECONDS, pace);
   const fixes = [];
   let scenes = [];
   const places = [], placeIndex = new Map();
@@ -320,8 +350,8 @@ export function normalizeScript(raw, plan, { final = false, narration = false } 
     fixes.push(`cut lines before the ending to fit (${total} words)`);
   }
   // say it as a shape the writer can copy: a bare word count was ignored twice in a row by the 14B model
-  const asked = plan.seconds ?? DEFAULT_SECONDS, est = estimateSeconds(scenes);
-  const tooShort = total < b.words * 0.6 || est < asked * MIN_LENGTH_SHARE;
+  const asked = plan.seconds ?? DEFAULT_SECONDS, est = estimateSeconds(scenes, pace);
+  const tooShort = total < b.words * 0.6 || est < asked * pace.minShare;
   if (tooShort && !final) return { ok: false, reason: `${total} words is too short: it would run about ${Math.round(est)} seconds and ${asked} seconds were asked for. Write about ${b.words} words of dialogue: ${b.scenes + 1} lines of roughly ${Math.round(b.words / (b.scenes + 1))} words each.`, scenes, fixes };
   if (tooShort) fixes.push(`shorter than asked (${total} of about ${b.words} words, about ${Math.round(est)} of ${asked} seconds)`);
   const selfTalk = scenes.find(s => s.speaker && new RegExp(`\\b${s.speaker}\\b`, 'i').test(s.say));
@@ -336,7 +366,7 @@ export function normalizeScript(raw, plan, { final = false, narration = false } 
     fixes.push('the last line is a question; the story may feel unfinished');
   }
   const title = cleanTitle(obj.title, plan.request);
-  return { ok: true, title, cast, scenes, places, words: total, estSeconds: estimateSeconds(scenes), fixes };
+  return { ok: true, title, cast, scenes, places, words: total, estSeconds: estimateSeconds(scenes, pace), fixes };
 }
 
 /** Two characters with a name and a look, from the script; the built-in pair when the script does not give two. */
