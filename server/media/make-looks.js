@@ -12,6 +12,7 @@
  * the check of what the writer returned, and the script in the studio's own format — and never branches
  * on the look itself. Pure: no database, no model, no clock.
  */
+import { flatMessages, normalizeFlat } from './flat/plan.js';
 import { scriptMessages, normalizeScript, buildStudioMarkdown, scriptBudget, paceOf, extractJson, headline, normalizeLine, cleanLine, cleanPlace, cleanTitle,
   wordsOf, MAX_PLACES, PIXEL_STYLES, DEFAULT_SECONDS, TITLE_SECONDS, OUTRO_SECONDS, WORDS_PER_SECOND } from './make-plan.js';
 import { readLook, COLOURS } from './sprite-forge.js';
@@ -239,6 +240,7 @@ function explainerMarkdown(plan, script, backdrops = []) {
 
 /** Chat messages asking the writer for a script in the plan's look. */
 export function scriptMessagesFor(plan, feedback = null) {
+  if (plan.style === 'flat') return flatMessages(plan, feedback);
   if (plan.style === 'cartoon') return cartoonMessages(plan, feedback);
   if (plan.style === 'comic') return comicMessages(plan, feedback);
   if (plan.style === 'explainer') return explainerMessages(plan, feedback);
@@ -266,6 +268,7 @@ function polish(script) {
 
 /** Check and tidy what the writer (or a caller) supplied, by the rules of the plan's look. */
 export function normalizeFor(raw, plan, opts = {}) {
+  if (plan.style === 'flat') return normalizeFlat(raw, plan, opts);
   if (plan.style === 'explainer') return normalizeExplainer(raw, plan, opts);
   const s = plan.style === 'comic' ? normalizeComic(raw, plan, opts) : normalizeScript(raw, plan, opts);
   if (!s.ok) return s;
@@ -281,7 +284,7 @@ export function buildMarkdownFor(plan, script, backdrops = []) {
 }
 
 /** Does this look use pictures painted by the image model, and for which places? Cartoon sets are drawn by the recipe. */
-export function paintsBackdrops(plan) { return plan.backdrops !== false && plan.style !== 'cartoon'; }
+export function paintsBackdrops(plan) { return plan.backdrops !== false && plan.style !== 'cartoon' && plan.style !== 'flat'; }
 
 /** How many voices a look uses and who they are, for the plan summary and the lineage. */
 export function voiceRoles(plan, script) {

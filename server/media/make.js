@@ -41,6 +41,9 @@ import { classifyUrl } from '../fraymus-os/registry.js';
 import { buildPage } from './page-builder.js';
 import { pickWorker, runOnWorker, workersStatus, workersConfigured, installWorkerRoutes } from './workers.js';
 import { pixelateBuffer, STYLES } from './pixel-art.js';
+import { renderFlatFilm, checkFilm } from './flat/render.js';
+import { RULES as FLAT_RULES, titleFitsSubject } from './flat/plan.js';
+import { CAST as FLAT_CAST } from './flat/kit.js';
 import { forgeCast, spritePixels } from './sprite-forge.js';
 import { planCreation, settleKind, describePlan, scriptMessages, normalizeScript, buildStudioMarkdown, speakerLines, normalizeLine, stillPrompt, backdropPrompt, backdropNegative, conditionsOf, subjectOf, PACES, bestDraft, extractJson, WIRED_STYLES, PIXEL_STYLES, RECIPES } from './make-plan.js';
 import { scriptMessagesFor, normalizeFor, buildMarkdownFor, paintsBackdrops, forgePeople } from './make-looks.js';
@@ -163,10 +166,10 @@ const WRITERS = (process.env.CREATION_WRITERS || '').split(',').map(x => x.trim(
 const LOCAL_WRITER = { model: null, url: null, label: `${process.env.FRAYMUS_DEFAULT_MODEL || 'the local model'} on this PC` };
 const WRITER_TIMEOUT_MS = 180_000;
 
-async function askWriter(w, messages) {
-  if (!w.url) return chatOllama(messages, { format: 'json', priority: 'agent_run', temperature: 0.8, maxTokens: 1500, timeoutMs: 240_000, label: 'creation:script' });
+async function askWriter(w, messages, maxTokens = 1500) {
+  if (!w.url) return chatOllama(messages, { format: 'json', priority: 'agent_run', temperature: 0.8, maxTokens, timeoutMs: 240_000, label: 'creation:script' });
   const send = think => fetch(`${w.url}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(WRITER_TIMEOUT_MS),
-    body: JSON.stringify({ model: w.model, messages, stream: false, format: 'json', ...(think ? {} : { think: false }), options: { temperature: 0.8, num_predict: 1500 } }) });
+    body: JSON.stringify({ model: w.model, messages, stream: false, format: 'json', ...(think ? {} : { think: false }), options: { temperature: 0.8, num_predict: maxTokens } }) });
   let r = await send(false);
   if (r.status === 400) r = await send(true);               // a model without a thinking switch refuses the flag
   const j = await r.json().catch(() => ({}));
@@ -183,16 +186,16 @@ async function writeScript(plan, onAttempt) {
     for (let attempt = 1; attempt <= SCRIPT_ATTEMPTS; attempt++) {
       onAttempt?.(attempt, w.label);
       let raw;
-      try { raw = await askWriter(w, scriptMessagesFor(plan, feedback)); }
+      try { raw = await askWriter(w, scriptMessagesFor(plan, feedback), plan.style === 'flat' ? 3600 : 1500); }
       catch (e) { lastError = e.message; refusals.push(`${w.label}: call failed: ${clip(e.message, 120)}`); if (w.url || attempt >= 2) break; continue; }
       const s = normalizeFor(raw, plan, { final: attempt === SCRIPT_ATTEMPTS });
       if (s.ok) {
-        const offLength = (s.fixes || []).some(f => /shorter than asked|cut lines/.test(f));
+        const offLength = (s.fixes || []).some(f => /shorter than asked|cut lines|rule 12 not met/.test(f));
         const best = offLength && plan.seconds ? bestDraft([...drafts, { script: s, reason: null, attempt }], plan.seconds) : null;
         if (best && best.script !== s) return { ...best.script, fixes: [...(best.script.fixes || []), `attempt ${best.attempt} of ${attempt} kept: it was the closest to the asked length`], attempts: refusals.length + 1, refusals, writtenBy: w.label };
         return { ...s, attempts: refusals.length + 1, refusals, writtenBy: w.label };
       }
-      if (/too short|too long/.test(s.reason || '')) { const kept = normalizeFor(raw, plan, { final: true }); if (kept.ok) drafts.push({ script: kept, reason: s.reason, attempt }); }
+      if (/too short|too long|would run about/.test(s.reason || '')) { const kept = normalizeFor(raw, plan, { final: true }); if (kept.ok) drafts.push({ script: kept, reason: s.reason, attempt }); }
       feedback = s.reason; lastError = s.reason; refusals.push(`${w.label}, attempt ${attempt}: ${s.reason}`);
     }
   }
@@ -490,6 +493,114 @@ async function makeVideo(id, plan, opts) {
   };
 }
 
+/** Words in a request that are about the film, not its subject. */
+const NOT_SUBJECT = /\b(make|create|draw|generate|render|give me|i want|please|me|you|your|an?|the|is|are|does|do|\d+(?:\.\d+)?\s*-?\s*(?:seconds?|secs?|minutes?|mins?)|vertical|square|kurzgesagt|flat|vector|style|styled|animation|animated|motion|graphics?|story|short|shorts|video|film|movie|cartoon|explainer|told to the viewer as you|about|of|on|how|why|in a nutshell)\b/gi;
+
+/**
+ * Facts for a film about something real, from Wikipedia's free, keyless API: the opening of the best-matching
+ * article. Optional by design — offline, or with CREATION_GROUNDING=0, the film is written from the model's
+ * memory and its record says so. Never throws.
+ */
+async function groundFacts(request) {
+  if (process.env.CREATION_GROUNDING === '0') return { text: null, why: 'switched off (CREATION_GROUNDING=0)' };
+  const subject = clip(String(request).replace(NOT_SUBJECT, ' ').replace(/[^A-Za-z0-9' -]/g, ' ').replace(/\s+/g, ' ').trim(), 120);
+  if (subject.split(' ').length < 2) return { text: null, why: 'the request names no subject to look up' };
+  try {
+    const api = 'https://en.wikipedia.org/w/api.php', ua = { 'User-Agent': 'Chandra-FRAYMUS/1.0 (local studio; facts for a short film)' };
+    const sr = await (await fetch(`${api}?action=query&list=search&srlimit=6&format=json&srsearch=${encodeURIComponent(subject)}`, { headers: ua, signal: AbortSignal.timeout(15_000) })).json();
+    // the article must be ABOUT the subject: every word of its title is in the request ("Emu War", "Immune system"), not merely a top search hit
+    // (the first search for "immune system fights virus" returned the article on HIV, and the film became a film about treatment)
+    const hit = (sr?.query?.search || []).find(h => titleFitsSubject(h.title, subject));
+    if (!hit) return { text: null, why: `no article whose title matches "${subject}" (closest: ${(sr?.query?.search || []).slice(0, 2).map(h => h.title).join(', ') || 'none'}): written from the model's memory` };
+    const ex = await (await fetch(`${api}?action=query&prop=extracts&explaintext=1&exintro=1&format=json&pageids=${hit.pageid}`, { headers: ua, signal: AbortSignal.timeout(15_000) })).json();
+    const text = clip(String(ex?.query?.pages?.[hit.pageid]?.extract || '').replace(/\s+/g, ' ').trim(), 2200);
+    if (text.length < 200) return { text: null, why: `the article "${hit.title}" had no usable opening` };
+    return { text, source: `Wikipedia, "${hit.title}"`, url: `https://en.wikipedia.org/?curid=${hit.pageid}`, title: hit.title, why: `looked up "${subject}"` };
+  } catch (e) { return { text: null, why: `no source could be reached (${clip(e.message, 80)}): written from the model's memory` }; }
+}
+
+/**
+ * The flat vector look: plan → check against the numbered rules → record each line → cut the pictures to the
+ * words → render on the CPU → measure the film. Nothing here uses the graphics card or the video studio.
+ */
+async function makeFlat(id, plan, opts) {
+  const dir = join(CREATIONS_DIR, id), outDir = join(dir, 'out');
+  mkdirSync(outDir, { recursive: true });
+  const picked = plan.voice === 'silent' ? { engine: 'silent', why: 'asked for no voice' } : await pickVoiceEngine();
+  let script;
+  if (Array.isArray(opts.scenes) && opts.scenes.length) {
+    script = normalizeFor({ title: opts.title, shots: opts.scenes }, plan, { final: true });
+    if (!script.ok) throw new Error(`the supplied shot list was refused: ${script.reason}`);
+    script.attempts = 0; script.writtenBy = 'supplied by the caller'; script.refusals = [];
+  } else {
+    setJob(id, { stage: 'reading about the subject', progress: 0.01 });
+    const facts = await groundFacts(plan.request);
+    plan = { ...plan, facts: facts.text ? { text: facts.text, source: facts.source, url: facts.url } : null, factsNote: facts.why };
+    setJob(id, { stage: 'planning shots', progress: 0.02 });
+    script = await writeScript(plan, (attempt, who) => setJob(id, { stage: `planning shots: ${who}${attempt > 1 ? `, attempt ${attempt}` : ''}` }));
+  }
+  const shots = script.shots;
+  writeFileSync(join(dir, 'shots.json'), JSON.stringify({ title: script.title, shots, rules: script.rules }, null, 1), 'utf8');
+  setJob(id, { script: shots.map((s, i) => `${i + 1}. ${s.say}`).join('\n'), title: script.title, stage: 'voicing', progress: 0.06 });
+
+  // The voice: one narrator, one line per shot, so the start of every line is known exactly.
+  const t0 = now(), lineWavs = [], engines = new Set(), voices = new Set();
+  for (const [i, s] of shots.entries()) {
+    if (cancelled.has(id)) throw new Error('cancelled');
+    setJob(id, { stage: `voicing line ${i + 1} of ${shots.length}`, progress: 0.06 + 0.2 * i / shots.length });
+    const wav = join(dir, `line-${String(i + 1).padStart(2, '0')}.wav`);
+    if (picked.engine === 'silent') {
+      // a silent film still needs time for each caption to be read: quiet of the length the words would take
+      const secs = Math.max(1.2, s.say.split(/\s+/).length / 2.75);
+      await execFileAsync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'anullsrc=r=24000:cl=mono', '-t', secs.toFixed(2), '-c:a', 'pcm_s16le', wav], { timeout: 60_000, windowsHide: true });
+      engines.add('silent');
+    } else if (picked.engine === 'voicestudio') {
+      const { buf, ext } = await speakWithVoiceStudio(s.say, VS_VOICES.hero);
+      const raw = wav.replace(/\.wav$/, `.src.${ext}`); writeFileSync(raw, buf);
+      await execFileAsync('ffmpeg', ['-v', 'error', '-y', '-i', raw, '-ac', '1', '-ar', '24000', '-c:a', 'pcm_s16le', wav], { timeout: 60_000, windowsHide: true });
+      try { rmSync(raw, { force: true }); } catch (_) { /* the converted copy is what matters */ }
+      engines.add('voicestudio'); voices.add(`narrator: ${VS_VOICES.hero}`);
+    } else {
+      const spoken = await ttsSpeak(s.say, TTS_ENGINE ? { ...VOICES.hero, engine: TTS_ENGINE } : VOICES.hero);
+      await execFileAsync('ffmpeg', ['-v', 'error', '-y', '-i', spoken.path, '-ac', '1', '-ar', '24000', '-c:a', 'pcm_s16le', wav], { timeout: 60_000, windowsHide: true });
+      engines.add(spoken.engine || 'unknown'); if (spoken.voice) voices.add(`narrator: ${spoken.voice}`);
+    }
+    lineWavs.push(wav);
+  }
+  const synthSeconds = +((now() - t0) / 1000).toFixed(1);
+
+  setJob(id, { stage: 'drawing', progress: 0.28 });
+  const master = join(outDir, `${script.title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'film'}_master.mp4`);
+  const render = await renderFlatFilm({ shots, lineWavs, format: plan.format, outPath: master, workDir: dir, isCancelled: () => cancelled.has(id),
+    onProgress: (p, k) => setJob(id, { stage: `drawing shot ${k + 1} of ${shots.length}`, progress: 0.28 + 0.66 * p }) });
+  setJob(id, { stage: 'checking the film', progress: 0.96 });
+  const verdict = await checkFilm({ shots, format: plan.format, render });
+  const voiced = [...engines].join('+') || 'none';
+  const lineage = { job: id, request: plan.request, plan, method: 'flat vector: plan, check against rules, voice, cut to the words, render, measure',
+    cast: script.cast.map(n => ({ name: n, title: FLAT_CAST[n]?.title, kind: 'flat character', template: FLAT_CAST[n]?.body, colors: { body: FLAT_CAST[n]?.color, accent: FLAT_CAST[n]?.accent }, why: ['from the recurring cast'] })),
+    script: { title: script.title, shots, scenes: shots, words: script.words, estSeconds: script.estSeconds, writtenBy: script.writtenBy, attempts: script.attempts, refusals: script.refusals || [], fixes: script.fixes },
+    rules: script.rules.map(r => ({ ...r, text: FLAT_RULES.find(x => x.n === r.n)?.text })), checks: verdict.checks, kept: verdict.passed,
+    facts: plan.facts ? { source: plan.facts.source, url: plan.facts.url, chars: plan.facts.text.length, note: plan.factsNote } : { source: null, note: plan.factsNote || 'a shot list was supplied', warning: 'written from the model\'s memory: read it before showing it to anyone' },
+    voice: { engine: voiced, voices: [...voices], chosen: picked, synthSeconds, offline: voiced === 'silent' || voiced === 'sapi' || voiced === 'piper' || (voiced === 'voicestudio' && VOICESTUDIO.routeClass === 'local') },
+    timeline: { cuts: render.timeline.cuts.map(c => +c.toFixed(2)), lines: render.timeline.spans.map(s => [+s.lineStart.toFixed(2), +s.lineEnd.toFixed(2)]) },
+    renderer: { name: 'chandra flat renderer', renderedOn: 'this PC (CPU)', fps: render.fps, frames: render.frames, size: `${render.width}x${render.height}`, renderSeconds: render.renderSeconds, gpu: false },
+    output: { file: null, seconds: +render.seconds.toFixed(2), pages: [], pdf: null }, madeAt: new Date().toISOString() };
+  if (!verdict.passed) {
+    try { writeFileSync(join(dir, 'lineage.json'), JSON.stringify(lineage, null, 2), 'utf8'); } catch (e) { console.error('[creation] lineage:', e.message); }
+    const bad = verdict.checks.filter(c => c.hard && !c.ok).map(c => `${c.name}: ${c.detail}`).join('; ');
+    throw new Error(`the film was made but failed its checks and was not added to the library (${bad}); it is kept for inspection in ${outDir}`);
+  }
+  const name = mediaName('mp4');
+  copyFileSync(master, join(VIDEO_DIR, name));
+  noteMedia(name, 'create', [plan.request, { style: 'flat', format: plan.format, seconds: +render.seconds.toFixed(1), shots: shots.length, title: script.title, voice: voiced, job: id, renderer: 'chandra flat renderer' }], { source: 'creation' });
+  lineage.output.file = name;
+  try { writeFileSync(join(dir, 'lineage.json'), JSON.stringify(lineage, null, 2), 'utf8'); } catch (e) { console.error('[creation] lineage:', e.message); }
+  return { kind: 'video', file: name, url: `/api/hermes/artifacts/media?kind=video&id=${name}`, pages: [], pdf: null, title: script.title, seconds: +render.seconds.toFixed(2), renderSeconds: render.renderSeconds,
+    scenes: shots.length, words: script.words, scriptAttempts: script.attempts, scriptRefusals: script.refusals || [], scriptBy: script.writtenBy, scriptFixes: script.fixes,
+    cast: script.cast.map(n => ({ name: n, look: FLAT_CAST[n]?.title, sprite: 'flat character' })), rules: script.rules, checks: verdict.checks, factsFrom: plan.facts?.source || null, factsNote: plan.factsNote || null,
+    voice: voiced, voiceWhy: picked.why, voices: [...voices], renderedOn: 'this PC (CPU)', folder: dir, files: [basename(master)] };
+}
+
 async function makeStill(id, plan, opts) {
   let srcPath, from;
   if (opts.image) {
@@ -526,7 +637,7 @@ async function runJob(id, opts) {
   try {
     if (!plan.kind) { const k = await decideKind(plan.request); plan = settleKind(plan, k.kind, k.why); setJob(id, { plan: JSON.stringify(plan), kind: plan.kind }); }
     emit({ action: 'creation_started', id, kind: plan.kind, style: plan.style });
-    const output = plan.kind === 'page' ? await makePage(id, plan) : plan.kind === 'still' && plan.style !== 'comic' ? await makeStill(id, plan, opts) : await makeVideo(id, plan, opts);
+    const output = plan.kind === 'page' ? await makePage(id, plan) : plan.style === 'flat' ? await makeFlat(id, plan, opts) : plan.kind === 'still' && plan.style !== 'comic' ? await makeStill(id, plan, opts) : await makeVideo(id, plan, opts);
     if (cancelled.has(id)) throw new Error('cancelled');
     const seconds = +((now() - t0) / 1000).toFixed(1);
     setJob(id, { status: 'completed', stage: 'done', progress: 1, output: JSON.stringify(output), seconds, completed_at: now() });
@@ -594,7 +705,7 @@ export async function creationStatus() {
     timing = db.prepare(`SELECT kind, COUNT(*) n, ROUND(AVG(seconds), 1) avgSeconds FROM creation_jobs WHERE status = 'completed' GROUP BY kind`).all();
   } catch (e) { console.error('[creation] status:', e.message); }
   return {
-    wired: { styles: WIRED_STYLES, kinds: ['video', 'still'], looks: STYLES, videoFormats: ['16:9'], stillFormats: ['16:9', '9:16', '1:1'] },
+    wired: { styles: WIRED_STYLES, kinds: ['video', 'still'], looks: STYLES, videoFormats: ['16:9'], vectorVideoFormats: ['16:9', '9:16', '1:1'], stillFormats: ['16:9', '9:16', '1:1'] },
     writers: [...WRITERS, LOCAL_WRITER].map(w => w.label), coders: [...CODERS.map(w => w.label), `${LOCAL_CODER_MODEL} on this PC`], workers: await workersStatus(), studio: ready, voices: VOICES, voiceStudio: { ...(await pickVoiceEngine()), url: VOICESTUDIO.url || null, routeClass: VOICESTUDIO.routeClass || null, voices: VS_VOICES }, ttsEngine: TTS_ENGINE || 'cascade (edge-tts online first, then offline SAPI)', running: currentId, counts, timing, agentCapPerDay: MAX_AGENT_JOBS_PER_DAY, jobs: listCreations(8),
   };
 }
@@ -605,11 +716,11 @@ export function createMakeTools() {
   return [
     {
       name: 'studio.create', group: 'studio', risk: 'safe', ownsReply: true,
-      description: 'Make something from a plain sentence and save it to the library: a web page or small web app (one self-contained file, opened in a real browser to check it runs), or a picture or a short film — animation, 8-bit or 2-bit pixel art, a flat cartoon, a comic strip (pages and a film of them), a narrated explainer video, a still image, a movie, a short with dialogue. Pass the user\'s own words as `request`; the kind (still or video), look, length and shape are read from the sentence, so do not ask the user to choose a category. Runs on this machine, no paid service. Returns a job id at once; the finished file appears on the home screen shelf. Check progress with studio.create_status. When the user asks for a web page, an app, a game or anything else to build, call this tool — never paste code into the chat as the result: pasted code is not saved, not checked, and is not in the library. If this tool refuses, tell the user exactly what it said; do not ask them to pick a look unless they asked for a picture or a film.',
+      description: 'Make something from a plain sentence and save it to the library: a web page or small web app (one self-contained file, opened in a real browser to check it runs), or a picture or a short film — animation, 8-bit or 2-bit pixel art, a flat cartoon, a comic strip (pages and a film of them), a narrated explainer video, a flat vector animation in the Kurzgesagt manner or a narrated cartoon story short with a recurring cast (say "flat" or "story short"; vertical for phones if asked), a still image, a movie, a short with dialogue. Pass the user\'s own words as `request`; the kind (still or video), look, length and shape are read from the sentence, so do not ask the user to choose a category. Runs on this machine, no paid service. Returns a job id at once; the finished file appears on the home screen shelf. Check progress with studio.create_status. When the user asks for a web page, an app, a game or anything else to build, call this tool — never paste code into the chat as the result: pasted code is not saved, not checked, and is not in the library. If this tool refuses, tell the user exactly what it said; do not ask them to pick a look unless they asked for a picture or a film.',
       parameters: { type: 'object', required: ['request'], properties: {
         request: { type: 'string', description: 'what to make, in the user\'s words, e.g. "a 40 second 8-bit short about a robot who finds a lighthouse"' },
         kind: { type: 'string', description: 'optional: "page", "still" or "video" (only if the user said so explicitly)' },
-        style: { type: 'string', description: 'optional: "8bit", "2bit", "cartoon", "comic" or "explainer" (only if the user named the look)' },
+        style: { type: 'string', description: 'optional: "8bit", "2bit", "cartoon", "comic", "explainer" or "flat" (only if the user named the look)' },
         seconds: { type: 'integer', description: 'optional video length in seconds (8-180)' },
         image: { type: 'string', description: 'optional: file name of a picture already in data/media to turn into pixel art instead of generating one' },
       } },

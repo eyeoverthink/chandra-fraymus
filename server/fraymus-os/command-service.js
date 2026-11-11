@@ -76,6 +76,7 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
       { id: 'cartoon', label: 'Cartoon', text: 'Use studio.create to make a 30 second cartoon about ', fill: true },
       { id: 'comic', label: 'Comic strip', text: 'Use studio.create to make a comic about ', fill: true },
       { id: 'explainer', label: 'Explainer', text: 'Use studio.create to make a 45 second explainer video about ', fill: true },
+      { id: 'flat', label: 'Flat animation', text: 'Use studio.create to make a 45 second vertical flat vector story short about ', fill: true },
     ] },
     { id: 'research', label: 'Research', items: [
       { id: 'hn', label: 'Read the news', text: 'Use hermes.rss_read on https://hnrss.org/frontpage and tell me the three most relevant stories for someone building local AI agents.' },

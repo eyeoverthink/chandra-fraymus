@@ -27,6 +27,7 @@
     "parse5": "8.0.1",
     "pdfjs-dist": "6.4.299",
     "puppeteer": "^24.0.0",
+    "@napi-rs/canvas": "^1.0.13",
     "sharp": "^0.35.5",
     "ws": "^8.18.3",
     "yauzl": "3.4.0"

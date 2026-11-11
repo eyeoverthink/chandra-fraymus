@@ -370,3 +370,11 @@ hub: a 32-second film takes about a minute and a half, and an explainer under tw
 It follows that machine's own folder rules and listens to nothing but itself; the hub reaches it over SSH. This is the
 "house as one body" from section 7 with two limbs working. Separately, a page that asks for the Earth now gets a tested
 globe with true coastlines, checked in a browser at nine places on the map.
+
+**2026-11-11 — A sixth look, drawn here.** A typed sentence now becomes a flat-vector film in the manner of
+Kurzgesagt, or a vertical story short with a recurring cast, in two to three and a half minutes on one CPU core.
+Nothing is painted by a model: shots are assembled from a vocabulary the system can draw, checked against seventeen
+numbered rules before a frame exists, cut to the narrator's words, and measured eleven ways afterwards. The method
+was taken from a tutorial built on paid tools and rebuilt on free ones; see `docs/FLAT-ANIMATION-METHOD.md`.
+The same day the worker on fraymus-home came back by itself after a reboot, films began to land on the asked
+length, and backdrops began to follow the weather. gbrain was read; none of it is built yet.

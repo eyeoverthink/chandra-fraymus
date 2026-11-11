@@ -15,7 +15,9 @@
 
 import { castName } from './sprite-forge.js';
 
-export const WIRED_STYLES = ['8bit', '2bit', 'cartoon', 'comic', 'explainer'];
+export const WIRED_STYLES = ['8bit', '2bit', 'cartoon', 'comic', 'explainer', 'flat'];
+/** Looks drawn by Chandra's own vector renderer (server/media/flat): any shape, no studio, no graphics card. */
+export const VECTOR_STYLES = ['flat'];
 export const PIXEL_STYLES = ['8bit', '2bit'];
 /** Look → the studio recipe that renders it. */
 export const RECIPES = Object.freeze({ '8bit': '8bit', '2bit': '2bit', cartoon: 'cartoon', comic: 'comic-strip', explainer: 'explainer' });
@@ -51,6 +53,8 @@ const STYLE_8BIT = /\b8[\s-]?bit\b|\beight[\s-]bit\b|\bnes\b|nintendo|pixel[\s-]
 const STYLE_COMIC = /\bcomics?\b|\bgraphic novel\b/i;
 const STYLE_CARTOON = /\bcartoon\b/i;
 const STYLE_EXPLAINER = /\bexplainer\b|\bexplain(?:s|ing|ed)?\b|\bnarrated\b|\bdocumentary\b|\bvideo essay\b/i;
+// the flat vector look: named by its style words, or by the form it was built for (a narrated story short with a recurring cast)
+const STYLE_FLAT = /\bkurzgesagt\b|\bin a nutshell\b|\bflat[\s-](?:vector|animation|animated|design|explainer|style|look|film|short|video|cartoon|motion)\b|\bvector[\s-](?:animation|animated|explainer|cartoon|short|video|film|style|look)\b|\bmotion[\s-]graphics?\b|\bstory shorts?\b|\binfographic (?:video|animation|film)\b/i;
 const PAGES_ONLY = /\bpages? only\b|\bjust the pages?\b|\bno video\b|\bwithout (?:a )?video\b/i;
 const OTHER_STYLES = [
   ['music video', /\bmusic[\s-]video\b|\blyric[\s-]video\b/i],
@@ -86,7 +90,7 @@ export function parseRequest(text) {
   const t = String(text || '');
   if (PAGE_RE.test(t) || (PAGE_BUILD_RE.test(t) && !FILM_WORD_RE.test(t))) return { kind: 'page', style: 'web', otherStyle: null, seconds: null, format: null, palette: null, silent: false };
   // A pixel look named outright wins ("an 8-bit cartoon" is 8-bit); then the looks that are a form of their own
-  const style = STYLE_2BIT.test(t) ? '2bit' : STYLE_8BIT.test(t) ? '8bit' : STYLE_COMIC.test(t) ? 'comic' : STYLE_CARTOON.test(t) ? 'cartoon' : STYLE_EXPLAINER.test(t) ? 'explainer' : null;
+  const style = STYLE_2BIT.test(t) ? '2bit' : STYLE_8BIT.test(t) ? '8bit' : STYLE_FLAT.test(t) ? 'flat' : STYLE_COMIC.test(t) ? 'comic' : STYLE_CARTOON.test(t) ? 'cartoon' : STYLE_EXPLAINER.test(t) ? 'explainer' : null;
   const other = style ? null : (OTHER_STYLES.find(([, re]) => re.test(t)) || [null])[0];
   // "cartoon" names the look here, so it is not by itself a sign that a film was asked for ("a cartoon still of …")
   const still = STILL_RE.test(t), video = VIDEO_RE.test(style === 'cartoon' ? t.replace(/\bcartoon\b/gi, ' ') : t);
@@ -94,7 +98,7 @@ export function parseRequest(text) {
   let kind = video || seconds != null ? 'video' : still ? 'still' : null;
   // A comic always has pages; the film of it comes too unless the sentence asks for pages alone. A cartoon or an explainer is a film.
   if (style === 'comic') kind = PAGES_ONLY.test(t) || (still && !video && seconds == null) ? 'still' : 'video';
-  else if ((style === 'cartoon' || style === 'explainer') && kind == null) kind = 'video';
+  else if ((style === 'cartoon' || style === 'explainer' || style === 'flat') && kind == null) kind = 'video';
   const format = /\bvertical\b|\b9\s*[:x]\s*16\b|\btiktok\b|\breels?\b|youtube shorts|\bfor (?:my |a )?phone\b|portrait (?:mode|orientation)/i.test(t) ? '9:16'
     : /\bsquare\b|\b1\s*[:x]\s*1\b/i.test(t) ? '1:1' : null;
   const palette = style === '2bit' ? (/\bpocket\b/i.test(t) ? 'gb-pocket' : /black[\s-]and[\s-]white|gr[ae]yscale|\bmono(?:chrome)?\b/i.test(t) ? 'gb-mono' : null) : null;
@@ -130,9 +134,9 @@ export function planCreation(text, overrides = {}) {
 
   const kindOverride = ['still', 'video'].includes(overrides.kind) ? overrides.kind : null;
   // an explicit look can change what the sentence alone implied: re-read the kind for looks that are always a film
-  const impliedKind = p.kind ?? (style === 'cartoon' || style === 'explainer' || style === 'comic' ? 'video' : null);
+  const impliedKind = p.kind ?? (style === 'cartoon' || style === 'explainer' || style === 'comic' || style === 'flat' ? 'video' : null);
   const kind = pick('kind', kindOverride, impliedKind, null, 'not stated — decided when the job starts');
-  if (!blocked && kind === 'still' && (style === 'cartoon' || style === 'explainer')) blocked = { reason: 'still_not_wired', style };
+  if (!blocked && kind === 'still' && (style === 'cartoon' || style === 'explainer' || style === 'flat')) blocked = { reason: 'still_not_wired', style };
 
   let seconds = null;
   if (kind !== 'still') {
@@ -166,7 +170,7 @@ export function settleKind(plan, kind, why = 'decided from the request') {
   if (!next.kind) { next.kind = kind === 'still' ? 'still' : 'video'; next.decided.kind = { value: next.kind, why }; }
   if (next.kind === 'video') {
     if (!next.seconds) { next.seconds = DEFAULT_SECONDS; next.decided.seconds = { value: DEFAULT_SECONDS, why: 'default length' }; }
-    if (next.format !== '16:9') {
+    if (next.format !== '16:9' && !VECTOR_STYLES.includes(next.style)) {
       next.notes.push(`Made in 16:9: ${next.format} film is not wired yet (the pixel recipes stretch in it; the others are untested).`);
       next.format = '16:9'; next.decided.format = { value: '16:9', why: 'only shape wired for film' };
     }
@@ -186,8 +190,9 @@ export function describePlan(plan) {
   if (plan.seconds) parts.push(`${plan.seconds} s (${why('seconds')})`);
   parts.push(`${plan.format} (${why('format')})`);
   if (plan.kind !== 'still' || comic) {
-    const pictures = { cartoon: 'built-in sets', comic: 'painted narration panels', explainer: 'painted pictures behind the words' }[plan.style] || 'painted backdrops';
-    parts.push(plan.voice === 'silent' ? 'no voice' : plan.style === 'explainer' ? 'one voice' : 'two voices', plan.backdrops === false || plan.style === 'cartoon' ? (plan.style === 'cartoon' ? pictures : 'no painted pictures') : pictures);
+    const pictures = { cartoon: 'built-in sets', comic: 'painted narration panels', explainer: 'painted pictures behind the words', flat: 'drawn shot by shot from the flat kit with the recurring cast' }[plan.style] || 'painted backdrops';
+    const drawn = plan.style === 'cartoon' || plan.style === 'flat';
+    parts.push(plan.voice === 'silent' ? 'no voice' : plan.style === 'explainer' || plan.style === 'flat' ? 'one voice' : 'two voices', plan.backdrops === false || drawn ? (drawn ? pictures : 'no painted pictures') : pictures);
   }
   return parts.join(', ') + (plan.notes.length ? '. ' + plan.notes.join(' ') : '');
 }
@@ -212,7 +217,7 @@ export function estimateSeconds(scenes, pace = PACES.default) {
  * @param {{script: object, reason: string|null}[]} drafts  each `script` normalised with `final: true`
  */
 export function bestDraft(drafts, asked) {
-  const usable = (drafts || []).filter(d => d?.script?.ok && Number.isFinite(d.script.estSeconds) && (d.reason == null || /too short|too long/.test(d.reason)));
+  const usable = (drafts || []).filter(d => d?.script?.ok && Number.isFinite(d.script.estSeconds) && (d.reason == null || /too short|too long|would run about/.test(d.reason)));
   if (!usable.length) return null;
   return usable.reduce((best, d) => Math.abs(d.script.estSeconds - asked) < Math.abs(best.script.estSeconds - asked) ? d : best);
 }
