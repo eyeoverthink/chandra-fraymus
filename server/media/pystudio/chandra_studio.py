@@ -64,12 +64,37 @@ def install(spec):
     return sorted(sprites)
 
 
+def install_people(people):
+    """Cartoon and comic: give the two flat figures the clothes, skin and hair colours Chandra chose for this film."""
+    from studio.recipes import cartoon, comic
+
+    table = {p["name"].lower(): p for p in people}
+    original = cartoon.parse_cast
+
+    def parse_cast(job):
+        cast = original(job)
+        for name, entry in cast.items():
+            p = table.get(name)
+            if p:
+                entry.update(color=p["color"], skin=p["skin"], hair=p["hair"])
+        return cast
+
+    cartoon.parse_cast = parse_cast
+    comic.parse_cast = parse_cast      # comic imported the name, so it holds its own reference
+    return sorted(table)
+
+
 def main():
     path = os.environ.get("CHANDRA_SPRITES")
     if path:
         with open(path, encoding="utf-8") as f:
-            names = install(json.load(f))
-        print(f"[chandra] cast sprites installed: {', '.join(names)}", file=sys.stderr, flush=True)
+            spec = json.load(f)
+        if spec.get("cast"):
+            names = install(spec)
+            print(f"[chandra] cast sprites installed: {', '.join(names)}", file=sys.stderr, flush=True)
+        if spec.get("people"):
+            names = install_people(spec["people"])
+            print(f"[chandra] cast people installed: {', '.join(names)}", file=sys.stderr, flush=True)
     from studio.cli import main as studio_main
     studio_main()
 

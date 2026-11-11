@@ -352,3 +352,9 @@ old voices and says so; it never switches voice half way through.
 - A worker program now exists for the other machines (the three contracts of section 4, built): it paints and renders on
   request and returns a receipt the hub checks. It was tested end to end on this PC. It has **not** run on fraymus-home,
   because nothing can be started on that machine from here. `scripts/worker/README.md` has the steps.
+
+**2026-11-10, late — Cartoon, comic and explainer.** The same typed sentence now reaches three more looks: a flat
+cartoon with speech bubbles, a comic (pages, a PDF and a film of the pages; or the pages alone), and a narrated explainer
+with headline words over a painted picture, in your voice. One of each was made and looked at. Two cautions: an
+explainer takes about thirteen minutes on this PC, and the one I made about tides stated a cause wrongly — a script
+written by a local model needs reading before it is shown to anyone.

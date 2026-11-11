@@ -45,8 +45,8 @@ test('length is clamped and the plan says so', () => {
 });
 
 test('a look that is not wired is refused by name, not converted', () => {
-  const plan = planCreation('make an explainer video about consent');
-  assert.equal(plan.blocked.reason, 'style_not_wired'); assert.equal(plan.blocked.style, 'explainer');
+  const plan = planCreation('make an anime video about consent');
+  assert.equal(plan.blocked.reason, 'style_not_wired'); assert.equal(plan.blocked.style, 'anime');
   assert.match(describePlan(plan), /not wired yet/);
   assert.equal(planCreation('an 8-bit cartoon about a cat').blocked, null);          // a wired look was named
   assert.equal(planCreation('x', { style: 'anime' }).blocked.reason, 'style_not_wired');

@@ -375,9 +375,12 @@ class Worker:
 
     def run_video(self, j):
         spec, d = j["spec"], self.job_dir(j["id"])
-        style, fmt = spec.get("style"), spec.get("format", "16:9")
-        if style not in ("8bit", "2bit"):
-            raise ValueError("style must be 8bit or 2bit")
+        style, fmt = spec.get("recipe") or spec.get("style"), spec.get("format", "16:9")
+        pages_only = spec.get("pagesOnly") is True
+        if style not in ("8bit", "2bit", "cartoon", "comic-strip", "explainer"):
+            raise ValueError("recipe must be 8bit, 2bit, cartoon, comic-strip or explainer")
+        if pages_only and style != "comic-strip":
+            raise ValueError("only a comic can be made as pages alone")
         if fmt not in ("16:9", "9:16", "1:1"):
             raise ValueError("unknown format")
         script = os.path.join(d, "in", "script.md")
@@ -398,7 +401,7 @@ class Worker:
             env["CHANDRA_SPRITES"] = os.path.join(d, "in", "cast.json")
         # the studio renders in parallel by fork; Windows has none, so one worker there
         workers = "1" if sys.platform == "win32" else str(max(1, min(8, (os.cpu_count() or 2) - 1)))
-        args = [cap["python"], self.launcher, "render", script, "--recipe", style, "-o", out_dir, "--workers", workers, "--voice", "silent" if silent else "http", "--format", fmt]
+        args = [cap["python"], self.launcher, "render", script] + (["--set", "video=false"] if pages_only else []) + ["--recipe", style, "-o", out_dir, "--workers", workers, "--voice", "silent" if silent else "http", "--format", fmt]
         j["stage"] = "rendering"
         tail = []
         p = subprocess.Popen(args, cwd=self.a.studio_dir, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
@@ -434,11 +437,14 @@ class Worker:
             if os.path.exists(path) and SAFE_NAME.match(base):
                 shutil.copyfile(path, os.path.join(d, "out", base))
                 kept += 1
-        if not any(n.endswith("_master.mp4") for n in os.listdir(os.path.join(d, "out"))):
+        made = os.listdir(os.path.join(d, "out"))
+        if not pages_only and not any(n.endswith("_master.mp4") for n in made):
             raise RuntimeError("the studio finished without a master video")
+        if pages_only and not any(re.match(r"page_\d+\.png$", n) for n in made):
+            raise RuntimeError("the studio finished without any comic page")
         shutil.rmtree(out_dir, ignore_errors=True)
         j["detail"] = {"duration_s": result.get("duration_s"), "render_s": result.get("render_s"), "workers": int(workers), "files": kept,
-                       "castInstalled": any("cast sprites installed" in l for l in tail), "python": cap["python"]}
+                       "castInstalled": any("[chandra] cast" in l for l in tail), "python": cap["python"]}
 
     def ack(self, jid, nonce):
         j = self.jobs.get(jid)

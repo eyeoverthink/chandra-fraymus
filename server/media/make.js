@@ -41,7 +41,8 @@ import { classifyUrl } from '../fraymus-os/registry.js';
 import { pickWorker, runOnWorker, workersStatus, workersConfigured, installWorkerRoutes } from './workers.js';
 import { pixelateBuffer, STYLES } from './pixel-art.js';
 import { forgeCast, spritePixels } from './sprite-forge.js';
-import { planCreation, settleKind, describePlan, scriptMessages, normalizeScript, buildStudioMarkdown, speakerLines, normalizeLine, stillPrompt, backdropPrompt, subjectOf, extractJson, WIRED_STYLES } from './make-plan.js';
+import { planCreation, settleKind, describePlan, scriptMessages, normalizeScript, buildStudioMarkdown, speakerLines, normalizeLine, stillPrompt, backdropPrompt, backdropNegative, subjectOf, extractJson, WIRED_STYLES, PIXEL_STYLES, RECIPES } from './make-plan.js';
+import { scriptMessagesFor, normalizeFor, buildMarkdownFor, paintsBackdrops, forgePeople } from './make-looks.js';
 
 const execFileAsync = promisify(execFile);
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -180,9 +181,9 @@ async function writeScript(plan, onAttempt) {
     for (let attempt = 1; attempt <= SCRIPT_ATTEMPTS; attempt++) {
       onAttempt?.(attempt, w.label);
       let raw;
-      try { raw = await askWriter(w, scriptMessages(plan, feedback)); }
+      try { raw = await askWriter(w, scriptMessagesFor(plan, feedback)); }
       catch (e) { lastError = e.message; refusals.push(`${w.label}: call failed: ${clip(e.message, 120)}`); if (w.url || attempt >= 2) break; continue; }
-      const s = normalizeScript(raw, plan, { final: attempt === SCRIPT_ATTEMPTS });
+      const s = normalizeFor(raw, plan, { final: attempt === SCRIPT_ATTEMPTS });
       if (s.ok) return { ...s, attempts: refusals.length + 1, refusals, writtenBy: w.label };
       feedback = s.reason; lastError = s.reason; refusals.push(`${w.label}, attempt ${attempt}: ${s.reason}`);
     }
@@ -252,9 +253,9 @@ process.once('exit', () => { try { child?.kill(); } catch (_) { /* process is en
 
 const STAGE_PROGRESS = { plan: 0.08, audio: 0.18, frames: 0.22, encode: 0.93 };
 
-function renderWithStudio(id, plan, scriptPath, outDir, ready, spritesPath = null) {
+function renderWithStudio(id, plan, scriptPath, outDir, ready, spritesPath = null, pagesOnly = false) {
   return new Promise((resolveP, reject) => {
-    const args = [LAUNCHER, 'render', scriptPath, '--recipe', plan.style, '-o', outDir, '--workers', '1', '--voice', plan.voice === 'silent' ? 'silent' : 'http', '--format', plan.format];
+    const args = [LAUNCHER, 'render', scriptPath, ...(pagesOnly ? ['--set', 'video=false'] : []), '--recipe', RECIPES[plan.style], '-o', outDir, '--workers', '1', '--voice', plan.voice === 'silent' || pagesOnly ? 'silent' : 'http', '--format', plan.format];
     // A short, explicit environment: the child needs a PATH for ffmpeg and nothing of the server's secrets.
     const env = { PYTHONUNBUFFERED: '1', PYTHONDONTWRITEBYTECODE: '1', PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8', NO_PROXY: '127.0.0.1,localhost', STUDIO_TTS_URL: `http://127.0.0.1:${PORT}/api/studio/create/voice/${id}` };
     for (const k of ['PATH', 'Path', 'SystemRoot', 'SYSTEMROOT', 'TEMP', 'TMP', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'HOME']) if (process.env[k]) env[k] = process.env[k];
@@ -294,11 +295,11 @@ function renderWithStudio(id, plan, scriptPath, outDir, ready, spritesPath = nul
  * built-in landscape and the result says why.
  */
 async function paintBackdrops(id, plan, script) {
-  if (plan.backdrops === false) return { files: [], info: { asked: 0, made: 0, note: 'not asked for' } };
+  if (!paintsBackdrops(plan)) return { files: [], info: { asked: 0, made: 0, note: plan.style === 'cartoon' ? 'the cartoon look draws its own sets' : 'not asked for' } };
   const looks = script.places?.length ? script.places : [subjectOf(plan)];
   const from = script.places?.length ? 'the script' : 'the request (the script named no place)';
   setJob(id, { stage: 'painting backdrops', progress: 0.04 });
-  const items = looks.map(look => ({ prompt: backdropPrompt(plan, look), negative: 'people, person, character, figure, face, animal, photo, photograph, blurry, gradient, text, letters, watermark', width: 1024, height: 576, steps: 22, seed: Math.floor(Math.random() * 2 ** 31) }));
+  const items = looks.map(look => ({ prompt: backdropPrompt(plan, look), negative: backdropNegative(plan), width: 1024, height: 576, steps: 22, seed: Math.floor(Math.random() * 2 ** 31) }));
   let workerNote = null;
   const picked = await pickWorker('stills');
   if (picked.worker) {
@@ -338,20 +339,21 @@ async function paintBackdrops(id, plan, script) {
  */
 async function renderOnWorker(worker, id, plan, script, backdropFiles, spritesPath, outDir) {
   const lines = [];
-  if (plan.voice !== 'silent') {
+  const spoken = plan.voice !== 'silent' && plan.kind !== 'still';   // comic pages alone need no recording
+  if (spoken) {
     for (const [i, sc] of script.scenes.entries()) {
       setJob(id, { stage: `voicing line ${i + 1} of ${script.scenes.length}`, progress: 0.06 });
       lines.push({ text: sc.say, file: `line-${String(i + 1).padStart(2, '0')}.wav`, wav: await speakLine(id, sc.say) });
     }
   }
   const rel = backdropFiles.map((f, i) => (f ? `backdrop-${i}${extname(f).toLowerCase()}` : null));
-  const files = { 'script.md': Buffer.from(buildStudioMarkdown(plan, script, rel), 'utf8'), 'cast.json': readFileSync(spritesPath) };
+  const files = { 'script.md': Buffer.from(buildMarkdownFor(plan, script, rel), 'utf8'), 'cast.json': readFileSync(spritesPath) };
   backdropFiles.forEach((f, i) => { if (f) files[rel[i]] = readFileSync(f); });
   for (const l of lines) files[l.file] = l.wav;
   const r = await runOnWorker(worker, { id: `${id}-video`, kind: 'video', purpose: `render ${id}`, files,
-    spec: { style: plan.style, format: plan.format, voice: plan.voice === 'silent' ? 'silent' : 'lines', lines: lines.map(l => ({ text: l.text, file: l.file })) } },
+    spec: { recipe: RECIPES[plan.style], pagesOnly: plan.kind === 'still', format: plan.format, voice: spoken ? 'lines' : 'silent', lines: lines.map(l => ({ text: l.text, file: l.file })) } },
     { outDir, onProgress: (stage, p) => setJob(id, { stage: `${worker.name}: ${stage}`, progress: Math.max(0.08, Number(p) || 0) }), timeoutMs: RENDER_TIMEOUT_MS + 600_000 });
-  if (!r.outputs.some(o => /_master\.mp4$/i.test(o.name))) throw new Error('the worker returned no master video');
+  if (plan.kind !== 'still' && !r.outputs.some(o => /_master\.mp4$/i.test(o.name))) throw new Error('the worker returned no master video');
   return { result: { ok: true, files: r.outputs.map(o => o.path), duration_s: r.receipt.detail?.duration_s, render_s: r.receipt.detail?.render_s }, log: [], receipt: r.receipt };
 }
 
@@ -360,7 +362,7 @@ async function makeVideo(id, plan, opts) {
   if (!ready.ready) throw new Error(`the video studio cannot run here: ${ready.problems.join('; ')}`);
   let script;
   if (Array.isArray(opts.scenes) && opts.scenes.length) {
-    script = normalizeScript({ title: opts.title, cast: opts.cast, scenes: opts.scenes }, plan, { final: true });
+    script = normalizeFor({ title: opts.title, cast: opts.cast, scenes: opts.scenes, panels: opts.scenes }, plan, { final: true });
     if (!script.ok) throw new Error(`the supplied script was refused: ${script.reason}`);
     script.attempts = 0; script.writtenBy = 'supplied by the caller';
   } else {
@@ -370,18 +372,23 @@ async function makeVideo(id, plan, opts) {
   const dir = join(CREATIONS_DIR, id), outDir = join(dir, 'out');
   mkdirSync(outDir, { recursive: true });
   // The cast: one sprite per character, forged from the script's description of each
-  const sprites = forgeCast(script.cast, { style: plan.style });
-  script.cast.forEach((c, i) => { if (sprites[i].name !== c.name) { for (const sc of script.scenes) if (sc.speaker === c.name) sc.speaker = sprites[i].name; c.name = sprites[i].name; } });
+  const pixel = PIXEL_STYLES.includes(plan.style), pagesOnly = plan.kind === 'still';
+  const sprites = pixel ? forgeCast(script.cast, { style: plan.style }) : [];
+  const people = !pixel && plan.style !== 'explainer' ? forgePeople(script.cast) : [];
+  const castInfo = pixel ? sprites.map(s => ({ name: s.name, look: s.look, kind: s.kind, template: s.template, colors: s.colors, why: s.why }))
+    : people.length ? people.map(p => ({ name: p.name, look: p.look, kind: 'person', template: 'flat cartoon person', colors: { clothes: p.color, skin: p.skin, hair: p.hair }, why: p.why }))
+    : [{ name: 'narrator', look: 'one narrating voice', kind: 'voice', template: 'none', colors: {}, why: [] }];
+  if (pixel) script.cast.forEach((c, i) => { if (sprites[i].name !== c.name) { for (const sc of script.scenes) if (sc.speaker === c.name) sc.speaker = sprites[i].name; c.name = sprites[i].name; } });
   const spritesPath = join(dir, 'cast.json');
-  writeFileSync(spritesPath, JSON.stringify({ cast: sprites.map(s => ({ name: s.name, rows: s.rows, colors: s.colors, closed: s.closed })) }, null, 1), 'utf8');
-  try {
+  writeFileSync(spritesPath, JSON.stringify(pixel ? { cast: sprites.map(s => ({ name: s.name, rows: s.rows, colors: s.colors, closed: s.closed })) } : { people: people.map(p => ({ name: p.name, color: p.color, skin: p.skin, hair: p.hair })) }, null, 1), 'utf8');
+  if (pixel) try {
     const S = 10, tiles = [];
     for (const [i, s] of sprites.entries()) for (const talk of [false, true]) tiles.push({ input: await sharp(spritePixels(s, { talk }), { raw: { width: 16, height: 16, channels: 4 } }).resize(16 * S, 16 * S, { kernel: 'nearest' }).png().toBuffer(), left: (i * 2 + (talk ? 1 : 0)) * 16 * S, top: 0 });
     await sharp({ create: { width: sprites.length * 2 * 16 * S, height: 16 * S, channels: 3, background: plan.style === '2bit' ? '#9bbc0f' : '#3cbcfc' } }).composite(tiles).png().toFile(join(dir, 'cast.png'));
   } catch (e) { console.error('[creation] cast preview:', e.message); }
   const backdrops = await paintBackdrops(id, plan, script);
   if (cancelled.has(id)) throw new Error('cancelled');
-  const markdown = buildStudioMarkdown(plan, script, backdrops.files);
+  const markdown = buildMarkdownFor(plan, script, backdrops.files);
   const scriptPath = join(dir, 'script.md');
   writeFileSync(scriptPath, markdown, 'utf8');
   setJob(id, { script: markdown, title: script.title, stage: 'voicing', progress: 0.05 });
@@ -396,29 +403,37 @@ async function makeVideo(id, plan, opts) {
       try { done = await renderOnWorker(pw.worker, id, plan, script, backdrops.files, spritesPath, outDir); renderedOn = pw.worker.name; }
       catch (e) { if (cancelled.has(id)) throw e; renderNote = `${clip(e.message, 200)}; rendered on this PC instead`; console.error('[creation] worker render:', e.message); }
     } else if (workersConfigured()) renderNote = `no worker took it (${clip(pw.why, 200)}); rendered on this PC`;
-    if (!done) done = await renderWithStudio(id, plan, scriptPath, outDir, ready, spritesPath);
+    if (!done) done = await renderWithStudio(id, plan, scriptPath, outDir, ready, spritesPath, pagesOnly);
   } finally { voiceJobs.delete(id); }
 
-  const master = (done.result.files || []).find(f => /_master\.mp4$/i.test(f));
-  if (!master || !existsSync(master)) throw new Error('the studio finished without a master video');
-  const name = mediaName('mp4');
-  copyFileSync(master, join(VIDEO_DIR, name));
+  const produced = done.result.files || [];
+  const master = produced.find(f => /_master\.mp4$/i.test(f));
+  if (!pagesOnly && (!master || !existsSync(master))) throw new Error('the studio finished without a master video');
+  // comic pages go on the shelf as pictures; the PDF stays in the film's folder
+  const pageFiles = produced.filter(f => /page_\d+\.png$/i.test(f) && existsSync(f)).sort();
+  const pages = pageFiles.map((f, i) => { const n = mediaName('png'); copyFileSync(f, join(MEDIA_DIR, n)); noteMedia(n, 'create', [plan.request, { style: plan.style, page: i + 1, of: pageFiles.length, title: script.title, job: id, renderer: 'fraymus-video-studio' }], { source: 'creation' }); return n; });
+  const pdfSrc = produced.find(f => /_comic\.pdf$/i.test(f) && existsSync(f));
+  let pdf = null;
+  if (pdfSrc) { pdf = join(dir, basename(pdfSrc)); try { copyFileSync(pdfSrc, pdf); } catch (e) { console.error('[creation] pdf:', e.message); pdf = pdfSrc; } }
+  if (pagesOnly && !pages.length) throw new Error('the studio finished without any comic page');
+  const name = master ? mediaName('mp4') : pages[0];
+  if (master) copyFileSync(master, join(VIDEO_DIR, name));
   const voiced = plan.voice === 'silent' ? 'silent' : [...voice.engines].join('+') || 'none';
-  noteMedia(name, 'create', [plan.request, { style: plan.style, palette: plan.palette, format: plan.format, seconds: done.result.duration_s, scenes: script.scenes.length, backdrops: backdrops.info.made, title: script.title, voice: voiced, job: id, renderer: 'fraymus-video-studio' }], { source: 'creation' });
+  if (master) noteMedia(name, 'create', [plan.request, { style: plan.style, palette: plan.palette, format: plan.format, seconds: done.result.duration_s, scenes: script.scenes.length, backdrops: backdrops.info.made, title: script.title, voice: voiced, job: id, renderer: 'fraymus-video-studio' }], { source: 'creation' });
   try { rmSync(join(outDir, 'work'), { recursive: true, force: true }); } catch (e) { console.error('[creation] cleanup:', e.message); }
   // Lineage: everything needed to say how this file came to be, and to make it again or change one line
   try {
-    writeFileSync(join(dir, 'lineage.json'), JSON.stringify({ job: id, request: plan.request, plan, cast: sprites.map(s => ({ name: s.name, look: s.look, kind: s.kind, template: s.template, colors: s.colors, why: s.why })),
+    writeFileSync(join(dir, 'lineage.json'), JSON.stringify({ job: id, request: plan.request, plan, cast: castInfo,
       script: { title: script.title, places: script.places, scenes: script.scenes, writtenBy: script.writtenBy, attempts: script.attempts, refusals: script.refusals || [], fixes: script.fixes },
       backdrops: backdrops.info,
       voice: { engine: voiced, voices: [...voice.voices], chosen: picked, synthSeconds: +voice.seconds.toFixed(1), offline: voiced === 'sapi' || voiced === 'piper' || voiced === 'silent' || (voiced === 'voicestudio' && VOICESTUDIO.routeClass === 'local') }, wordTiming: ready.wordTiming,
       renderer: { name: 'fraymus-video-studio', renderedOn, note: renderNote, receipt: done.receipt ? { digest: done.receipt.digest, worker: done.receipt.worker, finishedAt: done.receipt.finishedAt } : null, recipe: plan.style, repo: STUDIO_REPO, python: ready.pythonVersion, workers: 1, renderSeconds: done.result.render_s },
-      output: { file: name, seconds: done.result.duration_s }, madeAt: new Date().toISOString() }, null, 2), 'utf8');
+      output: { file: name, seconds: done.result.duration_s, pages, pdf }, madeAt: new Date().toISOString() }, null, 2), 'utf8');
   } catch (e) { console.error('[creation] lineage:', e.message); }
   return {
-    kind: 'video', file: name, url: `/api/hermes/artifacts/media?kind=video&id=${name}`, title: script.title, seconds: done.result.duration_s, renderSeconds: done.result.render_s,
+    kind: master ? 'video' : 'pages', file: name, url: `/api/hermes/artifacts/media?kind=${master ? 'video' : 'image'}&id=${name}`, pages, pdf, title: script.title, seconds: done.result.duration_s, renderSeconds: done.result.render_s,
     scenes: script.scenes.length, words: script.words, scriptAttempts: script.attempts, scriptRefusals: script.refusals || [], scriptBy: script.writtenBy, scriptFixes: script.fixes,
-    cast: sprites.map(s => ({ name: s.name, look: s.look, sprite: s.template })), backdrops: backdrops.info, voice: voiced, voiceWhy: picked.why, voices: [...voice.voices], wordTiming: ready.wordTiming, renderedOn, renderNote, folder: dir, files: (done.result.files || []).map(f => basename(f)),
+    cast: castInfo.map(c => ({ name: c.name, look: c.look, sprite: c.template })), backdrops: backdrops.info, voice: voiced, voiceWhy: picked.why, voices: [...voice.voices], wordTiming: ready.wordTiming, renderedOn, renderNote, folder: dir, files: (done.result.files || []).map(f => basename(f)),
   };
 }
 
@@ -458,7 +473,7 @@ async function runJob(id, opts) {
   try {
     if (!plan.kind) { const k = await decideKind(plan.request); plan = settleKind(plan, k.kind, k.why); setJob(id, { plan: JSON.stringify(plan), kind: plan.kind }); }
     emit({ action: 'creation_started', id, kind: plan.kind, style: plan.style });
-    const output = plan.kind === 'still' ? await makeStill(id, plan, opts) : await makeVideo(id, plan, opts);
+    const output = plan.kind === 'still' && plan.style !== 'comic' ? await makeStill(id, plan, opts) : await makeVideo(id, plan, opts);
     if (cancelled.has(id)) throw new Error('cancelled');
     const seconds = +((now() - t0) / 1000).toFixed(1);
     setJob(id, { status: 'completed', stage: 'done', progress: 1, output: JSON.stringify(output), seconds, completed_at: now() });
@@ -480,7 +495,8 @@ export async function createFromRequest({ request, kind, style, seconds, format,
   let plan = planCreation(text, { kind: image ? 'still' : kind, style, seconds, format, palette, voice, backdrops });
   if (plan.blocked) return { accepted: false, reason: plan.blocked.reason, message: describePlan(plan), plan, summary: describePlan(plan) };
   if (plan.kind) plan = settleKind(plan, plan.kind);
-  if (plan.kind !== 'still') {
+  if (image && !PIXEL_STYLES.includes(plan.style)) return { accepted: false, reason: 'image_needs_pixel_look', message: 'Turning a picture into pixel art needs the 8-bit or 2-bit look.', plan, summary: describePlan(plan) };
+  if (plan.kind !== 'still' || plan.style === 'comic') {
     const ready = await studioReadiness();
     if (!ready.ready) return { accepted: false, reason: 'studio_not_ready', message: `The video studio cannot run here: ${ready.problems.join('; ')}`, plan, summary: describePlan(plan) };
   }
@@ -536,11 +552,11 @@ export function createMakeTools() {
   return [
     {
       name: 'studio.create', group: 'studio', risk: 'safe',
-      description: 'Make a picture or a short film from a plain sentence — animation, 8-bit or 2-bit pixel art, retro game look, a still image, a movie, a short with dialogue. Pass the user\'s own words as `request`; the kind (still or video), look, length and shape are read from the sentence, so do not ask the user to choose a category. Runs on this machine, no paid service. Returns a job id at once; the finished file appears on the home screen shelf. Check progress with studio.create_status.',
+      description: 'Make a picture or a short film from a plain sentence — animation, 8-bit or 2-bit pixel art, a flat cartoon, a comic strip (pages and a film of them), a narrated explainer video, a still image, a movie, a short with dialogue. Pass the user\'s own words as `request`; the kind (still or video), look, length and shape are read from the sentence, so do not ask the user to choose a category. Runs on this machine, no paid service. Returns a job id at once; the finished file appears on the home screen shelf. Check progress with studio.create_status.',
       parameters: { type: 'object', required: ['request'], properties: {
         request: { type: 'string', description: 'what to make, in the user\'s words, e.g. "a 40 second 8-bit short about a robot who finds a lighthouse"' },
         kind: { type: 'string', description: 'optional: "still" or "video" (only if the user said so explicitly)' },
-        style: { type: 'string', description: 'optional: "8bit" or "2bit"' },
+        style: { type: 'string', description: 'optional: "8bit", "2bit", "cartoon", "comic" or "explainer" (only if the user named the look)' },
         seconds: { type: 'integer', description: 'optional video length in seconds (8-180)' },
         image: { type: 'string', description: 'optional: file name of a picture already in data/media to turn into pixel art instead of generating one' },
       } },
