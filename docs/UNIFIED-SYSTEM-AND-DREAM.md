@@ -337,3 +337,8 @@ studio turns it into pixel art behind the characters. A short about a lighthouse
 and moves inside it. If the card is busy the film still gets made, on the old landscape, and says so. Two places
 added about three and a half minutes. Still missing: characters that match the story, and looks other than 8-bit
 and 2-bit.
+
+**2026-11-10, later still — In your own voice.** Films are now spoken through VoiceStudio, which was already running on
+this PC with your cloned voices: the kid speaks as `vaughn-one`, the robot as `overlord`. That also makes the
+voice local, which corrects the "online voice" note above. If VoiceStudio is not running, the film falls back to the
+old voices and says so; it never switches voice half way through.

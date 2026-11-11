@@ -36,6 +36,7 @@ import { MEDIA_DIR } from './image-engine.js';
 import { VIDEO_DIR } from './video-engine.js';
 import { ttsSpeak } from './tts-engine.js';
 import { renderStill, renderStillBatch } from './studio.js';
+import { classifyUrl } from '../fraymus-os/registry.js';
 import { pixelateBuffer, STYLES } from './pixel-art.js';
 import { planCreation, settleKind, describePlan, scriptMessages, normalizeScript, buildStudioMarkdown, speakerLines, normalizeLine, stillPrompt, backdropPrompt, subjectOf, extractJson, WIRED_STYLES } from './make-plan.js';
 
@@ -55,6 +56,13 @@ const VOICES = {
 };
 // CREATION_TTS_ENGINE=sapi keeps the voice fully offline (Windows built-in); unset, the TTS cascade picks (edge-tts is an online Microsoft service)
 const TTS_ENGINE = process.env.CREATION_TTS_ENGINE || null;
+// VoiceStudio (OpenAI-style /v1/audio/speech) holds Vaughn's cloned voices. Used for film lines when it is configured, not on a public host and answering.
+// CREATION_VOICE_ENGINE=cascade opts out. Only the voices the home screen allows are used; nothing else is ever labelled as his voice.
+const VOICESTUDIO = classifyUrl(process.env.FRAYMUS_VOICESTUDIO_URL || '');
+const VS_ALLOWED = new Set(['vaughn-one', 'overlord']);
+const vsVoice = (v, d) => (VS_ALLOWED.has(v) ? v : d);
+const VS_VOICES = { hero: vsVoice(process.env.CREATION_VS_VOICE_HERO || process.env.FRAYMUS_VOICE_ID, 'vaughn-one'), robot: vsVoice(process.env.CREATION_VS_VOICE_ROBOT, 'overlord') };
+const VS_LINE_TIMEOUT_MS = 240_000;
 const now = () => Date.now();
 const clip = (s, n) => String(s ?? '').slice(0, n);
 const mediaName = ext => `${now()}-${randomBytes(4).toString('hex')}.${ext}`;
@@ -155,10 +163,49 @@ async function writeScript(plan, onAttempt) {
 
 const voiceJobs = new Map(); // job id → { lines: Map<text, speaker>, dir, n, engines:Set, voices:Set }
 
+/** Decide once per film which engine speaks, so a film never changes voice half way through. */
+async function pickVoiceEngine() {
+  if (TTS_ENGINE || process.env.CREATION_VOICE_ENGINE === 'cascade') return { engine: 'cascade', why: 'set by configuration' };
+  if (!VOICESTUDIO.url) return { engine: 'cascade', why: 'VoiceStudio is not configured' };
+  if (VOICESTUDIO.routeClass === 'public') return { engine: 'cascade', why: 'VoiceStudio is on a public host; not used' };
+  try {
+    const r = await fetch(`${VOICESTUDIO.url}/health`, { signal: AbortSignal.timeout(4000) });
+    if (!r.ok) return { engine: 'cascade', why: `VoiceStudio answered HTTP ${r.status}` };
+    const h = await r.json().catch(() => ({}));
+    return { engine: 'voicestudio', why: 'VoiceStudio is running', device: h.device || null, version: h.version || null };
+  } catch (e) { return { engine: 'cascade', why: `VoiceStudio is not answering (${clip(e.message, 60)})` }; }
+}
+
+async function speakWithVoiceStudio(text, voice) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const r = await fetch(`${VOICESTUDIO.url}/v1/audio/speech`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'tts-1', input: text, voice, response_format: 'wav' }), signal: AbortSignal.timeout(VS_LINE_TIMEOUT_MS) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (buf.length < 2000) throw new Error(`only ${buf.length} bytes of audio`);
+      return { buf, ext: (r.headers.get('content-type') || '').includes('mpeg') ? 'mp3' : 'wav' };
+    } catch (e) { lastError = e; }
+  }
+  // No substitute voice: a film that started in the owner's voice does not finish in another one.
+  throw Object.assign(new Error(`VoiceStudio could not speak a line as ${voice}: ${clip(lastError?.message, 120)}`), { status: 502 });
+}
+
 async function speakLine(jobId, text) {
   const v = voiceJobs.get(jobId);
   if (!v) throw Object.assign(new Error('no render is waiting for a voice under that id'), { status: 404 });
   const speaker = v.lines.get(normalizeLine(text)) || 'hero';
+  if (v.engine === 'voicestudio') {
+    const voice = VS_VOICES[speaker];
+    const t0 = now();
+    const { buf, ext } = await speakWithVoiceStudio(text, voice);
+    const raw = join(v.dir, `line-${String(++v.n).padStart(2, '0')}-${speaker}.src.${ext}`), wavOut = raw.replace(/\.src\.\w+$/, '.wav');
+    writeFileSync(raw, buf);
+    await execFileAsync('ffmpeg', ['-v', 'error', '-y', '-i', raw, '-ac', '1', '-ar', '24000', '-c:a', 'pcm_s16le', wavOut], { timeout: 60_000, windowsHide: true });
+    try { rmSync(raw, { force: true }); } catch (_) { /* the converted copy is what matters */ }
+    v.engines.add('voicestudio'); v.voices.add(`${speaker}: ${voice}`); v.seconds += (now() - t0) / 1000;
+    return readFileSync(wavOut);
+  }
   const spoken = await ttsSpeak(text, TTS_ENGINE ? { ...VOICES[speaker], engine: TTS_ENGINE } : VOICES[speaker]);
   const wav = join(v.dir, `line-${String(++v.n).padStart(2, '0')}-${speaker}.wav`);
   await execFileAsync('ffmpeg', ['-v', 'error', '-y', '-i', spoken.path, '-ac', '1', '-ar', '24000', '-c:a', 'pcm_s16le', wav], { timeout: 60_000, windowsHide: true });
@@ -251,7 +298,8 @@ async function makeVideo(id, plan, opts) {
   writeFileSync(scriptPath, markdown, 'utf8');
   setJob(id, { script: markdown, title: script.title, stage: 'voicing', progress: 0.05 });
 
-  const voice = { lines: speakerLines(script), dir, n: 0, engines: new Set(), voices: new Set() };
+  const picked = plan.voice === 'silent' ? { engine: 'silent', why: 'asked for no voice' } : await pickVoiceEngine();
+  const voice = { lines: speakerLines(script), dir, n: 0, engines: new Set(), voices: new Set(), engine: picked.engine, seconds: 0 };
   voiceJobs.set(id, voice);
   let done;
   try { done = await renderWithStudio(id, plan, scriptPath, outDir, ready); }
@@ -268,14 +316,14 @@ async function makeVideo(id, plan, opts) {
   try {
     writeFileSync(join(dir, 'lineage.json'), JSON.stringify({ job: id, request: plan.request, plan, script: { title: script.title, places: script.places, scenes: script.scenes, writtenBy: script.writtenBy, attempts: script.attempts, refusals: script.refusals || [], fixes: script.fixes },
       backdrops: backdrops.info,
-      voice: { engine: voiced, voices: [...voice.voices], offline: voiced === 'sapi' || voiced === 'piper' || voiced === 'silent' }, wordTiming: ready.wordTiming,
+      voice: { engine: voiced, voices: [...voice.voices], chosen: picked, synthSeconds: +voice.seconds.toFixed(1), offline: voiced === 'sapi' || voiced === 'piper' || voiced === 'silent' || (voiced === 'voicestudio' && VOICESTUDIO.routeClass === 'local') }, wordTiming: ready.wordTiming,
       renderer: { name: 'fraymus-video-studio', recipe: plan.style, repo: STUDIO_REPO, python: ready.pythonVersion, workers: 1, renderSeconds: done.result.render_s },
       output: { file: name, seconds: done.result.duration_s }, madeAt: new Date().toISOString() }, null, 2), 'utf8');
   } catch (e) { console.error('[creation] lineage:', e.message); }
   return {
     kind: 'video', file: name, url: `/api/hermes/artifacts/media?kind=video&id=${name}`, title: script.title, seconds: done.result.duration_s, renderSeconds: done.result.render_s,
     scenes: script.scenes.length, words: script.words, scriptAttempts: script.attempts, scriptRefusals: script.refusals || [], scriptBy: script.writtenBy, scriptFixes: script.fixes,
-    backdrops: backdrops.info, voice: voiced, voices: [...voice.voices], wordTiming: ready.wordTiming, folder: dir, files: (done.result.files || []).map(f => basename(f)),
+    backdrops: backdrops.info, voice: voiced, voiceWhy: picked.why, voices: [...voice.voices], wordTiming: ready.wordTiming, folder: dir, files: (done.result.files || []).map(f => basename(f)),
   };
 }
 
@@ -383,7 +431,7 @@ export async function creationStatus() {
   } catch (e) { console.error('[creation] status:', e.message); }
   return {
     wired: { styles: WIRED_STYLES, kinds: ['video', 'still'], looks: STYLES, videoFormats: ['16:9'], stillFormats: ['16:9', '9:16', '1:1'] },
-    studio: ready, voices: VOICES, ttsEngine: TTS_ENGINE || 'cascade (edge-tts online first, then offline SAPI)', running: currentId, counts, timing, agentCapPerDay: MAX_AGENT_JOBS_PER_DAY, jobs: listCreations(8),
+    studio: ready, voices: VOICES, voiceStudio: { ...(await pickVoiceEngine()), url: VOICESTUDIO.url || null, routeClass: VOICESTUDIO.routeClass || null, voices: VS_VOICES }, ttsEngine: TTS_ENGINE || 'cascade (edge-tts online first, then offline SAPI)', running: currentId, counts, timing, agentCapPerDay: MAX_AGENT_JOBS_PER_DAY, jobs: listCreations(8),
   };
 }
 
