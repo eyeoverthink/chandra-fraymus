@@ -832,7 +832,7 @@ export function createFraymusTools() {
     // ── Intelligence: Ouroboros RSI ──
     {
       name: 'fraymus.ouroboros.evolve',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-ouroboros',
       description: 'Run one Ouroboros Recursive Self-Improvement cycle. Evaluates current genome fitness, generates mutations, runs falsification tests, and selects the best variant.',
       parameters: object({
         populationSize: { type: 'integer', minimum: 2, maximum: 32 },
@@ -848,7 +848,7 @@ export function createFraymusTools() {
     },
     {
       name: 'fraymus.ouroboros.fitness',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-ouroboros',
       description: 'Evaluate the current Ouroboros genome fitness score. Returns orbital distance, decay rate, and falsification test results.',
       parameters: object({}),
       execute: async () => {
@@ -859,7 +859,7 @@ export function createFraymusTools() {
     // ── Intelligence: Hermes Skills ──
     {
       name: 'fraymus.hermes.dispatch',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-dispatch',
       description: 'Dispatch a task to the Hermes 30-skill fleet. Automatically selects the optimal skill based on task description.',
       parameters: object({
         task: string(4000, { minLength: 1 }),
@@ -877,7 +877,7 @@ export function createFraymusTools() {
     },
     {
       name: 'fraymus.hermes.skills',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-dispatch',
       description: 'List all 30 Hermes skills organized by category (reasoning, code, data, comms, system).',
       parameters: object({ category: string(100) }),
       execute: async ({ args }) => {
@@ -888,7 +888,7 @@ export function createFraymusTools() {
     // ── Intelligence: Motor Dispatcher ──
     {
       name: 'fraymus.motor.submit',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-dispatch',
       description: 'Submit a compute job to the Motor dispatcher. Routes to optimal compute node (WASM, GPU, FPGA, or Edge).',
       parameters: object({
         task: string(4000, { minLength: 1 }),
@@ -906,7 +906,7 @@ export function createFraymusTools() {
     },
     {
       name: 'fraymus.motor.status',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-dispatch',
       description: 'Get status of all Motor compute nodes and queued jobs.',
       parameters: object({}),
       execute: async () => {
@@ -917,7 +917,7 @@ export function createFraymusTools() {
     // ── Intelligence: OpenClaw Gateway ──
     {
       name: 'fraymus.openclaw.execute',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-dispatch',
       description: 'Execute one of 23 OpenClaw gateway actions (deploy, scan, audit, bridge, sync, etc.).',
       parameters: object({
         action: string(100, { minLength: 1 }),
@@ -930,7 +930,7 @@ export function createFraymusTools() {
     },
     {
       name: 'fraymus.openclaw.actions',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-dispatch',
       description: 'List all 23 available OpenClaw gateway actions.',
       parameters: object({}),
       execute: async () => {
@@ -941,7 +941,7 @@ export function createFraymusTools() {
     // ── Intelligence: Control Plane ──
     {
       name: 'fraymus.control.status',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-dispatch',
       description: 'Get the FRAYMUS control plane status: active agents, zones, compute nodes, sync state.',
       parameters: object({}),
       execute: async () => {
@@ -1013,7 +1013,7 @@ export function createFraymusTools() {
     // ── Intelligence: Heart (Obsidian Micro emotion engine) ──
     {
       name: 'fraymus.heart.feel',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-mind',
       description: 'Analyze text for 7 emotion dimensions (joy, sadness, anger, fear, surprise, love, anxiety). Zero-model instant affect read with sarcasm detection, negation handling, and therapeutic response composition.',
       parameters: object({ text: string(8000, { minLength: 1 }) }, ['text']),
       execute: async ({ args }) => {
@@ -1022,7 +1022,7 @@ export function createFraymusTools() {
     },
     {
       name: 'fraymus.heart.mood',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-mind',
       description: 'Get the recent emotional mood from stored heart readings.',
       parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 100 } }),
       execute: async ({ args }) => {
@@ -1033,7 +1033,7 @@ export function createFraymusTools() {
     // ── Intelligence: Ledger (cognitive event audit trail) ──
     {
       name: 'fraymus.ledger.record',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-ledger',
       description: 'Record a cognitive event to the append-only SHA-256 chained JSONL ledger.',
       parameters: object({
         kind: string(100, { minLength: 1 }),
@@ -1046,7 +1046,7 @@ export function createFraymusTools() {
     },
     {
       name: 'fraymus.ledger.verify',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-ledger',
       description: 'Verify the integrity of the cognitive event ledger hash chain.',
       parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 1000 } }),
       execute: async ({ args }) => {
@@ -1055,7 +1055,7 @@ export function createFraymusTools() {
     },
     {
       name: 'fraymus.ledger.recent',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-ledger',
       description: 'Get recent cognitive events from the ledger.',
       parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 100 } }),
       execute: async ({ args }) => {
@@ -1066,7 +1066,7 @@ export function createFraymusTools() {
     // ── Intelligence: Dreamer (dream protocol + imagination) ──
     {
       name: 'fraymus.dreamer.dream',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-dreams',
       description: 'Create a new numbered dream file with Ed25519 signature. Supports kinds: consolidation, imagination, spontaneous.',
       parameters: object({
         seed: string(4000, { minLength: 1 }),
@@ -1079,7 +1079,7 @@ export function createFraymusTools() {
     },
     {
       name: 'fraymus.dreamer.consolidate',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-dreams',
       description: 'Run dream consolidation — find recurring themes across stored dreams and create a consolidation dream.',
       parameters: object({}),
       execute: async () => {
@@ -1088,7 +1088,7 @@ export function createFraymusTools() {
     },
     {
       name: 'fraymus.dreamer.imagine',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-dreams',
       description: 'Generate imagination dreams by recombining fragments from existing dreams with a seed idea.',
       parameters: object({
         seed: string(2000, { minLength: 1 }),
@@ -1100,7 +1100,7 @@ export function createFraymusTools() {
     },
     {
       name: 'fraymus.dreamer.feel',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-dreams',
       description: 'Get the dreamer affective state — how alive the dream archive feels based on its composition.',
       parameters: object({}),
       execute: async () => {
@@ -1109,7 +1109,7 @@ export function createFraymusTools() {
     },
     {
       name: 'fraymus.dreamer.list',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-dreams',
       description: 'List dream files from the archive.',
       parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 100 } }),
       execute: async ({ args }) => {
@@ -1120,7 +1120,7 @@ export function createFraymusTools() {
     // ── Intelligence: Remembered Vault (the forever lane) ──
     {
       name: 'fraymus.remembered.feed',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-dreams',
       description: 'Feed the Remembered Vault — the forever lane. Human-supplied text is kept with SHA-256 integrity receipts, signed, and indexed. Nothing is generated; everything is kept.',
       parameters: object({
         text: string(10000, { description: 'The text to remember forever' }),
@@ -1132,7 +1132,7 @@ export function createFraymusTools() {
     },
     {
       name: 'fraymus.remembered.read',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-dreams',
       description: 'Read a specific entry from the Remembered Vault by its number.',
       parameters: object({ number: { type: 'integer', minimum: 1 } }, ['number']),
       execute: async ({ args }) => {
@@ -1143,7 +1143,7 @@ export function createFraymusTools() {
     },
     {
       name: 'fraymus.remembered.list',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-dreams',
       description: 'List entries in the Remembered Vault.',
       parameters: object({ limit: { type: 'integer', minimum: 1, maximum: 200 } }),
       execute: async ({ args }) => {
@@ -1152,7 +1152,7 @@ export function createFraymusTools() {
     },
     {
       name: 'fraymus.remembered.verify',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-dreams',
       description: 'Verify the SHA-256 integrity of a Remembered Vault entry.',
       parameters: object({ number: { type: 'integer', minimum: 1 } }, ['number']),
       execute: async ({ args }) => {
@@ -1161,7 +1161,7 @@ export function createFraymusTools() {
     },
     {
       name: 'fraymus.remembered.stats',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-dreams',
       description: 'Get statistics about the Remembered Vault.',
       parameters: object({}),
       execute: async () => {
@@ -1172,7 +1172,7 @@ export function createFraymusTools() {
     // ── Unified Continuity Selftest (DNA + codon + governance + intelligence) ──
     {
       name: 'fraymus.selftest',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-integrity',
       description: 'Run the unified continuity selftest: DNA round-trip, codon round-trip, watchdog, all 4 governance selftests, plus dreamer/remembered/ledger/ouroboros probes.',
       parameters: object({}),
       execute: async () => {
@@ -1183,7 +1183,7 @@ export function createFraymusTools() {
     // ── State Seek: boot-time integrity verification + manifest ──
     {
       name: 'fraymus.state_seek',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-integrity',
       description: 'Run the FRAYNIX state-seek: verify all continuity files, auto-heal from fossils, generate boot manifest. Returns boot report with verdict.',
       parameters: object({}),
       execute: async () => {
@@ -1192,7 +1192,7 @@ export function createFraymusTools() {
     },
     {
       name: 'fraymus.boot_manifest',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-integrity',
       description: 'Read the last boot manifest: SHA-256 checksums of all continuity artifacts generated at last state seek.',
       parameters: object({}),
       execute: async () => {
@@ -1205,7 +1205,7 @@ export function createFraymusTools() {
     // ── Intelligence: Consciousness Proofs (mathematical falsification) ──
     {
       name: 'fraymus.consciousness.prove',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-integrity',
       description: 'Run all 4 mathematical consciousness proofs from ConsciousnessFalsificationSuite: Effective Information, Phi_MIP, Mirror Protocol, Counterfactual Branching.',
       parameters: object({ nodeCount: { type: 'integer', minimum: 2, maximum: 8 } }),
       execute: async ({ args }) => {
@@ -1224,7 +1224,7 @@ export function createFraymusTools() {
     // ── Intelligence: Cognition Pipeline (two-speed processing) ──
     {
       name: 'fraymus.cognition.process',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-mind',
       description: 'Run the two-speed cognition pipeline: feel (instant emotion) → quick-route (pattern match) → think (LLM with emotion context). The Right Brain runs BEFORE the Left Brain.',
       parameters: object({
         text: string(8000, { minLength: 1 }),
@@ -1236,7 +1236,7 @@ export function createFraymusTools() {
     },
     {
       name: 'fraymus.cognition.status',
-      group: 'fraymus-intelligence',
+      group: 'fraymus-mind',
       description: 'Get the cognition pipeline status: context length, connected modules, door step limit.',
       parameters: object({}),
       execute: async () => {

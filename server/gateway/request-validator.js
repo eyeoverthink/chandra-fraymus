@@ -1,7 +1,10 @@
 import { db } from '../db.js';
 
 const TABLE = 'validation_events';
-const MAX_BODY_SIZE = 5 * 1024 * 1024; // 5MB
+// Must not be lower than the largest route parser (app.js: /api/agent/assets and /api/voice/listen take 6 MB JSON).
+// At 5 MB it refused a 4 MiB file as base64 (≈ 5.6 MB) before the asset route saw it — the route's documented limit
+// was unreachable (found 2026-11-12). Every other route keeps its own parser limit (the global JSON parser: 1 MB).
+const MAX_BODY_SIZE = 6 * 1024 * 1024;
 const MAX_URL_LENGTH = 2048;
 
 const ALLOWED_CONTENT_TYPES = new Set([

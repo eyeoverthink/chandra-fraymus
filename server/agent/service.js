@@ -59,12 +59,27 @@ function initialToolGroups(request, groups) {
   if (groups.includes('transport') && /\b(?:rgba|xyzw|transport|spectrum|spectra|frequenc(?:y|ies)|packets?)\b/iu.test(request.goal)) selected.add('transport');
   if (groups.includes('tasks') && /\b(?:schedule|scheduled|scheduling|remind|reminder|recurring)\b/iu.test(request.goal)) selected.add('tasks');
   if (groups.includes('coding') && /\b(?:code|coding|refactor(?:ing)?|debug(?:ging)?|repository|repo|patch)\b|\bworkspace\.(?:edit|readMany|map)\b/iu.test(request.goal)) selected.add('coding');
-  if (groups.includes('fraymus-identity')) selected.add('fraymus-identity');
-  if (groups.includes('fraymus-encoding')) selected.add('fraymus-encoding');
-  if (groups.includes('fraymus-protocol')) selected.add('fraymus-protocol');
-  if (groups.includes('fraymus-intelligence')) selected.add('fraymus-intelligence');
-  if (groups.includes('fraymus-autonomy')) selected.add('fraymus-autonomy');
-  if (groups.includes('fraymus-data')) selected.add('fraymus-data');
+  // The fraymus-* groups (60 tools, ~16.5 KB) were loaded for every run whatever it asked; with the ungrouped business
+  // tools they used 41 KB of a 32 KB budget before a goal was read. Now they load when the goal is about Fraymus — any
+  // run can still load them with tools.enable, and the system prompt lists every group.
+  // Each by its own words (the 30-tool fraymus-intelligence group was split by function the same day, so a goal about
+  // dreams loads the 10 dream tools, not 30). Loading all seven groups for any Fraymus word cost 29 KB.
+  const byKeyword = {
+    'fraymus-identity': /\b(?:identity|sign(?:ed|ing|ature)?|ed25519|keypair|verify (?:a )?signature)\b/iu,
+    'fraymus-encoding': /\b(?:dna|plasmid|codon|carbon|encod(?:e|ing)|emoji|wasm|merkle|transmut\w*)\b/iu,
+    'fraymus-protocol': /\b(?:hive|mesh|nudp|v13|protocol|presence|peers?|phase sync|kuramoto)\b/iu,
+    'fraymus-ouroboros': /\b(?:ouroboros|evolv\w*|genome|fitness)\b/iu,
+    'fraymus-dispatch': /\b(?:hermes|motor|openclaw|dispatch|needle|control plane)\b/iu,
+    'fraymus-mind': /\b(?:heart|emotion\w*|feel\w*|mood|cognition|think(?:ing)?)\b/iu,
+    'fraymus-ledger': /\b(?:ledger|audit trail|chain of record)\b/iu,
+    'fraymus-dreams': /\b(?:dream\w*|imagin\w*|remember(?:ed)?|vault|consolidat\w*)\b/iu,
+    'fraymus-integrity': /\b(?:selftest|self-test|integrity|boot manifest|state seek|conscious(?:ness)?|prove|proofs?)\b/iu,
+    'fraymus-immune': /\b(?:canary|sanitiz\w*|ep3|transcoder|immune)\b/iu,
+    'fraymus-autonomy': /\b(?:autonomy|autonomous)\b/iu,
+    'fraymus-data': /\b(?:schema|workflow)\b/iu, commerce: /\b(?:revenue|shopify|sales?|orders?|commerce|store|profit)\b/iu, calendar: /\b(?:calendar|posting (?:time|schedule)|publish(?:ing)? schedule)\b/iu,
+    'ab-testing': /\b(?:a\/b|ab test|split test|experiment|variant)\b/iu, trends: /\b(?:trends?|trending)\b/iu, audience: /\b(?:audience|segments?|persona)\b/iu,
+    repurpose: /\b(?:repurpose|repurposing|cross-post)\b/iu, chain: /\b(?:chain run|chain|multi-step pipeline)\b/iu };
+  for (const [g, re] of Object.entries(byKeyword)) if (groups.includes(g) && re.test(request.goal)) selected.add(g);
   return selected;
 }
 
@@ -725,7 +740,21 @@ export function createAgentService({ db, workspace, ollamaUrl, fetchImpl = fetch
     const codeExecution=uncertain.length?{...observedExecution,available:false,sandboxed:false,reason:'Independent execution receipts contain unconfirmed cleanup; operator reconciliation is required',quarantinedExecutionIds:uncertain.map(row=>row.executionId)}:observedExecution;
     return { ...inventory, codeExecution, sandboxed: codeExecution.sandboxed, codeExecutionWarning: codeExecutor ? 'Code uses the configured Docker sandbox without network or host mounts; execution blocks if unavailable and never falls back to the host.' : 'Approved code executes on the host with user permissions; child processes may outlive cancellation.', tools: inventory.tools.map(tool => ({ ...tool, execution: tool.name === 'code.run' ? codeExecution : { mode: tool.name.startsWith('workspace.') ? 'workspace' : tool.name.startsWith('memory.') ? 'memory' : 'tool', sandboxed: false, approvalRequired: tool.approvalRequired } })) };
   }
-  return { capabilities, start, startScheduled, close, get,
+  /**
+   * What the first step of a run with this goal would send before any history: system prompt and the tools offered
+   * (ungrouped tools always, plus the groups initialToolGroups selects). Bytes are the same measure estimate() uses,
+   * so this is directly comparable with maxInputTokens. Read-only.
+   */
+  function toolFootprint(goal = '') {
+    const selected = initialToolGroups({ goal: String(goal), attachments: [] }, groups);
+    const offered = wireTools.filter(w => { const g = tools.get(w.function.name).group; return !g || selected.has(g); });
+    const by = {};
+    for (const w of offered) { const g = tools.get(w.function.name).group || '(ungrouped)'; const b = Buffer.byteLength(JSON.stringify(w)); by[g] = by[g] || { tools: 0, bytes: 0, names: [] }; by[g].tools++; by[g].bytes += b; by[g].names.push(w.function.name); }
+    const systemBytes = Buffer.byteLength(SYSTEM), toolBytes = Buffer.byteLength(JSON.stringify(offered));
+    return { goal: String(goal).slice(0, 200), selectedGroups: [...selected].sort(), systemBytes, toolBytes, totalBytes: systemBytes + toolBytes, offeredTools: offered.length, registeredTools: wireTools.length, byGroup: Object.fromEntries(Object.entries(by).sort((a, b) => b[1].bytes - a[1].bytes)) };
+  }
+
+  return { capabilities, toolFootprint, start, startScheduled, close, get,
     getByRequestId:requestId=>{const row=db.prepare('SELECT id FROM agent_runs WHERE request_id=?').get(requestId);return row?get(row.id):null;},
     isBusy:()=>Boolean(db.prepare("SELECT 1 FROM agent_runs WHERE status NOT IN ('completed','failed','cancelled') LIMIT 1").get()),
     list: () => db.prepare('SELECT id FROM agent_runs ORDER BY created_at DESC,rowid DESC LIMIT 100').all().map(row => get(row.id)), events: (id, afterSequence = 0) => {

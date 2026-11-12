@@ -267,7 +267,12 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   try { repurposeTools = createRepurposeTools({ memoryBridge, broadcast }); } catch (e) { console.error('runtime: repurpose tools failed:', e.message); }
   let chainTools = [];
   try { chainTools = createChainTools({ broadcast, memoryBridge }); } catch (e) { console.error('runtime: chain tools failed:', e.message); }
-  const normTool = t => t.handler && !t.execute ? { ...t, execute: ({ args }, ctx) => t.handler(args || {}, ctx) } : t;
+  // An extra tool with no group is sent to the durable agent on every step. 43 business tools (commerce., calendar.,
+  // ab., trends., audience., repurpose., chain.) had none, and with the fraymus-* groups they filled 41 KB of a 32 KB
+  // budget before a goal was read, so web research failed `budget_context` (found 2026-11-12). They keep every
+  // capability; their prefix becomes their group, loaded by goal keywords or tools.enable.
+  const grouped = t => (t.group || !/^[a-z][\w-]*\./i.test(t.name) ? t : { ...t, group: t.name.split('.')[0] === 'ab' ? 'ab-testing' : t.name.split('.')[0] });
+  const normTool = t => grouped(t.handler && !t.execute ? { ...t, execute: ({ args }, ctx) => t.handler(args || {}, ctx) } : t);
   const normTools = arr => arr.map(normTool);
   agent = createAgentService({ db, workspace, ollamaUrl, fetchImpl,
     cloud, codeExecutor, desktopBroker:desktop, extraTools: normTools([...createExtensionTools(artifacts, web),...desktop.tools(),
@@ -536,6 +541,8 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   });
   app.get('/api/client-errors', (_req, res) => res.json(clientErrors));
 
+  // what a run's first step would carry for this goal: system prompt + offered tool schemas, in bytes (the budget's unit)
+  app.get('/api/agent/tool-footprint', route((req, res) => res.json(agent.toolFootprint(String(req.query.goal || '').slice(0, 2000)))));
   app.get('/api/agent/capabilities', route(async (_req, res) => {
     const caps = await agent.capabilities();
     let localOcrHealth;
