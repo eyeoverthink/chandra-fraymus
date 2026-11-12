@@ -63,6 +63,7 @@ Each line links to the code and to the notes that say what was measured and what
 | Memory search, 48 real tasks (nDCG@5) | 0.36 ten newest | 0.84 keyword · 0.93 hybrid | Medium: graded by a local model that agrees with itself 73 % of the time. Newest → search is real; keyword vs hybrid is not proven |
 | Facts, generated history (current value right / stale shown) | 0.66 / 15 % a pile of notes | 1.00 / 0 % | High on the generated set; reading facts out of real notes is the unmeasured part |
 | Goal quality with the new memory block (paired, real tasks) | | 1 pairs finished of 8 (168 min); 44 of 60 agent runs did not finish (timeouts: the agents' model, fraynix-dna:8b, is 11.8 GB on an 8 GB card, so half of it runs on the CPU). Mean quality: ten newest 0.627, about-the-task 0.650; mean difference +0.023; 1 better, 0 worse, 0 the same; judge-only 0.700 → n/a; about 1.000 task memories shown per run. **Verdict: only 1 pairs finished: too few to say anything.** | See the verdict; the scorer is partly a model's judgement |
+| Goal quality, rerun on the model pool | 0.308 ten newest | 0.400 about the task (+0.092; 7 better, 2 worse, 3 same; 12 pairs) | Leaning positive, not proven: p = 0.14; the gain is in the judged half of the score only |
 | Flat films land on the asked length | 16.8 s of 25 | 37.8 of 40 · 62.5 of 60 · 43.0 of 45 | Three films |
 
 ### Try it
