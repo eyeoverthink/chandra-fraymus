@@ -402,3 +402,12 @@ lessons, and most of them are patterns across the hour, such as replies that fou
 anything does better for reading them is not measured yet. On the same day the external gauge was re-run in pairs on
 the model pool: the same 48 generated problems, raw model against the full reasoner, g 0.583 against 0.729 (p = 0.039),
 with planning still unsolved by either.
+
+**2026-11-12, late — Planning, and the first step toward a model that learns.** Planning had beaten every way of
+thinking the organism had: the model lost track of the water in two jugs by the third move. Now the model only writes
+down the rules of a puzzle, and a few lines of fixed search find the moves; planning went from none of six to every one
+of twelve it had never seen, and the whole gauge from 0.58 for the raw model to 0.81. The same evening the first path
+for the models themselves to learn was laid: the work a person, a checker or a run has verified is collected (forty
+examples so far, a fifth held back), trained into a small adapter on a rented GPU, brought home, and kept only if it
+does better on what it never saw. It has not been trained yet; the measuring side was proven by telling a large model
+from a small one.

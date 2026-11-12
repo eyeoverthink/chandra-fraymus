@@ -8,6 +8,8 @@
  *   cot      step by step, final ANSWER: / CONFIDENCE: lines
  *   vote     3 cot samples at higher temperature, majority answer, confidence = share
  *   program  coder model writes a Node program; the Skill Forge sandbox runs it; printed answer is used
+ *   search   (list answers) coder model writes start / moves / isGoal from the stated rules; a fixed
+ *            breadth-first search finds the shortest move sequence within the problem's own limit
  *   induce   (problems with examples) coder model writes solve(input); the sandbox checks it against
  *            the examples and failures are fed back; the answer comes from a function that fits them
  *
@@ -25,13 +27,14 @@ import { db } from '../db.js';
 import { chatOllama } from '../commerce/shared.js';
 import { SKILL_DIR, runSkillProcess } from './skill-forge.js';
 import { codeHarness, extractFunction, toPlain } from './capability-bench.js';
+import { hasDomainModel, searchSource } from './search-harness.js';
 
 const MODEL = process.env.REASONER_MODEL || process.env.FRAYMUS_DEFAULT_MODEL || 'fraynix-dreamer-ultimate:8b';
 const CODE_MODEL = process.env.REASONER_CODE_MODEL || process.env.SMK_CODE_MODEL || 'qwen2.5-coder:7b';
 const CALL_TIMEOUT_MS = Math.max(30_000, parseInt(process.env.REASONER_TIMEOUT_MS, 10) || 150_000);
 const INDUCE_ITERATIONS = 3;
 const VOTE_SAMPLES = 3;
-export const STRATEGIES = ['direct', 'cot', 'vote', 'program', 'induce'];
+export const STRATEGIES = ['direct', 'cot', 'vote', 'program', 'induce', 'search'];
 
 const now = () => Date.now();
 const clip = (s, n) => String(s ?? '').slice(0, n);
@@ -64,7 +67,9 @@ try { ensureTables(); } catch (e) { console.error('[reasoner] table setup failed
 export function applicableStrategies(problem) {
   const hasExamples = Array.isArray(problem.examples) && problem.examples.length >= 2;
   if (problem.answerType === 'code') return hasExamples ? ['direct', 'cot', 'induce'] : ['direct', 'cot'];
-  return hasExamples ? ['direct', 'cot', 'vote', 'program', 'induce'] : ['direct', 'cot', 'vote', 'program'];
+  const base = hasExamples ? ['direct', 'cot', 'vote', 'program', 'induce'] : ['direct', 'cot', 'vote', 'program'];
+  // a plan is a list of moves; search only makes sense when the answer is a sequence
+  return problem.answerType === 'list' ? [...base, 'search'] : base;
 }
 
 function gaussian() { let u = 0, v = 0; while (u === 0) u = Math.random(); while (v === 0) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
@@ -214,6 +219,41 @@ async function program(p, lessons) {
   return { answer: fb.answer, confidence: Math.min(fb.confidence, 0.4), trace: [...trace, ...fb.trace, { step: 'fallback', to: 'cot' }] };
 }
 
+// search — the model writes the RULES, code does the search. Measured 2026-11-12: planning (two jugs) was 0/6 for
+// every strategy. In prose the model lost track of the water by step 3; asked for a whole program it wrote one that
+// looped past the move limit. Turning stated rules into code is what a coder model does well; breadth-first search is
+// what it does badly and what ten lines of fixed code do perfectly. The model never sees a checker: only the problem.
+const SEARCH_SYSTEM = `You translate a puzzle's rules into a small JavaScript model. You do NOT solve the puzzle.
+Write exactly these four definitions, plain JavaScript, no imports, no printing, no search code:
+  const start = <the starting state: a plain JSON value, e.g. an object of numbers>;
+  function moves(state) { return [ { move: '<the move, worded exactly as the problem says>', next: <the new state> }, ... ]; }
+      // every move the rules allow from this state, each with the state it leads to; never change the input state
+  function isGoal(state) { return <true when the problem's goal is reached>; }
+  const maxDepth = <the most moves the problem allows, or 30 if it gives no limit>;
+Reply with the code only, in a \`\`\`js code block.`;
+async function search(p, lessons) {
+  const trace = [];
+  let feedback = '';
+  for (let i = 0; i < 2; i++) {
+    const raw = await ask(SEARCH_SYSTEM + lessonBlock(lessons), `${p.prompt}${feedback}`, { model: CODE_MODEL, temperature: 0.1, maxTokens: 900, label: 'reasoner:search' });
+    const code = extractFence(raw);
+    if (!hasDomainModel(code)) {
+      trace.push({ step: `search ${i + 1}`, error: 'model missing start / moves / isGoal' });
+      feedback = '\n\nYour previous reply did not define all of: const start, function moves(state), function isGoal(state), const maxDepth. Reply with those only.';
+      continue;
+    }
+    const r = await runProgram(searchSource(code), { timeoutMs: 15_000 });
+    const answer = r.output?.answer ?? null;
+    trace.push({ step: `search ${i + 1}`, model: clip(code, 700), ok: r.ok, explored: r.output?.explored, states: r.output?.states, plan: clip(JSON.stringify(answer), 200), error: r.error });
+    if (r.ok && Array.isArray(answer) && answer.length) return { answer: JSON.stringify(answer), confidence: i === 0 ? 0.9 : 0.75, trace };
+    feedback = r.ok
+      ? `\n\nWith your model, no sequence of moves reached the goal (${r.output?.states ?? 0} states explored). Check that moves() returns every move the rules allow with the correct resulting state, and that isGoal() matches the goal exactly.`
+      : `\n\nYour model failed to run: ${r.error}. Fix it.`;
+  }
+  const fb = await cot(p, lessons);
+  return { answer: fb.answer, confidence: Math.min(fb.confidence, 0.4), trace: [...trace, ...fb.trace, { step: 'fallback', to: 'cot' }] };
+}
+
 const INDUCE_SYSTEM = `You write one JavaScript function that implements a rule shown by examples.
 Rules: \`function solve(input) { … }\`, plain JavaScript, no imports, no console output, deterministic.
 It must return the exact expected output for EVERY example and generalise to new inputs.
@@ -246,7 +286,7 @@ async function induce(p, lessons) {
   return { answer: answer != null && typeof answer === 'object' ? JSON.stringify(answer) : answer, confidence: answer == null ? 0 : confidence, trace };
 }
 
-const RUNNERS = { direct, cot, vote, program, induce };
+const RUNNERS = { direct, cot, vote, program, induce, search };
 
 /**
  * problem: { prompt, family?, answerType?, examples?: [{input, output}], query? }
@@ -282,7 +322,7 @@ export async function reasonForAgent({ problem, kind, strategy, examples, query 
     db.prepare(`INSERT INTO reasoner_calls (agent_id, run_id, family, strategy, answered, confidence, ms, error, created_at) VALUES (?, ?, 'general', ?, ?, ?, ?, ?, ?)`)
       .run(ctx.agentId || ctx.agent?.id || null, ctx.runId || null, r.strategy, r.answer != null ? 1 : 0, r.confidence, r.ms, r.error || null, now());
   } catch (e) { console.error('[reasoner] call log:', e.message); }
-  return { answer: r.answer, confidence: r.confidence, strategy: r.strategy, ms: r.ms, verifiedByExecution: ['program', 'induce'].includes(r.strategy) && r.confidence >= 0.7, error: r.error };
+  return { answer: r.answer, confidence: r.confidence, strategy: r.strategy, ms: r.ms, verifiedByExecution: ['program', 'induce', 'search'].includes(r.strategy) && r.confidence >= 0.7, error: r.error };
 }
 
 export function reasonerStats({ days = 7 } = {}) {
