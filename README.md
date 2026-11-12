@@ -22,6 +22,7 @@
 </p>
 
 <p align="center">
+  <a href="#what-is-new--2026-11-11">What is new</a> ·
   <a href="#fraymus">F.R.A.Y.M.U.S.</a> ·
   <a href="#-quick-start">Quick Start</a> · 
   <a href="#content-nexus-agent-feed-2026-11-05">Latest Handoff</a> ·
@@ -34,6 +35,51 @@
   <a href="#-architecture">Architecture</a> ·
   <a href="#roadmap--next-phases">Roadmap</a>
 </p>
+
+---
+
+## What is new — 2026-11-11
+
+Everything below runs on this machine with free tools: local models through Ollama, no paid API, no cloud service.
+Each line links to the code and to the notes that say what was measured and what was not.
+
+| What | In one line | Code | Notes |
+|---|---|---|---|
+| **Make** — type a sentence, get it on the shelf | A sentence becomes a film, a still, a comic or a web page. Six looks: 8-bit, 2-bit, cartoon, comic, explainer, flat. | [`server/media/make.js`](server/media/make.js), [`make-plan.js`](server/media/make-plan.js), [`make-looks.js`](server/media/make-looks.js) | [Unified system and dream](docs/UNIFIED-SYSTEM-AND-DREAM.md) |
+| **Flat vector look** — Kurzgesagt-style films and story shorts | Shots are assembled from a drawing kit (13 settings, 50 props, a recurring cast of six), checked against 17 rules, cut to the narrator's words and measured 11 ways. CPU only. | [`server/media/flat/`](server/media/flat/) | [The flat animation method](docs/FLAT-ANIMATION-METHOD.md) |
+| **A second machine renders** | Another PC on the private network paints and renders for the hub through an SSH tunnel; it comes back by itself after a reboot. | [`server/media/workers.js`](server/media/workers.js), [`scripts/worker/`](scripts/worker/) | [Worker README](scripts/worker/README.md) |
+| **Web pages that are checked** | A page is opened in a real browser before it is kept; one that does not run is not saved. A tested globe component with real coastlines. | [`server/media/page-builder.js`](server/media/page-builder.js), [`page-kit/`](server/media/page-kit/) | [CLAUDE.md](CLAUDE.md) |
+| **Memory search** — recall by meaning | Agents find memories by what they mean; the memories in a prompt are the ones about the task. Keyword arm (FTS5) + vector arm (local embeddings), fused by rank. | [`memory-search.js`](server/intelligence/memory-search.js), [`memory-rank.js`](server/intelligence/memory-rank.js), [`memory-search-service.js`](server/intelligence/memory-search-service.js) | [CLAUDE.md](CLAUDE.md) |
+| **Measured twice** | On a generated set with known answers, and on 48 real tasks graded blind and frozen for re-scoring. | [`memory-bench.js`](server/intelligence/memory-bench.js), [`memory-gold.js`](server/intelligence/memory-gold.js) | below |
+| **Facts** — what is true now | One claim about one thing. A changed value replaces the old one without deleting it; a repeat is absorbed. | [`facts.js`](server/intelligence/facts.js), [`facts-service.js`](server/intelligence/facts-service.js) | below |
+| **Does better memory make better work?** | A paired experiment on real tasks. | [`memory-experiment.js`](server/intelligence/memory-experiment.js) | below |
+
+### Numbers, and how far to trust each
+
+| Measurement | Before | After | Trust |
+|---|---|---|---|
+| Memory search, generated questions (mean reciprocal rank) | 0.25 substring | 0.75 keyword · 0.975 hybrid | High: answers known by construction, p = 0.0002 |
+| Memory search, 48 real tasks (nDCG@5) | 0.36 ten newest | 0.84 keyword · 0.93 hybrid | Medium: graded by a local model that agrees with itself 73 % of the time. Newest → search is real; keyword vs hybrid is not proven |
+| Facts, generated history (current value right / stale shown) | 0.66 / 15 % a pile of notes | 1.00 / 0 % | High on the generated set; reading facts out of real notes is the unmeasured part |
+| Goal quality with the new memory block (paired, real tasks) | | 1 pairs finished of 8 (168 min); 44 of 60 agent runs did not finish (timeouts: the agents' model, fraynix-dna:8b, is 11.8 GB on an 8 GB card, so half of it runs on the CPU). Mean quality: ten newest 0.627, about-the-task 0.650; mean difference +0.023; 1 better, 0 worse, 0 the same; judge-only 0.700 → n/a; about 1.000 task memories shown per run. **Verdict: only 1 pairs finished: too few to say anything.** | See the verdict; the scorer is partly a model's judgement |
+| Flat films land on the asked length | 16.8 s of 25 | 37.8 of 40 · 62.5 of 60 · 43.0 of 45 | Three films |
+
+### Try it
+
+```bash
+npm run dev
+```
+
+- Home screen → type: `a 45 second kurzgesagt style video about black holes`
+- `GET /api/intelligence/memory-search` — coverage, the last benchmark; `GET …/memory-search/query?q=…&agent=…`
+- `GET /api/intelligence/memory-search/real` — re-score the live store against the frozen real gold set
+- `GET /api/intelligence/facts?entity=…` and `GET /api/intelligence/facts/history?entity=…`
+- `POST /api/intelligence/memory-search/experiment {"pairs": 12}` then `GET` the same path
+
+What came from where: the retrieval pipeline, the generated gold set, the fact store and its update rule are abstracted from
+[gbrain](https://github.com/garrytan/gbrain) and rebuilt for SQLite and local models; the flat look follows the method of a
+tutorial built on paid tools, rebuilt on free ones. Tests: [`test/flat.test.js`](test/flat.test.js),
+[`test/memory-search.test.js`](test/memory-search.test.js), [`test/facts.test.js`](test/facts.test.js).
 
 ---
 
@@ -2127,15 +2173,15 @@ Copyright (c) 2024-2026 eyeoverthink®. This software is proprietary and confide
 Generated by `npm run skills:sync` from the filesystem, `data/chandra.db` and `GET /api/health`; `npm run skills:check` fails when it is stale. The same generator keeps the `/chandra-*` skills in `.claude/commands/` current.
 
 <!-- skills-sync:begin inventory -->
-_Regenerated by `npm run skills:sync` on 2026-11-11 from commit `040b8eb`. Do not hand-edit this block._
+_Regenerated by `npm run skills:sync` on 2026-11-12 from commit `2c58eae`. Do not hand-edit this block._
 
 | Thing | Count | Source |
 |---|---|---|
 | Features registered | **96** | live `GET /api/health` |
-| REST routes | **1068** | regex over 397 server files (`app.get/post/put/patch/delete`) |
-| SQLite tables | **244** | `sqlite_master` in `data/chandra.db` |
-| Server code | **397 files / 87,209 lines** | `server/**/*.js` |
-| Intelligence modules | **75** | `server/intelligence/*.js` (routes files excluded) |
+| REST routes | **1077** | regex over 400 server files (`app.get/post/put/patch/delete`) |
+| SQLite tables | **247** | `sqlite_master` in `data/chandra.db` |
+| Server code | **400 files / 87,723 lines** | `server/**/*.js` |
+| Intelligence modules | **78** | `server/intelligence/*.js` (routes files excluded) |
 | FRAYMUS intelligence modules | **19** | `server/fraymus/intelligence/*.js` |
 | Fleet tool definitions | **257** unique names | `name: '…'` across 7 tools files |
 | Hermes executor functions | **51** (Hermes exposes 30 skills; extras are aliases/sub-skills) | `buildHermesExecutors()` in `fraymus-tools.js` |
@@ -2150,13 +2196,13 @@ _Regenerated by `npm run skills:sync` on 2026-11-11 from commit `040b8eb`. Do no
 ### Route catalog (generated)
 
 <!-- skills-sync:begin routes -->
-_Regenerated by `npm run skills:sync` on 2026-11-11 from commit `040b8eb`. Do not hand-edit this block._
+_Regenerated by `npm run skills:sync` on 2026-11-12 from commit `2c58eae`. Do not hand-edit this block._
 
-1068 unique routes. Top prefixes:
+1077 unique routes. Top prefixes:
 
 | Prefix | Routes |
 |---|---|
-| `/api/intelligence` | 214 |
+| `/api/intelligence` | 223 |
 | `/api/fraymus` | 87 |
 | `/api/integrity` | 45 |
 | `/api/fleet` | 34 |

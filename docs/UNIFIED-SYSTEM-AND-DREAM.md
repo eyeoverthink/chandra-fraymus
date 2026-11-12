@@ -384,3 +384,7 @@ substring, and the memories that go into a prompt are the ones about the task in
 questions with known answers the first correct memory moved from rank four on average to rank one (mean reciprocal
 rank 0.25 to 0.975), and a regression gate keeps it there. This is the first mechanism taken from gbrain; the
 number measures the mechanism, not yet the usefulness of what the organism has chosen to remember.
+
+**2026-11-11, night — What is true now, and a first honest test of memory.** Facts are now kept apart from notes:
+a changed value replaces the old one and the old one stays readable behind it. And for the first time a change to
+the organism's memory was tested on its work, not on its retrieval: 1 pairs finished of 8 (168 min); 44 of 60 agent runs did not finish (timeouts: the agents' model, fraynix-dna:8b, is 11.8 GB on an 8 GB card, so half of it runs on the CPU). Mean quality: ten newest 0.627, about-the-task 0.650; mean difference +0.023; 1 better, 0 worse, 0 the same; judge-only 0.700 → n/a; about 1.000 task memories shown per run. Verdict: only 1 pairs finished: too few to say anything.
