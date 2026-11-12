@@ -60,6 +60,12 @@ const HOSTS = parsed.hosts;
 const state = new Map(HOSTS.map(h => [h.name, { ok: h.local, checkedAt: 0, why: h.local ? null : 'not checked yet', models: new Set(), restingUntil: 0, inFlight: 0, calls: 0, failures: 0, totalMs: 0, lastOkAt: null }]));
 const stats = { calls: 0, fallbacks: 0, reasons: {}, lastFallback: null, noHost: 0 };
 
+/** Forget the measured speed of every machine (choice falls back to the priors). For tests: one test's timings must not
+ *  decide which machine the next test sees — two pool tests flaked about one run in three on exactly that (2026-11-12). */
+export function resetPoolMeasurements() {
+  for (const s of state.values()) Object.assign(s, { calls: 0, failures: 0, totalMs: 0, inFlight: 0, restingUntil: 0 });
+}
+
 async function check(h) {
   const s = state.get(h.name);
   if (h.local || now() - s.checkedAt < HEALTH_TTL_MS) return s;

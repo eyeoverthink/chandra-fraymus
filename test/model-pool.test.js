@@ -22,9 +22,9 @@ const home = await fakeOllama('home', ['qwen3:14b', 'llama3.1:8b']), vps = await
 process.env.OLLAMA_BASE_URL = pc.url;
 process.env.FRAYMUS_DEFAULT_MODEL = 'fraynix-dna:8b';
 process.env.MODEL_HOSTS = `home=qwen3:14b@${home.url}|slots=2, local, vps=qwen3:4b@${vps.url}|slots=1|slow=3`;
-const { parseHosts, poolChat, poolStream, modelPoolStatus, checkAllHosts } = await import('../server/intelligence/model-pool.js');
+const { parseHosts, poolChat, poolStream, modelPoolStatus, checkAllHosts, resetPoolMeasurements } = await import('../server/intelligence/model-pool.js');
 const readAll = async res => (await res.text()).split('\n').filter(Boolean).map(l => JSON.parse(l).message.content).join('');
-const reset = () => { for (const f of [home, vps, pc]) f.st.mode = 'ok'; };
+const reset = () => { for (const f of [home, vps, pc]) f.st.mode = 'ok'; resetPoolMeasurements(); };
 
 test('a hosts list is read in order; public machines and bad entries are refused; this PC is always there', () => {
   const p = parseHosts('home=qwen3:14b@http://100.99.98.101:11434|slots=2, local, cloud=llama3@https://api.example.com, oops, kvm2=qwen3:4b@http://100.72.161.48:11434|slow=3');
@@ -110,6 +110,8 @@ test('a machine whose card is busy with something else is passed over, and used 
 // because they arrived while home's slots were momentarily full. A full fast machine should be waited for.
 test('a call waits for a busy fast machine rather than going to a free slow one', async () => {
   reset(); await checkAllHosts();
+  // home is measured fast here, in this test — it used to pass only on timings leaked from earlier tests
+  for (let i = 0; i < 3; i++) await poolChat([{ role: 'user', content: 'warm' }]);
   pc.st.delay = 600; for (let i = 0; i < 4; i++) await poolChat([{ role: 'user', content: 'x' }], { model: 'qwen2.5-coder:7b' });   // this PC is measured slow
   home.st.delay = 150;
   const before = pc.st.chats;
