@@ -105,8 +105,24 @@ async function candidates(requested) {
     const model = modelOn(h, s, requested); if (!model) continue;
     out.push({ h, s, model, full: !h.local && s.inFlight >= h.slots, skip: h.local ? localSkip() : remoteSkip(h) });
   }
-  // a free remote slot or an unloaded local queue first; a full or skipped one only when nothing else can take it
-  return [...out.filter(c => !c.full && !c.skip), ...out.filter(c => c.full || c.skip)];
+  // Order by when each machine would likely FINISH this call, not by which is free right now: a full fast machine is
+  // usually sooner than a free slow one (measured 2026-11-12: fraymus-home 5 s a call, this PC 56 s, a CPU-only VPS 262 s;
+  // calls that arrived while fraymus-home's two slots were busy went to the slow ones and stayed there). The list order
+  // still decides between machines within half again of the best estimate. A busy (skipped) machine comes last.
+  out.forEach((c, i) => { c.order = i; c.eta = expectedSeconds(c.h, c.s); });
+  const best = Math.min(...out.filter(c => !c.skip).map(c => c.eta), Infinity);
+  const near = c => !c.skip && c.eta <= best * 1.5;
+  return [...out.filter(near), ...out.filter(c => !near(c) && !c.skip).sort((a, b) => a.eta - b.eta), ...out.filter(c => c.skip)];
+}
+
+/** Seconds this machine would likely take to finish one more call: its measured call time, times the work queued ahead. */
+function expectedSeconds(h, s) {
+  const index = HOSTS.indexOf(h);
+  const prior = h.local ? 20 : 8 * h.slow * (1 + 0.25 * Math.max(0, index));          // before three calls have been timed
+  const per = s.calls >= 3 ? s.totalMs / s.calls / 1000 : prior;
+  if (h.local) { const q = getSchedulerStatus?.() || {}; return per * (1 + ((q.queued || 0) + (q.running || 0)) / Math.max(1, q.maxConcurrent || 2)); }
+  const ahead = Math.max(0, s.inFlight + (waiting.get(h.name)?.length || 0) - h.slots + 1);
+  return per * (1 + ahead / h.slots);
 }
 
 const note = (reason) => { stats.fallbacks++; const k = String(reason).replace(/\(.*$/, '').replace(/[0-9a-f]{20,}/g, '…').trim().slice(0, 70); stats.reasons[k] = (stats.reasons[k] || 0) + 1; stats.lastFallback = { at: now(), reason: String(reason).slice(0, 200) }; };

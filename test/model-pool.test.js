@@ -4,17 +4,17 @@ import http from 'node:http';
 
 // Three stand-in Ollama servers: two "remote" machines and one playing this PC. Each can be told to break.
 function fakeOllama(name, models) {
-  const st = { name, mode: 'ok', chats: 0, last: null };
+  const st = { name, mode: 'ok', chats: 0, last: null, delay: 0 };
   const srv = http.createServer((req, res) => {
     if (req.url === '/api/tags') { if (st.mode === 'down') return req.socket.destroy(); res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ models: models.map(m => ({ name: m })) })); }
-    let body = ''; req.on('data', d => { body += d; }); req.on('end', () => {
+    let body = ''; req.on('data', d => { body += d; }); req.on('end', () => setTimeout(() => {
       st.chats++; st.last = JSON.parse(body);
       if (st.mode === 'down') return req.socket.destroy();
       if (st.mode === 'drive') { res.statusCode = 500; return res.end(JSON.stringify({ error: 'read D:\\ollama\\models\\blobs\\x: A device which does not exist was specified.' })); }
       if (st.mode === 'midstream') { res.setHeader('Content-Type', 'application/x-ndjson'); res.write(JSON.stringify({ message: { content: 'half ' } }) + '\n'); return setTimeout(() => res.socket.destroy(), 20); }
       if (st.last.stream) { res.setHeader('Content-Type', 'application/x-ndjson'); res.write(JSON.stringify({ message: { content: `${name} ` } }) + '\n'); return res.end(JSON.stringify({ message: { content: 'streamed' }, done: true }) + '\n'); }
       res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ message: { content: `from ${name} (${st.last.model})` } }));
-    });
+    }, st.delay));
   });
   return new Promise(r => srv.listen(0, '127.0.0.1', () => r({ st, srv, url: `http://127.0.0.1:${srv.address().port}` })));
 }
@@ -104,5 +104,20 @@ test('a machine whose card is busy with something else is passed over, and used 
   assert.equal(parseHosts('h=qwen3:14b@http://100.99.98.101:11434|keep=5m').hosts[0].keep, '5m');
   assert.equal(parseHosts('h=qwen3:14b@http://100.99.98.101:11434|keep=forever').hosts[0].keep, '30m');
 });
+
+
+// Measured 2026-11-12: fraymus-home idle at 5 s a call while calls queued on this PC (56 s) and the VPSs (262 s),
+// because they arrived while home's slots were momentarily full. A full fast machine should be waited for.
+test('a call waits for a busy fast machine rather than going to a free slow one', async () => {
+  reset(); await checkAllHosts();
+  pc.st.delay = 600; for (let i = 0; i < 4; i++) await poolChat([{ role: 'user', content: 'x' }], { model: 'qwen2.5-coder:7b' });   // this PC is measured slow
+  home.st.delay = 150;
+  const before = pc.st.chats;
+  const results = await Promise.all([0, 1, 2, 3].map(i => poolChat([{ role: 'user', content: `c${i}` }])));
+  assert.deepEqual(results, Array(4).fill('from home (qwen3:14b)'), 'all four waited for the two slots on home');
+  assert.equal(pc.st.chats, before, 'none went to the slow machine');
+  pc.st.delay = 0; home.st.delay = 0;
+});
+
 
 test.after(() => { for (const f of [home, vps, pc]) f.srv.close(); });
