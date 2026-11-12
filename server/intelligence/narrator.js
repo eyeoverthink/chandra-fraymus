@@ -107,6 +107,10 @@ const LINES = {
     if (p.action === 'composition' && p.status === 'passed') return { kind: 'skills', text: `Two of my skills, ${String(p.a || '').replace(/^skill\./, '')} and ${String(p.b || '').replace(/^skill\./, '')}, combined into a program that proved itself. It will become a third.` };
     return null;
   },
+  // What the dream step concluded about the hour, after every lesson passed the evidence checks (dream-ground.js).
+  // These are the system's own checked conclusions, the closest thing in the stream to a thought.
+  'system.dream': p => (p.action === 'lessons' && Array.isArray(p.lessons) && p.lessons.length
+    ? { kind: 'dream', text: `I noticed: ${clip(p.lessons[0], 170)}${p.lessons.length > 1 ? ` And ${p.lessons.length - 1} more from the same hour.` : ''}` } : null),
   // Phase AD: measured capability — benchmark results and lessons that survived an A/B test
   'system.capability': p => {
     if (p.action === 'benchmark_completed' && typeof p.g === 'number') return { kind: 'capability', text: `Capability check: ${p.correct} of ${p.n} fresh problems solved, g-score ${p.g.toFixed(2)}.${p.strongest && p.weakest && p.strongest !== p.weakest ? ` Strongest at ${p.strongest}, weakest at ${p.weakest}.` : ''}` };
@@ -174,10 +178,27 @@ function enqueue(item) {
   return true;
 }
 
+// Kinds that arrive in floods are spoken at most once per window, with a count. Measured 2026-11-12: of 308 lines in
+// 24 h, 173 of the most frequent said a job was dropped because the queue was full, and 41 announced the consciousness
+// tier flipping between AWAKENING and INTEGRATED — the stream was mostly about congestion and flicker.
+const KIND_WINDOW_MS = { scheduler: 3600_000, consciousness: 3600_000 };
+const kindState = {};
+function throttled(line) {
+  const win = KIND_WINDOW_MS[line.kind];
+  if (!win) return line;
+  const s = (kindState[line.kind] = kindState[line.kind] || { lastAt: 0, held: 0 });
+  if (now() - s.lastAt < win) { s.held++; state.throttled = (state.throttled || 0) + 1; return null; }
+  const held = s.held; s.lastAt = now(); s.held = 0;
+  if (!held) return line;
+  if (line.kind === 'scheduler') return { ...line, text: `${held + 1} inference jobs were dropped in the last hour because the queue was full; the latest: ${line.text.replace(/^Dropped a /, 'a ').replace(/ — the inference queue is full\.$/, '.')}` };
+  return { ...line, text: `${line.text} It changed tier ${held + 1} times in the last hour.` };
+}
+
 function handlerFor(topic) {
   return msg => {
     try {
-      const line = LINES[topic](parse(msg.payload));
+      const raw = LINES[topic](parse(msg.payload));
+      const line = raw && throttled(raw);
       if (line) enqueue({ ...line, topic, source: 'bus' });
     } catch (e) { console.error(`[narrator] ${topic}:`, e.message); }
   };

@@ -11,7 +11,7 @@
     "build": "npm --prefix client run build",
     "smoke:e2e": "node scripts/e2e-smoke.mjs",
     "start": "node --env-file=.env server/start.js",
-    "test": "node --test test/*.test.js",
+    "test": "node --test --test-force-exit --test-timeout=600000 test/*.test.js",
     "benchmark": "node server/transport/benchmark.js",
     "sandbox:setup": "node server/sandbox/setup.js",
     "sandbox:verify": "node server/sandbox/verify.js",

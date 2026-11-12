@@ -215,6 +215,7 @@ export function startWatchdog(opts = {}) {
     try { verifyAll(); }
     catch (e) { console.error('[integrity] watchdog cycle error:', e.message); }
   }, intervalMs);
+  _interval.unref?.(); // a finished test or script may exit even though the watchdog was started
   return { started: true, interval_ms: intervalMs, initial_check: results };
 }
 

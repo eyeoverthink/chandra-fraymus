@@ -452,7 +452,10 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   app.use(leaderboardRouter);
   installCollabRoutes(app);
   app.get('/api/observatory', observatoryRouter);
-  startReflectionLoop();
+  // Autonomous loops belong to the server, not to a test that builds the app: modules such as reflection.js write through
+  // the shared db handle (the real data/chandra.db) even when the test passed its own temporary database. The test runner
+  // sets NODE_TEST_CONTEXT in its workers; CHANDRA_NO_LOOPS=1 does the same for scripts.
+  if (!process.env.NODE_TEST_CONTEXT && process.env.CHANDRA_NO_LOOPS !== '1') startReflectionLoop();
   try {
     stateSeekOnBoot({ broadcast });
     startWatchdog({ broadcast });

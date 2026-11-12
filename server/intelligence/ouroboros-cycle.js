@@ -526,7 +526,9 @@ async function analyzeForImprovements(outlineText, genomeContext = '') {
   const raw = await chatOllama([
     { role: 'system', content: ANALYSIS_PROMPT + tierHint },
     { role: 'user', content: `Analyze this codebase and return a JSON array of up to ${maxProposals} improvements:\n\n` + trimmed + genomeContext },
-  ], { temperature: analysisTemp, maxTokens: 4096 });
+  // JSON mode, a real priority and room to finish: 40 of 40 cycles failed in the 24 h to 2026-11-12 (22 timeouts at the
+  // 180 s default while writing up to 4,096 tokens, 15 replies that were not JSON, 2 dropped as untagged jobs)
+  ], { temperature: analysisTemp, maxTokens: 4096, format: 'json', priority: 'goal', label: 'ouroboros:analyze', timeoutMs: 420_000 });
   const proposals = parseJSONArray(raw);
   if (!proposals) throw new Error('LLM did not return a parseable JSON array');
   return proposals.filter(p => p.title && p.category).slice(0, maxProposals);
@@ -560,7 +562,7 @@ async function reviewProposals(proposals, outlineText, genomeContext = '') {
   const raw = await chatOllama([
     { role: 'system', content: REVIEW_PROMPT },
     { role: 'user', content: `Codebase context (abbreviated):\n${outlineText.slice(0, 3000)}${genomeContext}\n\nProposals to review:\n${JSON.stringify(summaryForReview, null, 2)}` },
-  ], { temperature: 0.3, maxTokens: 3000 });
+  ], { temperature: 0.3, maxTokens: 3000, format: 'json', priority: 'goal', label: 'ouroboros:review', timeoutMs: 420_000 });
 
   const reviews = parseJSONArray(raw);
   if (!reviews) return [];
@@ -569,7 +571,26 @@ async function reviewProposals(proposals, outlineText, genomeContext = '') {
 
 // ─── Cycle Orchestrator ─────────────────────────────────────────────
 
-export async function runCycle(rootDir) {
+/**
+ * A loop that keeps failing must slow down. Ouroboros failed every cycle for four days (2026-11-08 → 11-12) and still ran
+ * about 40 times a day, each holding the GPU. After n consecutive failures the next cycle waits 30 min × 2^(n−1), up to
+ * 24 h — the rule debate.js uses for failed topics. created_at here is TEXT (datetime('now')): compared as UTC text.
+ */
+export function ouroborosBackoff() {
+  try {
+    const recent = db.prepare(`SELECT status, created_at FROM ouroboros_cycles WHERE status IN ('complete', 'failed') ORDER BY created_at DESC LIMIT 12`).all();
+    let failures = 0;
+    for (const r of recent) { if (r.status !== 'failed') break; failures++; }
+    if (!failures) return { waiting: false, failures: 0 };
+    const lastAt = Date.parse(`${recent[0].created_at.replace(' ', 'T')}Z`);
+    const waitMs = Math.min(24 * 3600_000, 30 * 60_000 * 2 ** (failures - 1));
+    return { waiting: Date.now() - lastAt < waitMs, failures, nextAt: new Date(lastAt + waitMs).toISOString() };
+  } catch (e) { console.error('[ouroboros] backoff check:', e.message); return { waiting: false, failures: 0 }; }
+}
+
+export async function runCycle(rootDir, { force = false } = {}) {
+  const backoff = ouroborosBackoff();
+  if (backoff.waiting && !force) return { skipped: true, reason: 'failing_backoff', ...backoff };
   const cycleId = uid();
   const start = Date.now();
 
@@ -1237,7 +1258,7 @@ export function installOuroborosCycleRoutes(app) {
 
   app.post('/api/intelligence/ouroboros-cycle/run', async (req, res, next) => {
     try {
-      const result = await runCycle(req.body.rootDir || process.cwd());
+      const result = await runCycle(req.body.rootDir || process.cwd(), { force: true }); // operators are not held by the failure backoff
       res.json(result);
     } catch (e) { next(e); }
   });

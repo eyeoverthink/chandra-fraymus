@@ -79,7 +79,8 @@ function mockModel(t) {
     if (body.messages[0].content.startsWith('You are Ouroboros')) {
       return Response.json({ message: { content: JSON.stringify([{
         title: 'Add independent regression coverage', category: 'testing', priority: 'high',
-        description: 'Exercise the inherited construction path', targetFiles: ['server/example.js'],
+        // a file that exists in the workspace: runCycle drops proposals whose targetFiles do not exist (2026-11-09)
+        description: 'Exercise the inherited construction path', targetFiles: ['server/module_000_with_a_descriptive_name.js'],
       }]) } });
     }
     assert.ok(body.messages[0].content.startsWith('You are a senior code reviewer'));

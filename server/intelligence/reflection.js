@@ -469,6 +469,9 @@ export function startReflectionLoop({ intervalMs = DEFAULT_INTERVAL_MS } = {}) {
       console.error('reflection loop error:', e.message);
     }
   }, intervalMs);
+  // never the only thing keeping a process alive: two `npm test` runs whose http test started this loop never exited and
+  // wrote "scheduled" reflections into the real data/chandra.db every 30 min for 2–3 days (found 2026-11-12)
+  reflectionTimer.unref?.();
   return { started: true, intervalMs };
 }
 

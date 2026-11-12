@@ -131,6 +131,11 @@ async function consolidateGrounded(activity) {
     }
   }
   dreamStats.lastKept = kept.map(k => k.lesson).concat(dreamStats.lastKept).slice(0, 8);
+  // the narrator speaks what was concluded (checked against evidence) — a thought, not an event report
+  if (kept.length) {
+    try { publish('system', 'system.dream', JSON.stringify({ action: 'lessons', lessons: kept.map(k => k.lesson), evidence: lines.length })); }
+    catch (e) { console.warn('[daemon] dream publish:', e.message); }
+  }
   const output = { lessons, kept: kept.length, dropped, fingerprint: fingerprint(lines), novelty: gate.novelty };
   db.prepare(
     `INSERT INTO daemon_cycles (id, type, input_summary, output, created_at) VALUES (?, 'consolidation', ?, ?, ?)`
