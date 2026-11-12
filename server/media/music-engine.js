@@ -1,3 +1,4 @@
+import { poolChat } from '../intelligence/model-pool.js';
 import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { sanitizeOllamaContent } from '../fraymus/intelligence/ollama-sanitize.js';
@@ -61,16 +62,7 @@ Duration: ${duration}
 Format: ${format}`;
 
   try {
-    const res = await fetch(`${OLLAMA}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'llama3.2', stream: false,
-        messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-      }),
-      signal: AbortSignal.timeout(30_000),
-    });
-    const data = await res.json();
+    const data = { message: { content: await poolChat([{ role: 'system', content: system }, { role: 'user', content: user }], { model: 'llama3.2', label: 'music:prompt', timeoutMs: 30_000 }) } };
     return {
       prompt: sanitizeOllamaContent(data.message?.content) || `${params.dominant} ${params.key} instrumental at ${params.tempo} BPM`,
       params,

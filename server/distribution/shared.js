@@ -1,17 +1,11 @@
 import { heart } from '../fraymus-tools.js';
 import { sanitizeOllamaContent } from '../fraymus/intelligence/ollama-sanitize.js';
+import { poolChat } from '../intelligence/model-pool.js';
 
 const OLLAMA = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 
 export async function chatOllama(system, user, model = 'llama3.2') {
-  const res = await fetch(`${OLLAMA}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, stream: false, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
-    signal: AbortSignal.timeout(60_000),
-  });
-  const data = await res.json();
-  return sanitizeOllamaContent(data.message?.content || '');
+  return sanitizeOllamaContent(await poolChat([{ role: 'system', content: system }, { role: 'user', content: user }], { model, label: 'distribution', timeoutMs: 60_000 }));
 }
 
 export function parseJSON(text) {

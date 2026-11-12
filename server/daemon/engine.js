@@ -16,6 +16,7 @@ import { startNarrator, stopNarrator, getNarratorStatus } from '../intelligence/
 import { startTransientSweeper, stopTransientSweeper, getSweeperStatus } from '../intelligence/transient-sweeper.js';
 import { startMemoryIndexer, stopMemoryIndexer, memorySearchStatus } from '../intelligence/memory-search-service.js';
 import { startFactsReader, stopFactsReader, factsStatus } from '../intelligence/facts-service.js';
+import { modelPoolStatus } from '../intelligence/model-pool.js';
 import { startSelfModification, stopSelfModification, getSelfModificationStatus, selfModificationCycle, maybeBuildFromBacklog, checkOuroborosAllowed } from '../intelligence/self-modification.js';
 import { startResearchScout, stopResearchScout, getResearchStatus, runResearchDemos } from '../intelligence/research-scout.js';
 import { startSkillForge, stopSkillForge, getSkillForgeStatus, skillForgeCycle } from '../intelligence/skill-forge.js';
@@ -962,6 +963,7 @@ export function getDaemonStatus() {
     metacognitive: getMetacognitiveStatus(),
     goalExecutor: getGoalExecutorStatus(),
     externalSenses: getExternalSensesStatus(),
+    modelPool: (() => { const m = modelPoolStatus(); return { hosts: m.hosts.map(h => ({ name: h.name, healthy: h.healthy, calls: h.calls, failures: h.failures, meanSeconds: h.meanSeconds, why: h.why })), calls: m.calls, fallbacks: m.fallbacks, noHost: m.noHost }; })(),
     facts: (() => { const f = factsStatus(); return f.error ? { error: f.error } : { total: f.total, current: f.current, superseded: f.superseded, entities: f.entities, memoriesRead: f.reader.read, accepted: f.reader.accepted, dropped: f.reader.dropped, memoriesWaiting: f.reader.memoriesWaiting }; })(),
     memorySearch: (() => { const m = memorySearchStatus(); return m.error ? { error: m.error } : { memories: m.memories, vectors: m.vectors, vectorCoverage: m.vectorCoverage, searches: m.searches, hybrid: m.hybrid, keywordOnly: m.keywordOnly, embedErrors: m.embedErrors, indexerBusy: m.indexer.busy, lastBenchMrr: m.lastBench?.overall?.[m.lastBench.systems[m.lastBench.systems.length - 1]]?.mrr ?? null }; })(),
     sweeper: (() => { const s = getSweeperStatus(); return { running: s.running, sweeps: s.sweeps, totals: s.totals, currentlyStuck: s.currentlyStuck, lastAt: s.lastAt }; })(),

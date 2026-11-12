@@ -1,21 +1,9 @@
-import { OLLAMA_URL } from '../config.js';
+import { poolChat } from '../intelligence/model-pool.js';
 import { sanitizeOllamaContent } from '../fraymus/intelligence/ollama-sanitize.js';
 
+/** One model reply through the model pool (the same path as commerce/shared.js chatOllama). */
 export async function chatOllama(messages, opts = {}) {
-  const url = process.env.OLLAMA_BASE_URL || OLLAMA_URL || 'http://127.0.0.1:11434';
-  const res = await fetch(`${url}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: opts.model || process.env.FRAYMUS_DEFAULT_MODEL || 'fraynix-dreamer-ultimate:8b',
-      messages,
-      stream: false,
-      options: { temperature: opts.temperature ?? 0.7, num_predict: opts.maxTokens ?? 2048 },
-    }),
-    signal: AbortSignal.timeout(180_000),
-  });
-  if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`);
-  const data = await res.json();
+  const data = { message: { content: await poolChat(messages, { model: opts.model || null, priority: opts.priority ?? 'goal', label: opts.label || 'creation', timeoutMs: 180_000, temperature: opts.temperature ?? 0.7, maxTokens: opts.maxTokens ?? 2048 }) } };
   return sanitizeOllamaContent(data.message?.content || '');
 }
 

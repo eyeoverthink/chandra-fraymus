@@ -1,3 +1,4 @@
+import { poolChat } from './model-pool.js';
 import { db } from '../db.js';
 import { sanitizeOllamaContent } from '../fraymus/intelligence/ollama-sanitize.js';
 
@@ -68,26 +69,9 @@ Respond in JSON only:
 }`;
 
 async function chatOllama(prompt, system) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 30_000);
-  try {
-    const res = await fetch(`${OLLAMA}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: process.env.OLLAMA_MODEL || 'llama3.1:8b',
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: prompt },
-        ],
-        stream: false,
-        options: { temperature: 0.3 },
-      }),
-      signal: ctrl.signal,
-    });
-    const data = await res.json();
-    return sanitizeOllamaContent(data.message?.content || '');
-  } finally { clearTimeout(timer); }
+  // through the model pool: the first machine that has the model and answers (intelligence/model-pool.js)
+  return sanitizeOllamaContent(await poolChat([{ role: 'system', content: system }, { role: 'user', content: prompt }],
+    { model: process.env.OLLAMA_MODEL || 'llama3.1:8b', label: 'strategy', timeoutMs: 30_000, temperature: 0.3 }));
 }
 
 function parseJSON(text) {

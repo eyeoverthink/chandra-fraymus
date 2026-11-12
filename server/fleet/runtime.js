@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { watch, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { DATA_DIR, OLLAMA_URL } from '../config.js';
+import { poolStream, modelPoolStatus } from '../intelligence/model-pool.js';
 import { withOllama } from '../intelligence/ollama-scheduler.js';
 import { db } from '../db.js';
 import { loadManifests, writeOverride, removeOverride } from './manifest.js';
@@ -299,17 +300,15 @@ async function chat(messages, tools, model, { runId, agentId } = {}) {
     stream: true,
   };
 
-  // Phase V: agent runs are the only thing that produces outcomes — they take the GPU
-  // ahead of reflection/debate/verifier work. The slot is held through the whole stream.
-  return withOllama('agent_run', async () => {
-  const res = await fetch(`${OLLAMA_URL}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(120_000),
-  });
+  // The model pool picks the machine (model-pool.js): another machine's card when it answers, this PC otherwise, the
+  // next machine when one fails before replying. On this PC the call still takes an agent_run slot in the scheduler —
+  // agent runs are the only thing that produces outcomes, so they go ahead of reflection/debate/verifier work.
+  return poolStream(body, { model: model || null, priority: 'agent_run', label: `agent:${agentId || 'unknown'}`, timeoutMs: 120_000 },
+    res => readChatStream(res, { runId, agentId }));
+}
 
-  if (!res.ok) throw new Error(`Ollama ${res.status}`);
+/** Read an Ollama streamed chat reply into {content, tool_calls}, broadcasting tokens as they come. */
+async function readChatStream(res, { runId, agentId } = {}) {
 
   let contentParts = [];
   let toolCalls = [];
@@ -350,8 +349,9 @@ async function chat(messages, tools, model, { runId, agentId } = {}) {
     content: sanitizeOllamaContent(contentParts.join('')),
     tool_calls: sanitizeDeep(toolCalls),
   };
-  }, { label: `agent:${agentId || 'unknown'}` });
 }
+
+export { modelPoolStatus };
 
 function addMsg(threadId, runId, msg) {
   db.prepare(`INSERT INTO messages (thread_id, run_id, role, content, tool_calls, tool_call_id, name, created_at)
