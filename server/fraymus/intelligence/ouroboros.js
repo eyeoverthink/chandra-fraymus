@@ -69,8 +69,17 @@ export function falsificationTests() {
 // CognitiveSubstrate interface for node-based state machines
 // ═══════════════════════════════════════════════════════════════
 
+/**
+ * The proofs walk every state of the substrate and every way of cutting it, all in one synchronous call: the cost
+ * grows about six-fold per node (measured 2026-11-12: 8 nodes 83 ms, 9 458 ms, 10 2.8 s). Past this size a single call
+ * blocks the whole server — one agent's request froze it for over 40 minutes — so the size is capped here, where every
+ * caller (fleet tools, workflow nodes, routes) passes through.
+ */
+export const MAX_PROOF_NODES = 8;
+
 export class FraymusStrangeLoopSubstrate {
   constructor(nodeCount = 4) {
+    nodeCount = Math.min(MAX_PROOF_NODES, Math.max(2, parseInt(nodeCount, 10) || 4));
     this.n = nodeCount;
     this.states = (1 << nodeCount);
     this.selfModel = Array.from({ length: nodeCount }, () =>
@@ -362,6 +371,7 @@ export class SplitBrainModularSubstrate {
 // only if EVERY negative substrate FAILS at least one proof AND the positive
 // substrate (FraymusStrangeLoop) PASSES all 4.
 export function negativeControlConsciousnessProofs(nodeCount = 4, steps = 200) {
+  nodeCount = Math.min(MAX_PROOF_NODES, Math.max(2, parseInt(nodeCount, 10) || 4));   // the comparison substrates cost the same as the real one
   const negativeSubstrates = [
     { name: 'TheaterZombie', substrate: new TheaterZombieSubstrate(nodeCount), expectedFail: 'all' },
     { name: 'FeedforwardDAG', substrate: new FeedforwardDAGSubstrate(nodeCount), expectedFail: 'mirror+counterfactual' },

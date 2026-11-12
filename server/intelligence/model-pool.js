@@ -47,7 +47,8 @@ export function parseHosts(spec, { fallbackRemote = '' } = {}) {
     const o = Object.fromEntries(opts.map(s => s.split('=').map(x => x.trim())).filter(([k, v]) => k && v));
     const slots = Math.min(8, Math.max(1, parseInt(o.slots, 10) || (remoteIndex === 0 ? 2 : 1)));
     const slow = Math.min(10, Math.max(1, Number(o.slow) || 1));
-    hosts.push({ name, local: false, url: c.url, host: c.host, model, slots, slow, think: o.think ? o.think !== 'off' : !/^qwen3/i.test(model) });
+    const keep = /^\d{1,3}[smh]$/.test(o.keep || '') ? o.keep : '30m';
+    hosts.push({ name, local: false, url: c.url, host: c.host, model, slots, slow, keep, think: o.think ? o.think !== 'off' : !/^qwen3/i.test(model) });
     remoteIndex++;
   }
   if (!hosts.some(h => h.local)) hosts.push({ name: 'local', local: true, url: OLLAMA_URL, model: null, slots: Infinity, slow: 1 });
@@ -79,6 +80,16 @@ function modelOn(h, s, requested) {
   return s.models.has(requested) ? requested : null;
 }
 
+/**
+ * A machine can be busy with something that is not a model call: a machine that also paints and renders for the hub
+ * (a worker) should not have a language model loaded onto its card in the middle of a render. Another module registers
+ * a guard (media/workers.js does, at start); it answers synchronously from what it last saw, so choosing a machine
+ * never waits on it. Returns a reason to skip the machine, or null.
+ */
+let hostGuard = null;
+export function setHostGuard(fn) { hostGuard = typeof fn === 'function' ? fn : null; }
+function remoteSkip(h) { try { return hostGuard ? hostGuard({ name: h.name, host: h.host, url: h.url }) : null; } catch (e) { return null; } }
+
 function localSkip() {
   if (ollamaPaused()) return 'the studio holds this PC\'s graphics card';
   const q = getSchedulerStatus?.() || {}; if ((q.queued || 0) >= LOCAL_QUEUE_SKIP) return `this PC's model queue is ${q.queued} deep`;
@@ -92,7 +103,7 @@ async function candidates(requested) {
     const s = await check(h);
     if (!h.local && (!s.ok || now() < s.restingUntil)) continue;
     const model = modelOn(h, s, requested); if (!model) continue;
-    out.push({ h, s, model, full: !h.local && s.inFlight >= h.slots, skip: h.local ? localSkip() : null });
+    out.push({ h, s, model, full: !h.local && s.inFlight >= h.slots, skip: h.local ? localSkip() : remoteSkip(h) });
   }
   // a free remote slot or an unloaded local queue first; a full or skipped one only when nothing else can take it
   return [...out.filter(c => !c.full && !c.skip), ...out.filter(c => c.full || c.skip)];
@@ -117,7 +128,7 @@ export async function runOnPool({ model = null, priority = 'goal', label = 'mode
       else {
         if (s.inFlight >= h.slots) await waitForSlot(h, s);
         s.inFlight++;
-        try { result = await attempt({ url: h.url, model: c.model, think: h.think ? undefined : false, timeoutMs: t, local: false, name: h.name, keepAlive: '30m' }); }
+        try { result = await attempt({ url: h.url, model: c.model, think: h.think ? undefined : false, timeoutMs: t, local: false, name: h.name, keepAlive: h.keep }); }
         finally { s.inFlight--; wake(h.name); }
       }
       s.calls++; s.totalMs += now() - t0; s.lastOkAt = now();
@@ -138,8 +149,8 @@ function waitForSlot(h, s) { return new Promise(res => { const list = waiting.ge
 function wake(name) { const list = waiting.get(name); if (list?.length) list.shift()(); }
 
 export function modelPoolStatus() {
-  return { hosts: HOSTS.map(h => { const s = state.get(h.name); return { name: h.name, local: h.local, address: h.local ? 'this PC' : h.host, defaultModel: h.local ? defaultModel() : h.model, slots: h.local ? 'scheduler' : h.slots, slow: h.slow,
-    healthy: h.local ? !localSkip() : s.ok && now() >= s.restingUntil, why: h.local ? localSkip() : (now() < s.restingUntil ? `resting after: ${s.why}` : s.why), inFlight: s.inFlight, calls: s.calls, failures: s.failures,
+  return { hosts: HOSTS.map(h => { const s = state.get(h.name), busy = h.local ? localSkip() : remoteSkip(h); return { name: h.name, local: h.local, address: h.local ? 'this PC' : h.host, defaultModel: h.local ? defaultModel() : h.model, slots: h.local ? 'scheduler' : h.slots, slow: h.slow, keepAlive: h.local ? null : h.keep,
+    healthy: h.local ? !busy : s.ok && now() >= s.restingUntil && !busy, why: now() < s.restingUntil && !h.local ? `resting after: ${s.why}` : busy || s.why, inFlight: s.inFlight, calls: s.calls, failures: s.failures,
     meanSeconds: s.calls ? +(s.totalMs / s.calls / 1000).toFixed(1) : null, lastOkAt: s.lastOkAt, checkedAt: s.checkedAt || null }; }),
     refused: parsed.refused, ...stats };
 }

@@ -21,6 +21,7 @@
  * Every remote job is a row in worker_jobs with its receipt. A worker that fails or is busy is never
  * fatal: callers fall back to local work and record why.
  */
+import { setHostGuard } from '../intelligence/model-pool.js';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
@@ -160,6 +161,11 @@ export async function pickWorker(kind) {
  * Throws on any failure; the worker_jobs row keeps the reason.
  */
 export async function runOnWorker(worker, { id, kind, spec, files = {}, purpose = '' }, { outDir, onProgress, timeoutMs = 3_600_000 } = {}) {
+  runningOn.set(worker.name, (runningOn.get(worker.name) || 0) + 1);
+  try { return await runOnWorkerInner(worker, { id, kind, spec, files, purpose }, { outDir, onProgress, timeoutMs }); }
+  finally { runningOn.set(worker.name, Math.max(0, (runningOn.get(worker.name) || 1) - 1)); }
+}
+async function runOnWorkerInner(worker, { id, kind, spec, files = {}, purpose = '' }, { outDir, onProgress, timeoutMs = 3_600_000 } = {}) {
   const nonce = randomBytes(16).toString('hex');
   const digest = jobDigest(kind, spec, files);
   const t0 = now();
@@ -204,7 +210,42 @@ export function workerJobs(limit = 20) {
 
 export function workersConfigured() { return CONFIG.workers.length; }
 
+// ── is a worker's card busy? (read by the model pool, so a language model is not loaded onto it mid-render) ──
+const runningOn = new Map();                       // worker name → jobs this hub is running there
+const cardSeen = new Map();                         // worker address → { at, busy, usedMB, ollamaMB }
+const OTHER_USE_MB = Math.max(256, parseInt(process.env.MODEL_POOL_OTHER_GPU_MB, 10) || 2048);
+let refreshing = false;
+async function refreshCards() {
+  if (refreshing) return; refreshing = true;
+  try {
+    for (const w of await workersStatus({ fresh: true })) {
+      const addr = w.tunnel?.host || w.host; if (!addr) continue;
+      let ollamaMB = 0;
+      try { const r = await fetch(`http://${addr}:11434/api/ps`, { signal: AbortSignal.timeout(3000) }); if (r.ok) ollamaMB = Math.round(((await r.json()).models || []).reduce((n, m) => n + (m.size_vram || 0), 0) / 2 ** 20); } catch (e) { /* no Ollama there, or not reachable: count none */ }
+      const g = (w.gpus || [])[0];
+      cardSeen.set(addr, { at: now(), busy: !!w.busy, usedMB: g?.usedMB ?? null, ollamaMB, reachable: !!w.reachable, name: w.name });
+    }
+  } catch (e) { console.error('[workers] card check:', e.message); }
+  finally { refreshing = false; }
+}
+/**
+ * Why a model machine should not be used right now, or null. Matches a pool machine to a worker by address.
+ * Synchronous: answers from what was last seen (≤ 20 s old) and starts a fresh look in the background.
+ */
+export function workerCardGuard({ host }) {
+  const w = CONFIG.workers.find(x => (x.tunnel?.host || x.host) === host); if (!w) return null;
+  if ((runningOn.get(w.name) || 0) > 0) return `${w.name} is rendering for the hub`;
+  const seen = cardSeen.get(host);
+  if (!seen || now() - seen.at > 20_000) refreshCards().catch(() => {});
+  if (!seen) return null;
+  if (seen.busy) return `${w.name}'s worker is busy`;
+  if (seen.usedMB != null && seen.usedMB - seen.ollamaMB > OTHER_USE_MB) return `something else is using ${w.name}'s card (${seen.usedMB - seen.ollamaMB} MB that are not a language model)`;
+  return null;
+}
+
 export function installWorkerRoutes(app) {
+  // the model pool skips a machine whose card is rendering for us, or is held by something that is not a language model
+  if (CONFIG.workers.length) setHostGuard(workerCardGuard);
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
   app.get('/api/studio/workers', route(async (req, res) => res.json({
     configured: CONFIG.workers.map(w => ({ name: w.name, url: w.url, host: w.host, routeClass: w.routeClass, via: w.tunnel ? `ssh tunnel to ${w.tunnel.user}@${w.tunnel.host}:${w.tunnel.remotePort}` : 'direct' })), refused: CONFIG.refused,

@@ -241,9 +241,9 @@ export function createFleetTools({ workflowStore }) {
       group: 'intelligence',
       risk: 'safe',
       description: 'Run 4 mathematical consciousness proofs (EI, Phi-MIP, Mirror Protocol, Counterfactual Branching) on a FraymusStrangeLoopSubstrate.',
-      parameters: object({ nodeCount: { type: 'integer', default: 4, minimum: 2, maximum: 16 } }),
+      parameters: object({ nodeCount: { type: 'integer', default: 4, minimum: 2, maximum: 8 } }),
       execute: async ({ args }) => {
-        const n = Math.min(16, Math.max(2, parseInt(args.nodeCount) || 4));
+        const n = Math.min(8, Math.max(2, parseInt(args.nodeCount) || 4));   // the substrate caps at 8 as well: above that one call freezes the server
         const substrate = new FraymusStrangeLoopSubstrate(n);
         const proofs = [
           proofEffectiveInformation(substrate),

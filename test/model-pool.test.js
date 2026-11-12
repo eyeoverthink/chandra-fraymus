@@ -83,5 +83,26 @@ test('a stream that fails half-way is not repeated elsewhere; one that cannot st
   reset(); await checkAllHosts(); home.st.mode = 'drive';
   assert.equal(await poolStream({ messages: [], stream: true }, {}, readAll), 'pc streamed');
   reset();
-  for (const f of [home, vps, pc]) f.srv.close();
 });
+
+// From Grok's review (2026-11-12): fraymus-home paints and renders too; a language model must not be loaded onto its card mid-render.
+test('a machine whose card is busy with something else is passed over, and used only when nothing else can answer', async () => {
+  const { setHostGuard } = await import('../server/intelligence/model-pool.js');
+  reset(); await checkAllHosts();
+  let busy = 'home is rendering for the hub';
+  setHostGuard(({ name }) => (name === 'home' ? busy : null));
+  assert.equal(await poolChat([{ role: 'user', content: 'hi' }]), 'from pc (fraynix-dna:8b)');
+  const s = modelPoolStatus().hosts.find(h => h.name === 'home');
+  assert.equal(s.healthy, false); assert.equal(s.why, 'home is rendering for the hub'); assert.equal(s.keepAlive, '30m');
+  pc.st.mode = 'down'; vps.st.mode = 'down'; await checkAllHosts();
+  assert.equal(await poolChat([{ role: 'user', content: 'hi' }]), 'from home (qwen3:14b)', 'a busy machine still answers when it is the only one left');
+  busy = null; reset(); await checkAllHosts();
+  assert.equal(await poolChat([{ role: 'user', content: 'hi' }]), 'from home (qwen3:14b)');
+  setHostGuard(() => { throw new Error('guard broke'); });
+  assert.equal(await poolChat([{ role: 'user', content: 'hi' }]), 'from home (qwen3:14b)', 'a broken guard never blocks a call');
+  setHostGuard(null);
+  assert.equal(parseHosts('h=qwen3:14b@http://100.99.98.101:11434|keep=5m').hosts[0].keep, '5m');
+  assert.equal(parseHosts('h=qwen3:14b@http://100.99.98.101:11434|keep=forever').hosts[0].keep, '30m');
+});
+
+test.after(() => { for (const f of [home, vps, pc]) f.srv.close(); });
