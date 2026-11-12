@@ -101,4 +101,5 @@ What comes back is a pile of ideas to check against the code, not code to drop i
    - **Referee (optional):** create a key in AI Studio, then in a PowerShell window
      `$env:GEMINI_API_KEY = "<key>"`, `node gemini-referee.mjs --list-models`, then
      `node gemini-referee.mjs --send --model <id>`.
-6. Record each result here. Re-train as rated work accumulates: every 👍 on Rate Outcomes adds to the strongest source.
+6. **First run, 2026-11-12:** trained on a Colab A100, imported as `qwen3-chandra:14b`, measured. Films 6/12 → 7/12, tools 2/2 → 2/2, direct gauge 0.604 → 0.604: **no measurable difference and no forgetting; the app keeps qwen3:14b.** The referee ran too (Gemini 4 Carbon): the local judge is far too generous (mean grade 1.34 against 0.57), and search still beats "ten newest".
+7. Record each result here. Re-train as rated work accumulates: every 👍 on Rate Outcomes adds to the strongest source.

@@ -87,8 +87,13 @@ const sum = (rows, name) => {
 };
 console.log(`\n${BASE} (base) vs ${CAND} (candidate), held-out ${heldPath}`);
 const totals = [sum(toolResults, 'tools'), sum(filmResults, 'films')];
-const better = totals.some(t => t.gained > t.lost), worse = totals.some(t => t.lost > t.gained);
-const verdict = worse ? 'do not adopt: a test got worse' : better ? 'candidate leads on this sample; confirm with the capability gauge (forgetting) before adopting' : 'no difference on this sample';
+// A lead must be beyond chance: the first adapter (2026-11-12) "led" by one film script of twelve (p = 1.0), and the old
+// rule called that a lead. Any net loss still blocks — caution costs nothing, a worse model in the app does.
+const LEAD_P = 0.1;
+const better = totals.some(t => t.gained > t.lost && t.p != null && t.p < LEAD_P), worse = totals.some(t => t.lost > t.gained);
+const verdict = worse ? 'do not adopt: a test got worse'
+  : better ? `candidate leads beyond chance (p < ${LEAD_P}); confirm with the capability gauge (forgetting) before adopting`
+  : 'no measurable difference: keep the base';
 console.log(`verdict: ${verdict}`);
 const outDir = join('data', 'distill', 'measurements'); mkdirSync(outDir, { recursive: true });
 const out = join(outDir, `${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}-${CAND.replace(/[:/]/g, '_')}.json`);
