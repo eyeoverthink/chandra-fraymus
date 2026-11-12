@@ -10,10 +10,10 @@
 // 4. a dated README in the new folder and a row in D:\Models\README.md's index (the layout rule on that machine)
 // 5. one short chat to prove it loads
 // --dry-run does steps that read only: ssh, ollama, free space, the Modelfile it would write.
-import { createReadStream, statSync, existsSync } from 'node:fs';
+import { createReadStream, statSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { basename } from 'node:path';
+import { basename, join } from 'node:path';
 
 const HOST = process.env.CHANDRA_HOME_SSH || 'eyeov@100.99.98.101';
 const OLLAMA = process.env.CHANDRA_HOME_OLLAMA || 'http://100.99.98.101:11434';
@@ -32,7 +32,18 @@ const ssh = (cmd, { input } = {}) => {
   if (r.status !== 0) throw new Error(`ssh failed (${r.status}): ${cmd.slice(0, 80)}\n${r.stderr}`);
   return r.stdout;
 };
-const ps = script => ssh(`powershell -NoProfile -NonInteractive -Command -`, { input: script });
+// The whole script travels encoded and stops on its first error. First live import (2026-11-12): a script piped on stdin
+// is read line by line, so the here-strings that wrote the Modelfile and README broke, and PowerShell still exited 0.
+const ps = script => ssh(`powershell -NoProfile -NonInteractive -EncodedCommand ${Buffer.from(`$ErrorActionPreference = 'Stop'\n${script}`, 'utf16le').toString('base64')}`);
+// Small text files are written here and copied, so they arrive byte for byte (UTF-8, no BOM, LF) — not re-encoded by PowerShell.
+const STAGE = 'F:/Claude-Work/chandra-superintelligence/memory/import-staging';
+const upload = (name, text, remotePath) => {
+  mkdirSync(STAGE, { recursive: true });
+  const local = join(STAGE, name);
+  writeFileSync(local, text);
+  const r = spawnSync('scp', ['-o', 'BatchMode=yes', local, `${HOST}:${remotePath.replace(/\\/g, '/')}`], { encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`scp of ${name} failed: ${r.stderr}`);
+};
 const fileSha = f => new Promise((ok, no) => { const h = createHash('sha256'); createReadStream(f).on('data', d => h.update(d)).on('end', () => ok(h.digest('hex'))).on('error', no); });
 
 if (!dry && (!gguf || !existsSync(gguf))) { console.error('give the path of the .gguf the notebook saved (or --dry-run)'); process.exit(2); }
@@ -57,16 +68,21 @@ if (Number(free) < size * 2.2) throw new Error(`not enough room on D: for the fi
 console.log(`local file ok: ${(size / 1e9).toFixed(2)} GB, sha256 ${got.slice(0, 16)}…`);
 
 ps(`New-Item -ItemType Directory -Force '${remoteDir}' | Out-Null`);
-console.log('copying (this is a large file over the tailnet)…');
-const t0 = Date.now();
-const cp = spawnSync('scp', ['-o', 'BatchMode=yes', gguf, `${HOST}:${remoteFile.replace(/\\/g, '/')}`], { stdio: 'inherit' });
-if (cp.status !== 0) throw new Error('scp failed');
-console.log(`copied in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
-const remoteSha = ps(`(Get-FileHash -Algorithm SHA256 '${remoteFile}').Hash`).trim().toLowerCase();
-if (remoteSha !== expected) throw new Error(`file on fraymus-home has sha256 ${remoteSha}, expected ${expected}`);
-console.log('sha256 matches on arrival');
+// resume: a file already there with the right size and hash is not copied again
+const remoteHash = () => ps(`if (Test-Path '${remoteFile}') { if ((Get-Item '${remoteFile}').Length -eq ${size}) { (Get-FileHash -Algorithm SHA256 '${remoteFile}').Hash } else { 'partial' } } else { 'none' }`).trim().toLowerCase();
+if (remoteHash() === expected) console.log('already on fraymus-home with the right sha256: not copied again');
+else {
+  console.log('copying (this is a large file over the tailnet)…');
+  const t0 = Date.now();
+  const cp = spawnSync('scp', ['-o', 'BatchMode=yes', gguf, `${HOST}:${remoteFile.replace(/\\/g, '/')}`], { stdio: 'inherit' });
+  if (cp.status !== 0) throw new Error('scp failed');
+  console.log(`copied in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+  const remoteSha = remoteHash();
+  if (remoteSha !== expected) throw new Error(`file on fraymus-home has sha256 ${remoteSha}, expected ${expected}`);
+  console.log('sha256 matches on arrival');
+}
 
-ps(`Set-Content -Encoding utf8 -Path '${remoteDir}\\Modelfile' -Value @'\n${modelfile}\n'@`);
+upload('Modelfile', `${modelfile}\n`, `${remoteDir}\\Modelfile`);
 const readme = `# D:\\Models\\chandra-lora\\${stamp}
 
 - **Created:** ${stamp}
@@ -75,7 +91,7 @@ const readme = `# D:\\Models\\chandra-lora\\${stamp}
 - **Ollama model made from it:** ${name} (Modelfile here: qwen3:14b's own, only FROM changed)
 - **Not used by the app** until measure-adapter.mjs shows it does better on the held-out set. To remove: \`ollama rm ${name}\` and delete this folder.
 `;
-ps(`Set-Content -Encoding utf8 -Path '${remoteDir}\\README.md' -Value @'\n${readme}\n'@`);
+upload('README.md', readme, `${remoteDir}\\README.md`);
 ps(`$p='D:\\Models\\README.md'; $c=Get-Content -Raw $p; if ($c -notmatch 'chandra-lora') { $c=$c -replace '(\\| comfyui \\|[^\\n]*\\n)', ('$1' + '| chandra-lora | GGUFs of Chandra-trained adapters, one folder per date; each made into an Ollama model | ${stamp} |' + [char]10); $c=$c -replace '\\*\\*Last updated:\\*\\* [0-9-]+', '**Last updated:** ${stamp}'; Set-Content -Encoding utf8 -NoNewline -Path $p -Value $c }`);
 console.log('README written, index row added');
 
