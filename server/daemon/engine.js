@@ -17,6 +17,7 @@ import { startTransientSweeper, stopTransientSweeper, getSweeperStatus } from '.
 import { startMemoryIndexer, stopMemoryIndexer, memorySearchStatus } from '../intelligence/memory-search-service.js';
 import { startFactsReader, stopFactsReader, factsStatus } from '../intelligence/facts-service.js';
 import { modelPoolStatus } from '../intelligence/model-pool.js';
+import { buildEvidence, triage, fingerprint, dreamMessages, checkLesson, alreadyKnown, storedText, MAX_LESSONS } from '../intelligence/dream-ground.js';
 import { startSelfModification, stopSelfModification, getSelfModificationStatus, selfModificationCycle, maybeBuildFromBacklog, checkOuroborosAllowed } from '../intelligence/self-modification.js';
 import { startResearchScout, stopResearchScout, getResearchStatus, runResearchDemos } from '../intelligence/research-scout.js';
 import { startSkillForge, stopSkillForge, getSkillForgeStatus, skillForgeCycle } from '../intelligence/skill-forge.js';
@@ -83,6 +84,59 @@ Given recent events (agent runs, bus messages, workflow executions, health alert
 
 Output JSON only, no markdown fences:
 {"patterns": ["..."], "outcomes": ["..."], "learnings": ["..."], "summary": "one paragraph compressed context"}`;
+
+// Counters since boot for the grounded dream path; getDaemonStatus().dreams
+const dreamStats = { runs: 0, skipped: 0, lastSkip: null, proposed: 0, kept: 0, duplicates: 0, dropped: {}, lastAt: 0, lastKept: [] };
+export function getDreamStats() {
+  const kept = dreamStats.kept, proposed = dreamStats.proposed;
+  return { ...dreamStats, keepRate: proposed ? +(kept / proposed).toFixed(3) : null, lastKept: dreamStats.lastKept.slice(0, 4) };
+}
+
+async function consolidateGrounded(activity) {
+  dreamStats.runs++; dreamStats.lastAt = now();
+  const lines = buildEvidence(activity);
+  const last = (() => {
+    try { return JSON.parse(db.prepare(`SELECT output FROM daemon_cycles WHERE type = 'consolidation' ORDER BY created_at DESC LIMIT 1`).get()?.output || '{}'); }
+    catch (e) { console.warn('[daemon] dream fingerprint:', e.message); return {}; }
+  })();
+  const gate = triage(lines, Array.isArray(last.fingerprint) ? last.fingerprint : []);
+  if (!gate.go) { dreamStats.skipped++; dreamStats.lastSkip = gate.reason; return { consolidated: false, reason: gate.reason, evidence: lines.length, novelty: gate.novelty }; }
+
+  const raw = await chatOllama(dreamMessages(lines), { format: 'json', priority: 'dream', label: 'dream:consolidate', temperature: 0.2, maxTokens: 1200 });
+  const lessons = (() => { try { const p = JSON.parse(raw); return Array.isArray(p.lessons) ? p.lessons : []; } catch (e) { console.warn('[daemon] dream parse:', e.message); return []; } })();
+  const existing = db.prepare(`SELECT value FROM agent_memories WHERE agent_id = 'system' AND category = 'dream' ORDER BY updated_at DESC LIMIT 400`).all().map(r => r.value);
+  const kept = [], dropped = {};
+  for (const l of lessons.slice(0, MAX_LESSONS + 2)) {
+    dreamStats.proposed++;
+    const v = checkLesson(l, lines);
+    if (!v.ok) { dropped[v.why] = (dropped[v.why] || 0) + 1; dreamStats.dropped[v.why] = (dreamStats.dropped[v.why] || 0) + 1; continue; }
+    const lesson = { lesson: String(l.lesson), evidence: v.cited, quote: String(l.quote) };
+    if (alreadyKnown(lesson.lesson, existing.concat(kept.map(k => k.lesson)))) { dreamStats.duplicates++; dropped.duplicate = (dropped.duplicate || 0) + 1; continue; }
+    kept.push(lesson);
+  }
+  for (const k of kept.slice(0, MAX_LESSONS)) {
+    try {
+      db.prepare(
+        `INSERT INTO agent_memories (agent_id, category, key, value, confidence, source, access_count, created_at, updated_at) VALUES ('system', 'dream', ?, ?, 0.7, 'daemon-dream-grounded', 0, ?, ?)`
+      ).run(`dream:${now()}:${Math.random().toString(36).slice(2, 6)}`, storedText(k), now(), now());
+      dreamStats.kept++;
+    } catch (e) { console.warn('[daemon] dream store:', e.message); }
+    // a grounded lesson about a framing also refines the perspective playbook, as the free-form path did
+    if (/perspective|framing|lens|approach/i.test(k.lesson)) {
+      try {
+        db.prepare(
+          `INSERT INTO agent_memories (agent_id, category, key, value, confidence, source, access_count, created_at, updated_at) VALUES ('system', 'perspective_dream', ?, ?, 0.75, 'daemon-perspective', 0, ?, ?)`
+        ).run(`pdream:${now()}:${Math.random().toString(36).slice(2, 6)}`, storedText(k), now(), now());
+      } catch (e) { console.warn('[daemon] perspective dream:', e.message); }
+    }
+  }
+  dreamStats.lastKept = kept.map(k => k.lesson).concat(dreamStats.lastKept).slice(0, 8);
+  const output = { lessons, kept: kept.length, dropped, fingerprint: fingerprint(lines), novelty: gate.novelty };
+  db.prepare(
+    `INSERT INTO daemon_cycles (id, type, input_summary, output, created_at) VALUES (?, 'consolidation', ?, ?, ?)`
+  ).run(randomUUID().slice(0, 12), lines.map(l => `${l.id}. ${l.text}`).join('\n').slice(0, 4000), JSON.stringify(output).slice(0, 8000), now());
+  return { consolidated: true, grounded: true, evidence: lines.length, novelty: gate.novelty, proposed: lessons.length, kept: kept.length, dropped, lessons: kept.map(k => k.lesson) };
+}
 
 async function consolidateDreams() {
   const oneHourAgo = now() - 3600_000;
@@ -173,8 +227,36 @@ async function consolidateDreams() {
     } catch (_) { return { mood: 'unknown', readings: 0, distribution: {} }; }
   })();
 
-  const activityCount = recentBus.length + recentRuns.length + recentAlerts.length + recentVerifications.length + recentChains.length + recentDebates.length + recentGoals.length + recentRouting.length + recentPerspectives.sessions.length + recentPerspectives.shifts.length;
+  const recentAgentRuns = (() => {
+    try {
+      // runs has no agent_id: the agent is the prefix of model (agentId:model)
+      return db.prepare(
+        `SELECT model, status, error FROM runs WHERE created_at > ? AND status IN ('done', 'error', 'failed') ORDER BY created_at DESC LIMIT 15`
+      ).all(oneHourAgo).map(r => ({ agent: String(r.model || '').split(':')[0] || null, status: r.status, error: r.error }));
+    } catch (e) { console.warn('[daemon] dream runs:', e.message); return []; }
+  })();
+
+  const recentExecutions = (() => {
+    try {
+      // the outcome of a goal: who ran it, how it scored, how the reply began (finished_at is epoch ms)
+      return db.prepare(
+        `SELECT e.agent_id, e.status, e.quality, e.error, e.reply_excerpt, g.objective FROM goal_executions e LEFT JOIN goal_proposals g ON g.id = e.goal_id
+         WHERE e.finished_at > ? ORDER BY e.finished_at DESC LIMIT 15`
+      ).all(oneHourAgo);
+    } catch (e) { console.warn('[daemon] dream executions:', e.message); return []; }
+  })();
+
+  const activityCount = recentExecutions.length + recentBus.length + recentRuns.length + recentAlerts.length + recentVerifications.length + recentChains.length + recentDebates.length + recentGoals.length + recentRouting.length + recentPerspectives.sessions.length + recentPerspectives.shifts.length;
   if (activityCount === 0) return { consolidated: false, reason: 'no_recent_activity' };
+
+  // Grounded path (2026-11-12): evidence lines written by code, triage, cited lessons, mechanical check, dedup.
+  // DREAM_GROUNDED=0 restores the old free-form consolidation below.
+  if (process.env.DREAM_GROUNDED !== '0') {
+    return consolidateGrounded({
+      executions: recentExecutions, goals: recentGoals, runs: recentAgentRuns, verifications: recentVerifications, debates: recentDebates, alerts: recentAlerts,
+      workflows: recentRuns, chains: recentChains, routing: recentRouting, perspectiveShifts: recentPerspectives.shifts, bus: recentBus,
+    });
+  }
 
   const input = JSON.stringify({
     emotionalState,
@@ -965,6 +1047,7 @@ export function getDaemonStatus() {
     externalSenses: getExternalSensesStatus(),
     modelPool: (() => { const m = modelPoolStatus(); return { hosts: m.hosts.map(h => ({ name: h.name, healthy: h.healthy, calls: h.calls, failures: h.failures, meanSeconds: h.meanSeconds, why: h.why })), calls: m.calls, fallbacks: m.fallbacks, noHost: m.noHost }; })(),
     facts: (() => { const f = factsStatus(); return f.error ? { error: f.error } : { total: f.total, current: f.current, superseded: f.superseded, entities: f.entities, memoriesRead: f.reader.read, accepted: f.reader.accepted, dropped: f.reader.dropped, memoriesWaiting: f.reader.memoriesWaiting }; })(),
+    dreams: getDreamStats(),
     memorySearch: (() => { const m = memorySearchStatus(); return m.error ? { error: m.error } : { memories: m.memories, vectors: m.vectors, vectorCoverage: m.vectorCoverage, searches: m.searches, hybrid: m.hybrid, keywordOnly: m.keywordOnly, embedErrors: m.embedErrors, indexerBusy: m.indexer.busy, lastBenchMrr: m.lastBench?.overall?.[m.lastBench.systems[m.lastBench.systems.length - 1]]?.mrr ?? null }; })(),
     sweeper: (() => { const s = getSweeperStatus(); return { running: s.running, sweeps: s.sweeps, totals: s.totals, currentlyStuck: s.currentlyStuck, lastAt: s.lastAt }; })(),
     researchScout: (() => { try { const s = getResearchStatus(); return { running: s.running, scans: s.scans, lastScanAt: s.lastScanAt, items: s.items, relevantItems: s.relevantItems, proposals: s.proposals, pendingExperiment: s.pendingExperiment && s.pendingExperiment.tunable, pendingCode: s.pendingCode && s.pendingCode.targetFile }; } catch (e) { return { error: e.message }; } })(),

@@ -392,3 +392,13 @@ the organism's memory was tested on its work, not on its retrieval: 1 pairs fini
 **2026-11-12 — The first answer, and why it took a day.** The memory experiment could not run on one machine; it ran once the model pool spread the work. Rerun on the model pool (mx-4ac2dabb, 2026-11-12, 15 min): 12 of 12 pairs finished, 1 of 25 runs needed a retry. Mean quality 0.308 with the ten newest memories, 0.400 with memories about the task (+0.092); 7 better, 2 worse, 3 the same; paired p = 0.14. The gain is all in the judged half of the score (0.115 → 0.288); the measured half did not move (0.502 → 0.513). Leaning positive, not proven: about 30 pairs would be needed to tell an effect this size from chance. The same day a single tool call froze the whole server for forty minutes; that is fixed, and the lesson is written down.
 
 **2026-11-12, evening — 32 pairs.** Both runs together (mx-4ac2dabb + mx-b6d1b2bb, 2026-11-12): 32 pairs on 32 different tasks. Mean quality 0.312 with the ten newest memories, 0.377 with memories about the task (+0.065, sd 0.18); 18 better, 7 worse, 7 the same; paired sign-flip p = 0.056. The judged half rose 0.141 → 0.235; the measured half 0.483 → 0.519 (p = 0.16). The second run alone: +0.048 over 20 pairs (p = 0.23). Verdict: a small gain, in the same direction in both runs, just short of the usual 5 % bar — likely real, not proven.
+
+**2026-11-12, night — Dreams that only say what happened, and a gauge that moved.** The organism's nightly dream had
+written sixteen hundred memories that nobody read: more than half were repeats, and nine hundred were log lines filed
+under the wrong name. The dream step now writes the hour down as numbered evidence first, by code, and a lesson is kept
+only if it cites something that happened, quotes it exactly, says how it went and does not claim the opposite. It took
+five measured versions to get there: the first passed almost everything and had learned nothing; the last keeps fewer
+lessons, and most of them are patterns across the hour, such as replies that found no memories scoring low. Whether
+anything does better for reading them is not measured yet. On the same day the external gauge was re-run in pairs on
+the model pool: the same 48 generated problems, raw model against the full reasoner, g 0.583 against 0.729 (p = 0.039),
+with planning still unsolved by either.

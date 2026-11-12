@@ -124,8 +124,9 @@ function poissonSample(lambda) {
 async function injectStimulus(type, context) {
   switch (type) {
     case 'memory_seed': {
-      const categories = ['pattern', 'insight', 'hypothesis', 'dream'];
-      const category = categories[Math.floor(Math.random() * categories.length)];
+      // its own category: these are log lines, and filed as 'dream' / 'insight' (938 of 1,616 "dreams" by 2026-11-12)
+      // they were pasted into the trend radar and smart calendar as if they were things the system had learned
+      const category = 'neurogenesis_seed';
       const key = `neurogenesis:${now()}:${Math.random().toString(36).slice(2, 6)}`;
       const value = `Spontaneous activation: ${context.reason}. Connectivity score: ${context.score.toFixed(3)}`;
       try {
