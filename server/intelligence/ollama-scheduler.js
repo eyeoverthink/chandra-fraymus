@@ -98,7 +98,7 @@ function pump() {
     stats.totalWaitMs += waited;
     if (waited > stats.maxWaitMs) stats.maxWaitMs = waited;
     bump(stats.byClass, CLASS_NAMES[job.prio]);
-    job.resolve(waited);
+    job.resolve({ waited, id: job.id });   // the job's own id: withOllama must never guess which running job is its own
   }
 }
 
@@ -120,9 +120,11 @@ function drop(job, reason) {
   job.reject(err);
 }
 
-function acquire(prio, label) {
+function acquire(prio, label, signal) {
   return new Promise((resolve, reject) => {
     const job = { id: nextId++, prio, label, enqueuedAt: now(), resolve, reject, timer: null };
+    // aborted while waiting: leave the queue now, not when the class limit runs out
+    if (signal) signal.addEventListener('abort', () => { if (queue.includes(job)) drop(job, 'aborted'); }, { once: true });
     // Overflow: low-priority work does not even queue when the line is already long.
     if (prio >= 4 && queue.length >= MAX_QUEUE) {
       queue.push(job); // so drop() can account for it uniformly
@@ -137,6 +139,7 @@ function acquire(prio, label) {
 }
 
 function release(id, outcome, waitMs) {
+  if (!runningJobs.has(id)) return;   // never twice, never another job's slot
   const r = runningJobs.get(id);
   runningJobs.delete(id);
   running = Math.max(0, running - 1);
@@ -149,18 +152,28 @@ function release(id, outcome, waitMs) {
  * Run `fn` when a slot is free, in priority order. Rejects with code 'scheduler_dropped'
  * when the job waited past its class limit or the queue is full.
  */
-export async function withOllama(priority, fn, { label = 'ollama' } = {}) {
+export async function withOllama(priority, fn, { label = 'ollama', signal = null } = {}) {
   const prio = resolvePriority(priority);
-  const waitMs = await acquire(prio, String(label).slice(0, 80));
-  // acquire() resolved -> the job is in runningJobs under the id pump() assigned; find it by insertion order.
-  const id = [...runningJobs.keys()].pop();
+  signal?.throwIfAborted?.();
+  const { waited: waitMs, id } = await acquire(prio, String(label).slice(0, 80), signal);
+  // Cancellation frees the slot at once. Before 2026-11-12 the slot was held until fn() settled, so one call that ignored
+  // its abort (a stuck socket, an uncooperative provider) kept the single GPU slot forever — "0 queued, 1 running" —
+  // and every later model call waited out its class limit (35 agent tests timed out on exactly that).
+  let onAbort = null;
+  const aborted = signal ? new Promise((_, reject) => {
+    onAbort = () => { release(id, 'aborted', waitMs); reject(signal.reason ?? Object.assign(new Error('aborted'), { name: 'AbortError' })); };
+    if (signal.aborted) onAbort(); else signal.addEventListener('abort', onAbort, { once: true });
+  }) : null;
+  aborted?.catch(() => {});   // settled by the race below; never an unhandled rejection
   try {
-    const result = await fn();
+    const result = await (aborted ? Promise.race([fn(), aborted]) : fn());
     release(id, 'ok', waitMs);
     return result;
   } catch (e) {
     release(id, e?.name === 'TimeoutError' || /timeout|aborted/i.test(e?.message || '') ? 'timeout' : 'error', waitMs);
     throw e;
+  } finally {
+    if (onAbort) signal.removeEventListener('abort', onAbort);
   }
 }
 

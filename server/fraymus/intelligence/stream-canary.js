@@ -90,7 +90,7 @@ export class StreamCanaryInterceptor {
       if (!combined) return '';
     }
 
-    const { sanitized, redactionCount, unterminated } = sanitizeStreamText(combined, this.xorKey, this.stepAdd);
+    const { sanitized, redactionCount, unterminated } = sanitizeStreamText(combined, this.xorKey, this.stepAdd, this.lastChar || '');
     this.totalRedactions += redactionCount;
 
     if (unterminated && !flush) {
@@ -104,14 +104,13 @@ export class StreamCanaryInterceptor {
       });
     }
 
-    if (flush) return sanitized;
+    if (flush) { if (sanitized) this.lastChar = sanitized[sanitized.length - 1]; return sanitized; }
 
     const overlap = tailPrefixOverlap(sanitized);
-    if (overlap > 0) {
-      this.prefixBuffer = sanitized.slice(-overlap);
-      return sanitized.slice(0, -overlap);
-    }
-    return sanitized;
+    const out = overlap > 0 ? sanitized.slice(0, -overlap) : sanitized;
+    if (overlap > 0) this.prefixBuffer = sanitized.slice(-overlap);
+    if (out) this.lastChar = out[out.length - 1];   // the next token's start is judged against what was already emitted
+    return out;
   }
 
   processNdjsonLine(line) {

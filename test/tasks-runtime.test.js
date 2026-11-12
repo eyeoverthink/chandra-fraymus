@@ -76,11 +76,20 @@ test('runtime construction is inert with the full bounded registry and never inv
   assert.equal(f.db.prepare('SELECT count(*) AS n FROM agent_runs').get().n, 0); assert.equal(f.db.prepare('SELECT count(*) AS n FROM scheduled_task_occurrences').get().n, 0);
   const caps = await f.request('GET', '/api/agent/capabilities'); assert.equal(caps.status, 200);
   const builtins = new Set(['workspace.list','workspace.read','workspace.search','workspace.write','workspace.edit','workspace.patch','workspace.map','workspace.readMany','code.run','memory.remember','memory.search','tools.enable']);
-  assert.equal(caps.json.tools.filter(tool => !builtins.has(tool.name)).length, 39);
+  // The registry is deliberately large (every Chandra tool since 2026-11-10; this used to pin 39 extras and 64 KB). What
+  // must stay bounded is the registry within the service's own cap, and above all what one run's FIRST STEP carries:
+  // the 2026-11-12 break was a research goal sending 41 KB of tool schemas against a 32 KB budget.
+  const extras = caps.json.tools.filter(tool => !builtins.has(tool.name)).length;
+  assert.ok(extras >= 39, `${extras} extra tools`);
   const wireBytes = Buffer.byteLength(JSON.stringify(caps.json.tools.map(tool => ({ type: 'function', function: { name: tool.name, description: tool.description, parameters: tool.parameters } }))));
-  assert.ok(wireBytes <= 65536); assert.ok(caps.json.tools.some(tool => tool.name === 'tasks.createOnce')); assert.ok(caps.json.tools.some(tool => tool.name === 'clock.now'));
+  assert.ok(wireBytes <= 262144, `registry ${wireBytes} bytes`); assert.ok(caps.json.tools.some(tool => tool.name === 'tasks.createOnce')); assert.ok(caps.json.tools.some(tool => tool.name === 'clock.now'));
+  const goals = ['Research https://example.com/reference and its linked reference.', 'Schedule a weekly summary of my notes.', 'Summarise last week\'s Shopify revenue by topic', 'Check the hive mesh and the DNA plasmid seal', 'Refactor the parser code in the repo', 'What time is it?'];
+  for (const goal of goals) {
+    const fp = await f.request('GET', `/api/agent/tool-footprint?goal=${encodeURIComponent(goal)}`); assert.equal(fp.status, 200);
+    assert.ok(fp.json.totalBytes <= 16384, `"${goal}" first step is ${fp.json.totalBytes} bytes (default budget 16384): ${JSON.stringify(Object.keys(fp.json.byGroup))}`);
+  }
   assert.equal(caps.json.cloudEnabled, false); assert.equal(caps.json.codeExecution.available, false); assert.equal(f.chats.length, 0);
-  assert.deepEqual(f.controllerCalls, []); assert.deepEqual(f.executorCalls, []);assert.deepEqual(f.ocrCalls,['health']); t.diagnostic(`39 extra tools; wire registry ${wireBytes}/65536 bytes; zero constructor provider calls, one explicit OCR availability read`);
+  assert.deepEqual(f.controllerCalls, []); assert.deepEqual(f.executorCalls, []);assert.deepEqual(f.ocrCalls,['health']); t.diagnostic(`${extras} extra tools; wire registry ${wireBytes}/262144 bytes; every sampled goal's first step fits 16384; zero constructor provider calls, one explicit OCR availability read`);
 });
 
 test('private task HTTP APIs use flat tasks, current-state request recovery, tombstones and revision checks without dispatch', async t => {

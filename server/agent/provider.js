@@ -113,7 +113,7 @@ export function createOllamaProvider({ url, fetchImpl = fetch }) {
       const data = await withOllama('agent_run', () => request('/api/chat', {
         model, messages, ...(tools?.length ? { tools } : {}), stream: false,...(choice!==undefined?{think:choice}:{}),
         options: { num_predict: maxOutputTokens, num_ctx: maxInputTokens, temperature: 0.2 },
-      }, signal), { label: `agent-runtime:${model}` });
+      }, signal), { label: `agent-runtime:${model}`, signal });
       assertLocalModel(model, data);
       if (data.error) fail('provider_error', String(data.error).slice(0, 300));
       if (!data.message || typeof data.message.content !== 'string' || (data.message.tool_calls !== undefined && !Array.isArray(data.message.tool_calls))) fail('provider_invalid_response', 'Ollama returned an invalid chat message');

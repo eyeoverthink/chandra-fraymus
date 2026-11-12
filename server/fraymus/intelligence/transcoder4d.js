@@ -33,6 +33,18 @@ function isCredentialChar(ch) {
   return (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || c === 45;
 }
 
+/**
+ * A prefix counts only where a token starts: at the start of the text or after a character that cannot be part of a key.
+ * Without this, "sk-" matched inside "ta·sk-policy-fixture", "ri·sk-free", "di·sk-usage": a model's tool arguments were
+ * redacted mid-stream ("task-policy-fixture:local" reached the scheduler as "ta[REDACTED:4D(…)]:local"), failing every
+ * scheduled-task creation since the canary was wired into the Ollama provider (found 2026-11-12).
+ */
+export function atTokenStart(text, idx, prevChar = '') {
+  // prevChar: the last character already emitted before `text` (a streamed token boundary is not a token start)
+  if (idx === 0) return !prevChar || !isCredentialChar(prevChar);
+  return !isCredentialChar(text[idx - 1]);
+}
+
 export function findCredentialEnd(text, startIdx) {
   for (let i = startIdx; i < text.length; i++) {
     if (!isCredentialChar(text[i])) return i;
@@ -45,6 +57,7 @@ export function detectSecretPrefixes(text) {
   for (const prefix of SECRET_PREFIXES) {
     let idx = 0;
     while ((idx = text.indexOf(prefix, idx)) !== -1) {
+      if (!atTokenStart(text, idx)) { idx += prefix.length; continue; }
       const end = findCredentialEnd(text, idx + prefix.length);
       const tokenLen = (end === -1 ? text.length : end) - idx;
       found.push({ prefix, index: idx, length: tokenLen });
@@ -54,7 +67,7 @@ export function detectSecretPrefixes(text) {
   return found;
 }
 
-export function sanitizeStreamText(rawText, xorKey = 0x5A, stepAdd = 0x11) {
+export function sanitizeStreamText(rawText, xorKey = 0x5A, stepAdd = 0x11, prevChar = '') {
   let sanitized = rawText;
   const redactions = [];
   let unterminated = false;
@@ -62,6 +75,7 @@ export function sanitizeStreamText(rawText, xorKey = 0x5A, stepAdd = 0x11) {
   for (const prefix of SECRET_PREFIXES) {
     let idx = 0;
     while ((idx = sanitized.indexOf(prefix, idx)) !== -1) {
+      if (!atTokenStart(sanitized, idx, prevChar)) { idx += prefix.length; continue; }
       const end = findCredentialEnd(sanitized, idx + prefix.length);
       const secretToken = sanitized.substring(idx, end === -1 ? sanitized.length : end);
       if (end === -1) unterminated = true;
