@@ -22,9 +22,11 @@ const OLLAMA = process.env.CHANDRA_HOME_OLLAMA || 'http://100.99.98.101:11434';
 const BASE = flag('--base', 'qwen3:14b'), CAND = flag('--candidate', 'qwen3-chandra:14b');
 const FILMS = Math.min(40, Math.max(0, parseInt(flag('--films', '12'), 10) || 0));
 const DISTILL = 'data/distill';
-const heldPath = flag('--heldout', (() => { const d = existsSync(DISTILL) ? readdirSync(DISTILL).filter(x => existsSync(join(DISTILL, x, 'heldout.jsonl'))).sort().pop() : null; return d ? join(DISTILL, d, 'heldout.jsonl') : null; })());
+// the newest verified-work export (corpus-* folders hold plain text for the corpus adapter, not conversations — the first
+// corpus measurement crashed on one)
+const heldPath = flag('--heldout', (() => { const d = existsSync(DISTILL) ? readdirSync(DISTILL).filter(x => !x.startsWith('corpus-') && existsSync(join(DISTILL, x, 'heldout.jsonl'))).sort().pop() : null; return d ? join(DISTILL, d, 'heldout.jsonl') : null; })());
 if (!heldPath) { console.error('no heldout.jsonl: run POST /api/intelligence/distill/export first'); process.exit(2); }
-const held = readFileSync(heldPath, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+const held = readFileSync(heldPath, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l)).filter(r => Array.isArray(r.messages));
 
 async function chat(model, messages, tools) {
   const r = await fetch(`${OLLAMA}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(300_000),
