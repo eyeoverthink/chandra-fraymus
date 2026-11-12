@@ -102,4 +102,5 @@ What comes back is a pile of ideas to check against the code, not code to drop i
      `$env:GEMINI_API_KEY = "<key>"`, `node gemini-referee.mjs --list-models`, then
      `node gemini-referee.mjs --send --model <id>`.
 6. **First run, 2026-11-12:** trained on a Colab A100, imported as `qwen3-chandra:14b`, measured. Films 6/12 → 7/12, tools 2/2 → 2/2, direct gauge 0.604 → 0.604: **no measurable difference and no forgetting; the app keeps qwen3:14b.** The referee ran too (Gemini 4 Carbon): the local judge is far too generous (mean grade 1.34 against 0.57), and search still beats "ten newest".
-7. Record each result here. Re-train as rated work accumulates: every 👍 on Rate Outcomes adds to the strongest source.
+7. **Corpus adapter (prepared 2026-11-12):** Vaughn's own writing from the r8 corpus, about half of it (10.2 MB): no third-party code, no upstream ACE-Step, no secret-shaped files, no identity examples. Trained in Colab instead of on a rented GPU, on Qwen3-14B (the model Chandra runs, not Qwen2.5-7B). It measures held-out bits per byte before and after inside the notebook. `node scripts/colab/build-corpus.mjs`, then `scripts/colab/chandra-corpus-lora.ipynb`.
+8. Record each result here. Re-train as rated work accumulates: every 👍 on Rate Outcomes adds to the strongest source.
