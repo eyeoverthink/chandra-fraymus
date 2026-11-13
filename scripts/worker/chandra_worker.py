@@ -19,8 +19,9 @@ Workspace's claim / nonce / acknowledge protocol:
                POST /jobs/<id>/ack        {nonce} -> the hub has the outputs; the job folder is deleted
   artifact     every output is listed with its size and SHA-256 in the receipt
 
-Kinds: "stills" (SDXL through a local ComfyUI), "i2v" (a still set in motion by Wan 2.2 TI2V 5B through the same
-ComfyUI, native nodes only) and "video" (fraymus-video-studio through Chandra's launcher, with the spoken lines
+Kinds: "stills" (SDXL-family checkpoints through a local ComfyUI; an item may name another checkpoint that is on
+disk), "i2v" (a still set in motion by Wan 2.2 TI2V 5B through the same ComfyUI, native nodes only), "mesh" (a
+picture made into a 3-D model, .glb, by Hunyuan3D 2.0 through ComfyUI's native nodes) and "video" (fraymus-video-studio through Chandra's launcher, with the spoken lines
 already recorded by the hub and sent along, so no voice leaves the hub's machine).
 
 Every request needs "Authorization: Bearer <token>". The token is full trust: whoever holds it can make this
@@ -46,7 +47,7 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
 SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{2,60}$")
@@ -124,7 +125,8 @@ def clean_still(item: dict) -> dict:
     return {"prompt": prompt, "negative": str(item.get("negative") or "blurry, low quality, watermark, text, deformed")[:600],
             "width": even64(item.get("width"), 1024), "height": even64(item.get("height"), 1024),
             "steps": min(60, max(8, int(item.get("steps") or 28))), "cfg": min(15.0, max(1.0, float(item.get("cfg") or 6.5))),
-            "seed": int(item["seed"]) if isinstance(item.get("seed"), int) else int.from_bytes(os.urandom(4), "big")}
+            "seed": int(item["seed"]) if isinstance(item.get("seed"), int) else int.from_bytes(os.urandom(4), "big"),
+            "checkpoint": str(item["checkpoint"]) if SAFE_NAME.match(str(item.get("checkpoint") or "")) else None}
 
 
 def wan_workflow(image_name: str, c: dict) -> dict:
@@ -168,6 +170,38 @@ def clean_i2v(spec: dict, job_id: str) -> dict:
             "steps": min(30, max(8, int(spec.get("steps") or 20))),
             "seed": int(spec["seed"]) if isinstance(spec.get("seed"), int) else int.from_bytes(os.urandom(4), "big"),
             "prefix": f"chandra-i2v-{job_id}"}
+
+
+HUNYUAN3D_CKPT = "hunyuan3d-dit-v2_fp16.safetensors"
+
+
+def hunyuan3d_workflow(image_name: str, c: dict) -> dict:
+    """Hunyuan3D 2.0 single-view image-to-shape, the graph of Comfy-Org's template 3d_hunyuan3d_image_to_model.json."""
+    return {
+        "1": {"class_type": "ImageOnlyCheckpointLoader", "inputs": {"ckpt_name": HUNYUAN3D_CKPT}},
+        "2": {"class_type": "LoadImage", "inputs": {"image": image_name}},
+        "3": {"class_type": "CLIPVisionEncode", "inputs": {"clip_vision": ["1", 1], "image": ["2", 0], "crop": "center"}},
+        "4": {"class_type": "Hunyuan3Dv2Conditioning", "inputs": {"clip_vision_output": ["3", 0]}},
+        "5": {"class_type": "ModelSamplingAuraFlow", "inputs": {"model": ["1", 0], "shift": 1.0}},
+        "6": {"class_type": "EmptyLatentHunyuan3Dv2", "inputs": {"resolution": c["resolution"], "batch_size": 1}},
+        "7": {"class_type": "KSampler", "inputs": {"model": ["5", 0], "positive": ["4", 0], "negative": ["4", 1], "latent_image": ["6", 0], "seed": c["seed"],
+                                                    "steps": c["steps"], "cfg": c["cfg"], "sampler_name": "euler", "scheduler": "normal", "denoise": 1.0}},
+        "8": {"class_type": "VAEDecodeHunyuan3D", "inputs": {"samples": ["7", 0], "vae": ["1", 2], "num_chunks": 8000, "octree_resolution": c["octree"]}},
+        "9": {"class_type": "VoxelToMesh", "inputs": {"voxel": ["8", 0], "algorithm": "surface net", "threshold": 0.6}},
+        "10": {"class_type": "SaveGLB", "inputs": {"mesh": ["9", 0], "filename_prefix": c["prefix"]}},
+    }
+
+
+def clean_mesh(spec: dict, job_id: str) -> dict:
+    def num(v, d, lo, hi, cast=int):
+        try:
+            return min(hi, max(lo, cast(v)))
+        except (TypeError, ValueError):
+            return d
+    return {"steps": num(spec.get("steps"), 30, 10, 60), "cfg": num(spec.get("cfg"), 5.5, 3.0, 9.0, float),
+            "resolution": 3072, "octree": num(spec.get("octree"), 256, 128, 384),
+            "seed": int(spec["seed"]) if isinstance(spec.get("seed"), int) else int.from_bytes(os.urandom(4), "big"),
+            "prefix": f"chandra-mesh/{job_id}"}
 
 
 class GpuFileLock:
@@ -348,7 +382,19 @@ class Worker:
         if not shutil.which("ffmpeg"):
             i2v["problems"].append("ffmpeg is not on PATH")
         i2v["ready"] = not i2v["problems"]
-        self._cap = {"stills": stills, "i2v": i2v, "video": video}
+        mesh = {"ready": False, "problems": [], "engine": "hunyuan3d-2.0"}
+        if not self.a.comfy_dir or not os.path.exists(os.path.join(self.a.comfy_dir, "main.py")):
+            mesh["problems"].append("ComfyUI is not installed here (--comfy-dir)")
+        else:
+            if HUNYUAN3D_CKPT not in self._models("checkpoints"):
+                mesh["problems"].append(f"checkpoints/{HUNYUAN3D_CKPT} is missing")
+            if not os.path.exists(os.path.join(self.a.comfy_dir, "comfy_extras", "nodes_hunyuan3d.py")):
+                mesh["problems"].append("this ComfyUI has no Hunyuan3D nodes (comfy_extras/nodes_hunyuan3d.py)")
+            if not self.comfy_alive() and not (self.a.comfy_python and os.path.exists(self.a.comfy_python)):
+                mesh["problems"].append("ComfyUI is not running and --comfy-python is not set to start it")
+        mesh["ready"] = not mesh["problems"]
+        stills["checkpoints"] = self._models("checkpoints") if self.a.comfy_dir else []
+        self._cap = {"stills": stills, "i2v": i2v, "mesh": mesh, "video": video}
         self._cap_at = time.time()
         return self._cap
 
@@ -389,8 +435,8 @@ class Worker:
             return 400, {"error": "id must be 3-61 letters, digits, - or _"}
         if not isinstance(nonce, str) or len(nonce) < 16:
             return 400, {"error": "nonce must be at least 16 characters"}
-        if kind not in ("stills", "i2v", "video"):
-            return 400, {"error": "kind must be stills, i2v or video"}
+        if kind not in ("stills", "i2v", "mesh", "video"):
+            return 400, {"error": "kind must be stills, i2v, mesh or video"}
         spec = body.get("spec") if isinstance(body.get("spec"), dict) else {}
         files = {}
         for name, b64 in (body.get("files") or {}).items():
@@ -430,7 +476,7 @@ class Worker:
     def run(self, j):
         t0 = time.time()
         try:
-            {"stills": self.run_stills, "i2v": self.run_i2v, "video": self.run_video}[j["kind"]](j)
+            {"stills": self.run_stills, "i2v": self.run_i2v, "mesh": self.run_mesh, "video": self.run_video}[j["kind"]](j)
             out_dir = os.path.join(self.job_dir(j["id"]), "out")
             j["files"] = [{"name": n, "bytes": os.path.getsize(os.path.join(out_dir, n)), "sha256": sha256_file(os.path.join(out_dir, n))}
                           for n in sorted(os.listdir(out_dir)) if os.path.isfile(os.path.join(out_dir, n)) and SAFE_NAME.match(n)]
@@ -501,12 +547,15 @@ class Worker:
         self.ensure_comfy()
         out_dir = os.path.join(self.job_dir(j["id"]), "out")
         detail = {"unloaded": freed, "checkpoint": cap["checkpoint"], "gpuLock": self.a.gpu_lock or None, "items": []}
+        on_disk = set(self._models("checkpoints"))
         try:
             for i, item in enumerate(items):
                 j["stage"], j["progress"] = f"painting {i + 1} of {len(items)}", i / len(items)
                 s0 = time.time()
+                # an item may ask for another SDXL-family checkpoint; only a file that is really on disk is used
+                ckpt = item["checkpoint"] if item.get("checkpoint") in on_disk else cap["checkpoint"]
                 try:
-                    pid = http_json(self.a.comfy_url + "/prompt", {"prompt": sdxl_workflow(item, cap["checkpoint"], cap["vae"])}, timeout=60).get("prompt_id")
+                    pid = http_json(self.a.comfy_url + "/prompt", {"prompt": sdxl_workflow(item, ckpt, cap["vae"])}, timeout=60).get("prompt_id")
                     if not pid:
                         raise RuntimeError("ComfyUI refused the workflow")
                     image, deadline = None, time.time() + STILL_TIMEOUT_S
@@ -527,7 +576,7 @@ class Worker:
                     name = f"still-{i:02d}.png"
                     with open(os.path.join(out_dir, name), "wb") as f:
                         f.write(data)
-                    detail["items"].append({"ok": True, "file": name, "seed": item["seed"], "width": item["width"], "height": item["height"], "steps": item["steps"], "seconds": round(time.time() - s0, 1)})
+                    detail["items"].append({"ok": True, "file": name, "checkpoint": ckpt, "seed": item["seed"], "width": item["width"], "height": item["height"], "steps": item["steps"], "seconds": round(time.time() - s0, 1)})
                 except Exception as e:
                     detail["items"].append({"ok": False, "error": f"{e.__class__.__name__}: {e}"[:300], "seconds": round(time.time() - s0, 1)})
         finally:
@@ -603,6 +652,72 @@ class Worker:
             shutil.rmtree(frames_dir, ignore_errors=True)
             j["detail"] = {"engine": "wan2.2-ti2v-5b", "frames": len(images), "fps": I2V_FPS, "width": c["width"], "height": c["height"],
                            "steps": c["steps"], "seed": c["seed"], "generateSeconds": gen_s, "unloaded": freed, "gpuLock": self.a.gpu_lock or None}
+        finally:
+            for p in made + [input_path]:
+                try: os.remove(p)
+                except OSError: pass
+            try:
+                http_json(self.a.comfy_url + "/free", {"unload_models": True, "free_memory": True}, timeout=15)
+            except Exception:
+                pass
+            if lock:
+                lock.release()
+
+    # ── mesh: a picture made into a 3-D model ────────────────────────────────────────────────────────
+    def run_mesh(self, j):
+        """start.png -> model.glb (Hunyuan3D 2.0 shape, no texture). Holds the card lock like stills and i2v."""
+        c = clean_mesh(j["spec"], j["id"])
+        start = os.path.join(self.job_dir(j["id"]), "in", "start.png")
+        if not os.path.exists(start):
+            raise ValueError("start.png is missing")
+        lock = None
+        if self.a.gpu_lock:
+            j["stage"] = "waiting for the card"
+            lock = GpuFileLock(self.a.gpu_lock, f"chandra-worker mesh {j['id']} (Hunyuan3D 2.0)")
+            lock.acquire(on_wait=lambda seen: j.__setitem__("stage", f"waiting for the card (held by {seen['holder'][:60]}, {seen['ageS']} s)"))
+        made, input_name = [], f"chandra-mesh-{j['id']}.png"
+        input_path = os.path.join(self.a.comfy_dir, "input", input_name)
+        try:
+            j["stage"] = "freeing the card"
+            freed = self.free_ollama()
+            j["stage"] = "starting ComfyUI"
+            self.ensure_comfy()
+            os.makedirs(os.path.dirname(input_path), exist_ok=True)
+            shutil.copyfile(start, input_path)
+            t0 = time.time()
+            sent = http_json(self.a.comfy_url + "/prompt", {"prompt": hunyuan3d_workflow(input_name, c)}, timeout=60)
+            pid = sent.get("prompt_id")
+            if not pid:
+                raise RuntimeError("ComfyUI refused the Hunyuan3D workflow: " + json.dumps(sent.get("node_errors") or sent.get("error") or {})[:300])
+            files, deadline = None, time.time() + I2V_TIMEOUT_S
+            while time.time() < deadline and files is None:
+                time.sleep(2)
+                el = time.time() - t0
+                j["stage"], j["progress"] = f"shaping ({round(el)} s)", min(0.9, el / 180)
+                entry = http_json(f"{self.a.comfy_url}/history/{pid}", timeout=10).get(pid)
+                if not entry:
+                    continue
+                status = entry.get("status") or {}
+                if status.get("status_str") == "error":
+                    msgs = [m[1].get("exception_message", "") for m in status.get("messages", []) if m and m[0] == "execution_error"]
+                    raise RuntimeError("ComfyUI reported an error: " + (msgs[0][:300] if msgs else "unknown"))
+                if status.get("completed"):
+                    files = [f for o in (entry.get("outputs") or {}).values() for v in o.values() if isinstance(v, list)
+                             for f in v if isinstance(f, dict) and str(f.get("filename", "")).lower().endswith(".glb")]
+            if not files:
+                raise RuntimeError(f"no .glb after {I2V_TIMEOUT_S} s" if files is None else "ComfyUI finished without a .glb")
+            f0 = files[0]
+            q = urllib.parse.urlencode({"filename": f0["filename"], "subfolder": f0.get("subfolder", ""), "type": f0.get("type", "output")})
+            with urllib.request.urlopen(f"{self.a.comfy_url}/view?{q}", timeout=120) as r:
+                data = r.read()
+            with open(os.path.join(self.job_dir(j["id"]), "out", "model.glb"), "wb") as f:
+                f.write(data)
+            out_root = os.path.realpath(os.path.join(self.a.comfy_dir, "output"))
+            p = os.path.realpath(os.path.join(out_root, f0.get("subfolder", ""), f0["filename"]))
+            if p.startswith(out_root + os.sep):
+                made.append(p)
+            j["detail"] = {"engine": "hunyuan3d-2.0", "steps": c["steps"], "cfg": c["cfg"], "octree": c["octree"], "seed": c["seed"],
+                           "bytes": len(data), "generateSeconds": round(time.time() - t0, 1), "unloaded": freed, "gpuLock": self.a.gpu_lock or None}
         finally:
             for p in made + [input_path]:
                 try: os.remove(p)

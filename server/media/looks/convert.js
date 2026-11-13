@@ -244,18 +244,83 @@ export async function coverPng(input, w, h, { realFace = false, consent = false 
  * Does a clip move? Mean absolute grey difference (0–255) between the first frame and four later ones (`overall`),
  * and between neighbours of those (`step`), on a 96 px wide copy. A model that returns its start frame five times
  * over scores about 0; a clip worth keeping scores well above MOTION_MIN (the same 1.5 fraymus-video-studio uses).
+ *
+ * A camera pan also scores high, so each sampled frame is also lined up with the first by the whole-frame shift
+ * that matches best (±10 % of the frame): that shift is the camera (`drift`, in % of width/height, at the last
+ * frame), and the difference left after lining up is the scene itself moving (`scene`).
  */
 export const MOTION_MIN = 1.5;
+const MAX_SHIFT = 0.1;
+/** Best whole-frame shift of b onto a (grey, w×h): { dx, dy, diff } where diff is the mean |a−b| over the overlap. */
+export function bestShift(a, b, w, h) {
+  const R = Math.max(1, Math.round(w * MAX_SHIFT));
+  let best = { dx: 0, dy: 0, diff: Infinity };
+  for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+    let s = 0, c = 0;
+    for (let y = Math.max(0, -dy); y < Math.min(h, h - dy); y += 2) for (let x = Math.max(0, -dx); x < Math.min(w, w - dx); x += 2) { s += Math.abs(a[y * w + x] - b[(y + dy) * w + x + dx]); c++; }
+    const d = c ? s / c : Infinity;
+    if (d < best.diff - 1e-9 || (Math.abs(d - best.diff) < 1e-9 && Math.abs(dx) + Math.abs(dy) < Math.abs(best.dx) + Math.abs(best.dy))) best = { dx, dy, diff: d };
+  }
+  return best;
+}
 export async function measureMotion(path) {
   const raw = await run('ffmpeg', ['-v', 'error', '-i', path, '-vf', 'scale=96:-2,format=gray', '-f', 'rawvideo', 'pipe:1']);
   const info = await probe(path), w = 96, h = Math.max(2, Math.round(96 * info.h / info.w / 2) * 2), n = Math.floor(raw.length / (w * h));
-  if (n < 2) return { overall: 0, step: 0, frames: n };
+  if (n < 2) return { overall: 0, step: 0, scene: 0, drift: { x: 0, y: 0 }, frames: n };
   const frame = i => raw.subarray(i * w * h, (i + 1) * w * h);
   const idx = [...new Set([0, 1, 2, 3, 4].map(k => Math.round(k * (n - 1) / 4)))];
   const diff = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]); return s / a.length; };
   const overall = idx.slice(1).reduce((s, i) => s + diff(frame(i), frame(0)), 0) / (idx.length - 1);
   const step = idx.slice(1).reduce((s, i, k) => s + diff(frame(i), frame(idx[k])), 0) / (idx.length - 1);
-  return { overall: +overall.toFixed(2), step: +step.toFixed(2), frames: n };
+  const shifts = idx.slice(1).map(i => bestShift(frame(0), frame(i), w, h));
+  const scene = shifts.reduce((s, b) => s + b.diff, 0) / shifts.length, last = shifts[shifts.length - 1];
+  return { overall: +overall.toFixed(2), step: +step.toFixed(2), scene: +scene.toFixed(2),
+    drift: { x: +(100 * last.dx / w).toFixed(1), y: +(100 * last.dy / h).toFixed(1) }, frames: n };
+}
+
+/** A picture fitted whole inside a size×size square on white: the input a picture-to-3-D model expects. */
+export async function containPng(input, size = 768, { realFace = false, consent = false } = {}) {
+  guardConsent({ realFace, consent });
+  return sharp(input).rotate().flatten({ background: '#ffffff' }).resize(size, size, { fit: 'contain', background: '#ffffff' }).png().toBuffer();
+}
+
+/**
+ * A 3-D model turned once around, as a film: each frame drawn by mesh3d.renderMesh, then any look applied, encoded
+ * at 24 fps. `draw(yaw, w, h)` returns a looks image. Also saves the three-quarter view as a still.
+ * @returns { file, still, seconds, frames, look, ms }
+ */
+export async function turntableVideo(draw, { seconds = 6, look = null, format = '1:1', seed = 7, source = 'looks', note = '', params = {} } = {}) {
+  if (look && !LOOKS[look]) throw new Error(`unknown look: ${look}`);
+  seconds = Math.max(2, Math.min(12, Number(seconds) || 6));
+  const t0 = Date.now(), [ow, oh] = { '16:9': [1920, 1080], '9:16': [1080, 1920], '1:1': [1080, 1080] }[format] || [1080, 1080];
+  const work = look ? sizesFor(ow, oh).work : [ow, oh], hold = look ? LOOKS[look].hold || 1 : 1;
+  const total = Math.round(seconds * FPS), drawn = Math.ceil(total / hold);
+  mkdirSync(VIDEO_DIR, { recursive: true }); mkdirSync(MEDIA_DIR, { recursive: true });
+  const file = stamp('mp4'), path = join(VIDEO_DIR, file);
+  let enc = null, encErr = '', encDone = null, kernel = 'lanczos3';
+  const state = {};
+  const frameAt = (k) => { const yaw = (2 * Math.PI * k * hold) / total, img = draw(yaw, work[0], work[1]); return look ? applyLook(look, img, { seed, frame: k, state, outW: ow, outH: oh }) : { img, kernel: 'lanczos3' }; };
+  for (let k = 0; k < drawn; k++) {
+    const r = frameAt(k); kernel = r.kernel;
+    if (!enc) {
+      enc = spawn('ffmpeg', ['-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', `${r.img.w}x${r.img.h}`, '-r', String(FPS / hold), '-i', 'pipe:0',
+        '-vf', `scale=${ow}:${oh}:flags=${kernel === 'nearest' ? 'neighbor' : 'lanczos'},fps=${FPS}`, '-c:v', 'libx264', '-preset', 'medium', '-crf', '19', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', path], { windowsHide: true });
+      enc.stderr.on('data', d => { encErr += d; });
+      encDone = new Promise((res, rej) => enc.on('close', code => (code === 0 ? res() : rej(new Error(`encoder exited ${code}: ${encErr.trim().slice(-300)}`)))));
+    }
+    const buf = Buffer.from(r.img.d.buffer, r.img.d.byteOffset, r.img.d.length);
+    if (!enc.stdin.write(buf)) await new Promise(res => enc.stdin.once('drain', res));
+  }
+  enc.stdin.end();
+  await encDone;
+  noteMedia(file, 'turntable', [note || 'turntable', { ...params, look, seconds, format }], { source });
+  // the three-quarter view as a still, in the same look, at full size
+  const s = (() => { const img = draw(Math.PI / 5, work[0], work[1]); return look ? applyLook(look, img, { seed, frame: 0, state: {}, outW: ow, outH: oh }) : { img, kernel: 'lanczos3' }; })();
+  const still = stamp('png');
+  await sharp(Buffer.from(s.img.d.buffer, s.img.d.byteOffset, s.img.d.length), { raw: { width: s.img.w, height: s.img.h, channels: 3 } })
+    .resize(ow, oh, { kernel: s.kernel, fit: 'fill' }).png().toFile(join(MEDIA_DIR, still));
+  noteMedia(still, 'turntable', [note || 'turntable still', { ...params, look, view: 'three-quarter' }], { source });
+  return { file, still, seconds, frames: drawn, look, ms: Date.now() - t0 };
 }
 
 /** A finished clip onto the shelf (data/video) with provenance; returns the shelf file name. */

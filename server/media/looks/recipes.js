@@ -86,6 +86,17 @@ export const RECIPES = Object.freeze({
 });
 export const RECIPE_NAMES = Object.freeze(Object.keys(RECIPES));
 
+/**
+ * Anime recipes are painted with an anime checkpoint when a worker has it (Animagine XL 4.0, CreativeML Open RAIL++-M,
+ * on fraymus-home since 2026-11-13). Its model card asks for quality words at the end and a fixed negative; the model
+ * draws cel shading itself, so the extra ink filter is skipped (`postWithCheckpoint`). Without the file, the recipe
+ * paints with SDXL base and finishes with its filter as before.
+ */
+export const ANIME_CHECKPOINT = 'animagine-xl-4.0-opt.safetensors';
+const ANIME = { checkpoint: ANIME_CHECKPOINT, quality: 'masterpiece, high score, great score, absurdres',
+  negative: 'lowres, bad anatomy, bad hands, text, error, missing finger, extra digits, fewer digits, cropped, worst quality, low quality, low score, bad score, average score, signature, watermark, username, blurry', postWithCheckpoint: null };
+export const CHECKPOINT_RECIPES = Object.freeze({ 'pastoral-anime': ANIME, 'classic-manga': ANIME, 'retro-robot-anime': ANIME, 'shonen-action': ANIME });
+
 // Characters owned by a franchise: never drawn, the subject becomes an original character
 const FRANCHISE_CHARACTERS = ['goku', 'vegeta', 'gohan', 'piccolo', 'frieza', 'trunks', 'krillin', 'bulma', 'astro boy', 'astroboy', 'mighty atom', 'totoro', 'chihiro', 'ponyo', 'nausicaa', 'ashitaka', 'spider-man', 'spiderman', 'miles morales', 'gwen stacy', 'spider-gwen', 'jinx', 'ekko', 'caitlyn', 'samurai jack', 'kubo', 'wirt', 'pikachu', 'mickey mouse', 'naruto', 'luffy', 'sailor moon', 'black jack', 'kimba', 'leo the lion', 'princess knight'];
 // left out on purpose: names that are also ordinary words (san, vi, greg, howl, kiki, astro) would rewrite 'San Francisco' or 'a wolf's howl'
@@ -124,5 +135,7 @@ export function cleanSubject(text) {
 export function recipePrompt(recipeId, subject) {
   const r = RECIPES[recipeId];
   if (!r) throw new Error(`unknown recipe: ${recipeId}`);
-  return { prompt: `${subject}, ${r.style}`, negative: r.negative, post: r.post };
+  const alt = CHECKPOINT_RECIPES[recipeId];
+  return { prompt: `${subject}, ${r.style}`, negative: r.negative, post: r.post,
+    ...(alt ? { checkpoint: alt.checkpoint, checkpointPrompt: `${subject}, ${r.style}, ${alt.quality}`, checkpointNegative: `${r.negative}, ${alt.negative}`, postWithCheckpoint: alt.postWithCheckpoint } : {}) };
 }

@@ -157,6 +157,27 @@ test('motion clips: a still clip is told apart from a moving one', { skip: !hasF
   await assert.rejects(C.coverPng(png, 960, 544, { realFace: true }), e => e.code === 'consent_required');
 });
 
+test('motion: the camera is held unless the prompt asks for a move; a shift is told apart from scene motion; agents are capped', async () => {
+  process.env.LOOKS_MOTION_AGENT_PER_DAY = '1';
+  const L = await import('../server/media/looks/index.js');
+  const held = L.motionPrompts('the grass sways'), free = L.motionPrompts('slow pan across the valley as the grass sways');
+  assert.equal(held.camera, 'held'); assert.match(held.prompt, /locked-off camera/); assert.match(held.negative, /camera pan/);
+  assert.equal(free.camera, 'free'); assert.equal(free.prompt, 'slow pan across the valley as the grass sways'); assert.ok(!/camera pan/.test(free.negative));
+  // a picture shifted 4 px is found as a 4 px shift with ~nothing left over
+  const w = 96, h = 54, a = new Uint8Array(w * h), b = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) a[y * w + x] = (x * 37 + y * 11 + ((x * y) % 13) * 9) % 256;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) b[y * w + x] = a[y * w + Math.min(w - 1, Math.max(0, x - 4))];
+  const s = C.bestShift(a, b, w, h);
+  assert.deepEqual([s.dx, s.dy], [4, 0]); assert.ok(s.diff < 1, `residual ${s.diff}`);
+  const png = await sharp(Buffer.from(testPicture().d), { raw: { width: 320, height: 180, channels: 3 } }).png().toBuffer();
+  const first = L.startMotion({ dataBase64: png.toString('base64'), ext: 'png', prompt: 'the sky moves', source: 'agent' });
+  assert.ok(first.id);
+  assert.throws(() => L.startMotion({ dataBase64: png.toString('base64'), ext: 'png', prompt: 'the sky moves', source: 'agent' }), e => e.status === 429);
+  assert.throws(() => L.startMotion({ dataBase64: png.toString('base64'), ext: 'png', prompt: 'x', source: 'api' }), e => e.status === 400);
+  for (let i = 0; i < 50 && ['queued', 'running'].includes(L.lookJob(first.id).status); i++) await new Promise(r => setTimeout(r, 100));
+  assert.equal(L.lookJob(first.id).status, 'error'); assert.match(L.lookJob(first.id).error, /no machine can animate/);   // no worker here: it says so
+});
+
 test('the worker builds a valid Wan 2.2 job: 4n+1 frames, sizes in 32s, the native graph', t => {
   const python = process.env.PYTHON || 'python';
   if (spawnSync(python, ['-I', '-c', 'print(1)'], { encoding: 'utf8' }).status !== 0) { t.skip('python is not available'); return; }
@@ -178,6 +199,51 @@ print(json.dumps(out))`;
   assert.ok(c.frames >= 5);
   assert.equal(refused, 'refused');
   for (const n of ['UNETLoader', 'CLIPLoader', 'VAELoader', 'ModelSamplingSD3', 'Wan22ImageToVideoLatent', 'KSampler', 'VAEDecode', 'SaveImage']) assert.ok(classes.includes(n), n);
+});
+
+test('3-D: a .glb round-trips, draws lit from both sides, takes colours from its picture, and turns', async () => {
+  const M = await import('../server/media/looks/mesh3d.js');
+  const s = M.sphere(20, 12), glb = M.buildGlb(s.positions, s.indices);
+  const m = M.normalize(M.parseGlb(glb));
+  assert.equal(m.vertices, s.positions.length / 3); assert.equal(m.triangles, s.indices.length / 3);
+  assert.throws(() => M.parseGlb(Buffer.from('not a model at all, just text')), /not a \.glb/);
+  const lit = M.renderMesh(m, { w: 160, h: 160 });
+  assert.ok(M.coverage(lit) > 0.2, `the sphere covers the frame (${M.coverage(lit)})`);
+  // flipping every triangle's winding must not darken it: generated meshes do not keep one winding
+  const flipped = { ...m, indices: Uint32Array.from(m.indices, (v, i) => m.indices[i - (i % 3) + [0, 2, 1][i % 3]]) };
+  assert.equal(hash(M.renderMesh(flipped, { w: 160, h: 160 })), hash(lit));
+  // colour from a picture: left half red, right half blue → the drawn left is red, the right is blue
+  const pic = F.image(64, 64); for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) { const q = (y * 64 + x) * 3; pic.d[q] = x < 32 ? 220 : 20; pic.d[q + 2] = x < 32 ? 20 : 220; }
+  const col = M.renderMesh(m, { w: 160, h: 160, pitch: 0, colorFrom: M.pictureSampler(pic, m, { background: [0, 0, 0], tolerance: 1 }) });
+  const at = (x, y) => [col.d[(y * 160 + x) * 3], col.d[(y * 160 + x) * 3 + 2]];
+  assert.ok(at(55, 80)[0] > at(55, 80)[1], 'left side red'); assert.ok(at(105, 80)[1] > at(105, 80)[0], 'right side blue');
+  assert.notEqual(hash(M.renderMesh(m, { w: 96, h: 96, yaw: 0, colorFrom: M.pictureSampler(pic, m, { background: [0, 0, 0], tolerance: 1 }) })),
+    hash(M.renderMesh(m, { w: 96, h: 96, yaw: 1.2, colorFrom: M.pictureSampler(pic, m, { background: [0, 0, 0], tolerance: 1 }) })), 'turning changes the picture');
+});
+
+test('the worker builds a Hunyuan3D job and only uses a checkpoint that is on disk', t => {
+  const python = process.env.PYTHON || 'python';
+  if (spawnSync(python, ['-I', '-c', 'print(1)'], { encoding: 'utf8' }).status !== 0) { t.skip('python is not available'); return; }
+  const code = `import sys, json; sys.path.insert(0, 'scripts/worker'); import chandra_worker as w
+c = w.clean_mesh({"steps": 999, "cfg": "x", "octree": 10}, "j1")
+g = w.hunyuan3d_workflow("in.png", c)
+s1 = w.clean_still({"prompt": "a", "checkpoint": "animagine-xl-4.0-opt.safetensors"}); s2 = w.clean_still({"prompt": "a", "checkpoint": "../../evil"})
+print(json.dumps([c, sorted(n["class_type"] for n in g.values()), g["1"]["inputs"]["ckpt_name"], s1["checkpoint"], s2["checkpoint"]]))`;
+  const r = spawnSync(python, ['-I', '-c', code], { encoding: 'utf8', timeout: 30_000 });
+  assert.equal(r.status, 0, r.stderr);
+  const [c, classes, ckpt, good, bad] = JSON.parse(r.stdout.trim().split('\n').pop());
+  assert.deepEqual([c.steps, c.cfg, c.octree], [60, 5.5, 128], 'clamped');
+  for (const n of ['ImageOnlyCheckpointLoader', 'CLIPVisionEncode', 'Hunyuan3Dv2Conditioning', 'EmptyLatentHunyuan3Dv2', 'VAEDecodeHunyuan3D', 'VoxelToMesh', 'SaveGLB']) assert.ok(classes.includes(n), n);
+  assert.equal(ckpt, 'hunyuan3d-dit-v2_fp16.safetensors');
+  assert.equal(good, 'animagine-xl-4.0-opt.safetensors'); assert.equal(bad, null, 'a path is never a checkpoint name');
+});
+
+test('anime recipes carry the anime checkpoint, its quality words and no second ink pass', () => {
+  const r = R.recipePrompt('shonen-action', 'an original fighter');
+  assert.equal(r.checkpoint, 'animagine-xl-4.0-opt.safetensors');
+  assert.match(r.checkpointPrompt, /masterpiece, high score/); assert.match(r.checkpointNegative, /worst quality/);
+  assert.equal(r.postWithCheckpoint, null); assert.equal(r.post, 'anime-cel');
+  assert.equal(R.recipePrompt('woodblock', 'a fox').checkpoint, undefined);
 });
 
 test('stick figures: routed by the sentence, drawn as a film, arms visible when they cheer', () => {
