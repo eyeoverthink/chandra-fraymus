@@ -26,18 +26,36 @@ const toImage = (canvas, w, h) => {
 };
 
 const RAMP = ' .\'`^",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$';
-/** ASCII art: each cell's brightness picks a character from a 70-step ramp; `color` keeps each cell's colour,
- *  otherwise phosphor green on black. Output w×h; `cols` characters across. */
-export function ascii(src, { w = 1920, h = 1080, cols = 160, color = true } = {}) {
+/** ASCII art: each cell's brightness picks a character from a 70-step ramp; `color` keeps each cell's hue,
+ *  otherwise phosphor green on black. Output w×h; `cols` characters across.
+ *
+ *  A character covers only about a quarter of its cell, so drawing it in the cell's own colour kept about a third of the
+ *  picture's light (measured 0.32 on a shaded 3-D render). So: the ramp is read through a gamma (mid tones get dense
+ *  characters), each character is drawn in the cell's hue lifted toward full brightness, and cells darker than
+ *  `blank` (the picture's own near-black) stay empty, so a dark backdrop does not fill with dots. */
+export function ascii(src, { w = 1920, h = 1080, cols = 160, color = true, blank = 30, tint = 0.28 } = {}) {
   const cw = w / cols, ch = cw * 1.85, rows = Math.max(1, Math.floor(h / ch)), avg = cellAverages(src, cols, rows);
   const canvas = createCanvas(w, h), g = canvas.getContext('2d');
   g.fillStyle = '#05070a'; g.fillRect(0, 0, w, h);
-  g.font = `bold ${Math.round(ch * 0.9)}px Consolas, "Courier New", monospace`; g.textBaseline = 'top';
+  g.font = `bold ${Math.round(ch * 0.95)}px Consolas, "Courier New", monospace`; g.textBaseline = 'top';
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    const o = (r * cols + c) * 3, l = 0.299 * avg[o] + 0.587 * avg[o + 1] + 0.114 * avg[o + 2], ch2 = RAMP[Math.min(RAMP.length - 1, Math.floor(l / 256 * RAMP.length))];
+    const o = (r * cols + c) * 3, l = 0.299 * avg[o] + 0.587 * avg[o + 1] + 0.114 * avg[o + 2];
+    if (l < blank) continue;
+    const t = Math.min(1, (l - blank) / (255 - blank)), ch2 = RAMP[Math.min(RAMP.length - 1, 1 + Math.floor(Math.pow(t, 0.7) * (RAMP.length - 1)))];
     if (ch2 === ' ') continue;
-    g.fillStyle = color ? `rgb(${Math.min(255, avg[o] * 1.2) | 0},${Math.min(255, avg[o + 1] * 1.2) | 0},${Math.min(255, avg[o + 2] * 1.2) | 0})` : `rgb(${(l * 0.25) | 0},${Math.min(255, 60 + l) | 0},${(l * 0.35) | 0})`;
-    g.fillText(ch2, c * cw, r * ch + (h - rows * ch) / 2);
+    const x = c * cw, y = r * ch + (h - rows * ch) / 2;
+    if (tint > 0) {                                                          // the cell, faintly, in its own colour: the figure keeps its body
+      g.fillStyle = color ? `rgb(${(avg[o] * tint) | 0},${(avg[o + 1] * tint) | 0},${(avg[o + 2] * tint) | 0})` : `rgb(0,${(l * tint * 0.6) | 0},${(l * tint * 0.2) | 0})`;
+      g.fillRect(Math.floor(x), Math.floor(y), Math.ceil(cw) + 1, Math.ceil(ch) + 1);
+    }
+    if (color) {
+      const top = Math.max(1, avg[o], avg[o + 1], avg[o + 2]), bright = 120 + 135 * Math.pow(t, 0.6), k = bright / top;
+      g.fillStyle = `rgb(${Math.min(255, avg[o] * k) | 0},${Math.min(255, avg[o + 1] * k) | 0},${Math.min(255, avg[o + 2] * k) | 0})`;
+    } else {
+      const v = 90 + 165 * Math.pow(t, 0.6);
+      g.fillStyle = `rgb(${(v * 0.25) | 0},${Math.min(255, v) | 0},${(v * 0.35) | 0})`;
+    }
+    g.fillText(ch2, x, y);
   }
   return toImage(canvas, w, h);
 }

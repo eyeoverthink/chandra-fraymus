@@ -95,6 +95,7 @@ export const RECIPE_NAMES = Object.freeze(Object.keys(RECIPES));
 export const ANIME_CHECKPOINT = 'animagine-xl-4.0-opt.safetensors';
 const ANIME = { checkpoint: ANIME_CHECKPOINT, quality: 'masterpiece, high score, great score, absurdres',
   negative: 'lowres, bad anatomy, bad hands, text, error, missing finger, extra digits, fewer digits, cropped, worst quality, low quality, low score, bad score, average score, signature, watermark, username, blurry', postWithCheckpoint: null };
+const SMALL_SUBJECT = 'tiny figures, distant figures, figures far away, extreme wide shot, empty landscape';
 export const CHECKPOINT_RECIPES = Object.freeze({ 'pastoral-anime': ANIME, 'classic-manga': ANIME, 'retro-robot-anime': ANIME, 'shonen-action': ANIME });
 
 // Characters owned by a franchise: never drawn, the subject becomes an original character
@@ -131,11 +132,60 @@ export function cleanSubject(text) {
   return { subject: s || 'a scene', replaced: [...new Set(replaced)] };
 }
 
+/**
+ * Animagine is trained on Danbooru-style tags and follows English sentences loosely: "a girl and her cat on a hill" in a
+ * sentence lost the cat and drew the girl small (2026-11-13, same seed). So a local model rewrites the subject as tags,
+ * and code checks them. These two are pure; the call is in looks/index.js.
+ */
+export const FRAMING_TAGS = Object.freeze(['close-up', 'portrait', 'upper body', 'cowboy shot', 'full body']);
+export function animeTagsMessages(subject) {
+  return [
+    { role: 'system', content: 'You turn a picture description into Danbooru-style tags for an anime image model. Reply with JSON only: {"subjects": [..], "tags": [..], "framing": "..."}.\n'
+      + 'Rules: "subjects" has one tag for each person, animal or machine the description names, in order (1girl, 1boy, cat, robot dog…), plus one tag saying how they are together if there are two or more (girl holding cat, boy walking with robot dog…). '
+      + '"tags" has what they do, wear and hold, then the setting and time of day — only what the description says: invent no clothes, colours, poses or objects. No generic tags (female, male, animal, nature, outdoor, people). '
+      + 'Lowercase, a few words per tag, at most 16 tags. No artist, studio, franchise or character names; no quality words. '
+      + `"framing" is one of: ${FRAMING_TAGS.join(', ')} — choose the closest framing in which everything named is still visible, so the characters are large in the picture.` },
+    { role: 'user', content: subject },
+  ];
+}
+/** The model's reply → { tags, framing } or null. Tags must be short, plain and free of the names cleanSubject removes. */
+const GENERIC_TAGS = new Set(['female', 'male', 'animal', 'animals', 'nature', 'outdoor', 'outdoors', 'people', 'person', 'scenery', 'pet']);
+export function checkTags(raw) {
+  let j; try { j = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { return null; }
+  if (!j || !Array.isArray(j.tags)) return null;
+  const clean = list => [...new Set((Array.isArray(list) ? list : []).map(t => String(t || '').toLowerCase().replace(/[^\p{L}\p{N}\s'-]/gu, ' ').replace(/\s+/g, ' ').trim())
+    .filter(t => t && t.length <= 40 && t.split(' ').length <= 6 && !GENERIC_TAGS.has(t)))]
+    .filter(t => cleanSubject(t).replaced.length === 0 && recipeFor(t) === null);
+  const subjects = clean(j.subjects).slice(0, 5), tags = clean(j.tags).filter(t => !subjects.includes(t)).slice(0, 16);
+  if (subjects.length + tags.length < 2) return null;
+  const framing = FRAMING_TAGS.includes(String(j.framing || '').toLowerCase()) ? String(j.framing).toLowerCase() : 'cowboy shot';
+  return { subjects, tags, framing };
+}
+
 /** The image-model prompt for a subject in a recipe: subject first, then the look's traits. */
 export function recipePrompt(recipeId, subject) {
   const r = RECIPES[recipeId];
   if (!r) throw new Error(`unknown recipe: ${recipeId}`);
   const alt = CHECKPOINT_RECIPES[recipeId];
+  // Animagine shrinks a subject written as a sentence into a scene-rich style (measured 2026-11-13), so its prompt is
+  // tags first (from animeTagsMessages, or the subject when no tags came back), then the framing, then the style.
   return { prompt: `${subject}, ${r.style}`, negative: r.negative, post: r.post,
-    ...(alt ? { checkpoint: alt.checkpoint, checkpointPrompt: `${subject}, ${r.style}, ${alt.quality}`, checkpointNegative: `${r.negative}, ${alt.negative}`, postWithCheckpoint: alt.postWithCheckpoint } : {}) };
+    ...(alt ? { checkpoint: alt.checkpoint, checkpointPrompt: `${subject}, ${r.style}, ${alt.quality}`,
+      checkpointNegative: `${r.negative}, ${alt.negative}, ${SMALL_SUBJECT}`, postWithCheckpoint: alt.postWithCheckpoint } : {}) };
+}
+/** Extra negative for tagged anime prompts: a weighted animal next to a person leaks animal ears onto the person. */
+const PERSON = /\b(\d+)?(girl|boy|girls|boys|woman|man|person|child|kid)s?\b/, BEAST = /\b(cat|dog|fox|wolf|rabbit|bunny|bear|horse|bird|kitten|puppy)\b/;
+export function taggedNegative(recipeId, { subjects = [] } = {}) {
+  const base = recipePrompt(recipeId, 'x').checkpointNegative;
+  const both = subjects.some(s => PERSON.test(s)) && subjects.some(s => BEAST.test(s) && !PERSON.test(s));
+  return both ? `${base}, animal ears, kemonomimi, animal tail on a person` : base;
+}
+
+/** The anime checkpoint's prompt from checked tags: tags, framing, the recipe's look, the model's quality words. */
+export function taggedPrompt(recipeId, { subjects = [], tags, framing }) {
+  const r = RECIPES[recipeId], alt = CHECKPOINT_RECIPES[recipeId];
+  if (!r || !alt) throw new Error(`no anime checkpoint for recipe ${recipeId}`);
+  // every named subject weighted (ComfyUI's "(text:weight)" emphasis) so the scene cannot drop one of them
+  const named = subjects.map(s => `(${s}:1.3)`);
+  return [...named, ...tags, framing, r.style, alt.quality].filter(Boolean).join(', ');
 }

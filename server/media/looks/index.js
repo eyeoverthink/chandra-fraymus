@@ -14,7 +14,16 @@ import { DATA_DIR } from '../../config.js';
 import { LOOKS, LOOK_NAMES, lookInfo, convertImage, convertVideo, animateStill, CAMERA_MOVE_NAMES, shelfFile, saveUpload, coverPng, measureMotion, shelveClip, MOTION_MIN, containPng, turntableVideo } from './convert.js';
 import { parseGlb, normalize, renderMesh, pictureSampler, coverage } from './mesh3d.js';
 import { image as rgbImage } from './filters.js';
-import { RECIPES, RECIPE_NAMES, recipeFor, cleanSubject, recipePrompt } from './recipes.js';
+import { RECIPES, RECIPE_NAMES, recipeFor, cleanSubject, recipePrompt, animeTagsMessages, checkTags, taggedPrompt, taggedNegative } from './recipes.js';
+import { chatOllama } from '../../commerce/shared.js';
+
+/** The subject as checked Danbooru-style tags for the anime checkpoint, or null (then the sentence is used). */
+async function animeTags(subject) {
+  try {
+    const raw = await chatOllama(animeTagsMessages(subject), { format: 'json', temperature: 0.2, maxTokens: 400, priority: 'goal', label: 'looks:anime-tags', timeoutMs: 60_000 });
+    return checkTags(raw);
+  } catch (e) { console.error('[looks] anime tags:', e.message); return null; }
+}
 import { pickWorker, runOnWorker } from '../workers.js';
 import { renderStillBatch } from '../studio.js';
 import { noteMedia } from '../media-meta.js';
@@ -209,7 +218,7 @@ export function startAvatar({ file, dataBase64, ext, prompt, model = null, look 
 }
 
 /** Generate new pictures in a look: subject cleaned of franchise characters, recipe prompt, paint, finish with the look's filter. */
-export function startGenerate({ prompt, look = null, count = 1, format = '16:9', source = 'api' }) {
+export function startGenerate({ prompt, look = null, count = 1, format = '16:9', seed = null, source = 'api' }) {
   const recipe = look && RECIPES[look] ? look : recipeFor(prompt) || look;
   if (!recipe || !RECIPES[recipe]) throw Object.assign(new Error(`name a look for the picture. Looks: ${RECIPE_NAMES.join(', ')}`), { status: 400 });
   const { subject, replaced } = cleanSubject(prompt);
@@ -217,8 +226,15 @@ export function startGenerate({ prompt, look = null, count = 1, format = '16:9',
   const [width, height] = { '16:9': [1216, 704], '9:16': [704, 1216], '1:1': [1024, 1024] }[format] || [1216, 704];
   const n = Math.max(1, Math.min(4, Number(count) || 1));
   const alt = rp.checkpoint ? { checkpoint: rp.checkpoint, checkpointPrompt: rp.checkpointPrompt, checkpointNegative: rp.checkpointNegative, cfg: 5 } : {};
-  const items = Array.from({ length: n }, () => ({ prompt: p, negative, width, height, steps: 26, seed: Math.floor(Math.random() * 2 ** 31), ...alt }));
+  // a given seed makes the first picture repeatable (the rest follow it), for comparing a change on the same noise
+  const items = Array.from({ length: n }, (_, i) => ({ prompt: p, negative, width, height, steps: 26, seed: Number.isInteger(seed) ? seed + i : Math.floor(Math.random() * 2 ** 31), ...alt }));
   const job = enqueue('generate', `${n} × ${RECIPES[recipe].label}: ${clip(subject, 80)}`, async j => {
+    let tagged = null;
+    if (rp.checkpoint) {
+      j.stage = 'writing the anime tags';
+      tagged = await animeTags(subject);
+      if (tagged) for (const it of items) { it.checkpointPrompt = taggedPrompt(recipe, tagged); it.checkpointNegative = taggedNegative(recipe, tagged); }
+    }
     const painted = await paint(items, `${RECIPES[recipe].label} pictures`, j);
     const out = [];
     for (const r of painted) {
@@ -229,7 +245,7 @@ export function startGenerate({ prompt, look = null, count = 1, format = '16:9',
       const f = await convertImage(readFileSync(r.path), { look: finish, source: 'looks', note: `${RECIPES[recipe].label}: ${subject}` });
       out.push({ ok: true, file: f.file, painted: basename(r.path), paintedOn: r.paintedOn, checkpoint: r.checkpoint });
     }
-    return { recipe, label: RECIPES[recipe].label, subject, prompt: p, replacedCharacters: replaced, pictures: out };
+    return { recipe, label: RECIPES[recipe].label, subject, prompt: p, tags: tagged, replacedCharacters: replaced, pictures: out };
   });
   job.notice = replaced.length ? `Franchise characters are not drawn: ${replaced.join(', ')} became an original character in this look.` : null;
   return job;

@@ -238,6 +238,32 @@ print(json.dumps([c, sorted(n["class_type"] for n in g.values()), g["1"]["inputs
   assert.equal(good, 'animagine-xl-4.0-opt.safetensors'); assert.equal(bad, null, 'a path is never a checkpoint name');
 });
 
+test('anime tags: subjects weighted, filler and franchise names dropped, animal ears kept off people', () => {
+  const t = R.checkTags('{"subjects":["girl","cat","girl holding cat","goku"],"tags":["female","on a hill","sunset","miyazaki style","sunset"],"framing":"Full Body"}');
+  assert.deepEqual(t.subjects, ['girl', 'cat', 'girl holding cat']);
+  assert.deepEqual(t.tags, ['on a hill', 'sunset']);
+  assert.equal(t.framing, 'full body');
+  assert.equal(R.checkTags('not json'), null); assert.equal(R.checkTags('{"tags":[]}'), null);
+  assert.equal(R.checkTags('{"subjects":["1girl"],"tags":["rain"],"framing":"from space"}').framing, 'cowboy shot');
+  const p = R.taggedPrompt('pastoral-anime', t);
+  assert.match(p, /^\(girl:1\.3\), \(cat:1\.3\), \(girl holding cat:1\.3\), on a hill, sunset, full body, hand-painted/);
+  assert.match(p, /masterpiece, high score/);
+  assert.match(R.taggedNegative('pastoral-anime', t), /animal ears/);
+  assert.ok(!/animal ears/.test(R.taggedNegative('pastoral-anime', { subjects: ['1boy', 'robot'] })));
+  assert.throws(() => R.taggedPrompt('woodblock', t), /no anime checkpoint/);
+});
+
+test('ASCII keeps well over a third of a dark picture\'s light and leaves its near-black empty', () => {
+  const src = F.image(160, 90);
+  for (let y = 0; y < 90; y++) for (let x = 0; x < 160; x++) { const q = (y * 160 + x) * 3, inside = (x - 80) ** 2 + (y - 45) ** 2 < 900; src.d[q] = inside ? 150 : 20; src.d[q + 1] = inside ? 90 : 22; src.d[q + 2] = inside ? 70 : 26; }
+  const out = G.ascii(src, { w: 640, h: 360, cols: 64 });
+  const lum = (img, pred) => { let t = 0, n = 0; for (let y = 0; y < img.h; y++) for (let x = 0; x < img.w; x++) if (pred(x / img.w, y / img.h)) { const q = (y * img.w + x) * 3; t += 0.299 * img.d[q] + 0.587 * img.d[q + 1] + 0.114 * img.d[q + 2]; n++; } return t / n; };
+  const disc = (u, v) => ((u - 0.5) * 160) ** 2 + ((v - 0.5) * 90) ** 2 < 600, corner = (u, v) => u < 0.15 && v < 0.2;
+  // the old drawing kept about a third (0.32 on a shaded 3-D render); now 0.44 here and 0.50 on that render
+  assert.ok(lum(out, disc) / lum(src, disc) >= 0.4, `disc keeps ${(lum(out, disc) / lum(src, disc)).toFixed(2)} of its light`);
+  assert.ok(lum(out, corner) < 8, 'the dark backdrop stays empty');
+});
+
 test('anime recipes carry the anime checkpoint, its quality words and no second ink pass', () => {
   const r = R.recipePrompt('shonen-action', 'an original fighter');
   assert.equal(r.checkpoint, 'animagine-xl-4.0-opt.safetensors');
