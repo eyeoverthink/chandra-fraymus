@@ -1,7 +1,34 @@
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { htmlToMarkdown, parseFeed, readSpore, assertPublicUrl, underRoots, createHermesTools, HERMES_SKILLS, scanRepo } from '../server/hermes/free-tools.js';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import os from 'node:os';
+
+// The artifact shelf reads data/ — so this test brings its own: one of every kind, known exactly. It used to list
+// whatever the real data folder held, which made its checks depend on what the organism had made that week.
+const DATA = mkdtempSync(join(os.tmpdir(), 'chandra-shelf-'));
+const previousDataDir = process.env.CHANDRA_DATA_DIR;
+process.env.CHANDRA_DATA_DIR = DATA;
+const put = (rel, body) => { mkdirSync(join(DATA, rel, '..'), { recursive: true }); writeFileSync(join(DATA, rel), body); };
+put('sites/demo-page/index.html', '<!doctype html><title>Demo page</title><h1>Welcome</h1>');
+put('wiki/myproj/Architecture.md', '# My project architecture\n\nThree modules.');
+put('har-clients/shop-api.mjs', 'export async function getItems() { return []; }\n');
+put('rea/rea-1.md', '# REA report\n\nPROVEN: two claims.');
+put('media/1794000000000-aa.png', 'png bytes');
+put('video/1794000000100-bb.mp4', 'mp4 bytes');
+for (const n of [1, 2, 3]) put(`tts/179400000020${n}-cc.mp3`, 'mp3 bytes');
+
+const { htmlToMarkdown, parseFeed, readSpore, assertPublicUrl, underRoots, createHermesTools, HERMES_SKILLS, scanRepo } = await import('../server/hermes/free-tools.js');
+const { db } = await import('../server/db.js');
+db.exec(`CREATE TABLE IF NOT EXISTS fraymus_os_artifacts (id TEXT PRIMARY KEY, preset TEXT, topic TEXT, status TEXT, payload TEXT, error TEXT, created_at INTEGER)`);
+db.prepare(`INSERT INTO fraymus_os_artifacts (id, preset, topic, status, payload, created_at) VALUES ('draft-1', 'blog-post', 'A drafted post', 'done', '{"text":"Body of the post."}', 1794000000300)`).run();
+
+after(() => {
+  try { db.close(); } catch (e) { console.error('close:', e.message); }
+  if (previousDataDir === undefined) delete process.env.CHANDRA_DATA_DIR; else process.env.CHANDRA_DATA_DIR = previousDataDir;
+  rmSync(DATA, { recursive: true, force: true });
+});
 
 test('htmlToMarkdown keeps structure and drops scripts, styles and navigation', () => {
   const { title, markdown } = htmlToMarkdown('<html><head><title>T &amp; U</title><style>p{color:red}</style></head><body><nav>menu</nav><h1>Head</h1><p>One <a href="/x">link</a>.</p><ul><li>a</li><li>b</li></ul><script>alert(1)</script></body></html>', 'https://example.com/p');
@@ -76,6 +103,12 @@ test('artifact shelf lists what exists and refuses to read outside its folders',
   const { listArtifacts, readArtifact } = await import('../server/hermes/free-tools.js');
   const all = listArtifacts({ limit: 100 });
   assert.equal(typeof all.total, 'number');
+  // exactly the fixture: one of each document kind, the draft row, one image, one video, and audio capped at 2
+  const kinds = all.artifacts.map(a => a.kind).sort();
+  assert.deepEqual(kinds, ['audio', 'audio', 'client', 'draft', 'image', 'report', 'site', 'video', 'wiki']);
+  assert.equal(all.artifacts.find(a => a.kind === 'site').title, 'Demo page');
+  assert.equal(readArtifact('wiki', 'myproj/Architecture.md').text.includes('Three modules'), true);
+  assert.match(readArtifact('draft', 'draft-1').text, /A drafted post/);
   assert.ok(all.artifacts.every(a => ['site', 'wiki', 'client', 'report', 'draft', 'image', 'video', 'audio'].includes(a.kind) && a.title && a.at >= 0));
   assert.deepEqual([...all.artifacts].sort((a, b) => b.at - a.at).map(a => a.id), all.artifacts.map(a => a.id), 'newest first');
   for (const a of all.artifacts.filter(x => x.kind === 'site')) assert.match(a.url, /^http:\/\/127\.0\.0\.1:\d+\/sites\/[a-z0-9-]+\/$/);
@@ -87,7 +120,8 @@ test('artifact shelf lists what exists and refuses to read outside its folders',
 test('media on the shelf: typed, capped when unfiltered, and only reachable by bare file name', async () => {
   const { listArtifacts, mediaFile } = await import('../server/hermes/free-tools.js');
   const all = listArtifacts({ limit: 100 });
-  assert.ok(all.artifacts.filter(a => a.kind === 'audio').length <= 2, 'narration audio must not bury the shelf');
+  assert.equal(all.artifacts.filter(a => a.kind === 'audio').length, 2, 'narration audio must not bury the shelf (3 on disk, 2 shown)');
+  assert.equal(listArtifacts({ kind: 'audio' }).artifacts.length, 3, 'the Audio filter shows them all');
   for (const kind of ['image', 'video', 'audio']) {
     const only = listArtifacts({ kind, limit: 5 }).artifacts;
     assert.ok(only.every(a => a.kind === kind && a.media.startsWith('/api/hermes/artifacts/media?kind=' + kind + '&id=')));

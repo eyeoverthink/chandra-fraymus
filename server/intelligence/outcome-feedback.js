@@ -22,6 +22,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { db } from '../db.js';
+import { ensureGoalExecutionsTable } from './goal-executions-schema.js';
 import { publish } from '../fleet/bus.js';
 import { storeMemory } from '../fleet/agent-memory.js';
 
@@ -45,6 +46,7 @@ function ensureSchema() {
     created_at INTEGER NOT NULL
   )`).run();
   db.prepare(`CREATE INDEX IF NOT EXISTS idx_outcome_feedback_exec ON outcome_feedback(exec_id, created_at)`).run();
+  ensureGoalExecutionsTable();
   const cols = db.prepare(`PRAGMA table_info(goal_executions)`).all().map(c => c.name);
   if (!cols.includes('quality_machine')) db.prepare(`ALTER TABLE goal_executions ADD COLUMN quality_machine REAL`).run();
   if (!cols.includes('quality_human')) db.prepare(`ALTER TABLE goal_executions ADD COLUMN quality_human REAL`).run();

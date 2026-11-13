@@ -483,7 +483,10 @@ export function listArtifacts({ limit = 24, kind = null, q = '' } = {}) {
 export function readArtifact(kind, id) {
   const MAX = 200_000;
   if (kind === 'draft') {
-    const r = db.prepare(`SELECT preset, topic, status, payload, error, created_at FROM fraymus_os_artifacts WHERE id = ?`).get(String(id));
+    let r;
+    // like listArtifacts: before the home screen has made a draft the table does not exist, and that is "no such draft"
+    try { r = db.prepare(`SELECT preset, topic, status, payload, error, created_at FROM fraymus_os_artifacts WHERE id = ?`).get(String(id)); }
+    catch (e) { if (/no such table/.test(e.message)) return null; throw e; }
     if (!r) return null;
     let p = null; try { p = r.payload ? JSON.parse(r.payload) : null; } catch (_) { /* shown raw below */ }
     const lines = [`# ${r.topic}`, `_${String(r.preset).replace(/-/g, ' ')} · ${r.status} · ${new Date(r.created_at).toISOString().slice(0, 16).replace('T', ' ')}_`];

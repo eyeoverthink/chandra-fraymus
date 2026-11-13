@@ -24,9 +24,13 @@ test('a paused scheduler admits nothing, lets running work finish, and resumes i
 });
 
 test('waitForOllamaIdle reports false when work outlasts the deadline', async () => {
-  const long = withOllama('goal', () => sleep(300), { label: 'long' });
+  // held open until released, not a 300 ms sleep: under a busy full run the 20 ms wait below once outlasted the
+  // sleep, the job had finished, and "idle" was the right answer to the wrong question
+  let release; const gate = new Promise(r => { release = r; });
+  const long = withOllama('goal', () => gate, { label: 'long' });
   await sleep(20);
   assert.equal(await waitForOllamaIdle(60), false);
+  release();
   await long;
   assert.equal(await waitForOllamaIdle(500), true);
 });

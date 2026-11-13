@@ -2,14 +2,17 @@ import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { hostname } from 'node:os';
-import { DATA_DIR } from './config.js';
+import { DATA_DIR, TEST_SCRATCH_DATA } from './config.js';
 
 const dataDir = DATA_DIR;
 mkdirSync(dataDir, { recursive: true });
 
 export const db = new Database(join(dataDir, 'chandra.db'));
 db.pragma('journal_mode = WAL');
-db.pragma('synchronous = FULL');
+// A test's throwaway store is deleted at exit, so durability buys nothing there — and on a fresh store every module's
+// CREATE TABLE is a real commit: with FULL each test process made hundreds of fsyncs in parallel, and the extra disk
+// load pushed the tight-deadline sandbox tests over their limits. The real store is always FULL.
+db.pragma(TEST_SCRATCH_DATA ? 'synchronous = OFF' : 'synchronous = FULL');
 
 // Checkpoint any leftover WAL from a previous unclean shutdown.
 // Without this, a stale WAL left by a killed process corrupts on recovery.
@@ -18,7 +21,8 @@ try { db.pragma('wal_checkpoint(TRUNCATE)'); } catch (_) {}
 // Last-resort safety net: if the process exits without a graceful stop()
 // call (e.g. Windows kills it, Ctrl+C during init, crash), close the DB
 // so the WAL is checkpointed rather than left dirty on disk.
-process.on('exit', () => { try { db.close(); } catch (_) {} });
+// prepended, so it runs before config.js removes a test's throwaway data folder (Windows cannot delete an open file)
+process.prependListener('exit', () => { try { db.close(); } catch (_) {} });
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS agents (

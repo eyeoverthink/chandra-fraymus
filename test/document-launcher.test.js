@@ -118,7 +118,9 @@ test('native document Job rejects bounded Buffer allocation beyond its process c
 
 test('terminating the wrapper closes its noninherited Job and kills its exact synthetic child', native, async t => {
   const f = fixture(t), child = f.start({ mode: 'idle' });
-  const deadline = Date.now() + 5000;
+  // how long the child takes to START is load, not the property under test (the kill below is): under a full
+  // parallel `npm test` the launch has taken over 5 s, so the start gets 20 s and the kill keeps its strict 1 s
+  const deadline = Date.now() + 20_000;
   while (!existsSync(f.marker) && Date.now() < deadline) await delay(5);
   assert.ok(existsSync(f.marker), 'Trusted synthetic child must have started under the Job');
   const pid = Number(readFileSync(f.marker, 'utf8'));

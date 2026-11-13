@@ -16,6 +16,7 @@
 import { mayRecoverAtBoot } from '../config.js';
 import { randomUUID } from 'node:crypto';
 import { db } from '../db.js';
+import { ensureGoalExecutionsTable } from './goal-executions-schema.js';
 import { publish } from '../fleet/bus.js';
 import { runAgentAndWait, listAgents } from '../fleet/runtime.js';
 import { storeMemory } from '../fleet/agent-memory.js';
@@ -41,27 +42,7 @@ let timer = null;
 let inFlight = null;
 let lastCycle = null;
 
-function ensureSchema() {
-  db.prepare(`CREATE TABLE IF NOT EXISTS goal_executions (
-    id TEXT PRIMARY KEY,
-    goal_id TEXT NOT NULL,
-    agent_id TEXT,
-    run_id TEXT,
-    thread_id TEXT,
-    status TEXT NOT NULL,
-    trigger TEXT,
-    gate_tier TEXT,
-    pressure REAL,
-    reply_excerpt TEXT,
-    error TEXT,
-    started_at INTEGER NOT NULL,
-    finished_at INTEGER,
-    duration_ms INTEGER
-  )`).run();
-  db.prepare(`CREATE INDEX IF NOT EXISTS idx_goal_exec_goal ON goal_executions(goal_id)`).run();
-  db.prepare(`CREATE INDEX IF NOT EXISTS idx_goal_exec_started ON goal_executions(started_at)`).run();
-}
-ensureSchema();
+ensureGoalExecutionsTable();
 
 export function expireStaleProposals(maxAgeMs = PROPOSAL_MAX_AGE_MS) {
   const info = db.prepare(

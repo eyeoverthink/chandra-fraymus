@@ -16,6 +16,7 @@
  */
 
 import { db } from '../db.js';
+import { ensureGoalExecutionsTable } from './goal-executions-schema.js';
 import { chatOllama } from '../commerce/shared.js';
 
 const now = () => Date.now();
@@ -32,6 +33,7 @@ Then overall 0.0-1.0 and a one-sentence critique naming the single biggest weakn
 Output JSON only: {"specificity":0.0,"actionability":0.0,"evidence":0.0,"meta_talk":0.0,"overall":0.0,"critique":"..."}`;
 
 function ensureColumns() {
+  ensureGoalExecutionsTable();
   const cols = db.prepare(`PRAGMA table_info(goal_executions)`).all().map(c => c.name);
   if (!cols.includes('quality')) db.prepare(`ALTER TABLE goal_executions ADD COLUMN quality REAL`).run();
   if (!cols.includes('quality_detail')) db.prepare(`ALTER TABLE goal_executions ADD COLUMN quality_detail TEXT`).run();

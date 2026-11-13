@@ -1,18 +1,35 @@
-import { dirname, resolve } from 'node:path';
+import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 
 export const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const WORKSPACE_ROOT = resolve(process.env.FRAYMUS_WORKSPACE || resolve(PROJECT_ROOT, '..'));
-export const DATA_DIR = resolve(process.env.CHANDRA_DATA_DIR || resolve(PROJECT_ROOT, 'data'));
+export const REAL_DATA_DIR = resolve(PROJECT_ROOT, 'data');
 
 /**
- * True when this process may close rows a dead process left running (boot recovery). Never from a test process
- * that has the real database open: on 2026-11-13 test/http.test.js loaded the runtime with no data folder named,
- * make.js "recovered" the real creation_jobs table and a live render was marked "interrupted by restart" the
- * minute `npm test` began. A test that names its own CHANDRA_DATA_DIR recovers its own rows as before.
+ * Tests never open the real store by default. Under the test runner (NODE_TEST_CONTEXT) a process that names no
+ * CHANDRA_DATA_DIR gets a throwaway folder, removed on exit by db.js (and swept by scripts/run-tests.mjs if a
+ * process dies before that). Before 2026-11-13 every test that built the runtime read and wrote data/chandra.db —
+ * and one run marked a live render "interrupted by restart". A test that names a folder still gets that folder.
  */
-export function mayRecoverAtBoot(env = process.env) {
-  return !(env.NODE_TEST_CONTEXT && !env.CHANDRA_DATA_DIR);
+export const TEST_SCRATCH_PREFIX = 'chandra-test-data-';
+export const TEST_SCRATCH_DATA = !process.env.CHANDRA_DATA_DIR && !!process.env.NODE_TEST_CONTEXT;
+if (TEST_SCRATCH_DATA) {
+  const scratch = mkdtempSync(join(tmpdir(), TEST_SCRATCH_PREFIX));
+  process.env.CHANDRA_DATA_DIR = scratch;
+  // whoever makes the folder removes it — many tests load config without ever opening the database. db.js prepends
+  // its close handler, so on Windows the database file is closed before this runs.
+  process.on('exit', () => { try { rmSync(scratch, { recursive: true, force: true }); } catch (e) { console.error('[config] test data cleanup:', e.message); } });
+}
+export const DATA_DIR = resolve(process.env.CHANDRA_DATA_DIR || REAL_DATA_DIR);
+
+/**
+ * True when this process may close rows a dead process left running (boot recovery). A second line behind the
+ * scratch default: never from a test process whose data folder is the real one, however it got there.
+ */
+export function mayRecoverAtBoot(env = process.env, dataDir = DATA_DIR) {
+  return !(env.NODE_TEST_CONTEXT && resolve(dataDir) === REAL_DATA_DIR);
 }
 
 export function loopbackUrl(value, name = 'service URL') {

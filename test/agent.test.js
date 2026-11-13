@@ -264,7 +264,9 @@ test('non-streaming JSON survives split UTF-8 chunks and bounded results have no
 });
 
 test('approval-gated code runs actual Node code with bounded output and a deadline', async t => {
-  const f = await fixture(t, (_body, index) => index === 1 ? done('', [toolCall('code.run', { language: 'javascript', code: 'console.log(6 * 7)', timeoutMs: 1000 })]) : done('42'));
+  // 10 s: this run starts a real Node process, which under a full parallel suite has taken over 1 s just to start;
+  // the deadline itself is tested below with a 100 ms infinite loop
+  const f = await fixture(t, (_body, index) => index === 1 ? done('', [toolCall('code.run', { language: 'javascript', code: 'console.log(6 * 7)', timeoutMs: 10000 })]) : done('42'));
   const run = await f.start(); const pending = await until(() => f.service.get(run.id)?.approval);
   assert.match(pending.preview.warning, /No OS sandbox/);
   assert.ok(!f.service.events(run.id).some(event => event.type === 'tool_started'));

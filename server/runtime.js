@@ -1,5 +1,6 @@
 import express from 'express';
 import { join } from 'node:path';
+import { migrateWorkspaces } from './db-migrate.js';
 import { createAgentService } from './agent/service.js';
 import { createArtifactStore, MAX_ASSET_BYTES, ASSET_MIME_TYPES } from './artifacts.js';
 import { createExtensionTools, transportBenchmark } from './extension-tools.js';
@@ -214,6 +215,9 @@ export function cloudConfig() {
 export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT, dataDir = DATA_DIR,
   ollamaUrl = OLLAMA_URL, voiceUrl = VOICE_URL, cloud = cloudConfig(), fetchImpl = fetch,
   codeExecutor = configuredCodeExecutor({ dataDir }), webRequestImpl, desktopDriver = configuredDesktopDriver({dataDir}), taskClock=Date.now, embeddingProvider, localVisionProvider, localOcrProvider }) {
+  // The shared store (db.js) must have its base tables before any module writes to it. Only app.js ran this, so a
+  // runtime built by anything else — every test — worked only because the real store already had them.
+  try { migrateWorkspaces(); } catch (e) { console.error('runtime: base schema migration failed:', e.message); }
   const artifacts = createArtifactStore(join(dataDir, 'assets'), {
     recognizeAudio: (data, { signal } = {}) => transcribeAudio(data, { voiceUrl, fetchImpl, signal }),
   });
