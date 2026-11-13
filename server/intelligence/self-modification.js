@@ -43,7 +43,7 @@ import { db } from '../db.js';
 import { publish } from '../fleet/bus.js';
 import { chatOllama, parseJSON } from '../commerce/shared.js';
 import { storeMemory } from '../fleet/agent-memory.js';
-import { REGISTRY, TUNABLE_NAMES, tunable, setTunable, listTunables } from './tunables.js';
+import { REGISTRY, TUNABLE_NAMES, tunable, setTunable, listTunables, slowsDown } from './tunables.js';
 import { runPipeline as opegPipeline } from './opeg.js';
 import { isActionSuppressed } from './adaptive-strategy.js';
 import { isResourceConstrained } from './resource-envelope.js';
@@ -273,6 +273,10 @@ export function evaluateExperiment(id = null, { force = false } = {}) {
   } else {
     delta = round(post.objective - baseline.objective, 4);
     if (blocking > (row.baseline_blocking || 0)) { verdict = 'reverted'; reason = `blocking findings rose ${row.baseline_blocking} → ${blocking}`; }
+    // doing less must pay for itself: a change that slows the organism is kept only on a measured gain, never on "no worse"
+    else if (slowsDown(row.tunable, row.before_value, row.after_value) && delta < TOLERANCE) {
+      verdict = 'reverted'; reason = `slowing down did not earn a measured gain (objective ${baseline.objective} → ${post.objective}, needs +${TOLERANCE})`;
+    }
     else if (delta >= -TOLERANCE) { verdict = 'kept'; reason = delta >= 0 ? `objective improved ${baseline.objective} → ${post.objective}` : `objective held within tolerance (${delta})`; }
     else { verdict = 'reverted'; reason = `objective fell ${baseline.objective} → ${post.objective}`; }
   }
@@ -328,10 +332,19 @@ export function ruleProposals() {
     out.push({ tunable: 'agent.retire_threshold', value: stepTo('agent.retire_threshold', cur['agent.retire_threshold'] + 0.05), rule: 'poor_agents_unretired',
       hypothesis: `${poorForged} forged agents average under 0.3 over ≥ 5 outcomes and none were retired this week: raise the bar` });
 
+  // Release: every rule above can slow a knob, none brought one back, so the floors only ever rose. A knob sitting on
+  // its slow side of the default is proposed halfway back; speeding up is kept unless things measurably get worse.
+  for (const name of TUNABLE_NAMES) {
+    const def = REGISTRY[name].default, value = cur[name];
+    if (!REGISTRY[name].slows || !slowsDown(name, def, value) || out.some(p => p.tunable === name)) continue;
+    out.push({ tunable: name, value: stepTo(name, value + (def - value) / 2), rule: 'release_throttle',
+      hypothesis: `${name} is at ${value}, slower than its default ${def}: half of that slowdown has not proven itself, so give it back and measure` });
+  }
+
   return out.filter(p => p.value !== cur[p.tunable]);
 }
 
-const LLM_PROMPT = `You are the Self-Modification Kernel of Chandra-FRAYMUS, a local autonomous system. You may propose ONE change to ONE live tunable, inside its bounds, with a falsifiable hypothesis. The change will be applied for a fixed window and kept only if the objective (goal quality 0.35, metacognitive effectiveness 0.30, run success 0.20, goal throughput 0.15) does not fall. Prefer no change over a speculative one.
+const LLM_PROMPT = `You are the Self-Modification Kernel of Chandra-FRAYMUS, a local autonomous system. You may propose ONE change to ONE live tunable, inside its bounds, with a falsifiable hypothesis. The change will be applied for a fixed window and kept only if the objective (goal quality 0.35, metacognitive effectiveness 0.30, run success 0.20, goal throughput 0.15) does not fall — and a change that makes the system do less (a longer floor, fewer slots, a shallower queue) is kept only if the objective measurably rises. Prefer no change over a speculative one.
 Return ONLY JSON: {"tunable": "<name>", "value": <number>, "hypothesis": "<one sentence stating the mechanism and the metric you expect to move>"} or {"none": true, "reason": "<why nothing should change now>"}.`;
 
 export async function llmProposal() {

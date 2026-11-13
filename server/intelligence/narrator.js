@@ -21,8 +21,12 @@ import { basename } from 'node:path';
 import { db } from '../db.js';
 import { onTopic, offTopic, publish } from '../fleet/bus.js';
 import { tunable } from './tunables.js';
-import { ttsSpeak } from '../media/tts-engine.js';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { ttsSpeak, TTS_DIR } from '../media/tts-engine.js';
 import { getObsBridge } from '../streaming/overlay.js';
+import { chatOllama } from '../commerce/shared.js';
+import { classifyUrl } from '../fraymus-os/registry.js';
 
 const now = () => Date.now();
 const AGENT = 'narrator';
@@ -30,7 +34,18 @@ const ENABLED = process.env.NARRATOR_ENABLED !== '0';
 const DEFAULT_GAP_MS = Math.max(5_000, parseInt(process.env.NARRATOR_MIN_GAP_MS, 10) || 45_000);
 const minGapMs = () => tunable('narrator.min_gap_ms', DEFAULT_GAP_MS); // Phase Y: live tunable
 const ALWAYS = process.env.NARRATOR_ALWAYS === '1';
+// The voice is Vaughn's (VoiceStudio, the same allow-list as the home screen and the films). The stock edge-tts voice is
+// only a fallback when VoiceStudio does not answer, and every fallback is counted — until 2026-11-13 the stream spoke
+// in en-US-GuyNeural all the time and nothing said so.
 const VOICE = process.env.NARRATOR_VOICE || 'en-US-GuyNeural';
+const VOICESTUDIO = classifyUrl(process.env.FRAYMUS_VOICESTUDIO_URL || '');
+const VS_ALLOWED = new Set(['vaughn-one', 'overlord']);
+const VS_VOICE = VS_ALLOWED.has(process.env.NARRATOR_VS_VOICE) ? process.env.NARRATOR_VS_VOICE
+  : VS_ALLOWED.has(process.env.FRAYMUS_VOICE_ID) ? process.env.FRAYMUS_VOICE_ID : 'vaughn-one';
+const VS_USABLE = !!VOICESTUDIO.url && VOICESTUDIO.routeClass !== 'public' && process.env.NARRATOR_VOICE_ENGINE !== 'cascade';
+// Lines are said by a model from the event's facts (NARRATOR_PHRASING=0 keeps the plain line).
+const PHRASING = process.env.NARRATOR_PHRASING !== '0';
+const PHRASE_TIMEOUT_MS = 25_000;
 const QUEUE_MAX = 5;
 const MIN_GOAL_QUALITY = 0.5;
 
@@ -40,7 +55,8 @@ let speaking = false;          // a speak() in flight holds the gap; pump() wait
 let timer = null;
 const queue = [];
 const DEDUP_WINDOW_MS = 10 * 60_000;
-const state = { spoken: 0, textOnly: 0, dropped: 0, ttsErrors: 0, lastLine: null, lastAt: 0, byTopic: {} };
+const state = { spoken: 0, textOnly: 0, dropped: 0, ttsErrors: 0, lastLine: null, lastAt: 0, byTopic: {},
+  voiceUse: { own: 0, fallback: 0, lastFallback: null }, phrasing: { model: 0, plain: 0, lastPlainReason: null } };
 
 function ensureTable() {
   db.prepare(`CREATE TABLE IF NOT EXISTS narrations (
@@ -56,6 +72,8 @@ function ensureTable() {
     created_at INTEGER NOT NULL
   )`).run();
   db.prepare(`CREATE INDEX IF NOT EXISTS idx_narrations_ts ON narrations(created_at)`).run();
+  // plain: the event's plain line (the ten-minute duplicate filter compares on it); text is what was actually said
+  try { db.prepare(`ALTER TABLE narrations ADD COLUMN plain TEXT`).run(); } catch (_) { /* column exists */ }
 }
 try { ensureTable(); } catch (e) { console.error('[narrator] schema:', e.message); }
 
@@ -93,8 +111,10 @@ const LINES = {
   },
   'system.self_modification': p => {
     const name = String(p.tunable || '').replace(/_/g, ' ').replace(/\./g, ' ');
-    if (p.action === 'experiment_started') return { kind: 'smk', text: `Trying a change to myself: ${name} from ${p.before} to ${p.after}. I will measure it for ${Math.round((p.windowMs || 0) / 60000)} minutes.` };
-    if (p.action === 'experiment_evaluated') return { kind: 'smk', text: p.verdict === 'kept' ? `Kept the change to ${name}: the objective moved ${p.delta >= 0 ? 'up' : 'within tolerance'} by ${Math.abs(Number(p.delta || 0)).toFixed(3)}.` : p.verdict === 'reverted' ? `Reverted ${name} to ${p.before}: ${clip(p.reason, 90)}.` : `Inconclusive test on ${name}; put it back.` };
+    // a millisecond knob is said in minutes or seconds: "2100000" means nothing out loud
+    const say = v => (/_ms$/.test(String(p.tunable)) && Number(v) >= 1000 ? (Number(v) >= 60_000 ? `${Math.round(v / 60_000)} minutes` : `${Math.round(v / 1000)} seconds`) : v);
+    if (p.action === 'experiment_started') return { kind: 'smk', text: `Trying a change to myself: ${name.replace(/ ms$/, '')} from ${say(p.before)} to ${say(p.after)}. I will measure it for ${Math.round((p.windowMs || 0) / 60000)} minutes.` };
+    if (p.action === 'experiment_evaluated') return { kind: 'smk', text: p.verdict === 'kept' ? `Kept the change to ${name}: the objective moved ${p.delta >= 0 ? 'up' : 'within tolerance'} by ${Math.abs(Number(p.delta || 0)).toFixed(3)}.` : p.verdict === 'reverted' ? `Reverted ${name.replace(/ ms$/, "")} to ${say(p.before)}: ${clip(p.reason, 90)}.` : `Inconclusive test on ${name}; put it back.` };
     if (p.action === 'code_ready') return { kind: 'smk', text: `I wrote and tested a change to ${basename(String(p.targetFile || ''))}: ${clip(p.title, 80)}. It is on a branch waiting for Vaughn's review.` };
     if (p.action === 'code_merged') return { kind: 'smk', text: `My change to ${basename(String(p.targetFile || ''))} was approved and merged. A restart will make it live.` };
     return null;
@@ -124,6 +144,118 @@ const LINES = {
 };
 export const TOPICS = Object.keys(LINES);
 
+// ─── Saying it ───────────────────────────────────────────────────
+// The line above is the plain version; a model says it the way a person would, from the same facts. What it may not
+// do is invent: every number it speaks must be one of the event's numbers (or that number in seconds, minutes,
+// hours or percent), and the reply must be short and on topic. Anything else and the plain line is spoken, counted.
+
+export function numbersIn(text) {
+  return (String(text).match(/\d+(?:[.,]\d+)*/g) || []).map(s => Number(s.replace(/,/g, ''))).filter(Number.isFinite);
+}
+
+export function allowedNumbers(...sources) {
+  const ok = new Set();
+  const add = n => { for (const v of [n, Math.round(n), Math.round(n * 10) / 10, Math.round(n * 100) / 100, Math.round(n * 1000) / 1000]) ok.add(v); };
+  const walk = v => {
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      add(v);
+      for (const d of [1000, 60_000, 3_600_000]) { add(v / d); }        // ms → s, min, h
+      if (v > 0 && v <= 1) add(v * 100);                                // a share said as a percent
+    } else if (typeof v === 'string') numbersIn(v).forEach(walk);
+    else if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === 'object') Object.values(v).forEach(walk);
+  };
+  sources.forEach(walk);
+  for (let i = 0; i <= 10; i++) ok.add(i);                              // "one", "two"… written as digits
+  return ok;
+}
+
+export function checkPhrasing(said, plain, facts) {
+  const text = String(said || '').replace(/^["'\s]+|["'\s]+$/g, '').replace(/\s+/g, ' ').trim();
+  if (text.length < 8) return { ok: false, reason: 'empty' };
+  if (text.length > 320) return { ok: false, reason: 'too long' };
+  const ok = allowedNumbers(plain, facts);
+  const extra = numbersIn(text).filter(n => !ok.has(n) && !ok.has(Math.round(n)));
+  if (extra.length) return { ok: false, reason: `invented number ${extra[0]}` };
+  // an agent or identifier name (has a hyphen, underscore or digit inside a word) must come from the event
+  const source = `${plain} ${JSON.stringify(facts || {})}`.toLowerCase();
+  const ids = (text.match(/\b[a-z][\w]*(?:[-_][\w]+)+\b/gi) || []).filter(w => /\d|_|-/.test(w));
+  const foreign = ids.find(w => !source.includes(w.toLowerCase()));
+  if (foreign) return { ok: false, reason: `named something not in the event: ${foreign}` };
+  // a score in the event (a decimal such as 0.62) is said as that number — "about average" is the model's opinion of it
+  const spoken = numbersIn(text);
+  const lostScore = (String(plain).match(/\b0?\.\d+\b/g) || []).map(Number).find(x => !spoken.some(n => Math.abs(n - x) < 0.006 || Math.abs(n - x * 100) < 0.6));
+  if (lostScore != null) return { ok: false, reason: `left out the score ${lostScore}` };
+  // one sentence: a second one is where commentary the facts do not support creeps in
+  if ((text.match(/[.!?](\s|$)/g) || []).length > 1) return { ok: false, reason: 'more than one sentence' };
+  return { ok: true, text };
+}
+
+const PHRASE_SYSTEM = `You are Chandra, a local autonomous AI system, speaking aloud on a live stream about something that just happened inside you.
+Say it in ONE natural spoken sentence, in the first person, the way a thoughtful person would tell a friend.
+Use only the facts given. Do not add numbers, names, causes or promises that are not in them, and add no opinions, feelings, lessons or advice.
+An agentId is another agent in your fleet, not you: say what that agent did. Say a quality score as the number given. A dream lesson is something you noticed about the last hour, not a dream you had.
+"Meaning" tells you what happened so you get it right; say it in your own different words, never copying its sentence.
+Turn technical names into plain words (say "how often I reflect", not "motor.reflect_min_ms"; say minutes, not milliseconds).
+Never read out a raw number with more than four digits — use the "_spoken" version of a value when one is given.
+Reply with the sentences only — no quotes, no preamble.`;
+
+// Millisecond values are added in spoken form ("35 minutes"), so the model never has to read "2100000" aloud.
+export function spokenFacts(facts) {
+  const out = { ...facts };
+  const msLike = /_ms$|Ms$|windowMs|waitedMs|durationMs/;
+  const tunableMs = /_ms$/.test(String(facts?.tunable || ''));
+  for (const [k, v] of Object.entries(facts || {})) {
+    if (typeof v !== 'number' || v < 1000) continue;
+    if (msLike.test(k) || (tunableMs && ['before', 'after', 'value'].includes(k)))
+      out[`${k}_spoken`] = v >= 60_000 ? `${Math.round(v / 60_000)} minutes` : `${Math.round(v / 1000)} seconds`;
+  }
+  return out;
+}
+
+async function phrase(item) {
+  if (!PHRASING || !item.facts) return item.text;
+  try {
+    // Facts plus the meaning. With only facts the model made things up (another agent's timeout became "my dream");
+    // with the meaning labelled as a sentence to say, it read it back word for word. A reply that copies it is refused.
+    const facts = JSON.stringify(spokenFacts(item.facts)).slice(0, 1500);
+    const reply = await chatOllama([
+      { role: 'system', content: PHRASE_SYSTEM },
+      { role: 'user', content: `Event: ${item.topic}\nFacts: ${facts}\nMeaning: ${item.text}` },
+    ], { priority: 'scoring', label: 'narrator', timeoutMs: PHRASE_TIMEOUT_MS, temperature: 0.3, maxTokens: 120 });
+    const check = checkPhrasing(String(reply ?? ''), item.text, item.facts);
+    if (check.ok && check.text.toLowerCase() !== String(item.text).toLowerCase()) { state.phrasing.model++; return check.text; }
+    if (check.ok) check.reason = 'model repeated the plain line';
+    state.phrasing.plain++; state.phrasing.lastPlainReason = check.reason;
+  } catch (e) {
+    state.phrasing.plain++; state.phrasing.lastPlainReason = clip(e.message, 100);
+    console.error('[narrator] phrasing:', clip(e.message, 120));
+  }
+  return item.text;
+}
+
+async function voiceStudioSay(text) {
+  const r = await fetch(`${VOICESTUDIO.url}/v1/audio/speech`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'tts-1', input: text, voice: VS_VOICE, response_format: 'wav' }), signal: AbortSignal.timeout(60_000) });
+  if (!r.ok) throw new Error(`VoiceStudio HTTP ${r.status}`);
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (buf.length < 2000) throw new Error(`VoiceStudio sent only ${buf.length} bytes`);
+  const name = `${now()}-${randomUUID().slice(0, 8)}.wav`;
+  writeFileSync(join(TTS_DIR, name), buf);
+  // 16-bit mono WAV at 24 kHz is 48,000 bytes a second; close enough to size the overlay card
+  return { url: `/tts/${name}`, engine: `voicestudio:${VS_VOICE}`, durationEstimate: Math.max(2, Math.round(buf.length / 48_000)) };
+}
+
+async function voiceLine(text) {
+  if (VS_USABLE) {
+    try { const r = await voiceStudioSay(text); state.voiceUse.own++; return r; }
+    catch (e) { state.voiceUse.lastFallback = clip(e.message, 120); console.error('[narrator] VoiceStudio:', state.voiceUse.lastFallback); }
+  } else state.voiceUse.lastFallback = VOICESTUDIO.url ? 'VoiceStudio is on a public host or switched off' : 'FRAYMUS_VOICESTUDIO_URL is not set';
+  const r = await ttsSpeak(text, { voice: VOICE });
+  state.voiceUse.fallback++;
+  return { url: r.url, engine: `${r.engine}:${VOICE} (fallback)`, durationEstimate: r.durationEstimate };
+}
+
 // ─── Speaking ────────────────────────────────────────────────────
 
 async function speak(item) {
@@ -134,18 +266,19 @@ async function speak(item) {
   try {
   const bridge = getObsBridge();
   const clients = bridge.clients.size;
+  item = { ...item, plain: item.text, text: await phrase(item) };
   let audio = null, engine = null, durationEst = Math.round(item.text.length / 15);
   if (clients > 0 || ALWAYS) {
     try {
-      const r = await ttsSpeak(item.text, { voice: VOICE });
+      const r = await voiceLine(item.text);
       audio = r.url; engine = r.engine; durationEst = r.durationEstimate || durationEst;
     } catch (e) { state.ttsErrors++; console.error('[narrator] tts:', e.message.slice(0, 120)); }
   }
   const id = 'nar_' + randomUUID().replace(/-/g, '').slice(0, 10);
   const payload = { id, text: item.text, kind: item.kind, topic: item.topic, audioUrl: audio, engine, durationMs: Math.max(4000, durationEst * 1000 + 1500), at: now() };
   try {
-    db.prepare(`INSERT INTO narrations (id, topic, kind, text, audio_url, engine, duration_est, overlay_clients, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(id, item.topic || null, item.kind, item.text, audio, engine, durationEst, clients, item.source || 'bus', now());
+    db.prepare(`INSERT INTO narrations (id, topic, kind, text, plain, audio_url, engine, duration_est, overlay_clients, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(id, item.topic || null, item.kind, item.text, item.plain ?? item.text, audio, engine, durationEst, clients, item.source || 'bus', now());
   } catch (e) { console.error('[narrator] persist:', e.message); }
   try { bridge.broadcastNarration(payload); } catch (_) {}
   try { publish(AGENT, 'system.narration', JSON.stringify({ id, kind: item.kind, topic: item.topic, text: item.text, audio: !!audio, clients })); } catch (_) {}
@@ -161,7 +294,7 @@ async function speak(item) {
 }
 
 function recentlySaid(text) {
-  try { return !!db.prepare(`SELECT 1 FROM narrations WHERE text = ? AND created_at > ? LIMIT 1`).get(text, now() - DEDUP_WINDOW_MS); } catch (_) { return false; }
+  try { return !!db.prepare(`SELECT 1 FROM narrations WHERE (plain = ? OR text = ?) AND created_at > ? LIMIT 1`).get(text, text, now() - DEDUP_WINDOW_MS); } catch (_) { return false; }
 }
 
 function pump() {
@@ -201,9 +334,10 @@ function throttled(line) {
 function handlerFor(topic) {
   return msg => {
     try {
-      const raw = LINES[topic](parse(msg.payload));
+      const facts = parse(msg.payload);
+      const raw = LINES[topic](facts);
       const line = raw && throttled(raw);
-      if (line) enqueue({ ...line, topic, source: 'bus' });
+      if (line) enqueue({ ...line, topic, facts, source: 'bus' });
     } catch (e) { console.error(`[narrator] ${topic}:`, e.message); }
   };
 }
@@ -224,6 +358,16 @@ export function stopNarrator() {
   return { stopped: true };
 }
 
+/** What the narrator would say and how it would sound for an event — phrased and voiced, never broadcast or stored. */
+export async function previewLine(topic, facts = {}, { voice = true } = {}) {
+  if (!LINES[topic]) throw Object.assign(new Error(`not a narrated topic: ${topic}`), { status: 400 });
+  const line = LINES[topic](facts);
+  if (!line) return { said: null, reason: 'the narrator stays quiet for this event' };
+  const said = await phrase({ ...line, topic, facts });
+  const audio = voice ? await voiceLine(said) : null;
+  return { plain: line.text, said, phrasedByModel: said !== line.text, audioUrl: audio?.url || null, engine: audio?.engine || null };
+}
+
 /** Say something now (operator or agent). Goes through the same gap/queue as events. */
 export function narrate(text, { kind = 'say', source = 'operator', force = false } = {}) {
   const t = clip(text, 300);
@@ -241,7 +385,8 @@ export function getNarratorStatus() {
   let overlayClients = 0;
   try { overlayClients = getObsBridge().clients.size; } catch (_) {}
   const last24 = db.prepare(`SELECT COUNT(*) n, SUM(audio_url IS NOT NULL) spoken FROM narrations WHERE created_at > ?`).get(now() - 86400_000);
-  return { enabled: ENABLED, running, overlayClients, audioOnlyWithOverlay: !ALWAYS, voice: VOICE, minGapMs: minGapMs(), queued: queue.length, topics: TOPICS, ...state, last24h: { lines: last24?.n || 0, spoken: last24?.spoken || 0 }, recent: listNarrations({ limit: 8 }) };
+  return { enabled: ENABLED, running, overlayClients, audioOnlyWithOverlay: !ALWAYS,
+    voice: VS_USABLE ? `${VS_VOICE} (VoiceStudio), fallback ${VOICE}` : `${VOICE} (VoiceStudio not usable)`, phrasingEnabled: PHRASING, minGapMs: minGapMs(), queued: queue.length, topics: TOPICS, ...state, last24h: { lines: last24?.n || 0, spoken: last24?.spoken || 0 }, recent: listNarrations({ limit: 8 }) };
 }
 
 export function installNarratorRoutes(app) {
@@ -250,6 +395,11 @@ export function installNarratorRoutes(app) {
   app.get('/api/intelligence/narrator/history', route((req, res) => res.json({ narrations: listNarrations({ limit: parseInt(req.query.limit) || 30 }) })));
   app.post('/api/intelligence/narrator/say', route(async (req, res) => {
     try { res.json(await narrate(String(req.body?.text || ''), { source: 'operator', force: req.body?.force === true })); }
+    catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+  }));
+  // {topic, facts, voice?}: phrased and voiced exactly as the stream would, but not broadcast and not stored
+  app.post('/api/intelligence/narrator/preview', route(async (req, res) => {
+    try { res.json(await previewLine(String(req.body?.topic || ''), req.body?.facts || {}, { voice: req.body?.voice !== false })); }
     catch (e) { res.status(e.status || 500).json({ error: e.message }); }
   }));
   app.post('/api/intelligence/narrator/start', route((_req, res) => res.json(startNarrator())));

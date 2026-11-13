@@ -139,3 +139,65 @@ test('a turn left thinking by a restart is closed when the service starts again'
   assert.match(turn.error, /server restarted/);
   db.close();
 });
+
+// 2026-11-13, second pass (Vaughn: "I hate hard coded responses … throttling … why's my speech?")
+import { slowsDown } from '../server/intelligence/tunables.js';
+import { checkPhrasing, allowedNumbers } from '../server/intelligence/narrator.js';
+
+test('with an agent connected, status and AGI questions go to the agent with the measuring tool pinned — no template answer', async () => {
+  for (const [text, pinned] of [['analyze your system status', 'system_status'], ['how far is the system from AGI?', 'agi_progress']]) {
+    const db = new Database(':memory:');
+    db.exec(`CREATE TABLE runs (id TEXT PRIMARY KEY, status TEXT, error TEXT, steps INTEGER);
+      CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT, role TEXT, name TEXT, content TEXT, tool_calls TEXT);
+      CREATE TABLE approvals (id TEXT PRIMARY KEY, run_id TEXT, tool TEXT, args TEXT, status TEXT, created_at INTEGER);`);
+    let started = null;
+    const fleet = {
+      startRun: (_u, _a, t, threadId, opts) => {
+        started = opts;
+        db.prepare("INSERT INTO runs VALUES ('r1', 'done', NULL, 2)").run();
+        db.prepare("INSERT INTO messages (run_id, role, content) VALUES ('r1', 'assistant', 'In my own words: things are steady.')").run();
+        return { runId: 'r1', threadId: threadId || 't1' };
+      },
+      toolNames: () => [], listAgents: () => [], decideApproval: async () => ({}), modelCallsForRun: () => [], lastModelCall: () => null,
+    };
+    const os = createFraymusOs({ db, audioDir: mkdtempSync(join(tmpdir(), 'home-unstuck-')), ollamaUrl: 'http://127.0.0.1:11434', voiceStudioUrl: '',
+      allowPublicCloud: false, listAgents: () => [], piperAvailable: async () => false, fleet,
+      fetchImpl: async () => new Response(JSON.stringify({ models: [] }), { headers: { 'content-type': 'application/json' } }) });
+    const { sessionId, turnId } = os.command.start({ text });
+    let turn;
+    for (let i = 0; i < 300 && (!turn || turn.state === 'thinking'); i++) { await new Promise(r => setTimeout(r, 15)); turn = os.command.session(sessionId).turns.find(x => x.id === turnId); }
+    assert.equal(turn.state, 'idle', turn.error || '');
+    assert.deepEqual(started.pinTools, [pinned], text);
+    assert.equal(started.interactive, true);
+    assert.equal(turn.answer, 'In my own words: things are steady.', 'the model wrote the answer');
+    db.close();
+  }
+});
+
+test('a knob change that slows the system down is recognised in both directions', () => {
+  assert.equal(slowsDown('motor.reflect_min_ms', 600_000, 900_000), true, 'a longer floor slows it');
+  assert.equal(slowsDown('motor.reflect_min_ms', 3_180_000, 1_890_000), false, 'releasing it does not');
+  assert.equal(slowsDown('ollama.max_concurrent', 2, 1), true, 'fewer slots slow it');
+  assert.equal(slowsDown('ollama.max_concurrent', 1, 2), false);
+  assert.equal(slowsDown('agent.retire_threshold', 0.2, 0.25), false, 'a knob with no speed direction is never "slowing"');
+});
+
+test('the narrator may say an event in its own words but may not invent a number', () => {
+  const facts = { tunable: 'motor.reflect_min_ms', before: 2_100_000, after: 3_180_000, windowMs: 3_600_000 };
+  const plain = 'Trying a change to myself: motor reflect min ms from 2100000 to 3180000. I will measure it for 60 minutes.';
+  assert.ok(allowedNumbers(plain, facts).has(35), '2,100,000 ms may be said as 35 minutes');
+  const good = checkPhrasing("I'm letting myself reflect less often — every 53 minutes instead of 35 — and I'll check in an hour whether that helped.", plain, facts);
+  assert.equal(good.ok, true, good.reason);
+  const bad = checkPhrasing('I now reflect every 90 minutes and it made me 40 percent faster.', plain, facts);
+  assert.equal(bad.ok, false);
+  assert.match(bad.reason, /invented number/);
+});
+
+test('the narrator refuses names the event does not contain, a second sentence, and a score said as an opinion', () => {
+  const facts = { action: 'goal_executed', status: 'completed', quality: 0.62, agentId: 'pattern-forecast-v1', objective: 'Compare outcomes with and without a skill' };
+  const plain = 'Goal complete. Compare outcomes with and without a skill — by pattern-forecast-v1, quality 0.62.';
+  assert.equal(checkPhrasing('pattern-forecast-v1 finished comparing outcomes with and without a skill, at quality 0.62.', plain, facts).ok, true);
+  assert.match(checkPhrasing('pattern-forecast-v1 finished it and the quality was about average.', plain, facts).reason, /left out the score 0.62/);
+  assert.match(checkPhrasing('hybrid-predictor-v1 finished comparing outcomes at quality 0.62.', plain, facts).reason, /not in the event/);
+  assert.match(checkPhrasing('pattern-forecast-v1 finished at quality 0.62. Skills clearly make agents better.', plain, facts).reason, /more than one sentence/);
+});

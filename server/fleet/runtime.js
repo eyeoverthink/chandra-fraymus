@@ -836,6 +836,12 @@ export function startRun(userId, agentId, message, threadId, opts = {}) {
     .run(runId, tid, userId || 'local', 'running', `${agentId}:${model || agent.model || 'default'}`, now(), now());
 
   // Phase D: resource-aware scheduling — queue runs when system is under pressure
+  // opts.pinTools: tools this run must have in reach from its first step (the caller knows the question needs them —
+  // the home screen pins the system and AGI measurements so a model answers from data, not a template). Same set
+  // tools.load fills, so they stay offered for the whole run.
+  const pins = (Array.isArray(opts.pinTools) ? opts.pinTools : []).filter(n => typeof n === 'string' && findTool(n)).slice(0, 8);
+  if (pins.length) runLoaded.set(runId, new Set(pins));
+
   // A person waiting on an answer (`opts.interactive`: the home screen, chat) is never queued behind the fleet's own
   // autonomous work — the queue exists to shed background load, and a typed question is the load it is for.
   let queued = false;

@@ -169,9 +169,9 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
     catch { return { parsed: null, preview: text.slice(0, 700) }; }
   }
 
-  async function runAgent(turnId, sessionId, text, signal, sources, model = null) {
+  async function runAgent(turnId, sessionId, text, signal, sources, model = null, pinTools = []) {
     const existing = db.prepare('SELECT thread_id FROM fraymus_os_agent_threads WHERE session_id = ?').get(sessionId);
-    const started = fleet.startRun('local', AGENT_ID, text, existing?.thread_id, { model, interactive: true });
+    const started = fleet.startRun('local', AGENT_ID, text, existing?.thread_id, { model, interactive: true, ...(pinTools.length ? { pinTools } : {}) });
     if (!existing) db.prepare('INSERT OR REPLACE INTO fraymus_os_agent_threads (session_id, thread_id, created_at) VALUES (?, ?, ?)').run(sessionId, started.threadId, Date.now());
     const callSteps = new Map();      // model tool-call key → step id
     const openByTool = new Map();     // tool name → [step ids still running]
@@ -357,6 +357,14 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
       // tool calls are mirrored into this session, and approval-labelled tools pause for a person.
       if (fleet && mode !== 'quick' && (mode === 'agent' || ['chat', 'risky', 'propose_skill'].includes(intent.type))) {
         await runAgent(turnId, sessionId, text, signal, sources, agentModel);
+        return;
+      }
+      // Status and AGI questions are answered by the agent in its own words, with the measuring tool pinned into its
+      // offer so it reads real numbers instead of guessing (or picking an unrelated chart). The direct readout below is
+      // only for Quick mode or when no agent runtime is connected.
+      const MEASURED = { health: 'system_status', agi: 'agi_progress' };
+      if (fleet && mode !== 'quick' && MEASURED[intent.type] && !/\bmodels?\b/i.test(text)) {
+        await runAgent(turnId, sessionId, text, signal, sources, agentModel, [MEASURED[intent.type]]);
         return;
       }
       if (intent.type === 'risky') {

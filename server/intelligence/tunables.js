@@ -22,29 +22,36 @@ import { publish } from '../fleet/bus.js';
 const now = () => Date.now();
 const num = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
 
-// name → { env, default, min, max, step, unit, module, effect }
+// name → { env, default, min, max, step, unit, module, slows?, effect }
 // `effect` is a one-line statement of what raising the value does — the LLM proposer reads it.
+// `slows` says which way of moving the knob makes the organism do less ('up' or 'down'). A change in that direction
+// must earn a measured gain to be kept (self-modification.js): with "kept unless worse" the kernel ratcheted the
+// motor Reflect floor 10 → 53 min and goal-seek 3 → 5 min by 2026-11-13, each step passing because nothing broke.
+export function slowsDown(name, before, after) {
+  const dir = REGISTRY[name]?.slows;
+  return dir === 'up' ? after > before : dir === 'down' ? after < before : false;
+}
 export const REGISTRY = {
-  'reflection.min_interval_ms': { env: 'REFLECTION_MIN_INTERVAL_MS', default: 10 * 60_000, min: 60_000, max: 3_600_000, step: 60_000, unit: 'ms', module: 'reflection.js', effect: 'raising it makes autonomous reflections rarer (fewer Ollama calls, slower adaptation)' },
-  'motor.reflect_min_ms': { env: 'MOTOR_REFLECT_MIN_MS', default: 10 * 60_000, min: 60_000, max: 3_600_000, step: 60_000, unit: 'ms', module: 'motor-output.js', effect: 'raising it throttles the motor Reflect region' },
-  'motor.goalseek_min_ms': { env: 'MOTOR_GOALSEEK_MIN_MS', default: 3 * 60_000, min: 60_000, max: 1_800_000, step: 60_000, unit: 'ms', module: 'motor-output.js', effect: 'raising it slows motor-driven goal execution/generation' },
-  'motor.selfaudit_min_ms': { env: 'MOTOR_SELFAUDIT_MIN_MS', default: 10 * 60_000, min: 60_000, max: 3_600_000, step: 60_000, unit: 'ms', module: 'motor-output.js', effect: 'raising it makes consciousness audits from the motor region rarer' },
-  'goals.max_pending': { env: 'GOAL_MAX_PENDING', default: 12, min: 2, max: 60, step: 1, unit: 'proposals', module: 'goal-engine.js', effect: 'raising it lets goal generation run with a deeper unexecuted queue' },
+  'reflection.min_interval_ms': { env: 'REFLECTION_MIN_INTERVAL_MS', default: 10 * 60_000, min: 60_000, max: 3_600_000, step: 60_000, unit: 'ms', module: 'reflection.js', slows: 'up', effect: 'raising it makes autonomous reflections rarer (fewer Ollama calls, slower adaptation)' },
+  'motor.reflect_min_ms': { env: 'MOTOR_REFLECT_MIN_MS', default: 10 * 60_000, min: 60_000, max: 3_600_000, step: 60_000, unit: 'ms', module: 'motor-output.js', slows: 'up', effect: 'raising it throttles the motor Reflect region' },
+  'motor.goalseek_min_ms': { env: 'MOTOR_GOALSEEK_MIN_MS', default: 3 * 60_000, min: 60_000, max: 1_800_000, step: 60_000, unit: 'ms', module: 'motor-output.js', slows: 'up', effect: 'raising it slows motor-driven goal execution/generation' },
+  'motor.selfaudit_min_ms': { env: 'MOTOR_SELFAUDIT_MIN_MS', default: 10 * 60_000, min: 60_000, max: 3_600_000, step: 60_000, unit: 'ms', module: 'motor-output.js', slows: 'up', effect: 'raising it makes consciousness audits from the motor region rarer' },
+  'goals.max_pending': { env: 'GOAL_MAX_PENDING', default: 12, min: 2, max: 60, step: 1, unit: 'proposals', module: 'goal-engine.js', slows: 'down', effect: 'raising it lets goal generation run with a deeper unexecuted queue' },
   'synth.max_unrun': { env: 'SYNTH_MAX_UNRUN', default: 3, min: 1, max: 20, step: 1, unit: 'workflows', module: 'synthesizer.js', effect: 'raising it allows more synthesized-but-never-run workflows before synthesis is refused' },
   'agent.retire_threshold': { env: 'AGENT_RETIRE_THRESHOLD', default: 0.2, min: 0.05, max: 0.5, step: 0.05, unit: 'quality', module: 'agent-quality.js', effect: 'raising it retires forged agents at a higher 7-day mean quality (more pressure)' },
   'agent.shelve_threshold': { env: 'AGENT_SHELVE_THRESHOLD', default: 0.15, min: 0.05, max: 0.5, step: 0.05, unit: 'quality', module: 'agent-quality.js', effect: 'raising it shelves more low-utility goals' },
-  'ollama.max_concurrent': { env: 'OLLAMA_MAX_CONCURRENT', default: 2, min: 1, max: 4, step: 1, unit: 'slots', module: 'ollama-scheduler.js', effect: 'raising it admits more simultaneous inferences (more throughput, more GPU contention and timeouts)' },
+  'ollama.max_concurrent': { env: 'OLLAMA_MAX_CONCURRENT', default: 2, min: 1, max: 4, step: 1, unit: 'slots', module: 'ollama-scheduler.js', slows: 'down', effect: 'raising it admits more simultaneous inferences (more throughput, more GPU contention and timeouts)' },
   'neurogenesis.healthy_score': { env: 'NEUROGENESIS_HEALTHY_SCORE', default: 0.4, min: 0.2, max: 0.9, step: 0.05, unit: 'score', module: 'neurogenesis.js', effect: 'raising it makes spontaneous stimulus fire more often: no stimulus above this connectivity, more the further below it' },
-  'narrator.min_gap_ms': { env: 'NARRATOR_MIN_GAP_MS', default: 45_000, min: 5_000, max: 300_000, step: 5_000, unit: 'ms', module: 'narrator.js', effect: 'raising it makes the overlay narrator speak less often' },
+  'narrator.min_gap_ms': { env: 'NARRATOR_MIN_GAP_MS', default: 45_000, min: 5_000, max: 300_000, step: 5_000, unit: 'ms', module: 'narrator.js', slows: 'up', effect: 'raising it makes the overlay narrator speak less often' },
   // Added 2026-11-09 after a bridge peer flagged 76 digests in 24 h (one every 15 min — "≥ 2 outcomes" is always true at 18 goals/h)
-  'hive.digest_min_gap_ms': { env: 'HIVE_DIGEST_MIN_GAP_MS', default: 2 * 3_600_000, min: 15 * 60_000, max: 12 * 3_600_000, step: 15 * 60_000, unit: 'ms', module: 'hive-peers.js', effect: 'raising it posts fewer digests to the shared fraymus-bridge' },
+  'hive.digest_min_gap_ms': { env: 'HIVE_DIGEST_MIN_GAP_MS', default: 2 * 3_600_000, min: 15 * 60_000, max: 12 * 3_600_000, step: 15 * 60_000, unit: 'ms', module: 'hive-peers.js', slows: 'up', effect: 'raising it posts fewer digests to the shared fraymus-bridge' },
   'hive.digest_min_outcomes': { env: 'HIVE_DIGEST_MIN_OUTCOMES', default: 8, min: 2, max: 100, step: 1, unit: 'outcomes', module: 'hive-peers.js', effect: 'raising it requires more goal outcomes before a digest counts as worth posting' },
   // Phase AC (2026-11-10): how many proven programs may become callable skills per day
-  'skills.crystallize_per_day': { env: 'SKILL_CRYSTALLIZE_PER_DAY', default: 3, min: 0, max: 12, step: 1, unit: 'skills', module: 'skill-forge.js', effect: 'raising it lets more verified fossils be crystallized into sandboxed agent tools each day (each costs ~2 coder-model calls)' },
-  'fleet.max_tools_per_run': { env: 'FLEET_MAX_TOOLS_PER_RUN', default: 24, min: 4, max: 80, step: 4, unit: 'tools', module: 'fleet/runtime.js', effect: 'raising it offers each agent run more tool schemas (more capability in reach, longer prompts and slower, less reliable tool choice for an 8B model)' },
+  'skills.crystallize_per_day': { env: 'SKILL_CRYSTALLIZE_PER_DAY', default: 3, min: 0, max: 12, step: 1, unit: 'skills', module: 'skill-forge.js', slows: 'down', effect: 'raising it lets more verified fossils be crystallized into sandboxed agent tools each day (each costs ~2 coder-model calls)' },
+  'fleet.max_tools_per_run': { env: 'FLEET_MAX_TOOLS_PER_RUN', default: 24, min: 4, max: 80, step: 4, unit: 'tools', module: 'fleet/runtime.js', slows: 'down', effect: 'raising it offers each agent run more tool schemas (more capability in reach, longer prompts and slower, less reliable tool choice for an 8B model)' },
   'agi.bench_per_family': { env: 'AGI_BENCH_PER_FAMILY', default: 2, min: 1, max: 6, step: 1, unit: 'tasks', module: 'general-intelligence.js', effect: 'raising it makes each capability benchmark less noisy (more fresh problems per family) at the cost of more model calls per run' },
-  'agi.bench_interval_ms': { env: 'AGI_BENCH_INTERVAL_MS', default: 21600000, min: 3600000, max: 172800000, step: 3600000, unit: 'ms', module: 'general-intelligence.js', effect: 'lowering it measures the g-score more often (faster strategy learning, more GPU time taken from goals)' },
-  'agi.lessons_per_day': { env: 'AGI_LESSONS_PER_DAY', default: 2, min: 0, max: 6, step: 1, unit: 'lessons', module: 'general-intelligence.js', effect: 'raising it lets more reasoning lessons be distilled from benchmark failures and A/B-tested each day (each test costs ~12 model calls)' },
+  'agi.bench_interval_ms': { env: 'AGI_BENCH_INTERVAL_MS', default: 21600000, min: 3600000, max: 172800000, step: 3600000, unit: 'ms', module: 'general-intelligence.js', slows: 'up', effect: 'lowering it measures the g-score more often (faster strategy learning, more GPU time taken from goals)' },
+  'agi.lessons_per_day': { env: 'AGI_LESSONS_PER_DAY', default: 2, min: 0, max: 6, step: 1, unit: 'lessons', module: 'general-intelligence.js', slows: 'down', effect: 'raising it lets more reasoning lessons be distilled from benchmark failures and A/B-tested each day (each test costs ~12 model calls)' },
 };
 export const TUNABLE_NAMES = Object.keys(REGISTRY);
 

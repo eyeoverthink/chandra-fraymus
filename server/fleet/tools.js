@@ -1,5 +1,7 @@
 import { db } from '../db.js';
 import { agiProgress, renderAgiProgress } from '../intelligence/agi-progress.js';
+import { systemFacts, renderSystemReport } from '../fraymus-os/system-report.js';
+import { modelPoolStatus } from '../intelligence/model-pool.js';
 import { runPipeline } from '../workflow/engine.js';
 import { createRETools, seedBuildGates } from './re-tools.js';
 import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
@@ -627,14 +629,23 @@ export function createFleetTools({ workflowStore }) {
       name: 'agi_progress',
       group: 'intelligence',
       risk: 'safe',
-      ownsReply: true,
-      description: 'How far is the system from AGI / general intelligence / super-intelligence? Measures progress against the 12 falsifiable requirements in docs/AGI-BLUEPRINT.md (perception, memory, reasoning, abstraction, planning, tool use, learning, calibration, agency, self-improvement, transfer, alignment) from the live database: g-score, Brier score, lesson A/B tests, kernel experiments. Read-only, no model call.',
+      description: 'How far is the system from AGI / general intelligence / super-intelligence? Measures progress against the 12 falsifiable requirements in docs/AGI-BLUEPRINT.md (perception, memory, reasoning, abstraction, planning, tool use, learning, calibration, agency, self-improvement, transfer, alignment) from the live database: g-score, Brier score, lesson A/B tests, kernel experiments. Read-only. Answer in your own words from these measurements; quote the numbers as given.',
       parameters: object({}),
       execute: async () => {
         const report = agiProgress(db);
         ledger.record('agi_progress.read', { met: report.summary.met, proxy: report.summary.metOnProxy, unmet: report.summary.unmet }, 'fleet');
-        // the report is the answer: the run ends with it rather than a model's paraphrase of it
-        return { ...report, replyToUser: renderAgiProgress(report) };
+        return { ...report, readout: renderAgiProgress(report) };
+      },
+    },
+    {
+      name: 'system_status',
+      group: 'intelligence',
+      risk: 'safe',
+      description: 'How is the system doing right now? Live readings from the database: agent runs and errors (24 h) and runs stuck on a tool, goals executed and their quality, the daemon\'s last cycle, the consciousness audit, open self-audit findings, health alerts, approvals waiting, the g-score, dreams kept, and every model machine in the pool. Read-only.',
+      parameters: object({}),
+      execute: async () => {
+        const facts = systemFacts(db, { fleet: { poolStatus: modelPoolStatus } });
+        return { facts, readout: renderSystemReport(facts) };
       },
     },
     {
