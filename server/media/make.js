@@ -40,6 +40,7 @@ import { renderStill, renderStillBatch } from './studio.js';
 import { classifyUrl } from '../fraymus-os/registry.js';
 import { buildPage } from './page-builder.js';
 import { pickWorker, runOnWorker, workersStatus, workersConfigured, installWorkerRoutes } from './workers.js';
+import { installVideoStudioRoutes } from './video-studio-bridge.js';
 import { pixelateBuffer, STYLES } from './pixel-art.js';
 import { renderFlatFilm, checkFilm } from './flat/render.js';
 import { RULES as FLAT_RULES, titleFitsSubject } from './flat/plan.js';
@@ -759,6 +760,7 @@ export function createMakeTools() {
 export function installMakeRoutes(app) {
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
   installWorkerRoutes(app);
+  installVideoStudioRoutes(app);   // OhGee's fraymus-video-studio on FRAYMUS-HOME, as shared tools (video-studio-bridge.js)
   app.get('/api/studio/create', route(async (req, res) => res.json(await creationStatus())));
   app.post('/api/studio/create/plan', route((req, res) => {
     const b = req.body || {};

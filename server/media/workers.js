@@ -138,7 +138,7 @@ export async function workersStatus({ fresh = false } = {}) {
       const r = await call(w, '/health', { timeoutMs: 6000 });
       if (r.status === 401) return { ...w, reachable: true, ok: false, error: 'the worker refused the token (copy data/worker-token.txt to it)' };
       if (!r.ok) return { ...w, reachable: true, ok: false, error: `HTTP ${r.status}` };
-      return { ...w, reachable: true, ok: true, host: r.json.host, version: r.json.version, platform: r.json.platform, gpus: r.json.gpus, capabilities: r.json.capabilities, busy: r.json.busy };
+      return { ...w, reachable: true, ok: true, host: r.json.host, version: r.json.version, platform: r.json.platform, gpus: r.json.gpus, capabilities: r.json.capabilities, busy: r.json.busy, gpuLock: r.json.gpuLock || null };
     } catch (e) { return { ...w, reachable: false, ok: false, error: clip(e.cause?.code || e.message, 80) }; }
   }));
   healthCache = { at: now(), list };
@@ -223,7 +223,7 @@ async function refreshCards() {
       let ollamaMB = 0;
       try { const r = await fetch(`http://${addr}:11434/api/ps`, { signal: AbortSignal.timeout(3000) }); if (r.ok) ollamaMB = Math.round(((await r.json()).models || []).reduce((n, m) => n + (m.size_vram || 0), 0) / 2 ** 20); } catch (e) { /* no Ollama there, or not reachable: count none */ }
       const g = (w.gpus || [])[0];
-      cardSeen.set(addr, { at: now(), busy: !!w.busy, usedMB: g?.usedMB ?? null, ollamaMB, reachable: !!w.reachable, name: w.name });
+      cardSeen.set(addr, { at: now(), busy: !!w.busy, usedMB: g?.usedMB ?? null, ollamaMB, reachable: !!w.reachable, name: w.name, gpuLock: w.gpuLock || null });
     }
   } catch (e) { console.error('[workers] card check:', e.message); }
   finally { refreshing = false; }
@@ -239,6 +239,8 @@ export function workerCardGuard({ host }) {
   if (!seen || now() - seen.at > 20_000) refreshCards().catch(() => {});
   if (!seen) return null;
   if (seen.busy) return `${w.name}'s worker is busy`;
+  // the shared card lock (handoff 2026-11-12, section 9): another agent is painting or thinking on that card, so no model call goes there
+  if (seen.gpuLock?.held && !seen.gpuLock.mine) return `${w.name}'s card is locked by ${String(seen.gpuLock.holder || 'PID ' + seen.gpuLock.pid).slice(0, 60)} (${seen.gpuLock.ageS} s)`;
   if (seen.usedMB != null && seen.usedMB - seen.ollamaMB > OTHER_USE_MB) return `something else is using ${w.name}'s card (${seen.usedMB - seen.ollamaMB} MB that are not a language model)`;
   return null;
 }

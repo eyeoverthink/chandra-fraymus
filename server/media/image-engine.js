@@ -227,19 +227,50 @@ export async function comfyuiStatus() {
   }
 }
 
+// Which checkpoint to paint with, from what this ComfyUI really has (handoff 2026-11-12, Q3). The graph below used to name
+// flux1-schnell.safetensors outright, a file on no machine, so every call failed. Order: COMFY_CHECKPOINT if installed,
+// then any FLUX.1-schnell file, then SDXL base. Each family gets its own sampler settings: FLUX-schnell is tuned for 4
+// steps at cfg 1; SDXL at those settings is noise, so SDXL is raised to 25 steps at cfg 6.5 when called with FLUX numbers.
+let ckptCache = { at: 0, list: [], vaes: [] };
+async function installedCheckpoints() {
+  if (Date.now() - ckptCache.at < 60_000) return ckptCache;
+  const names = async node => {
+    const res = await fetch(`${COMFYUI_BASE}/object_info/${node}`, { signal: AbortSignal.timeout(8_000) });
+    if (!res.ok) throw new Error(`ComfyUI object_info ${node}: HTTP ${res.status}`);
+    const field = Object.values((await res.json())[node]?.input?.required || {})[0];
+    return Array.isArray(field?.[0]) ? field[0] : [];
+  };
+  ckptCache = { at: Date.now(), list: await names('CheckpointLoaderSimple'), vaes: await names('VAELoader').catch(() => []) };
+  return ckptCache;
+}
+export async function pickCheckpoint() {
+  const { list, vaes } = await installedCheckpoints();
+  const wanted = process.env.COMFY_CHECKPOINT;
+  const flux = list.find(n => /flux.*schnell/i.test(n));
+  const sdxl = list.find(n => /sd_xl_base/i.test(n)) || list.find(n => /sdxl|sd_xl/i.test(n));
+  const pick = (wanted && list.includes(wanted) && wanted) || flux || sdxl || list[0];
+  if (!pick) throw new Error('ComfyUI has no checkpoint installed');
+  const family = /flux/i.test(pick) ? 'flux' : /sdxl|sd_xl/i.test(pick) ? 'sdxl' : 'other';
+  const why = wanted && pick === wanted ? 'COMFY_CHECKPOINT' : pick === flux ? 'FLUX.1-schnell is installed' : `no FLUX.1-schnell here; ${pick} is`;
+  return { checkpoint: pick, family, vae: family === 'sdxl' ? vaes.find(n => /sdxl/i.test(n)) || null : null, why, installed: list };
+}
+
 export async function comfyuiGenerate(prompt, { width = 1024, height = 1024, steps = 4, cfg = 1, seed } = {}) {
   const s = seed ?? Math.floor(Math.random() * 2 ** 32);
+  const ck = await pickCheckpoint();
+  if (ck.family !== 'flux' && steps < 12) { steps = 25; cfg = 6.5; }
   const workflow = {
     "3": {
       class_type: "KSampler",
-      inputs: { seed: s, steps, cfg, sampler_name: "euler", scheduler: "simple", denoise: 1, model: ["4", 0], positive: ["6", 0], negative: ["7", 0], latent_image: ["5", 0] },
+      inputs: { seed: s, steps, cfg, sampler_name: ck.family === 'flux' ? "euler" : "dpmpp_2m", scheduler: ck.family === 'flux' ? "simple" : "karras", denoise: 1, model: ["4", 0], positive: ["6", 0], negative: ["7", 0], latent_image: ["5", 0] },
     },
-    "4": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: "flux1-schnell.safetensors" } },
+    "4": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: ck.checkpoint } },
     "5": { class_type: "EmptyLatentImage", inputs: { width, height, batch_size: 1 } },
     "6": { class_type: "CLIPTextEncode", inputs: { text: String(prompt).slice(0, 2000), clip: ["4", 1] } },
-    "7": { class_type: "CLIPTextEncode", inputs: { text: "", clip: ["4", 1] } },
-    "8": { class_type: "VAEDecode", inputs: { samples: ["3", 0], vae: ["4", 2] } },
+    "7": { class_type: "CLIPTextEncode", inputs: { text: ck.family === 'flux' ? "" : "blurry, low quality, watermark, text", clip: ["4", 1] } },
+    "8": { class_type: "VAEDecode", inputs: { samples: ["3", 0], vae: ck.vae ? ["10", 0] : ["4", 2] } },
     "9": { class_type: "SaveImage", inputs: { filename_prefix: "chandra", images: ["8", 0] } },
+    ...(ck.vae ? { "10": { class_type: "VAELoader", inputs: { vae_name: ck.vae } } } : {}),
   };
   const res = await fetch(`${COMFYUI_BASE}/prompt`, {
     method: 'POST',
@@ -249,8 +280,8 @@ export async function comfyuiGenerate(prompt, { width = 1024, height = 1024, ste
   });
   if (!res.ok) throw new Error(`ComfyUI error: HTTP ${res.status}`);
   const data = await res.json();
-  notePromptJob(data.prompt_id, prompt, { seed: s, width, height, steps, cfg, model: 'flux1-schnell' });
-  return { promptId: data.prompt_id, seed: s, width, height, steps, cfg, status: 'queued' };
+  notePromptJob(data.prompt_id, prompt, { seed: s, width, height, steps, cfg, model: ck.checkpoint.replace(/\.safetensors$/, '') });
+  return { promptId: data.prompt_id, seed: s, width, height, steps, cfg, checkpoint: ck.checkpoint, why: ck.why, status: 'queued' };
 }
 
 export async function comfyuiResult(promptId) {

@@ -45,7 +45,7 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
 SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{2,60}$")
@@ -116,6 +116,72 @@ def clean_still(item: dict) -> dict:
             "width": even64(item.get("width"), 1024), "height": even64(item.get("height"), 1024),
             "steps": min(60, max(8, int(item.get("steps") or 28))), "cfg": min(15.0, max(1.0, float(item.get("cfg") or 6.5))),
             "seed": int(item["seed"]) if isinstance(item.get("seed"), int) else int.from_bytes(os.urandom(4), "big")}
+
+
+class GpuFileLock:
+    """The card lock every agent on this machine agrees on (2026-11-12 handoff, section 9).
+
+    Same contract as fraymus-video-studio's studio/gpu_lock.py, so the two never paint at once: create the file
+    exclusively, write the PID, hold it for the whole GPU job, delete it after; a lock older than `stale_s` is stale;
+    waiters retry every 0.25 s for up to `wait_s`. The first line stays the bare PID the studio writes; a second line
+    says who holds it and why. While held, the file's time is renewed every 60 s, so a long job never looks stale.
+    """
+
+    def __init__(self, path: str, holder: str, stale_s: float = 900, wait_s: float = 600):
+        self.path, self.holder, self.stale_s, self.wait_s = path, holder, stale_s, wait_s
+        self._fd = None
+        self._stop = threading.Event()
+        self._beat = None
+
+    @staticmethod
+    def read(path: str, stale_s: float = 900):
+        """What the lock says right now, or None when nobody holds it."""
+        if not path or not os.path.exists(path):
+            return None
+        try:
+            age = time.time() - os.path.getmtime(path)
+            with open(path, encoding="utf-8", errors="replace") as f:
+                lines = f.read(400).splitlines()
+        except OSError:
+            return None
+        return {"pid": (lines[0].strip() if lines else ""), "holder": (lines[1].strip() if len(lines) > 1 else "unknown (fraymus-video-studio writes only a PID)"),
+                "ageS": round(age), "stale": age > stale_s, "mine": bool(lines) and lines[0].strip() == str(os.getpid())}
+
+    def acquire(self, on_wait=None):
+        os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
+        deadline = time.time() + self.wait_s
+        while True:
+            try:
+                self._fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_RDWR)
+                os.write(self._fd, f"{os.getpid()}\n{self.holder}\n".encode())
+                self._beat = threading.Thread(target=self._renew, daemon=True)
+                self._beat.start()
+                return
+            except FileExistsError:
+                seen = GpuFileLock.read(self.path, self.stale_s)
+                if seen and seen["stale"]:
+                    try: os.remove(self.path)
+                    except OSError: pass
+                    continue
+                if time.time() > deadline:
+                    who = f"PID {seen['pid']} ({seen['holder']}), held {seen['ageS']} s" if seen else "another process"
+                    raise TimeoutError(f"the card is locked by {who} at {self.path}; waited {round(self.wait_s)} s")
+                if on_wait and seen:
+                    on_wait(seen)
+                time.sleep(0.25)
+
+    def _renew(self):
+        while not self._stop.wait(60):
+            try: os.utime(self.path, None)
+            except OSError: return
+
+    def release(self):
+        self._stop.set()
+        if self._fd is not None:
+            os.close(self._fd)
+            self._fd = None
+            try: os.remove(self.path)
+            except OSError: pass
 
 
 class Worker:
@@ -232,8 +298,10 @@ class Worker:
         return extra
 
     def health(self):
+        lock = GpuFileLock.read(self.a.gpu_lock) if self.a.gpu_lock else None
         return {"ok": True, "name": self.name, "host": socket.gethostname(), "version": VERSION, "platform": sys.platform, "gpus": self.gpus(),
-                "capabilities": self.capabilities(), "busy": self.busy, "jobs": len(self.jobs)}
+                "capabilities": self.capabilities(), "busy": self.busy, "jobs": len(self.jobs),
+                "gpuLock": {"path": self.a.gpu_lock, "held": bool(lock) and not lock["stale"], **(lock or {})} if self.a.gpu_lock else None}
 
     # ── jobs ─────────────────────────────────────────────────────────────────────────────────────────
     def job_dir(self, jid):
@@ -349,12 +417,24 @@ class Worker:
         if not items:
             raise ValueError("no stills were asked for")
         cap = self.capabilities()["stills"]
+        lock = None
+        if self.a.gpu_lock:
+            j["stage"] = "waiting for the card"
+            lock = GpuFileLock(self.a.gpu_lock, f"chandra-worker stills {j['id']} ({len(items)} picture{'s' if len(items) != 1 else ''})")
+            lock.acquire(on_wait=lambda seen: j.__setitem__("stage", f"waiting for the card (held by {seen['holder'][:60]}, {seen['ageS']} s)"))
+        try:
+            self.paint(j, items, cap)
+        finally:
+            if lock:
+                lock.release()
+
+    def paint(self, j, items, cap):
         j["stage"] = "freeing the card"
         freed = self.free_ollama()
         j["stage"] = "starting ComfyUI"
         self.ensure_comfy()
         out_dir = os.path.join(self.job_dir(j["id"]), "out")
-        detail = {"unloaded": freed, "checkpoint": cap["checkpoint"], "items": []}
+        detail = {"unloaded": freed, "checkpoint": cap["checkpoint"], "gpuLock": self.a.gpu_lock or None, "items": []}
         try:
             for i, item in enumerate(items):
                 j["stage"], j["progress"] = f"painting {i + 1} of {len(items)}", i / len(items)
@@ -572,6 +652,7 @@ def main(argv=None):
     ap.add_argument("--studio-env", action="append", default=[], metavar="KEY=VALUE", help="extra environment for the render, e.g. STUDIO_WHISPER=small.en HF_HOME=D:/Models/huggingface HF_HUB_OFFLINE=1")
     ap.add_argument("--lowvram", action="store_true", help="start ComfyUI with --lowvram (cards with 8 GB)")
     ap.add_argument("--ollama-url", default=os.environ.get("CHANDRA_WORKER_OLLAMA_URL", ""), help="a local Ollama to unload before painting, e.g. http://127.0.0.1:11434")
+    ap.add_argument("--gpu-lock", default=os.environ.get("CHANDRA_WORKER_GPU_LOCK", ""), help="the card lock shared with other agents on this machine, e.g. D:/Models/fraymus/gpu.lock (held for every stills job)")
     ap.add_argument("--studio-dir", default=os.environ.get("CHANDRA_WORKER_STUDIO_DIR"))
     ap.add_argument("--studio-python", default=os.environ.get("CHANDRA_WORKER_STUDIO_PYTHON"))
     ap.add_argument("--launcher", default=None)
