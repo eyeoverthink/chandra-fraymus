@@ -67,6 +67,12 @@ export function installFraymusOsRoutes(app, options = {}) {
     }));
   }));
 
+  // the second brain as the agents use it: knowledge graph + facts + goals + skills + model calls, with metrics
+  app.get('/api/fraymus-os/brain', route((req, res) => {
+    res.json(os.brain.snapshot({ budget: Math.min(1500, Math.max(60, parseInt(req.query.budget, 10) || 600)), q: String(req.query.q || '').slice(0, 200), focus: String(req.query.focus || '').slice(0, 120) }));
+  }));
+  app.get('/api/fraymus-os/brain/pulse', route((req, res) => res.json(os.brain.pulse(parseInt(req.query.since, 10) || 0))));
+
   app.get('/api/fraymus-os/graph/path', route(async (req, res) => {
     if (!req.query.from || !req.query.to) return res.status(400).json({ error: 'from and to are required' });
     res.json(await os.graph.path(String(req.query.from), String(req.query.to)));

@@ -354,7 +354,14 @@ export function contextualRecall(query, { agentId, limit = 5 } = {}) {
     results.sort((a, b) => a.depth - b.depth);
   }
 
-  return results.slice(0, limit).map(r => ({
+  const picked = results.slice(0, limit);
+  // what was handed to an agent counts as recalled: access_count was never written, so "most recalled first" in
+  // searchNodes ordered nothing and the second brain could not show which knowledge is in use (2026-11-13)
+  if (picked.length) {
+    try { db.prepare(`UPDATE knowledge_nodes SET access_count = access_count + 1 WHERE id IN (${picked.map(() => '?').join(',')})`).run(...picked.map(r => r.id)); }
+    catch (e) { console.error('[knowledge-graph] recall count:', e.message); }
+  }
+  return picked.map(r => ({
     id: r.id,
     type: r.type,
     label: r.label,

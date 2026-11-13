@@ -337,7 +337,10 @@ async function systemPrompt(agent, userId, taskText = '') {
   // Knowledge Graph — semantic recall from the second brain
   let graphBlock = '';
   try {
-    const graphResults = contextualRecall(agent.name + ' ' + (agent.role || ''), { agentId: agent.id, limit: 3 });
+    // recall by the task in hand; the agent's name and role only when there is none (it used to be name + role
+    // always, so every agent got the same three notes whatever it was asked — 2026-11-13)
+    const recallText = String(taskText || '').trim() ? String(taskText).slice(0, 300) : `${agent.name} ${agent.role || ''}`;
+    const graphResults = contextualRecall(recallText, { agentId: agent.id, limit: 3 });
     if (graphResults.length) {
       graphBlock = `\n\nKnowledge graph: ${graphResults.map(r => `[${r.type}] ${r.label}: ${String(r.content).slice(0, 80)}`).join(' | ')}`;
     }

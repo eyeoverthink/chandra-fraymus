@@ -2,6 +2,7 @@ import { ensureSchema } from './schema.js';
 import { createTelemetry } from './telemetry.js';
 import { createRegistry } from './registry.js';
 import { createGraphService } from './graph-service.js';
+import { createBrainService } from './brain-service.js';
 import { createVoiceService } from './voice-service.js';
 import { createRecipes } from './recipes.js';
 import { createCommandService } from './command-service.js';
@@ -27,5 +28,6 @@ export function createFraymusOs(options = {}) {
   const command = createCommandService({
     db: options.db, registry, graph, recipes, voice, broadcast: options.broadcast, fleet: options.fleet || null,
   });
-  return { db: options.db, telemetry, registry, graph, voice, recipes, command };
+  const brain = createBrainService(options.db);
+  return { db: options.db, telemetry, registry, graph, brain, voice, recipes, command };
 }
