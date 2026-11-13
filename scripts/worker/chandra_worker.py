@@ -19,8 +19,9 @@ Workspace's claim / nonce / acknowledge protocol:
                POST /jobs/<id>/ack        {nonce} -> the hub has the outputs; the job folder is deleted
   artifact     every output is listed with its size and SHA-256 in the receipt
 
-Kinds: "stills" (SDXL through a local ComfyUI) and "video" (fraymus-video-studio through Chandra's launcher,
-with the spoken lines already recorded by the hub and sent along, so no voice leaves the hub's machine).
+Kinds: "stills" (SDXL through a local ComfyUI), "i2v" (a still set in motion by Wan 2.2 TI2V 5B through the same
+ComfyUI, native nodes only) and "video" (fraymus-video-studio through Chandra's launcher, with the spoken lines
+already recorded by the hub and sent along, so no voice leaves the hub's machine).
 
 Every request needs "Authorization: Bearer <token>". The token is full trust: whoever holds it can make this
 machine render. Bind to the private (Tailscale) address, never to a public one. Job files are data; the only
@@ -45,7 +46,7 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
 SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{2,60}$")
@@ -53,6 +54,14 @@ MAX_BODY = 96 * 1024 * 1024
 JOB_TTL_S = 24 * 3600
 STILL_TIMEOUT_S = 900
 VIDEO_TIMEOUT_S = 3600
+I2V_TIMEOUT_S = 1800
+I2V_FPS = 24
+# Wan 2.2 TI2V 5B, as Comfy-Org repackages it (the same three files fraymus-video-studio's studio/i2v.py uses)
+WAN_FILES = {"unet": ("diffusion_models", "wan2.2_ti2v_5B_fp16.safetensors"),
+             "clip": ("text_encoders", "umt5_xxl_fp8_e4m3fn_scaled.safetensors"),
+             "vae": ("vae", "wan2.2_vae.safetensors")}
+WAN_NEGATIVE = ("static, still image, frozen, blurry, low quality, distorted, deformed, morphing, melting, extra limbs, "
+                "duplicate, changing face, melting eyes, new features, text, letters, watermark, subtitles, colour shift, flicker, jpeg artifacts")
 MODULES = ["numpy", "PIL", "scipy", "soundfile"]
 
 
@@ -116,6 +125,49 @@ def clean_still(item: dict) -> dict:
             "width": even64(item.get("width"), 1024), "height": even64(item.get("height"), 1024),
             "steps": min(60, max(8, int(item.get("steps") or 28))), "cfg": min(15.0, max(1.0, float(item.get("cfg") or 6.5))),
             "seed": int(item["seed"]) if isinstance(item.get("seed"), int) else int.from_bytes(os.urandom(4), "big")}
+
+
+def wan_workflow(image_name: str, c: dict) -> dict:
+    """Wan 2.2 TI2V 5B image-to-video, native ComfyUI nodes (graph from fraymus-video-studio studio/i2v.py)."""
+    return {
+        "1": {"class_type": "UNETLoader", "inputs": {"unet_name": WAN_FILES["unet"][1], "weight_dtype": "default"}},
+        "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": WAN_FILES["clip"][1], "type": "wan", "device": "default"}},
+        "3": {"class_type": "VAELoader", "inputs": {"vae_name": WAN_FILES["vae"][1]}},
+        "4": {"class_type": "ModelSamplingSD3", "inputs": {"model": ["1", 0], "shift": 8.0}},
+        "5": {"class_type": "CLIPTextEncode", "inputs": {"text": c["prompt"], "clip": ["2", 0]}},
+        "6": {"class_type": "CLIPTextEncode", "inputs": {"text": c["negative"], "clip": ["2", 0]}},
+        "7": {"class_type": "LoadImage", "inputs": {"image": image_name}},
+        "8": {"class_type": "Wan22ImageToVideoLatent", "inputs": {"vae": ["3", 0], "width": c["width"], "height": c["height"],
+                                                                   "length": c["frames"], "batch_size": 1, "start_image": ["7", 0]}},
+        "9": {"class_type": "KSampler", "inputs": {"model": ["4", 0], "seed": c["seed"], "steps": c["steps"], "cfg": 5.0, "sampler_name": "uni_pc",
+                                                    "scheduler": "simple", "positive": ["5", 0], "negative": ["6", 0], "latent_image": ["8", 0], "denoise": 1.0}},
+        "10": {"class_type": "VAEDecode", "inputs": {"samples": ["9", 0], "vae": ["3", 0]}},
+        "11": {"class_type": "SaveImage", "inputs": {"filename_prefix": c["prefix"], "images": ["10", 0]}},
+    }
+
+
+def clean_i2v(spec: dict, job_id: str) -> dict:
+    """Wan wants sizes in multiples of 32 and 4n+1 frames; 5B is trained at 1280x704, so the long side stays <= 1280."""
+    def mult32(v, d):
+        try:
+            v = int(v)
+        except (TypeError, ValueError):
+            v = d
+        return min(1280, max(256, round(v / 32) * 32))
+    prompt = str(spec.get("prompt") or "").strip()[:1500]
+    if not prompt:
+        raise ValueError("a motion clip needs a prompt saying what moves")
+    try:
+        seconds = float(spec.get("seconds") or 2)
+    except (TypeError, ValueError):
+        seconds = 2.0
+    frames = int(round(min(5.0, max(1.0, seconds)) * I2V_FPS)) + 1
+    frames = max(5, (frames - 1) // 4 * 4 + 1)
+    return {"prompt": prompt, "negative": str(spec.get("negative") or WAN_NEGATIVE)[:800],
+            "width": mult32(spec.get("width"), 960), "height": mult32(spec.get("height"), 544), "frames": frames,
+            "steps": min(30, max(8, int(spec.get("steps") or 20))),
+            "seed": int(spec["seed"]) if isinstance(spec.get("seed"), int) else int.from_bytes(os.urandom(4), "big"),
+            "prefix": f"chandra-i2v-{job_id}"}
 
 
 class GpuFileLock:
@@ -282,7 +334,21 @@ class Worker:
         video["ready"] = not video["problems"]
         video["workers"] = self.render_workers() if self.a.studio_dir else None
         video["wordTiming"] = "faster-whisper " + self.studio_env().get("STUDIO_WHISPER", "") if "STUDIO_WHISPER" in self.studio_env() else "estimated from text length"
-        self._cap = {"stills": stills, "video": video}
+        i2v = {"ready": False, "problems": [], "engine": "wan2.2-ti2v-5b"}
+        if not self.a.comfy_dir or not os.path.exists(os.path.join(self.a.comfy_dir, "main.py")):
+            i2v["problems"].append("ComfyUI is not installed here (--comfy-dir)")
+        else:
+            missing = [f"{sub}/{name}" for sub, name in WAN_FILES.values() if name not in self._models(sub)]
+            if missing:
+                i2v["problems"].append("Wan 2.2 files missing: " + ", ".join(missing))
+            if not os.path.exists(os.path.join(self.a.comfy_dir, "comfy_extras", "nodes_wan.py")):
+                i2v["problems"].append("this ComfyUI has no Wan nodes (comfy_extras/nodes_wan.py)")
+            if not self.comfy_alive() and not (self.a.comfy_python and os.path.exists(self.a.comfy_python)):
+                i2v["problems"].append("ComfyUI is not running and --comfy-python is not set to start it")
+        if not shutil.which("ffmpeg"):
+            i2v["problems"].append("ffmpeg is not on PATH")
+        i2v["ready"] = not i2v["problems"]
+        self._cap = {"stills": stills, "i2v": i2v, "video": video}
         self._cap_at = time.time()
         return self._cap
 
@@ -323,8 +389,8 @@ class Worker:
             return 400, {"error": "id must be 3-61 letters, digits, - or _"}
         if not isinstance(nonce, str) or len(nonce) < 16:
             return 400, {"error": "nonce must be at least 16 characters"}
-        if kind not in ("stills", "video"):
-            return 400, {"error": "kind must be stills or video"}
+        if kind not in ("stills", "i2v", "video"):
+            return 400, {"error": "kind must be stills, i2v or video"}
         spec = body.get("spec") if isinstance(body.get("spec"), dict) else {}
         files = {}
         for name, b64 in (body.get("files") or {}).items():
@@ -364,7 +430,7 @@ class Worker:
     def run(self, j):
         t0 = time.time()
         try:
-            (self.run_stills if j["kind"] == "stills" else self.run_video)(j)
+            {"stills": self.run_stills, "i2v": self.run_i2v, "video": self.run_video}[j["kind"]](j)
             out_dir = os.path.join(self.job_dir(j["id"]), "out")
             j["files"] = [{"name": n, "bytes": os.path.getsize(os.path.join(out_dir, n)), "sha256": sha256_file(os.path.join(out_dir, n))}
                           for n in sorted(os.listdir(out_dir)) if os.path.isfile(os.path.join(out_dir, n)) and SAFE_NAME.match(n)]
@@ -472,6 +538,81 @@ class Worker:
         j["detail"] = detail
         if not any(it["ok"] for it in detail["items"]):
             raise RuntimeError("no still could be painted: " + detail["items"][0].get("error", "unknown"))
+
+    # ── i2v: a still set in motion ───────────────────────────────────────────────────────────────────
+    def run_i2v(self, j):
+        """start.png + a motion prompt -> clip.mp4 (24 fps). Holds the card lock for the whole job, like stills."""
+        c = clean_i2v(j["spec"], j["id"])
+        start = os.path.join(self.job_dir(j["id"]), "in", "start.png")
+        if not os.path.exists(start):
+            raise ValueError("start.png is missing")
+        lock = None
+        if self.a.gpu_lock:
+            j["stage"] = "waiting for the card"
+            lock = GpuFileLock(self.a.gpu_lock, f"chandra-worker i2v {j['id']} ({c['frames']} frames, Wan 2.2)")
+            lock.acquire(on_wait=lambda seen: j.__setitem__("stage", f"waiting for the card (held by {seen['holder'][:60]}, {seen['ageS']} s)"))
+        made, input_name = [], f"chandra-i2v-{j['id']}.png"
+        input_path = os.path.join(self.a.comfy_dir, "input", input_name)
+        try:
+            j["stage"] = "freeing the card"
+            freed = self.free_ollama()
+            j["stage"] = "starting ComfyUI"
+            self.ensure_comfy()
+            os.makedirs(os.path.dirname(input_path), exist_ok=True)
+            shutil.copyfile(start, input_path)
+            t0 = time.time()
+            pid = http_json(self.a.comfy_url + "/prompt", {"prompt": wan_workflow(input_name, c)}, timeout=60).get("prompt_id")
+            if not pid:
+                raise RuntimeError("ComfyUI refused the Wan workflow")
+            images, deadline = None, time.time() + I2V_TIMEOUT_S
+            while time.time() < deadline and images is None:
+                time.sleep(2)
+                el = time.time() - t0
+                j["stage"], j["progress"] = f"animating ({round(el)} s)", min(0.9, el / 400)
+                entry = http_json(f"{self.a.comfy_url}/history/{pid}", timeout=10).get(pid)
+                if not entry:
+                    continue
+                status = entry.get("status") or {}
+                if status.get("status_str") == "error":
+                    msgs = [m[1].get("exception_message", "") for m in status.get("messages", []) if m and m[0] == "execution_error"]
+                    raise RuntimeError("ComfyUI reported an error: " + (msgs[0][:300] if msgs else "unknown"))
+                if status.get("completed"):
+                    images = [im for o in (entry.get("outputs") or {}).values() for im in (o.get("images") or [])]
+            if not images:
+                raise RuntimeError(f"no frames after {I2V_TIMEOUT_S} s")
+            gen_s = round(time.time() - t0, 1)
+            j["stage"], j["progress"] = "encoding", 0.93
+            frames_dir = os.path.join(self.job_dir(j["id"]), "frames")
+            os.makedirs(frames_dir, exist_ok=True)
+            out_root = os.path.realpath(os.path.join(self.a.comfy_dir, "output"))
+            for k, im in enumerate(sorted(images, key=lambda x: x["filename"])):
+                q = urllib.parse.urlencode({"filename": im["filename"], "subfolder": im.get("subfolder", ""), "type": im.get("type", "output")})
+                with urllib.request.urlopen(f"{self.a.comfy_url}/view?{q}", timeout=60) as r:
+                    data = r.read()
+                with open(os.path.join(frames_dir, f"f{k + 1:05d}.png"), "wb") as f:
+                    f.write(data)
+                p = os.path.realpath(os.path.join(out_root, im.get("subfolder", ""), im["filename"]))
+                if p.startswith(out_root + os.sep):
+                    made.append(p)
+            clip = os.path.join(self.job_dir(j["id"]), "out", "clip.mp4")
+            enc = subprocess.run(["ffmpeg", "-v", "error", "-y", "-framerate", str(I2V_FPS), "-i", os.path.join(frames_dir, "f%05d.png"),
+                                  "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-movflags", "+faststart", clip],
+                                 capture_output=True, text=True, timeout=300)
+            if enc.returncode != 0:
+                raise RuntimeError("ffmpeg could not encode the frames: " + enc.stderr.strip()[-300:])
+            shutil.rmtree(frames_dir, ignore_errors=True)
+            j["detail"] = {"engine": "wan2.2-ti2v-5b", "frames": len(images), "fps": I2V_FPS, "width": c["width"], "height": c["height"],
+                           "steps": c["steps"], "seed": c["seed"], "generateSeconds": gen_s, "unloaded": freed, "gpuLock": self.a.gpu_lock or None}
+        finally:
+            for p in made + [input_path]:
+                try: os.remove(p)
+                except OSError: pass
+            try:
+                http_json(self.a.comfy_url + "/free", {"unload_models": True, "free_memory": True}, timeout=15)
+            except Exception:
+                pass
+            if lock:
+                lock.release()
 
     # ── video ────────────────────────────────────────────────────────────────────────────────────────
     def voice_for(self, jid, text):

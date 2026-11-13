@@ -62,11 +62,15 @@ Useful options: `--models-dir` (weights outside ComfyUI), `--ollama-url` (unload
 
 ## Contract
 
-`GET /health` · `POST /jobs {id, nonce, kind: "stills"|"video", spec, files}` · `GET /jobs/<id>` · `GET /jobs/<id>/files/<name>` ·
+`GET /health` · `POST /jobs {id, nonce, kind: "stills"|"i2v"|"video", spec, files}` · `GET /jobs/<id>` · `GET /jobs/<id>/files/<name>` ·
 `POST /jobs/<id>/ack {nonce}`. Every request needs `Authorization: Bearer <token>`.
 
 - The same `id` with the same content is the same job: a retry returns the running or finished job and never renders twice.
   The same `id` with different content is refused (409).
 - One job at a time (429 while busy). A kind the machine cannot do is refused (422) with the reason.
+- `i2v` (1.3.0): `files: {"start.png"}`, `spec: {prompt, seconds 1–5, width, height, steps?, seed?, negative?}` → `clip.mp4` (24 fps).
+  Wan 2.2 TI2V 5B through the local ComfyUI's native nodes; needs `diffusion_models/wan2.2_ti2v_5B_fp16.safetensors`,
+  `text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors` and `vae/wan2.2_vae.safetensors` under `--models-dir` **and** mapped in
+  ComfyUI's `extra_model_paths.yaml`. Holds `--gpu-lock` for the whole clip and unloads Ollama first, like stills.
 - A finished job carries a receipt: the caller's nonce, the content digest, and the SHA-256 of every output. The hub checks all three
   before it uses a file, then acknowledges, and the worker deletes the job folder. Unacknowledged jobs are removed after 24 hours.

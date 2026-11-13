@@ -144,6 +144,42 @@ test('a still becomes a film with a camera move and a look', { skip: !hasFfmpeg 
   await assert.rejects(C.animateStill(png, { move: 'barrel-roll' }), /unknown camera move/);
 });
 
+test('motion clips: a still clip is told apart from a moving one', { skip: !hasFfmpeg && 'ffmpeg not installed' }, async () => {
+  const dir = path.join(directory, 'motion');
+  await fs.mkdir(dir, { recursive: true });
+  const make = (name, src) => { const out = path.join(dir, name); const r = spawnSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', src, '-pix_fmt', 'yuv420p', out], { windowsHide: true }); assert.equal(r.status, 0, String(r.stderr)); return out; };
+  const still = await C.measureMotion(make('still.mp4', 'color=c=0x336699:s=320x180:d=2:r=24'));
+  const moving = await C.measureMotion(make('moving.mp4', 'testsrc2=s=320x180:d=2:r=24'));
+  assert.ok(still.overall < 0.5 && still.frames >= 40, `a still clip scores ~0 (${still.overall})`);
+  assert.ok(moving.overall > C.MOTION_MIN, `a moving clip scores above ${C.MOTION_MIN} (${moving.overall})`);
+  const png = await C.coverPng(await sharp({ create: { width: 400, height: 300, channels: 3, background: '#808080' } }).png().toBuffer(), 960, 544);
+  assert.deepEqual([(await sharp(png).metadata()).width, (await sharp(png).metadata()).height], [960, 544]);
+  await assert.rejects(C.coverPng(png, 960, 544, { realFace: true }), e => e.code === 'consent_required');
+});
+
+test('the worker builds a valid Wan 2.2 job: 4n+1 frames, sizes in 32s, the native graph', t => {
+  const python = process.env.PYTHON || 'python';
+  if (spawnSync(python, ['-I', '-c', 'print(1)'], { encoding: 'utf8' }).status !== 0) { t.skip('python is not available'); return; }
+  const code = `import sys, json; sys.path.insert(0, 'scripts/worker'); import chandra_worker as w
+out = []
+for spec in [{"prompt": "hair moves", "seconds": 3, "width": 960, "height": 544}, {"prompt": "x", "seconds": 99, "width": 5000, "height": 10}, {"prompt": "x", "seconds": 0.1}]:
+    c = w.clean_i2v(spec, "job1"); out.append(c)
+try:
+    w.clean_i2v({"prompt": "  "}, "j"); out.append("no error")
+except ValueError: out.append("refused")
+g = w.wan_workflow("in.png", out[0]); out.append(sorted(n["class_type"] for n in g.values()))
+print(json.dumps(out))`;
+  const r = spawnSync(python, ['-I', '-c', code], { encoding: 'utf8', timeout: 30_000 });
+  assert.equal(r.status, 0, r.stderr);
+  const [a, b, c, refused, classes] = JSON.parse(r.stdout.trim().split('\n').pop());
+  for (const x of [a, b, c]) { assert.equal((x.frames - 1) % 4, 0, `${x.frames} frames is 4n+1`); assert.equal(x.width % 32, 0); assert.equal(x.height % 32, 0); }
+  assert.equal(a.frames, 73); assert.deepEqual([a.width, a.height], [960, 544]);
+  assert.ok(b.frames <= 121 && b.width <= 1280 && b.height >= 256, 'clamped to 5 s and the model\'s sizes');
+  assert.ok(c.frames >= 5);
+  assert.equal(refused, 'refused');
+  for (const n of ['UNETLoader', 'CLIPLoader', 'VAELoader', 'ModelSamplingSD3', 'Wan22ImageToVideoLatent', 'KSampler', 'VAEDecode', 'SaveImage']) assert.ok(classes.includes(n), n);
+});
+
 test('stick figures: routed by the sentence, drawn as a film, arms visible when they cheer', () => {
   for (const s of ['a 20 second stick figure story about a lost kite', 'a stick-figure animation about saving money', 'stickman fights a cloud', 'an xkcd style short on time zones'])
     assert.equal(P.parseRequest(s).style, 'stick', s);

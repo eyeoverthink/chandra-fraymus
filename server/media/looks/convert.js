@@ -8,8 +8,9 @@
  *   original sound. Saved into data/video with provenance.
  * - Camera moves (`animateStill`): push, pull, pans, tilts, crash zoom, orbit, handheld, whip pan, spiral, Ken
  *   Burns — rendered from the still by cropping, scaling and turning it per frame, with any look on top. This is
- *   the camera-motion side of tools like Higgsfield; making a still *come alive* (a model moving what is in it)
- *   needs an image-to-video model and is not this.
+ *   the camera-motion side of tools like Higgsfield. Making a still *come alive* (a model moving what is in it) is
+ *   Wan 2.2 on a worker's card (looks/index.js startMotion); this file only prepares its start frame (`coverPng`),
+ *   measures whether the result moves (`measureMotion`) and puts it on the shelf (`shelveClip`).
  *
  * Nothing leaves the machine. A real person's face in an input needs that person's consent (`consent: true`).
  */
@@ -229,6 +230,41 @@ export async function animateStill(input, { move = 'push-in', seconds = 5, look 
   await encDone;
   noteMedia(file, 'animate', [note || `${move} camera move${look ? ` in the ${LOOKS[look].label} look` : ''}`, { move, look, seconds, format }], { source });
   return { file, path, seconds, frames: drawn, move, look, ms: Date.now() - t0 };
+}
+
+// ── motion clips from a model (Wan 2.2 on a worker) ──────────────────────────────────────────────────
+
+/** A picture cover-cropped to w×h as PNG: the start frame an image-to-video model animates. */
+export async function coverPng(input, w, h, { realFace = false, consent = false } = {}) {
+  guardConsent({ realFace, consent });
+  return sharp(input).rotate().flatten({ background: '#000' }).resize(w, h, { fit: 'cover' }).png().toBuffer();
+}
+
+/**
+ * Does a clip move? Mean absolute grey difference (0–255) between the first frame and four later ones (`overall`),
+ * and between neighbours of those (`step`), on a 96 px wide copy. A model that returns its start frame five times
+ * over scores about 0; a clip worth keeping scores well above MOTION_MIN (the same 1.5 fraymus-video-studio uses).
+ */
+export const MOTION_MIN = 1.5;
+export async function measureMotion(path) {
+  const raw = await run('ffmpeg', ['-v', 'error', '-i', path, '-vf', 'scale=96:-2,format=gray', '-f', 'rawvideo', 'pipe:1']);
+  const info = await probe(path), w = 96, h = Math.max(2, Math.round(96 * info.h / info.w / 2) * 2), n = Math.floor(raw.length / (w * h));
+  if (n < 2) return { overall: 0, step: 0, frames: n };
+  const frame = i => raw.subarray(i * w * h, (i + 1) * w * h);
+  const idx = [...new Set([0, 1, 2, 3, 4].map(k => Math.round(k * (n - 1) / 4)))];
+  const diff = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]); return s / a.length; };
+  const overall = idx.slice(1).reduce((s, i) => s + diff(frame(i), frame(0)), 0) / (idx.length - 1);
+  const step = idx.slice(1).reduce((s, i, k) => s + diff(frame(i), frame(idx[k])), 0) / (idx.length - 1);
+  return { overall: +overall.toFixed(2), step: +step.toFixed(2), frames: n };
+}
+
+/** A finished clip onto the shelf (data/video) with provenance; returns the shelf file name. */
+export function shelveClip(buf, { op = 'motion', note = '', params = {}, source = 'looks' } = {}) {
+  mkdirSync(VIDEO_DIR, { recursive: true });
+  const file = stamp('mp4');
+  writeFileSync(join(VIDEO_DIR, file), buf);
+  noteMedia(file, op, [note, params], { source });
+  return file;
 }
 
 /** Find a file on Chandra's shelf by bare name (data/media or data/video), never outside those folders. */
