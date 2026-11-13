@@ -150,6 +150,7 @@ fleet tool `reason`   every agent can hand a hard sub-problem to the reasoner
 - `POST /api/intelligence/capability/run {perFamily, strategy}` — run a benchmark now.
 - Nexus → Self-Mod → **Capability** tab.
 - Judge: `F:\Claude-Work\chandra-superintelligence\judge-agi.mjs`.
+- All 12 requirements at once, from the live database: fleet tool `agi_progress` ([`server/intelligence/agi-progress.js`](../server/intelligence/agi-progress.js)), or ask the home screen "how far is the system from AGI?" — see [What is new — 13 Nov 2026](WHATS-NEW-2026-11-13.md#answers-written-by-the-agent-from-measured-data).
 
 The single sentence that decides whether this is working: **g on fresh seeds, with `auto` strategy,
 is higher this month than last month, and no family fell to pay for it.**

@@ -287,7 +287,8 @@ function Spark({ values, color, wide = false }) {
   const w = wide ? 240 : 56, h = wide ? 34 : 14;
   if (values.length < 2) return <svg className="orb-spark" width={w} height={h} aria-hidden="true" />;
   const max = Math.max(...values, 0.0001);
-  const pts = values.map((v, i) => `${((i / (HISTORY - 1)) * w).toFixed(1)},${(h - 1 - (v / max) * (h - 2)).toFixed(1)}`).join(' ');
+  // spread over the readings there are: spacing for the full two minutes squashed the first minutes into the left edge
+  const pts = values.map((v, i) => `${((i / (values.length - 1)) * w).toFixed(1)},${(h - 1 - (v / max) * (h - 2)).toFixed(1)}`).join(' ');
   return (
     <svg className="orb-spark" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
       <polyline points={pts} fill="none" stroke={color} strokeWidth={wide ? 1.6 : 1.2} strokeLinejoin="round" opacity="0.9" />
