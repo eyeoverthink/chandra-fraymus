@@ -99,6 +99,13 @@ function ensureTable() {
 
 ensureTable();
 
+// The active protocol survives restarts: it lived only in memory and the daemon reset it to sentinel on every stop,
+// so a chosen mode never held from one run to the next (2026-11-13).
+try {
+  const last = db.prepare(`SELECT protocol FROM protocol_events ORDER BY created_at DESC LIMIT 1`).get();
+  if (last && PROTOCOLS[last.protocol]) activeProtocol = last.protocol;
+} catch (e) { console.error('[protocol] restore:', e.message); }
+
 export function activateProtocol(name, reason = '') {
   if (!PROTOCOLS[name]) {
     return { activated: false, error: `unknown protocol: ${name}. Valid: ${Object.keys(PROTOCOLS).join(', ')}` };
@@ -125,7 +132,7 @@ export function activateProtocol(name, reason = '') {
 
   // Publish to bus
   try {
-    publish('system.protocol', JSON.stringify({
+    publish('system', 'system.protocol', JSON.stringify({
       protocol: name,
       previous,
       reason,
@@ -147,6 +154,19 @@ export function getActiveProtocol() {
 
 export function getProtocolModifiers() {
   return PROTOCOLS[activeProtocol]?.modifiers || PROTOCOLS.sentinel.modifiers;
+}
+
+/**
+ * What each modifier does (until 2026-11-13 nothing read them, so switching modes changed only the label):
+ *   autonomyScale      daemon cycles run 1/scale as often; at ≤ 0.2 (lockdown) autonomous work pauses —
+ *                      goal execution and generation, motor firings, autonomous reflection, self-modification
+ *   intelligenceDepth  multiplies the reflection's action budget
+ *   nudgeFrequency     the narrator's gap between lines is divided by it
+ *   interruptionLevel  'critical_only' → the narrator speaks only audits, retirements and merged changes;
+ *                      'low' → no routine digests (activity, daemon cycles)
+ */
+export function autonomyPaused() {
+  return (getProtocolModifiers().autonomyScale ?? 1) <= 0.2;
 }
 
 export function listProtocols() {

@@ -84,19 +84,23 @@ const PROCESS_STARTED = Date.now();
  * stuck_transient after every restart (2026-11-13; two Ouroboros cycles had said 'running' since the day before).
  */
 export function sweepOrphansFromPreviousProcess() {
-  const out = { verification_loops: 0, ouroboros_cycles: 0 };
+  const out = { verification_loops: 0, ouroboros_cycles: 0, chain_runs: 0 };
   try { out.verification_loops = db.prepare(`UPDATE verification_loops SET status = 'error', error = COALESCE(error, 'interrupted by restart'), completed_at = ? WHERE status = 'running' AND created_at < ?`).run(now(), PROCESS_STARTED).changes; }
   catch (e) { if (!/no such table/.test(e.message)) console.error('[sweeper] orphan loops:', e.message); }
   try { out.ouroboros_cycles = db.prepare(`UPDATE ouroboros_cycles SET status = 'failed', insights = COALESCE(insights, '{"error":"interrupted by restart"}') WHERE status = 'running' AND created_at < datetime(? / 1000, 'unixepoch')`).run(PROCESS_STARTED).changes; }
   catch (e) { if (!/no such table/.test(e.message)) console.error('[sweeper] orphan cycles:', e.message); }
+  // Logic Chains run in-process too; 65 sat at 'running' after a day of restarts (2026-11-13), chain.review refused
+  // them as running, and the home screen's logic ring counted them as work in flight.
+  try { out.chain_runs = db.prepare(`UPDATE chain_runs SET status = 'crashed', stop_reason = COALESCE(stop_reason, 'interrupted by restart'), updated_at = ? WHERE status = 'running' AND created_at < ?`).run(now(), PROCESS_STARTED).changes; }
+  catch (e) { if (!/no such table/.test(e.message)) console.error('[sweeper] orphan chains:', e.message); }
   return out;
 }
 
 export function startTransientSweeper() {
   stopTransientSweeper();
   state.running = true;
-  const orphans = mayRecoverAtBoot() ? sweepOrphansFromPreviousProcess() : { verification_loops: 0, ouroboros_cycles: 0 };
-  if (orphans.verification_loops || orphans.ouroboros_cycles) console.log('[sweeper] closed work interrupted by the last restart:', JSON.stringify(orphans));
+  const orphans = mayRecoverAtBoot() ? sweepOrphansFromPreviousProcess() : { verification_loops: 0, ouroboros_cycles: 0, chain_runs: 0 };
+  if (orphans.verification_loops || orphans.ouroboros_cycles || orphans.chain_runs) console.log('[sweeper] closed work interrupted by the last restart:', JSON.stringify(orphans));
   const boot = sweepStaleTransients({ trigger: 'boot' });
   timer = setInterval(() => { try { sweepStaleTransients({ trigger: 'interval' }); } catch (e) { console.error('[sweeper]', e.message); } }, INTERVAL_MS);
   return { started: true, intervalMs: INTERVAL_MS, maxAgeMs: MAX_AGE_MS, boot };

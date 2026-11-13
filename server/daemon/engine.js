@@ -54,7 +54,7 @@ import { consolidateGraph, getStats as getKnowledgeGraphStats } from '../intelli
 import { readChart, getLineageStats } from '../intelligence/lineage.js';
 import { startUserSensorium, stopUserSensorium, resetUserSensorium, getUserSensoriumStatus } from '../awareness/user-sensorium.js';
 import { startNudgeEngine, stopNudgeEngine, getNudgeStatus } from '../awareness/proactive-nudge.js';
-import { getProtocolStatus, resetProtocol } from '../awareness/protocol-engine.js';
+import { getProtocolStatus, getProtocolModifiers } from '../awareness/protocol-engine.js';
 import { startContextHarvester, stopContextHarvester, resetContextHarvester, getContextHarvesterStatus } from '../awareness/context-harvester.js';
 import { heart, dreamer } from '../fraymus-tools.js';
 
@@ -962,7 +962,9 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     const mods = getAutonomyModifiers();
     const adaptMods = getAdaptiveModifiers();
     const resourceMultiplier = isResourceConstrained() ? 1.5 : 1.0;
-    const effective = Math.max(MIN_CYCLE_MS, Math.round(baseCycleMs * mods.cycleMultiplier * (adaptMods.cycleMultiplier || 1.0) * resourceMultiplier));
+    // the operator's protocol: Deep Work / Creative run cycles more often, Research and Lockdown less (autonomyScale)
+    const protocolScale = Math.max(0.1, getProtocolModifiers().autonomyScale ?? 1);
+    const effective = Math.max(MIN_CYCLE_MS, Math.round(baseCycleMs * mods.cycleMultiplier * (adaptMods.cycleMultiplier || 1.0) * resourceMultiplier / protocolScale));
     daemonState.effectiveCycleMs = effective;
     daemonState.nextCycleAt = now() + effective;
     daemonState.lastGateTier = mods.tier;
@@ -1039,7 +1041,7 @@ export function stopDaemon() {
   try { stopNudgeEngine(); } catch (_) {}
   try { stopContextHarvester(); } catch (_) {}
   try { resetContextHarvester(); } catch (_) {}
-  try { resetProtocol(); } catch (_) {}
+  // the protocol is the operator's choice and persists; stopping the daemon no longer resets it to sentinel
   daemonState.running = false;
   daemonState.nextCycleAt = 0;
   return { stopped: true };

@@ -50,6 +50,7 @@ import { isResourceConstrained } from './resource-envelope.js';
 import { getOpenFindingCounts } from './self-audit.js';
 import { scanConventions, nextConventionCandidate, markFinding, getConventionStatus, listConventionFindings } from './convention-scan.js';
 import { nextResearchExperiment, nextResearchCode, markResearchProposal } from './research-scout.js';
+import { autonomyPaused } from '../awareness/protocol-engine.js';
 
 const BOOT_AT = Date.now();   // code merged before this boot is live now; merged after it is not
 
@@ -376,6 +377,8 @@ export async function selfModificationCycle({ trigger = 'timer' } = {}) {
   const result = { trigger, at: now() };
   if (!ENABLED) return Object.assign(result, skip('disabled'));
   const running = runningExperiment();
+  // lockdown: finish judging an experiment already running (that restores or keeps a value), start nothing new
+  if (!running && autonomyPaused()) return Object.assign(result, skip('protocol_lockdown'));
   if (running) {
     const ev = evaluateExperiment(running.id);
     result.evaluation = ev;

@@ -47,6 +47,15 @@ const PROTOCOL_COLORS = {
   lockdown: '#f87171',
 };
 
+// What switching to each mode does (the modifiers in server/awareness/protocol-engine.js, as wired 2026-11-13)
+const PROTOCOL_EFFECTS = {
+  sentinel: 'Default. Daemon cycles at their normal pace, normal reflection depth, narrator every ~45 s.',
+  deep_work: 'Cycles 1.2× as often, reflection 1.5× deeper; narrator quiet except audits, retirements and your own lines.',
+  creative: 'Cycles 1.3× as often, reflection 1.2× deeper; narrator skips routine digests.',
+  research: 'Cycles at 0.8× pace, reflection 1.4× deeper; narrator a little less often.',
+  lockdown: 'Autonomous work paused: no goals, motor actions, autonomous reflection or self-modification. You stay in control.',
+};
+
 export default function ActivityPulseStrip({ wsEvent }) {
   const [data, setData] = useState({
     tier: 'DORMANT',
@@ -74,34 +83,44 @@ export default function ActivityPulseStrip({ wsEvent }) {
 
       const updates = {};
 
+      // Field names as the APIs send them. Until 2026-11-13 this strip read names none of them sent and showed its
+      // defaults: DORMANT 0/4 while the gate was INTEGRATED 4/4, a pressure bar at 0, 0 agents, 0 bus messages.
       if (gateRes.status === 'fulfilled' && gateRes.value.ok) {
         const g = await gateRes.value.json();
-        updates.tier = g.tier || g.state?.tier || 'DORMANT';
-        updates.proofsPassed = g.proofsPassed ?? g.state?.proofsPassed ?? 0;
+        const st = g.currentState || {};
+        updates.tier = st.tier?.label || g.modifiers?.tier || 'DORMANT';
+        updates.proofsPassed = st.proofsPassed ?? 0;
+        updates.phi = st.phi ?? null;
+        updates.stale = !!st.stale;
       }
 
       if (emotRes.status === 'fulfilled' && emotRes.value.ok) {
         const e = await emotRes.value.json();
-        updates.emotion = e.primaryEmotion || e.emotion || 'neutral';
-        updates.emotionIntensity = e.intensity ?? e.emotionIntensity ?? 0;
-        updates.valence = e.valence ?? 0;
+        const le = e.lastEmotion || {};
+        updates.emotion = le.primary || 'neutral';
+        updates.emotionShare = le.distribution?.[le.primary] ?? 0;
+        updates.emotionIntensity = le.arousal ?? 0;
+        updates.valence = le.valence ?? 0;
       }
 
       if (resRes.status === 'fulfilled' && resRes.value.ok) {
         const r = await resRes.value.json();
-        updates.pressure = r.pressure ?? r.currentPressure ?? 0;
-        updates.fatigue = r.fatigue ?? 0;
+        updates.pressure = r.lastPressure ?? 0;
+        updates.fatigue = r.fatigueLevel ?? 0;
+        updates.activeAgents = r.lastResources?.concurrentRuns ?? 0;
+        updates.busPerMin = r.lastResources?.busMessagesPerMin ?? 0;
       }
 
       if (metricsRes.status === 'fulfilled' && metricsRes.value.ok) {
         const m = await metricsRes.value.json();
-        updates.activeAgents = m.overview?.totalAgents ?? m.activeAgents ?? 0;
-        updates.busRate = m.overview?.busMessages ?? m.busRate ?? 0;
+        updates.runs24h = m.overview?.runs24h ?? 0;
       }
 
       if (protoRes.status === 'fulfilled' && protoRes.value.ok) {
         const p = await protoRes.value.json();
-        updates.protocol = p.active?.name || p.protocol || 'sentinel';
+        updates.protocol = p.active?.name || 'sentinel';
+        updates.protocols = p.available || [];
+        updates.protocolInfo = p.active || null;
       }
 
       setData(prev => ({ ...prev, ...updates }));
@@ -113,6 +132,17 @@ export default function ActivityPulseStrip({ wsEvent }) {
     const iv = setInterval(refresh, 8000);
     return () => clearInterval(iv);
   }, [refresh]);
+
+  // The protocol is a real switch now: each mode changes how often the daemon cycles, whether autonomous work runs,
+  // how deep reflection goes and how often the narrator speaks (server/awareness/protocol-engine.js).
+  const [menu, setMenu] = useState(false);
+  const switchProtocol = async name => {
+    setMenu(false);
+    try {
+      await fetch('/api/awareness/protocol/activate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ protocol: name, reason: 'operator (status strip)' }) });
+    } catch (e) { console.error('protocol switch:', e.message); }
+    refresh();
+  };
 
   useEffect(() => {
     if (!wsEvent) return;
@@ -156,29 +186,29 @@ export default function ActivityPulseStrip({ wsEvent }) {
         }
       ` }} />
 
-      {/* Consciousness Tier */}
-      <div className="pulse-gauge">
+      {/* Consciousness Tier — from the latest audit of the live CTRNN */}
+      <div className="pulse-gauge" title={`Consciousness gate: ${data.proofsPassed} of 4 proofs on the latest audit${data.phi != null ? `, Φ ${Number(data.phi).toFixed(3)}` : ''}${data.stale ? ' (audit is stale)' : ''}`}>
         <span className={data.tier === 'INTEGRATED' ? 'pulse-alive' : ''} style={{ color: tierColor, fontSize: 12, fontWeight: 700 }}>
           {TIER_ICONS[data.tier] || '○'}
         </span>
         <span style={{ color: tierColor, fontWeight: 600, letterSpacing: 0.5 }}>{data.tier}</span>
-        <span style={{ color: '#555', fontSize: 9 }}>{data.proofsPassed}/4</span>
+        <span style={{ color: '#777', fontSize: 9 }}>{data.proofsPassed}/4{data.phi != null ? ` · Φ ${Number(data.phi).toFixed(2)}` : ''}</span>
       </div>
 
-      {/* Heart Emotion */}
-      <div className="pulse-gauge">
+      {/* Heart Emotion — dominant feeling in recent text and how strongly it dominates */}
+      <div className="pulse-gauge" title={`Heart: ${data.emotion} is ${Math.round((data.emotionShare || 0) * 100)}% of recent readings · arousal ${Number(data.emotionIntensity || 0).toFixed(2)} · valence ${Number(data.valence || 0).toFixed(2)}`}>
         <div className="pulse-dot" style={{ background: emotColor, boxShadow: data.emotionIntensity > 0.5 ? `0 0 6px ${emotColor}` : 'none' }} />
         <span style={{ color: emotColor, textTransform: 'capitalize' }}>{data.emotion}</span>
         <div className="pulse-bar">
           <div className="pulse-bar-fill" style={{
-            width: `${Math.round(Math.max(0, Math.min(1, data.emotionIntensity)) * 100)}%`,
+            width: `${Math.round(Math.max(0, Math.min(1, data.emotionShare || 0)) * 100)}%`,
             background: emotColor,
           }} />
         </div>
       </div>
 
       {/* Resource Pressure */}
-      <div className="pulse-gauge">
+      <div className="pulse-gauge" title={`Resource pressure ${Number(data.pressure || 0).toFixed(2)} (heap, database, runs, model latency, bus, model queue) · fatigue ${Number(data.fatigue || 0).toFixed(2)}`}>
         <span style={{ fontSize: 10, color: presColor }}>
           {data.pressure >= 0.8 ? '▲' : data.pressure >= 0.6 ? '△' : '◇'}
         </span>
@@ -189,30 +219,45 @@ export default function ActivityPulseStrip({ wsEvent }) {
             background: presColor,
           }} />
         </div>
-        <span style={{ color: presColor, fontWeight: 600, fontSize: 9 }}>{pressureLabel(data.pressure)}</span>
+        <span style={{ color: presColor, fontWeight: 600, fontSize: 9 }}>{pressureLabel(data.pressure)} {Math.round((data.pressure || 0) * 100)}%</span>
       </div>
 
-      {/* Active Agents */}
-      <div className="pulse-gauge">
+      {/* Agent runs in flight now, and today */}
+      <div className="pulse-gauge" title={`${data.activeAgents} agent run(s) in flight · ${data.runs24h || 0} in the last 24 h`}>
         <span style={{ color: '#6366f1', fontSize: 10 }}>◈</span>
         <span style={{ color: '#6366f1', fontWeight: 600 }}>{data.activeAgents}</span>
-        <span className="pulse-label" style={{ color: '#555' }}>agents</span>
+        <span className="pulse-label" style={{ color: '#555' }}>running · {data.runs24h || 0} today</span>
       </div>
 
-      {/* Bus Rate */}
-      <div className="pulse-gauge">
+      {/* Bus traffic per minute */}
+      <div className="pulse-gauge" title="Messages on the internal bus per minute">
         <span style={{ color: '#22d3ee', fontSize: 10 }}>⟡</span>
-        <span style={{ color: '#22d3ee', fontWeight: 600 }}>{data.busRate}</span>
-        <span className="pulse-label" style={{ color: '#555' }}>bus msg</span>
+        <span style={{ color: '#22d3ee', fontWeight: 600 }}>{data.busPerMin ?? 0}</span>
+        <span className="pulse-label" style={{ color: '#555' }}>bus / min</span>
       </div>
 
-      {/* Protocol Mode */}
+      {/* Protocol Mode — a switch that changes behaviour */}
       <div className="pulse-gauge" style={{ borderRight: 'none' }}>
-        <div className="pulse-dot" style={{ background: protoColor }} />
-        <span style={{ color: protoColor, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10 }}>
-          {data.protocol.replace(/_/g, ' ')}
-        </span>
+        <button type="button" onClick={() => setMenu(m => !m)} title={data.protocolInfo?.description || 'Operating protocol'}
+          style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: '1px solid #262636', borderRadius: 5, padding: '1px 7px', cursor: 'pointer' }}>
+          <span className="pulse-dot" style={{ background: protoColor }} />
+          <span style={{ color: protoColor, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10 }}>
+            {data.protocol.replace(/_/g, ' ')}
+          </span>
+          <span style={{ color: '#666', fontSize: 9 }}>▾</span>
+        </button>
       </div>
+      {menu && (
+        <div style={{ position: 'fixed', top: 84, right: 16, zIndex: 50, background: '#11111a', border: '1px solid #262636', borderRadius: 8, padding: 6, width: 300, boxShadow: '0 12px 30px rgba(0,0,0,.5)' }}>
+          {Object.entries(PROTOCOL_EFFECTS).map(([name, effect]) => (
+            <button key={name} type="button" onClick={() => switchProtocol(name)}
+              style={{ display: 'block', width: '100%', textAlign: 'left', background: data.protocol === name ? '#1b1b2a' : 'none', border: 'none', borderRadius: 6, padding: '6px 8px', cursor: 'pointer' }}>
+              <span style={{ color: PROTOCOL_COLORS[name], fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>{name.replace(/_/g, ' ')}{data.protocol === name ? ' · active' : ''}</span>
+              <span style={{ display: 'block', color: '#888', fontSize: 10, marginTop: 2, lineHeight: 1.35 }}>{effect}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { runVerifierLoop } from './verifier-loop.js';
 import { runGoalExecutorCycle } from './goal-executor.js';
 import { isResourceConstrained } from './resource-envelope.js';
 import { heart } from '../fraymus-tools.js';
+import { autonomyPaused, getProtocolModifiers } from '../awareness/protocol-engine.js';
 
 const now = () => Date.now();
 const BASE_MAX_ACTIONS = 5;
@@ -338,6 +339,7 @@ export async function reflect(opts = {}) {
   const autonomous = !['manual', 'api'].includes(trigger);
   if (reflectionInFlight) { gateStats.inProgress++; return { skipped: true, reason: 'in_progress', trigger }; }
   if (autonomous) {
+    if (autonomyPaused()) return { skipped: true, reason: 'protocol_lockdown', trigger };
     const sinceStart = now() - lastReflectionStartedAt;
     if (sinceStart < minIntervalMs()) { gateStats.minInterval++; return { skipped: true, reason: 'min_interval', trigger, nextInMs: minIntervalMs() - sinceStart }; }
     if (!hasNewData()) { gateStats.noNewData++; return { skipped: true, reason: 'no_new_data', trigger }; }
@@ -358,7 +360,8 @@ async function reflectInner({ trigger = 'manual' } = {}) {
 
   const gateMods = getAutonomyModifiers();
   const adaptiveMods = getAdaptiveModifiers();
-  let maxActions = gateMods.reflectionDepth || BASE_MAX_ACTIONS;
+  // the operator's protocol deepens (Deep Work, Research) or thins (Lockdown) the action budget
+  let maxActions = Math.max(1, Math.round((gateMods.reflectionDepth || BASE_MAX_ACTIONS) * (getProtocolModifiers().intelligenceDepth ?? 1)));
   if (adaptiveMods.reflectionCap !== null && adaptiveMods.reflectionCap < maxActions) {
     maxActions = adaptiveMods.reflectionCap;
   }

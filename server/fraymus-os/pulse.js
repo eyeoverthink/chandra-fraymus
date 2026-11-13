@@ -45,11 +45,20 @@ export function readPulse({ db, ctrnn = null, poolStatus = null, now = Date.now(
     }
   } catch (e) { console.error('fraymus-os pulse pool:', e.message); }
 
+  // Every reasoning process, not three of them: the ring used to count only `reason` tool calls, verifier loops and
+  // cipher_runs (a table that has never had a row), so it read "still" while Logic Chain stages finished at ~67 an
+  // hour, debates ran and benchmark problems were solved (2026-11-13).
   const reasoner = count(db, `SELECT COUNT(*) c FROM reasoner_calls WHERE created_at > ?`, since);
+  const chainStages = count(db, `SELECT COUNT(*) c FROM chain_stages WHERE ended_at > ?`, since);
+  const chainRunning = count(db, `SELECT COUNT(*) c FROM chain_runs WHERE status = 'running'`);
+  const debates = count(db, `SELECT COUNT(*) c FROM debates WHERE created_at > ?`, since);
+  const debatesRunning = count(db, `SELECT COUNT(*) c FROM debates WHERE status = 'running'`);
+  const benchmark = count(db, `SELECT COUNT(*) c FROM capability_items WHERE created_at > ?`, since);
   const verifierRunning = count(db, `SELECT COUNT(*) c FROM verification_loops WHERE status = 'running'`);
   const verifierRecent = count(db, `SELECT COUNT(*) c FROM verification_loops WHERE created_at > ?`, since);
   const cipherRunning = count(db, `SELECT COUNT(*) c FROM cipher_runs WHERE status = 'running'`);
   const cipherRecent = count(db, `SELECT COUNT(*) c FROM cipher_runs WHERE created_at > ?`, since);
+  const logicParts = [['chain stages', chainStages], ['debates', debates], ['reasoner', reasoner], ['benchmark', benchmark], ['verifier', verifierRecent], ['cipher', cipherRecent]];
 
   let matrix = { running: false, rate: 0, active: 0 };
   try {
@@ -58,7 +67,10 @@ export function readPulse({ db, ctrnn = null, poolStatus = null, now = Date.now(
       const tick = ctrnn.tick;
       const tps = lastTick && now > lastTick.at ? Math.max(0, (tick - lastTick.tick) / ((now - lastTick.at) / 1000)) : 0;
       lastTick = { tick, at: now };
-      matrix = { running: !!ctrnn.running, rate: +tps.toFixed(1), active: m.activeSynapses, tick,
+      // every neuron's output, tanh(B), for the orb's core — 256 numbers, so the picture is the network as it is now
+      const st = typeof ctrnn.state === 'function' ? ctrnn.state() : null;
+      const grid = st?.B ? st.B.map(b => Math.round(Math.tanh(b) * 100) / 100) : null;
+      matrix = { running: !!ctrnn.running, rate: +tps.toFixed(1), active: m.activeSynapses, tick, grid, gridSize: st?.gridSize || null,
         meanActivation: +m.meanActivation.toFixed(3), connectivity: +m.connectivityRatio.toFixed(3), saturation: +(m.saturationRatio ?? 0).toFixed(3) };
     }
   } catch (e) { console.error('fraymus-os pulse ctrnn:', e.message); }
@@ -69,9 +81,11 @@ export function readPulse({ db, ctrnn = null, poolStatus = null, now = Date.now(
       { id: 'agents', label: 'Agents & tools', unit: 'tool calls / min', rate: perMin(toolCalls), active: agentsActive, detail: `${agentsActive} run${agentsActive === 1 ? '' : 's'} in flight` },
       { id: 'routing', label: 'Thought routing', unit: 'model calls / min', rate: routing.rate, active: routing.active, hosts: routing.hosts,
         detail: routing.hosts.map(h => `${h.name} ${h.model}${h.inFlight ? ` ×${h.inFlight}` : ''}${h.healthy ? '' : ` (${h.why})`}`).join(' · ') },
-      { id: 'logic', label: 'Logic & cipher', unit: 'reasoner, verifier, cipher / min', rate: perMin(reasoner + verifierRecent + cipherRecent), active: verifierRunning + cipherRunning,
-        detail: `reasoner ${reasoner} · verifier ${verifierRecent}${verifierRunning ? ` (${verifierRunning} running)` : ''} · cipher ${cipherRecent}${cipherRunning ? ` (${cipherRunning} running)` : ''} in 5 min` },
+      { id: 'logic', label: 'Logic & cipher', unit: 'reasoning steps / min', rate: perMin(logicParts.reduce((n, [, c]) => n + c, 0)),
+        active: chainRunning + debatesRunning + verifierRunning + cipherRunning, parts: Object.fromEntries(logicParts),
+        detail: `${logicParts.filter(([, c]) => c).map(([k, c]) => `${k} ${c}`).join(' · ') || 'nothing'} in 5 min${chainRunning ? ` · ${chainRunning} chain${chainRunning === 1 ? '' : 's'} running` : ''}${debatesRunning ? ` · ${debatesRunning} debate${debatesRunning === 1 ? '' : 's'} running` : ''}${verifierRunning ? ` · ${verifierRunning} verifier running` : ''}` },
       { id: 'matrix', label: 'Thought matrix (CTRNN)', unit: 'ticks / s', rate: matrix.rate, active: matrix.active, running: matrix.running,
+        grid: matrix.grid, gridSize: matrix.gridSize, meanActivation: matrix.meanActivation, connectivity: matrix.connectivity, saturation: matrix.saturation,
         detail: matrix.running ? `${matrix.rate} ticks/s · activation ${matrix.meanActivation} · synapses ${matrix.active} · saturation ${matrix.saturation}` : 'stopped' },
     ],
   };

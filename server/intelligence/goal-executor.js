@@ -27,6 +27,7 @@ import { scoreOutcome, installOutcomeScorerRoutes } from './outcome-scorer.js';
 import { recordOutcome, getCurrentSession } from './perspective.js';
 import { isRetired, agentQualityWeight, goalUtility, shouldShelve, shelveGoal, sweepAgentQuality, listRetirements, installAgentQualityRoutes } from './agent-quality.js';
 import { installOutcomeFeedbackRoutes } from './outcome-feedback.js';
+import { autonomyPaused } from '../awareness/protocol-engine.js';
 
 const now = () => Date.now();
 
@@ -244,6 +245,10 @@ export async function runGoalExecutorCycle({ trigger = 'interval', goalId = null
     // 'goal_generate' — conserve mode must be able to stop proposing while still executing.
     if (isActionSuppressed('goal_execute')) {
       lastCycle = { at: now(), trigger, executed: false, reason: 'suppressed_by_strategy' };
+      return lastCycle;
+    }
+    if (autonomyPaused()) {
+      lastCycle = { at: now(), trigger, executed: false, reason: 'protocol_lockdown' };
       return lastCycle;
     }
   }

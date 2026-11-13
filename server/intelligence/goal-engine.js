@@ -17,6 +17,7 @@ import { publish } from '../fleet/bus.js';
 import { tunable } from './tunables.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
 import { realProblems, loadProjects, saveProjects, memoryCategories, checkObjective, sameJob } from './goal-landscape.js';
+import { autonomyPaused } from '../awareness/protocol-engine.js';
 
 const BASE_MAX_PROPOSALS = 2;
 
@@ -92,6 +93,9 @@ export async function generateGoals({ trigger = 'daemon', force = false } = {}) 
     return { generated: false, reason: 'queue_full', pending, maxPending: maxPending() };
   }
   // Phase V: generation has its own strategy key so conserve can stop proposals without stopping execution.
+  if (!force && autonomyPaused()) {
+    return { generated: false, reason: 'protocol_lockdown', pending, maxPending: maxPending() };
+  }
   if (!force && isActionSuppressed('goal_generate')) {
     return { generated: false, reason: 'suppressed_by_strategy', pending, maxPending: maxPending() };
   }

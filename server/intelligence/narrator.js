@@ -27,12 +27,14 @@ import { ttsSpeak, TTS_DIR } from '../media/tts-engine.js';
 import { getObsBridge } from '../streaming/overlay.js';
 import { chatOllama } from '../commerce/shared.js';
 import { classifyUrl } from '../fraymus-os/registry.js';
+import { getProtocolModifiers } from '../awareness/protocol-engine.js';
 
 const now = () => Date.now();
 const AGENT = 'narrator';
 const ENABLED = process.env.NARRATOR_ENABLED !== '0';
 const DEFAULT_GAP_MS = Math.max(5_000, parseInt(process.env.NARRATOR_MIN_GAP_MS, 10) || 45_000);
-const minGapMs = () => tunable('narrator.min_gap_ms', DEFAULT_GAP_MS); // Phase Y: live tunable
+// Phase Y: live tunable, divided by the protocol's nudge frequency (Deep Work speaks least, Lockdown most)
+const minGapMs = () => Math.round(tunable('narrator.min_gap_ms', DEFAULT_GAP_MS) / Math.max(0.1, getProtocolModifiers().nudgeFrequency ?? 1));
 // Every line is voiced and saved to data/tts (the shelf's Audio), whether or not an OBS overlay is listening — Vaughn
 // hears the organism through the shelf. Measured 2026-11-13: of 111 lines in 24 h, the 7 spoken with no overlay
 // attached (OBS reconnecting, server restarts) were text-only and never reached the shelf. The old "audio only with an
@@ -364,8 +366,18 @@ function pump() {
   speak(item).catch(e => console.error('[narrator] speak:', e.message));
 }
 
+// What the protocol's interruption level lets through: critical_only = things Vaughn must know; low = no routine digests
+const CRITICAL_KINDS = new Set(['audit', 'fleet', 'say']);
+const ROUTINE_KINDS = new Set(['activity', 'daemon']);
+export function allowedByProtocol(kind, level = getProtocolModifiers().interruptionLevel) {
+  if (level === 'critical_only') return CRITICAL_KINDS.has(kind);
+  if (level === 'low') return !ROUTINE_KINDS.has(kind);
+  return true;
+}
+
 function enqueue(item) {
   if (!running || !item) return false;
+  if (!allowedByProtocol(item.kind)) { state.heldByProtocol = (state.heldByProtocol || 0) + 1; return false; }
   // the same sentence twice in ten minutes is noise, not news (the self-audit repeats every 15 min)
   if (recentlySaid(item.text) || queue.some(q => q.text === item.text)) { state.dropped++; return false; }
   if (queue.length >= QUEUE_MAX) { queue.shift(); state.dropped++; }

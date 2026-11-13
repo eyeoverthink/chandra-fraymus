@@ -34,6 +34,7 @@ import { recordEfferenceCopy } from './predictive-processing.js';
 import { publish } from '../fleet/bus.js';
 import { tunable } from './tunables.js';
 import { randomUUID } from 'node:crypto';
+import { autonomyPaused } from '../awareness/protocol-engine.js';
 
 const now = () => Date.now();
 
@@ -271,10 +272,10 @@ async function motorCycle() {
     const regionCooldown = Math.max(cooldownMs, motorFloor(key));
 
     if (sustained && !isOnCooldown(key, regionCooldown)) {
-      if (isActionSuppressed(STRATEGY_KEY[key] || key) || isResourceConstrained()) {
+      if (isActionSuppressed(STRATEGY_KEY[key] || key) || isResourceConstrained() || autonomyPaused()) {
         firings.push({
           region: key, label: region.label, activation: readings[key],
-          action: region.action, result: isResourceConstrained() ? 'resource_constrained' : 'suppressed',
+          action: region.action, result: autonomyPaused() ? 'protocol_lockdown' : isResourceConstrained() ? 'resource_constrained' : 'suppressed',
         });
         continue;
       }

@@ -169,16 +169,35 @@
   gap: 10px;
 }
 
-.fraymus-orb { width: min(280px, 46vw); position: relative; }
-.fraymus-orb svg { width: 100%; height: auto; display: block; }
+.fraymus-orb { width: min(380px, 92vw); position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.fraymus-orb > svg { width: 100%; height: auto; display: block; }
+/* 3-D armillary orb (Orb.jsx): canvas drawn from /api/fraymus-os/pulse */
+.orb-canvas-wrap { width: 100%; display: flex; justify-content: center; }
+.orb-canvas-wrap canvas { display: block; }
+.orb-card { width: 100%; max-width: 380px; box-sizing: border-box; background: linear-gradient(180deg, rgba(14, 26, 34, 0.92), rgba(9, 16, 22, 0.92));
+  border: 1px solid rgba(62, 224, 255, 0.18); border-left: 3px solid var(--ring, #3ee0ff); border-radius: 10px; padding: 10px 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); backdrop-filter: blur(6px); }
+.orb-card-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.orb-card-head b { color: #e6f6fb; font-size: 13px; }
+.orb-card-head span { color: var(--ring, #3ee0ff); font-size: 12px; font-variant-numeric: tabular-nums; }
+.orb-card-head button { margin-left: auto; background: none; border: none; color: #8aa4b0; font-size: 16px; cursor: pointer; line-height: 1; }
+.orb-card-detail { margin: 6px 0 0; font-size: 11px; color: #9fb7c2; line-height: 1.4; }
+.orb-table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11px; color: #b9d0d9; font-variant-numeric: tabular-nums; }
+.orb-table td { padding: 3px 4px; border-top: 1px solid rgba(62, 224, 255, 0.08); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+.orb-table td:first-child { color: #e6f6fb; }
+.orb-table i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.orb-table i.ok { background: #7dffa8; box-shadow: 0 0 6px #7dffa8; }
+.orb-table i.bad { background: #ff6b6b; }
+.orb-spark { display: block; flex: none; }
 .orb-glow { fill: rgba(62, 224, 255, 0.08); }
 .orb-ring { fill: none; stroke: rgba(62, 224, 255, 0.75); stroke-width: 1.4; }
 /* rings are live processes (Orb.jsx + /api/fraymus-os/pulse): speed, direction and segments come from measurements */
 .orb-live-ring { transition: opacity 0.6s ease; }
 .orb-route { animation: route 1.5s ease-out forwards; }
 @keyframes route { from { transform: translate(0, 0); opacity: 1; } to { transform: translate(var(--tx), var(--ty)); opacity: 0.2; } }
-.orb-legend { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 3px; font-size: 11px; color: #8aa4b0; }
-.orb-legend li { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.orb-legend { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; font-size: 11px; color: #8aa4b0; width: 100%; max-width: 380px; }
+.orb-legend li { display: grid; grid-template-columns: 8px auto 1fr 56px; align-items: center; gap: 7px; min-width: 0; padding: 4px 8px; border-radius: 7px; cursor: pointer; transition: background 0.2s; user-select: none; }
+.orb-legend li:hover, .orb-legend li.is-focus { background: rgba(62, 224, 255, 0.07); }
 .orb-legend i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .orb-legend b { font-weight: 600; color: #cfe9f1; white-space: nowrap; }
 .orb-legend span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
