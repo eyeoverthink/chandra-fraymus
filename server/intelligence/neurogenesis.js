@@ -5,6 +5,7 @@ import { runPipeline as opegPipeline } from './opeg.js';
 import { forgeAgent, checkForgeAllowed } from '../fleet/forge.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
 import { getAdaptiveModifiers } from './adaptive-strategy.js';
+import { tunable } from './tunables.js';
 
 const now = () => Date.now();
 
@@ -276,8 +277,13 @@ export async function neurogenesisCycle() {
     lastEmergencyScore = null;
   }
 
-  // Phase 4: consciousness boost modulates Poisson lambda — higher consciousness = more stimulus
-  const effectiveLambda = POISSON_LAMBDA * (1 - score) * (1 + gateMods.neurogenesisBoost);
+  // Phase 4: consciousness boost modulates Poisson lambda — higher consciousness = more stimulus.
+  // Stimulus answers a shortfall: none at or above the healthy score, rising to full strength at the floor. It used
+  // to be (1 − score), never zero — 357 stimuli in 24 h on 2026-11-12 with connectivity healthy all day (0.40–0.70),
+  // the same neurons prodded again and again (self-audit repeated_action ×3).
+  const healthy = Math.max(effectiveFloor + 0.05, tunable('neurogenesis.healthy_score', 0.4));
+  const deficit = Math.max(0, Math.min(1, (healthy - score) / (healthy - effectiveFloor)));
+  const effectiveLambda = POISSON_LAMBDA * deficit * (1 + gateMods.neurogenesisBoost);
   const poissonCount = poissonSample(effectiveLambda);
   const count = Math.min(poissonCount, MAX_STIMULI_PER_CYCLE);
 

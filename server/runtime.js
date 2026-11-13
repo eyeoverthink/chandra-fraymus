@@ -112,6 +112,7 @@ import { initHealthMonitor, installHealthRoutes } from './health/monitor.js';
 import { installForgeRoutes } from './fleet/forge.js';
 import { installHarnessRoutes } from './fleet/harness-routes.js';
 import { installSynthesisRoutes } from './workflow/synthesizer.js';
+import { installWorkflowTrialRoutes } from './workflow/trials.js';
 import { installReflectionRoutes, startReflectionLoop } from './intelligence/reflection.js';
 import { installVerifierRoutes } from './intelligence/verifier-loop.js';
 import { installDaemonRoutes, startDaemon } from './daemon/engine.js';
@@ -352,6 +353,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
 
   installFraymusRoutes(app, { autonomy, broadcast, memoryBridge });
   installSynthesisRoutes(app);
+  installWorkflowTrialRoutes(app);
   installWorkflowRoutes(app, { broadcast, memoryBridge });
   installFleetRoutes(app);
   installHarnessRoutes(app);

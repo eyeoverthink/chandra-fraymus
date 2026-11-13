@@ -223,10 +223,16 @@ function checkProducersWithoutConsumers() {
     const ids = synth.map(s => s.workflow_id);
     const placeholders = ids.map(() => '?').join(',');
     const ran = q1(`SELECT COUNT(DISTINCT workflow_id) AS c FROM workflow_runs WHERE workflow_id IN (${placeholders}) AND created_at > ?`, ...ids, d7)?.c || 0;
-    if (ran / synth.length < 0.1) findings.push({
+    // consumed = ran, or was decided by the trial runner (workflow/trials.js): a duplicate, or one that needs an
+    // operator because it would act outside Chandra. Only workflows still waiting count against the producer.
+    let decided = 0;
+    try { decided = q1(`SELECT COUNT(*) AS c FROM synthesized_workflows WHERE workflow_id IN (${placeholders}) AND trial_status IN ('needs_operator', 'duplicate')`, ...ids)?.c || 0; }
+    catch (e) { console.error('[self-audit] trial status:', e.message); }
+    const consumed = ran + decided;
+    if (consumed / synth.length < 0.1) findings.push({
       check: 'producer_without_consumer', subject: 'synthesized_workflows→workflow_runs', severity: 'REAL',
-      summary: `${synth.length} workflows synthesized in 7d, ${ran} ever ran`,
-      evidence: { synthesized7d: synth.length, ran7d: ran },
+      summary: `${synth.length} workflows synthesized in 7d, ${ran} ever ran, ${decided} triaged without running`,
+      evidence: { synthesized7d: synth.length, ran7d: ran, triaged: decided },
     });
   }
 

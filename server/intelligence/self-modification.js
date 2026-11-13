@@ -547,6 +547,18 @@ Hard constraints:
 - no placeholder comments like "// rest unchanged" — the block must be the whole file
 If the proposal cannot be implemented safely in this file, return the original file unchanged.`;
 
+/**
+ * Names declared (const/let/var) in the original span that the replacement no longer declares but still uses.
+ * A ready branch on 2026-11-13 deleted `const signals = …` from a route that still answered `{ signals }` — a
+ * ReferenceError on every call that "node --check" cannot see.
+ */
+export function droppedDeclarations(before, after) {
+  const decl = text => new Set([...String(text).matchAll(/\b(?:const|let|var)\s+(?:\{([^}]*)\}|\[([^\]]*)\]|([A-Za-z_$][\w$]*))/g)]
+    .flatMap(m => (m[3] ? [m[3]] : String(m[1] || m[2] || '').split(',').map(s => s.split(':').pop().split('=')[0].trim().replace(/^\.\.\./, '')))).filter(Boolean));
+  const was = decl(before), now = decl(after);
+  return [...was].filter(n => !now.has(n) && new RegExp(`(^|[^\\w$.])${n.replace(/\$/g, '\\$')}([^\\w$]|$)`).test(after));
+}
+
 const SPAN_SYSTEM = `You are a careful senior engineer fixing ONE function in a Node.js ESM codebase. You will receive the proposal, the file's imports for context, and the exact source of the function (or route handler) to change. Return the COMPLETE replacement for that function only, in a single \`\`\`javascript fenced block, and nothing else.
 Hard constraints:
 - same function name and signature; it must remain a drop-in replacement for the span you were given
@@ -624,6 +636,8 @@ export async function buildCodeProposal({ source = 'manual', originId = null, ti
       if (n0 && n1 && n0 !== n1) return fail(`function renamed ${n0} → ${n1}`);
       const probe = matchBraces(piece.split('\n'), 0);
       if (probe < 0) return fail('span replacement has unbalanced braces');
+      const dropped = droppedDeclarations(span.text, piece);
+      if (dropped.length) return fail(`span replacement removes ${dropped.join(', ')} but still uses ${dropped.length === 1 ? 'it' : 'them'}`);
       code = spliceSpan(original, span, piece);
     } else {
       code = piece;

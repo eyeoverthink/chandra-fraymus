@@ -28,10 +28,13 @@ const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'data', 'test', 'fixt
 export const PROTECTED = new Set(['server/db.js', 'server/db-migrate.js', 'server/config.js', 'server/index.js', 'server/app.js', 'server/runtime.js', 'server/lifecycle.js', 'server/local-http.js', 'server/mcp/auth.js', 'server/data-lock.js', 'server/intelligence/self-modification.js', 'server/intelligence/tunables.js', 'server/intelligence/opeg.js', 'server/intelligence/convention-scan.js']);
 
 // priority: lower = build first. Deterministic, so the kernel's queue is explainable.
+export const TIME_OR_POSITION = /^(since|until|before|after|from|to|start|end|cursor|offset|page|ts|time|timestamp|date|at|year|month|day|hour|epoch)$|(At|Ts|Time|Date|Since|Until)$/i;
 export const RULES = [
   {
     id: 'unclamped_query_param', priority: 1, title: 'Clamp a query parameter',
-    test(line) { return /parseInt\(\s*(?:req\.query|query)\.(\w+)/.test(line) && !/Math\.(min|max)|clamp\(/.test(line); },
+    // counts and limits only: a time or position (since, until, cursor…) is not clamped to 1–500 — two proposals that
+    // did were reviewed on 2026-11-13 and would have turned "messages since <timestamp>" into "since 1970"
+    test(line) { const m = line.match(/parseInt\(\s*(?:req\.query|query)\.(\w+)/); return !!m && !TIME_OR_POSITION.test(m[1]) && !/Math\.(min|max)|clamp\(/.test(line); },
     sketch(line) {
       const m = line.match(/parseInt\(\s*(?:req\.query|query)\.(\w+)/);
       return `The query parameter "${m?.[1] || 'value'}" is parsed with parseInt but never clamped. Coerce and clamp it to a sane range in the same expression, e.g. Math.min(500, Math.max(1, parseInt(req.query.${m?.[1] || 'value'}, 10) || <default>)), keeping the existing default. Change nothing else.`;

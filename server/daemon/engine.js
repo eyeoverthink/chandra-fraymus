@@ -20,6 +20,7 @@ import { modelPoolStatus } from '../intelligence/model-pool.js';
 import { buildEvidence, triage, fingerprint, dreamMessages, checkLesson, alreadyKnown, storedText, MAX_LESSONS } from '../intelligence/dream-ground.js';
 import { startSelfModification, stopSelfModification, getSelfModificationStatus, selfModificationCycle, maybeBuildFromBacklog, checkOuroborosAllowed } from '../intelligence/self-modification.js';
 import { startResearchScout, stopResearchScout, getResearchStatus, runResearchDemos } from '../intelligence/research-scout.js';
+import { startWorkflowTrials, stopWorkflowTrials, trialStats } from '../workflow/trials.js';
 import { startSkillForge, stopSkillForge, getSkillForgeStatus, skillForgeCycle } from '../intelligence/skill-forge.js';
 import { startGeneralIntelligence, stopGeneralIntelligence, getGeneralIntelligenceStatus, generalIntelligenceCycle } from '../intelligence/general-intelligence.js';
 import { startSelfAudit, stopSelfAudit, getSelfAuditStatus } from '../intelligence/self-audit.js';
@@ -814,6 +815,9 @@ export function startDaemon({ cycleMs = DEFAULT_CYCLE_MS } = {}) {
     console.error('research scout start error:', e.message);
   }
 
+  // the consumer synthesized workflows never had: triage, then one safe trial every 10 min
+  try { startWorkflowTrials(); } catch (e) { console.error('workflow trials start error:', e.message); }
+
   // Phase AD: general intelligence core — close benchmark/lesson rows a previous process left open
   try {
     const gi = startGeneralIntelligence();
@@ -992,6 +996,7 @@ export function stopDaemon() {
   try { stopFactsReader(); } catch (e) { console.error('[daemon] facts reader stop:', e.message); }
   try { stopSelfModification(); } catch (_) {}
   try { stopResearchScout(); } catch (_) {}
+  try { stopWorkflowTrials(); } catch (e) { console.error('[daemon] workflow trials stop:', e.message); }
   try { stopSkillForge(); } catch (_) {}
   try { stopGeneralIntelligence(); } catch (e) { console.error('general intelligence stop error:', e.message); }
   try { stopSelfAudit(); } catch (_) {}
@@ -1055,6 +1060,7 @@ export function getDaemonStatus() {
     dreams: getDreamStats(),
     memorySearch: (() => { const m = memorySearchStatus(); return m.error ? { error: m.error } : { memories: m.memories, vectors: m.vectors, vectorCoverage: m.vectorCoverage, searches: m.searches, hybrid: m.hybrid, keywordOnly: m.keywordOnly, embedErrors: m.embedErrors, indexerBusy: m.indexer.busy, lastBenchMrr: m.lastBench?.overall?.[m.lastBench.systems[m.lastBench.systems.length - 1]]?.mrr ?? null }; })(),
     sweeper: (() => { const s = getSweeperStatus(); return { running: s.running, sweeps: s.sweeps, totals: s.totals, currentlyStuck: s.currentlyStuck, lastAt: s.lastAt }; })(),
+    workflowTrials: (() => { try { return trialStats(); } catch (e) { return { error: e.message }; } })(),
     researchScout: (() => { try { const s = getResearchStatus(); return { running: s.running, scans: s.scans, lastScanAt: s.lastScanAt, items: s.items, relevantItems: s.relevantItems, proposals: s.proposals, pendingExperiment: s.pendingExperiment && s.pendingExperiment.tunable, pendingCode: s.pendingCode && s.pendingCode.targetFile }; } catch (e) { return { error: e.message }; } })(),
     generalIntelligence: (() => { try { const s = getGeneralIntelligenceStatus(); return { enabled: s.enabled, running: s.running, g: s.latestAuto?.g ?? null, brier: s.latestAuto?.brier ?? null, baselineDirect: s.baselineDirect?.g ?? null, upliftOverDirect: s.upliftOverDirect, runs: s.runs, lessons: s.lessons, inFlight: s.inFlight, agentCalls: s.reasoner?.agentCalls, cycles: s.cycles }; } catch (e) { return { error: e.message }; } })(),
     skillForge: (() => { try { const s = getSkillForgeStatus(); return { enabled: s.enabled, running: s.running, registered: s.registered, counts: s.counts, calls24h: s.calls24h, compositions: s.compositions, nextCandidate: s.nextCandidate && s.nextCandidate.loopId, outcomes: s.outcomes, cycles: s.cycles, crystallizing: s.crystallizing }; } catch (e) { return { error: e.message }; } })(),

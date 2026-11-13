@@ -4,6 +4,7 @@ import { chatOllama } from '../commerce/shared.js';
 import { topoSort, validateWorkflow } from './engine.js';
 import { publish } from '../fleet/bus.js';
 import { tunable } from '../intelligence/tunables.js';
+import { SAFE_NODES, classifyNodes, migrateTrials } from './trials.js';
 
 const now = () => Date.now();
 
@@ -106,9 +107,12 @@ const DEFAULT_MAX_UNRUN = Math.max(1, parseInt(process.env.SYNTH_MAX_UNRUN, 10) 
 const maxUnrun = () => Math.max(1, Math.round(tunable('synth.max_unrun', DEFAULT_MAX_UNRUN))); // Phase Y: live tunable
 export function checkSynthesisAllowed() {
   try {
+    migrateTrials();
+    // waiting = not yet run and not yet triaged or trialled (workflow/trials.js is the consumer since 2026-11-13)
     const unrun = db.prepare(
       `SELECT COUNT(*) AS c FROM synthesized_workflows sw
-       WHERE sw.created_at > ? AND NOT EXISTS (SELECT 1 FROM workflow_runs r WHERE r.workflow_id = sw.workflow_id)`
+       WHERE sw.created_at > ? AND NOT EXISTS (SELECT 1 FROM workflow_runs r WHERE r.workflow_id = sw.workflow_id)
+         AND COALESCE(sw.trial_status, 'untriaged') IN ('untriaged', 'queued', 'running')`
     ).get(now() - 7 * 86400_000)?.c || 0;
     if (unrun >= maxUnrun()) return { allowed: false, reason: 'unconsumed_backlog', unrun, max: maxUnrun() };
     return { allowed: true, unrun, max: maxUnrun() };
@@ -125,9 +129,9 @@ export async function synthesizeWorkflow(goal, { constraints, synthesizedBy = 's
     }
   }
 
-  const prompt = constraints
-    ? `Goal: ${goal}\n\nConstraints: ${constraints}`
-    : `Goal: ${goal}`;
+  // autonomous synthesis may only use steps the trial runner can run unattended (no store, code, GPU or commerce records)
+  const safeOnly = !force ? `\n\nUse only these node types: ${[...SAFE_NODES].join(', ')}.` : '';
+  const prompt = (constraints ? `Goal: ${goal}\n\nConstraints: ${constraints}` : `Goal: ${goal}`) + safeOnly;
 
   const response = await chatOllama([
     { role: 'system', content: SYNTH_PROMPT },
@@ -135,6 +139,13 @@ export async function synthesizeWorkflow(goal, { constraints, synthesizedBy = 's
   ], { priority: 'synthesize', label: `synthesize:${synthesizedBy}` });
 
   const wf = validateSynthesized(parseSynthResponse(response));
+  if (!force) {
+    const c = classifyNodes(wf.nodes);
+    if (!c.safe) {
+      try { publish('system', 'system.evolution', JSON.stringify({ action: 'workflow_synthesis_refused', reason: 'unsafe_steps', steps: c.reasons, goal: goal.slice(0, 160), synthesizedBy })); } catch (_) {}
+      return { synthesized: false, reason: 'unsafe_steps', steps: c.reasons, note: 'autonomous workflows may only use steps that are safe to run unattended' };
+    }
+  }
 
   const id = randomUUID();
   const t = now();

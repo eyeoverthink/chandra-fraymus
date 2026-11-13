@@ -426,7 +426,7 @@ export function absorbCodebase(rootDir) {
   return outline;
 }
 
-function outlineToText(outline) {
+export function outlineToText(outline) {
   const lines = [];
   lines.push(`# Chandra-FRAYMUS Codebase Outline — ${outline.timestamp}`);
   lines.push(`\nStats: ${outline.stats.totalFiles} files, ${outline.stats.totalLines} lines, ${outline.stats.totalRoutes} REST endpoints, ${outline.stats.dbTableCount} DB tables, ${outline.stats.agentCount} agents`);
@@ -469,8 +469,8 @@ DO NOT suggest:
 - Framework migrations
 - Vague "consider" suggestions
 
-Return ONLY valid JSON array:
-[{
+Return ONLY a JSON object of this shape (JSON mode returns an object, so the list goes inside it):
+{"proposals": [{
   "category": "performance|reliability|security|architecture|feature|refactor|testing",
   "priority": "critical|high|medium|low",
   "title": "Short imperative title",
@@ -478,9 +478,9 @@ Return ONLY valid JSON array:
   "targetFiles": ["exact/file/paths"],
   "rationale": "Why this improves the system",
   "implementationSketch": "Concrete steps to implement"
-}]`;
+}]}`;
 
-function parseJSONArray(raw) {
+export function parseJSONArray(raw) {
   const parsed = parseJSON(raw);
   if (Array.isArray(parsed)) return parsed;
   // Try extracting array from within object
@@ -488,6 +488,9 @@ function parseJSONArray(raw) {
     for (const v of Object.values(parsed)) {
       if (Array.isArray(v)) return v;
     }
+    // JSON mode returns an object; asked for "an array" a model often answers with ONE item as a bare object.
+    // Every cycle from 2026-11-12 21:00 failed on that ("did not return a parseable JSON array").
+    if (parsed.title || parsed.proposal_id || parsed.id || parsed.verdict) return [parsed];
   }
   // Last resort: find [...] in raw text
   const bracketMatch = raw.match(/\[[\s\S]*\]/);
@@ -512,7 +515,7 @@ function condensedOutline(outlineText) {
   return kept.join('\n');
 }
 
-async function analyzeForImprovements(outlineText, genomeContext = '') {
+export async function analyzeForImprovements(outlineText, genomeContext = '') {
   const trimmed = condensedOutline(outlineText);
   const gateMods = getAutonomyModifiers();
   const analysisTemp = Math.min(0.8, Math.max(0.1, BASE_ANALYSIS_TEMP * gateMods.evolutionRate));
@@ -525,13 +528,16 @@ async function analyzeForImprovements(outlineText, genomeContext = '') {
 
   const raw = await chatOllama([
     { role: 'system', content: ANALYSIS_PROMPT + tierHint },
-    { role: 'user', content: `Analyze this codebase and return a JSON array of up to ${maxProposals} improvements:\n\n` + trimmed + genomeContext },
+    { role: 'user', content: `Analyze this codebase and return a JSON object {"proposals": [ ... ]} with up to ${maxProposals} improvements:\n\n` + trimmed + genomeContext },
   // JSON mode, a real priority and room to finish: 40 of 40 cycles failed in the 24 h to 2026-11-12 (22 timeouts at the
   // 180 s default while writing up to 4,096 tokens, 15 replies that were not JSON, 2 dropped as untagged jobs)
   ], { temperature: analysisTemp, maxTokens: 4096, format: 'json', priority: 'goal', label: 'ouroboros:analyze', timeoutMs: 420_000 });
   const proposals = parseJSONArray(raw);
   if (!proposals) throw new Error('LLM did not return a parseable JSON array');
-  return proposals.filter(p => p.title && p.category).slice(0, maxProposals);
+  const kept = proposals.filter(p => p.title && p.category).slice(0, maxProposals);
+  // an empty answer used to pass silently as a "complete" cycle with 0 proposals (2026-11-13): say what came back
+  if (!kept.length) console.error(`[ouroboros] analysis returned no usable proposal (${proposals.length} items; reply ${String(raw).length} chars): ${String(raw).slice(0, 300)}`);
+  return kept;
 }
 
 // ─── Phase 3: REVIEW — adversarial second-pass ─────────────────────
@@ -544,13 +550,13 @@ For each proposal, assess:
 3. VALUE — is the improvement worth the effort?
 4. CORRECTNESS — is the analysis accurate?
 
-Return ONLY valid JSON array with one entry per proposal:
-[{
+Return ONLY a JSON object with one review per proposal (JSON mode returns an object, so the list goes inside it):
+{"reviews": [{
   "proposalId": "the id",
   "verdict": "approve|revise|reject",
   "confidence": 0.0-1.0,
   "notes": "Specific feedback"
-}]`;
+}]}`;
 
 async function reviewProposals(proposals, outlineText, genomeContext = '') {
   const summaryForReview = proposals.map(p => ({
@@ -561,7 +567,7 @@ async function reviewProposals(proposals, outlineText, genomeContext = '') {
 
   const raw = await chatOllama([
     { role: 'system', content: REVIEW_PROMPT },
-    { role: 'user', content: `Codebase context (abbreviated):\n${outlineText.slice(0, 3000)}${genomeContext}\n\nProposals to review:\n${JSON.stringify(summaryForReview, null, 2)}` },
+    { role: 'user', content: `Codebase context (abbreviated):\n${outlineText.slice(0, 3000)}${genomeContext}\n\nProposals to review:\n${JSON.stringify(summaryForReview, null, 2)}\n\nReturn a JSON object {"reviews": [ ... ]} with one review per proposal.` },
   ], { temperature: 0.3, maxTokens: 3000, format: 'json', priority: 'goal', label: 'ouroboros:review', timeoutMs: 420_000 });
 
   const reviews = parseJSONArray(raw);
@@ -620,8 +626,12 @@ export async function runCycle(rootDir, { force = false } = {}) {
     // Phase 2: ANALYZE
     db.prepare(`UPDATE ouroboros_cycles SET phase = 'analyze' WHERE id = ?`).run(cycleId);
     const parentGenome = getGenome(cycleId);
+    // only the newest genes go into the prompt: listing all 395 crowded the outline and the instructions out of the
+    // model's window and it answered with nothing (two "complete" cycles with 0 proposals, 2026-11-13)
+    const GENOME_IN_PROMPT = 30;
+    const shownGenes = parentGenome.slice(-GENOME_IN_PROMPT);
     const parentContext = parentGenome.length > 0
-      ? `\n\nThis cycle inherits from generation ${parent.generation} (${parentId}). Its genome carries ${inheritedGenes} inherited genes:\n${parentGenome.map(g => `- [${g.category}] ${g.title}`).join('\n')}\n\nPropose improvements that BUILD ON these accepted patterns. Avoid re-proposing what is already in the genome.`
+      ? `\n\nThis cycle inherits from generation ${parent.generation} (${parentId}). Its genome carries ${inheritedGenes} inherited genes; the ${shownGenes.length} newest:\n${shownGenes.map(g => `- [${g.category}] ${g.title}`).join('\n')}\n\nPropose improvements that BUILD ON these accepted patterns. Avoid re-proposing what is already in the genome.`
       : '';
     const analyzed = await analyzeForImprovements(outlineText, parentContext);
 
