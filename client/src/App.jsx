@@ -14,6 +14,7 @@ import ConstellationView from './nexus/ConstellationView.jsx';
 import LibraryView from './nexus/LibraryView.jsx';
 import DetailDrawer from './nexus/DetailDrawer.jsx';
 import FraymusApp from './fraymus/FraymusApp.jsx';
+import orbLogo from './assets/fraymus-orb-96.png';
 
 const ManifestationPlane = lazy(() => import('./nexus/ManifestationPlane.jsx'));
 
@@ -248,10 +249,15 @@ export default function App() {
         background: '#111118', borderBottom: '1px solid #222', flexShrink: 0, gap: 4,
       }}>
         <div className="chandra-title" style={{
-          display: 'flex', alignItems: 'baseline', gap: 8, marginRight: 32, flexShrink: 0,
+          display: 'flex', alignItems: 'center', gap: 9, marginRight: 32, flexShrink: 0,
         }}>
-          <h1 style={{ fontSize: 16, fontWeight: 700, color: '#a78bfa', letterSpacing: 1, margin: 0 }}>CHANDRA</h1>
-          <span style={{ fontSize: 10, color: '#555' }}>NEXUS</span>
+          {/* the F.R.A.Y.M.U.S. mark: the live orb, isolated (docs/brand) */}
+          <img src={orbLogo} alt="" aria-hidden="true" width={38} height={38}
+            style={{ display: 'block', flexShrink: 0, filter: 'drop-shadow(0 0 6px rgba(62,224,255,0.35))' }} />
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <h1 style={{ fontSize: 16, fontWeight: 700, color: '#a78bfa', letterSpacing: 1, margin: 0 }}>CHANDRA</h1>
+            <span style={{ fontSize: 10, color: '#555' }}>NEXUS</span>
+          </div>
         </div>
 
         <div className="nav-views" style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
