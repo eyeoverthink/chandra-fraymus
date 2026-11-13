@@ -262,6 +262,23 @@
 
 .transcript { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow: auto; }
 .transcript p { margin: 0; font-size: 13px; line-height: 1.4; }
+.transcript .turn { font-size: 13px; line-height: 1.45; }
+/* agent answers as formatted text (MarkdownText.jsx) */
+.md { white-space: normal; text-align: left; overflow-wrap: anywhere; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p { margin: 0 0 0.55em; }
+.md .md-h { margin: 0.8em 0 0.35em; font-size: 1.02em; font-weight: 700; color: #e6f6fb; letter-spacing: 0.01em; }
+.md ul, .md ol { margin: 0.2em 0 0.6em; padding-left: 1.3em; }
+.md li { margin: 0.18em 0; }
+.md li::marker { color: var(--cyan); }
+.md strong { color: #f1fbff; font-weight: 650; }
+.md code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.88em; background: rgba(62, 224, 255, 0.08); border: 1px solid rgba(62, 224, 255, 0.14); border-radius: 4px; padding: 0 0.3em; }
+.md pre { margin: 0.4em 0 0.7em; padding: 8px 10px; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
+.md pre code { background: none; border: none; padding: 0; white-space: pre; }
+.md a { color: var(--cyan); }
+.md hr { border: none; border-top: 1px solid var(--line); margin: 0.7em 0; }
+.answer .md-answer { font-size: 15px; line-height: 1.55; }
 .transcript b { display: block; font-size: 10px; letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; }
 .transcript .user { text-align: right; }
 .tool { border-top: 1px solid var(--line); padding: 8px 0; font-size: 13px; }

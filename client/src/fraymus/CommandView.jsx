@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Orb from './Orb.jsx';
+import MarkdownText from './MarkdownText.jsx';
 import BrainGraph from './BrainGraph.jsx';
 import { api, formatBytes } from './api.js';
 
@@ -430,7 +431,7 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
             </label>
           )}
           <article className="answer">
-            {assistant?.answer || (phase === 'thinking'
+            {assistant?.answer ? <MarkdownText text={assistant.answer} className="md-answer" /> : (phase === 'thinking'
               ? (mode === 'quick' ? 'Working with the installed model…' : 'The agent is working. Tool calls appear in the transcript panel as they happen.')
               : (brain?.connected && mode !== 'quick'
                 ? 'Ask for anything below, or in your own words. The agent picks tools, shows each call, and stops for your approval before anything leaves this machine.'
@@ -512,10 +513,10 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
           <div className="transcript">
             {(session?.turns || []).length === 0 && <p className="muted">Nothing has been said in this session.</p>}
             {(session?.turns || []).map(turn => (
-              <p key={turn.id} className={turn.role}>
+              <div key={turn.id} className={`turn ${turn.role}`}>
                 <b>{turn.role === 'user' ? 'You' : 'F.R.A.Y.M.U.S.'}</b>
-                {turn.role === 'user' ? turn.text : (turn.answer || turn.error || turn.state)}
-              </p>
+                {turn.role === 'user' ? <span>{turn.text}</span> : turn.answer ? <MarkdownText text={turn.answer} /> : <span>{turn.error || turn.state}</span>}
+              </div>
             ))}
           </div>
           <div className="tools">
