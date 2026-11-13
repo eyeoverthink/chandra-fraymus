@@ -14,12 +14,16 @@ let cpuSample = null;
 export function classifyHost(hostname) {
   const host = String(hostname || '').replace(/^\[|\]$/g, '').toLowerCase();
   if (!host) return 'invalid';
-  if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return 'local';
+  if (host === 'localhost' || host.endsWith('.localhost') || host === '127.0.0.1' || host === '::1' || host === '::') return 'local';
   if (host.endsWith('.local') || host.endsWith('.internal')) return 'private';
+  const mapped = host.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);   // IPv4-mapped IPv6 reaches the IPv4 address
+  if (mapped) return classifyHost(mapped[1]);
   const v4 = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
   if (v4) {
     const a = Number(v4[1]);
     const b = Number(v4[2]);
+    if (a === 0) return 'local';                      // 0.0.0.0 reaches this machine
+    if (a === 169 && b === 254) return 'private';     // link-local, including cloud metadata endpoints
     if (a === 10 || a === 127) return a === 127 ? 'local' : 'private';
     if (a === 192 && b === 168) return 'private';
     if (a === 172 && b >= 16 && b <= 31) return 'private';

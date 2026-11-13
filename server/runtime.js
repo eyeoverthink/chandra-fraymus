@@ -272,7 +272,12 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   // budget before a goal was read, so web research failed `budget_context` (found 2026-11-12). They keep every
   // capability; their prefix becomes their group, loaded by goal keywords or tools.enable.
   const grouped = t => (t.group || !/^[a-z][\w-]*\./i.test(t.name) ? t : { ...t, group: t.name.split('.')[0] === 'ab' ? 'ab-testing' : t.name.split('.')[0] });
-  const normTool = t => grouped(t.handler && !t.execute ? { ...t, execute: ({ args }, ctx) => t.handler(args || {}, ctx) } : t);
+  // The durable agent pauses only on `approvalRequired`; fleet-style tools label the same thing as risk 'approval' /
+  // 'approval_required' or safety 'approval_required'. Until 2026-11-12 nothing translated it, so the durable agent ran
+  // approval-labelled tools (store writes, publishing) without asking. `approvalWhen(args)` is checked per call.
+  const labelledApproval = t => t.risk === 'approval' || t.risk === 'approval_required' || t.safety === 'approval_required';
+  const withApproval = t => (t.approvalRequired || !labelledApproval(t) ? t : { ...t, approvalRequired: true });
+  const normTool = t => grouped(withApproval(t.handler && !t.execute ? { ...t, execute: ({ args }, ctx) => t.handler(args || {}, ctx) } : t));
   const normTools = arr => arr.map(normTool);
   agent = createAgentService({ db, workspace, ollamaUrl, fetchImpl,
     cloud, codeExecutor, desktopBroker:desktop, extraTools: normTools([...createExtensionTools(artifacts, web),...desktop.tools(),

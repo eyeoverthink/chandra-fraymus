@@ -1,7 +1,7 @@
 import {
   startRun, decideApproval, listAgents, getAgent,
   saveAgentManifest, resetAgentManifest, listThreads, getThread,
-  getQueueStatus, reloadManifests, fleetToolNames, modelPoolStatus,
+  getQueueStatus, reloadManifests, fleetToolNames, modelPoolStatus, searchSharedTools, listSharedTools,
 } from './runtime.js';
 
 export function installFleetRoutes(app) {
@@ -55,6 +55,17 @@ export function installFleetRoutes(app) {
   app.post('/api/fleet/approvals/:id', route(async (req, res) => {
     const result = await decideApproval(req.body?.userId || 'local', req.params.id, req.body?.approve !== false);
     res.json(result);
+  }));
+
+  // Every shared tool with its approval label (every agent may use every tool; only approvals stop one)
+  app.get('/api/fleet/tools', route((_req, res) => { const tools = listSharedTools(); res.json({ total: tools.length, tools }); }));
+
+  // What an agent's tools.search would find
+  app.get('/api/fleet/tools/search', route((req, res) => {
+    const q = String(req.query.q || '').slice(0, 300);
+    if (!q.trim()) return res.status(400).json({ error: 'q required' });
+    const limit = Math.min(25, Math.max(1, parseInt(req.query.limit, 10) || 10));
+    res.json({ query: q, results: searchSharedTools(q, limit) });
   }));
 
   // Phase D: runtime status — queue depth, streaming, hot-reload

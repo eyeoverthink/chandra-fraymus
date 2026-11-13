@@ -523,7 +523,9 @@ export function createAgentService({ db, workspace, ollamaUrl, fetchImpl = fetch
             remainingOutput:()=>{const saved=readUsage(id);return Math.max(0,budget.maxOutputTokens-saved.outputTokens-(saved.reservedOutputTokens??0));},
             track:promise=>{assertLiveAuxiliary(id,call.id);return tracked(Promise.resolve(promise));}
           };
-          if (call.tool.approvalRequired) {
+          // a tool whose effect depends on its arguments (shopper.audit with autoApply) asks per call; a check that throws asks
+          let conditional=false;if(typeof call.tool.approvalWhen==='function'){try{conditional=Boolean(call.tool.approvalWhen(call.args||{}));}catch(error){console.error('[agent] approvalWhen:',error.message);conditional=true;}}
+          if (call.tool.approvalRequired||conditional) {
             try{context.approvalId = await waitForApproval(id, call, context);}
             catch(error){
               active(id,signal);

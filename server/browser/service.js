@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { writeFileSync, mkdirSync } from 'node:fs';
+import dns from 'node:dns/promises';
 import { DATA_DIR } from '../config.js';
+import { classifyHost } from '../fraymus-os/registry.js';
 
 let puppeteer;
 try { puppeteer = await import('puppeteer'); } catch { puppeteer = null; }
@@ -11,6 +13,44 @@ try { mkdirSync(SCREENSHOTS_DIR, { recursive: true }); } catch {}
 
 let browser = null;
 const pages = new Map();
+
+// Pages opened for agents are public-only: every agent may use the browser tools, and without this a page could
+// open file:///…/.env, Chandra's own API on 127.0.0.1 (approvals included) or a device on the LAN, and hand the
+// result back to the model (found 2026-11-12). Every request such a page makes — the navigation, redirects,
+// subresources, its scripts' fetch/XHR — must be http(s) to a public address. Operator pages (Browser panel) are not limited.
+const publicOnlyPages = new WeakSet();
+const resolved = new Map();   // hostname -> { ok, at }
+async function hostIsPublic(hostname) {
+  if (classifyHost(hostname) !== 'public') return false;
+  if (/^[\d.]+$/.test(hostname) || hostname.includes(':')) return true;   // a literal already classified
+  const hit = resolved.get(hostname);
+  if (hit && Date.now() - hit.at < 300_000) return hit.ok;
+  let ok = false;
+  try { ok = (await dns.lookup(hostname, { all: true })).every(a => classifyHost(a.address) === 'public'); }
+  catch (e) { console.error('browser: lookup failed for', hostname, e.message); }
+  resolved.set(hostname, { ok, at: Date.now() });
+  if (resolved.size > 2000) resolved.delete(resolved.keys().next().value);
+  return ok;
+}
+export async function assertPublicPageUrl(raw) {
+  let u;
+  try { u = new URL(String(raw)); } catch { throw new Error(`not a URL: ${String(raw).slice(0, 80)}`); }
+  if (!['http:', 'https:'].includes(u.protocol)) throw new Error('agents may open only http(s) pages');
+  if (!(await hostIsPublic(u.hostname))) throw new Error(`${u.hostname} is not a public address; agents cannot open local or private pages`);
+  return u.href;
+}
+const settle = p => Promise.resolve(p).catch(e => console.error('browser: request', e.message));
+async function guardPage(page) {
+  publicOnlyPages.add(page);
+  await page.setRequestInterception(true);
+  page.on('request', request => {
+    if (request.isInterceptResolutionHandled?.()) return;
+    let u; try { u = new URL(request.url()); } catch { return settle(request.abort('blockedbyclient')); }
+    if (u.protocol === 'data:' || u.protocol === 'blob:') return settle(request.continue());
+    if (!['http:', 'https:'].includes(u.protocol)) return settle(request.abort('blockedbyclient'));
+    settle(hostIsPublic(u.hostname).then(ok => (ok ? request.continue() : request.abort('blockedbyclient'))));
+  });
+}
 
 export async function launchBrowser() {
   if (!puppeteer) throw new Error('puppeteer not installed — run: npm install puppeteer');
@@ -37,8 +77,10 @@ export function browserStatus() {
 }
 
 export async function openPage(url, opts = {}) {
+  if (opts.publicOnly && url) url = await assertPublicPageUrl(url);
   await launchBrowser();
   const page = await browser.newPage();
+  if (opts.publicOnly) await guardPage(page);
   if (opts.userAgent) await page.setUserAgent(opts.userAgent);
   await page.setViewport({ width: opts.width || 1280, height: opts.height || 900 });
   const id = randomUUID().slice(0, 8);
@@ -56,6 +98,7 @@ export async function openPage(url, opts = {}) {
 
 export async function navigatePage(pageId, url) {
   const page = getPage(pageId);
+  if (publicOnlyPages.has(page)) url = await assertPublicPageUrl(url);
   await page.goto(url, { waitUntil: 'networkidle2', timeout: 30_000 });
   return { url: page.url(), title: await page.title() };
 }

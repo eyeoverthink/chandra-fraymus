@@ -61,7 +61,10 @@ export function recoverTextToolCall(content, tools) {
   return { id: `text_${Date.now().toString(36)}`, function: { name: call.name, arguments: args } };
 }
 
-const missingToolMessage =(tool, names) => `[harness] Your last message described a call to \`${tool}\`, but you have no tool with that name, so nothing ran and any result you wrote was invented. Your tools are: ${names.slice(0, 40).join(', ') || '(none)'}. Use one of them with a real tool call, or say plainly that you cannot do this.`;
+const missingToolMessage =(tool, names) => `[harness] Your last message described a call to \`${tool}\`, but no shared tool has that name, so nothing ran and any result you wrote was invented. Tools attached now: ${names.slice(0, 40).join(', ') || '(none)'}. Use one of them, find another with tools.search, or say plainly that you cannot do this.`;
+const unattachedToolMessage = tool => `[harness] Your last message described a call to \`${tool}\`, but no call was made, so any result you wrote was invented. \`${tool}\` is a shared tool that is not attached to this step: call tools.load with {"names": ["${tool}"]}, then make the real call.`;
 /** tools (optional): the agent's real tools — when the claimed one is not among them, say so. */
-export const nudgeMessage = (tool, tools = null) => Array.isArray(tools) && !tools.some(t => t.name === tool) ? missingToolMessage(tool, tools.map(t => t.name)) : `[harness] Your last message described a call to \`${tool}\` but no tool call was made, so any result you wrote was invented and must not be used. Make the real ${tool} tool call now with its JSON arguments, or answer without claiming any tool output.`;
+export const nudgeMessage = (tool, tools = null, shared = null) => Array.isArray(tools) && !tools.some(t => t.name === tool)
+  ? (Array.isArray(shared) && shared.some(t => t.name === tool) ? unattachedToolMessage(tool) : missingToolMessage(tool, tools.map(t => t.name)))
+  :`[harness] Your last message described a call to \`${tool}\` but no tool call was made, so any result you wrote was invented and must not be used. Make the real ${tool} tool call now with its JSON arguments, or answer without claiming any tool output.`;
 export const unverifiedMessage = tool => `[harness] The reply above describes output from \`${tool}\` that was never produced — no tool call was made in this run. Treat that result as unverified.`;

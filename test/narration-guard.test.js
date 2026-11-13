@@ -38,9 +38,14 @@ test('catches a fabricated response from a tool the agent was never given', () =
 test('a call written as text is caught, and the nudge says when the tool does not exist', () => {
   const reply = 'I will provide a function call.\n\n{"name": "weather_lookup", "parameters": {"location": "Oslo"}}';
   assert.equal(narratedToolCall(reply, tools), 'weather_lookup');
-  assert.match(nudgeMessage('weather_lookup', tools), /no tool with that name/);
+  assert.match(nudgeMessage('weather_lookup', tools), /no shared tool has that name/);
   assert.match(nudgeMessage('weather_lookup', tools), /reason, skill\.replay_window, bus_publish/);
+  assert.match(nudgeMessage('weather_lookup', tools), /tools\.search/);
   assert.match(nudgeMessage('reason', tools), /Make the real reason tool call/);
+  // a shared tool that is only not attached to this step: say how to attach it, not that it does not exist
+  const shared = [...tools, { name: 'weather_lookup' }];
+  assert.match(nudgeMessage('weather_lookup', tools, shared), /shared tool that is not attached/);
+  assert.match(nudgeMessage('weather_lookup', tools, shared), /tools\.load with \{"names": \["weather_lookup"\]\}/);
   assert.equal(narratedToolCall('The config is {"name": "prod", "region": "eu"} as before.', tools), null);
 });
 

@@ -125,19 +125,79 @@ function getManifest(id) {
 }
 
 import { narratedToolCall, recoverTextToolCall, nudgeMessage, unverifiedMessage, MAX_NARRATION_NUDGES } from './narration-guard.js';
-import { needsApproval, selectToolsForRun } from './tool-select.js';
+import { needsApproval, selectToolsForRun, rankTools } from './tool-select.js';
 import { tunable } from '../intelligence/tunables.js';
 
-function matchesTool(allow, name) {
-  if (allow === '*') return true;
-  if (!Array.isArray(allow)) return true;
-  return allow.some(p => p === name || (p.endsWith('*') && name.startsWith(p.slice(0, -1))));
+// Every agent may use every shared tool: tools, skills and adaptations are shared, that is the point of the app.
+// Until 2026-11-12 a manifest's `tools:` list was also an access boundary, so 75 of 84 agents could reach a median
+// of 6 of the ~360 shared tools. The list is now a preference (pinned into the per-run offer), not a limit.
+// What still stops a call is safety, not membership: an explicit `permissions.deny` in a manifest, approvals for
+// risky tools, the writ tiers and the budget reserve.
+function agentTools(agent) {
+  return toolRegistry.filter(t => checkPermission(agent, t.name).allowed);
 }
 
-function agentTools(agent) {
-  // forged skills (group 'skill') are sandboxed pure functions proven by execution; by default every
-  // agent may call them without the manifest naming `skill.*` (SKILLS_FOR_ALL_AGENTS=0 restores opt-in)
-  return toolRegistry.filter(t => matchesTool(agent.tools, t.name) || (t.group === 'skill' && t.forAllAgents));
+// A run is offered the ~24 tools most relevant to its task (a small model cannot take 360 schemas). These two
+// built-ins let the agent reach the rest: find a shared tool, attach it, call it from the next step on.
+const MAX_LOADED_PER_RUN = 24;
+const runLoaded = new Map();   // runId -> Set of tool names the agent attached with tools.load
+const clipText = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+const DISCOVERY_TOOLS = [
+  {
+    name: 'tools.search', group: 'discovery', risk: 'low',
+    description: 'Search every shared tool in Chandra (not only the ones attached to this step) by what you need to do. Returns names, groups and descriptions. Attach one with tools.load to call it.',
+    parameters: { type: 'object', properties: { query: { type: 'string', description: 'What you need to do, in words' }, limit: { type: 'integer', description: 'How many results (1–25, default 10)' } }, required: ['query'], additionalProperties: false },
+    execute: async ({ args }, ctx) => {
+      const limit = Math.min(25, Math.max(1, parseInt(args?.limit, 10) || 10));
+      const permitted = ctx.agent ? agentTools(ctx.agent) : toolRegistry;
+      const loaded = runLoaded.get(ctx.runId) || new Set();
+      const hits = rankTools(permitted, String(args?.query || '')).filter(s => s.score > 0).slice(0, limit);
+      return { total: permitted.length, results: hits.map(({ t }) => ({ name: t.name, group: t.group || null, description: clipText(t.description, 180), needsApproval: needsApproval(t), attached: loaded.has(t.name) })),
+        next: hits.length ? 'Call tools.load with the names you need; they can be called from your next step.' : 'Nothing matched; try other words.' };
+    },
+  },
+  {
+    name: 'tools.load', group: 'discovery', risk: 'low',
+    description: 'Attach shared tools to this run by exact name (from tools.search), so you can call them from your next step.',
+    parameters: { type: 'object', properties: { names: { type: 'array', items: { type: 'string' }, description: 'Exact tool names' } }, required: ['names'], additionalProperties: false },
+    execute: async ({ args }, ctx) => {
+      const names = (Array.isArray(args?.names) ? args.names : [args?.names]).map(n => String(n || '').trim()).filter(Boolean);
+      const permitted = new Map((ctx.agent ? agentTools(ctx.agent) : toolRegistry).map(t => [t.name, t]));
+      const set = runLoaded.get(ctx.runId) || new Set();
+      const loaded = [], unknown = [], full = [];
+      for (const n of names) {
+        if (!permitted.has(n)) unknown.push(n);
+        else if (set.has(n)) loaded.push(n);
+        else if (set.size >= MAX_LOADED_PER_RUN) full.push(n);
+        else { set.add(n); loaded.push(n); }
+      }
+      runLoaded.set(ctx.runId, set);
+      while (runLoaded.size > 500) runLoaded.delete(runLoaded.keys().next().value);   // oldest runs first; a run ends in many places
+      return { loaded, unknown, ...(full.length ? { notLoaded: full, reason: `at most ${MAX_LOADED_PER_RUN} extra tools per run` } : {}),
+        next: loaded.length ? 'These are attached; call them with real tool calls from your next step.' : 'Nothing was attached; check the names with tools.search.' };
+    },
+  },
+];
+const findTool = name => DISCOVERY_TOOLS.find(t => t.name === name) || toolRegistry.find(t => t.name === name);
+
+/** Every shared tool with its safety label (operator route GET /api/fleet/tools): the list to audit, since every
+ *  agent can reach every tool and only an approval label stops one. `approval`: always | when (depends on args) | no. */
+export function listSharedTools() {
+  return toolRegistry.map(t => ({ name: t.name, group: t.group || null, risk: t.risk || null, safety: t.safety || null,
+    approval: needsApproval(t, {}) ? 'always' : typeof t.approvalWhen === 'function' ? 'when' : 'no', description: clipText(t.description, 220) }));
+}
+
+/** What an agent's tools.search would return for `query` (operator route GET /api/fleet/tools/search). */
+export function searchSharedTools(query, limit = 10) {
+  return rankTools(toolRegistry, String(query || '')).filter(s => s.score > 0).slice(0, limit)
+    .map(({ t, score }) => ({ name: t.name, group: t.group || null, score, description: clipText(t.description, 180), needsApproval: needsApproval(t) }));
+}
+
+/** The schemas offered at one step: the task's selection, what the agent attached, and the discovery tools. */
+function offeredTools(base, permitted, runId) {
+  const loaded = runLoaded.get(runId);
+  const extra = loaded?.size ? permitted.filter(t => loaded.has(t.name) && !base.includes(t)) : [];
+  return [...base, ...extra, ...DISCOVERY_TOOLS];
 }
 
 function agentRoster(currentId) {
@@ -384,22 +444,14 @@ function getHistory(threadId, limit = MAX_HISTORY) {
 }
 
 async function executeTool(toolName, args, ctx) {
-  const tool = toolRegistry.find(t => t.name === toolName);
+  const tool = findTool(toolName);
   if (!tool) {
-    const sealed = sealRefusal(toolName, `Unknown tool: ${toolName}`);
+    const sealed = sealRefusal(toolName, `Unknown tool: ${toolName}. Find shared tools with tools.search.`);
     persistEvidence(ctx.runId, ctx.step || 0, sealed);
     return sealed;
   }
 
-  // Manifest boundary: with the whole server's tools in the registry, an agent may only execute what
-  // its manifest grants (plus for-all-agents skill tools) — being able to name a tool is not a grant.
-  if (ctx.agent && !(matchesTool(ctx.agent.tools, toolName) || (tool.group === 'skill' && tool.forAllAgents))) {
-    const sealed = sealRefusal(toolName, "tool '" + toolName + "' is not in this agent's manifest");
-    persistEvidence(ctx.runId, ctx.step || 0, sealed);
-    return sealed;
-  }
-
-  // Permission check (harness-enforced)
+  // Permission check (harness-enforced): an explicit `permissions.deny` / `allow` in the manifest
   if (ctx.agent) {
     const perm = checkPermission(ctx.agent, toolName);
     if (!perm.allowed) {
@@ -427,7 +479,7 @@ async function executeTool(toolName, args, ctx) {
     return sealed;
   }
 
-  if (needsApproval(tool)) {
+  if (needsApproval(tool, args || {})) {
     const approvalId = randomUUID();
     db.prepare(`INSERT INTO approvals (id, run_id, thread_id, user_id, call_id, tool, args, status, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`).run(
@@ -484,10 +536,10 @@ async function drive(runId, depth = 0) {
   // Harness: create run envelope for audit trail
   const lastUserMsg = db.prepare("SELECT content FROM messages WHERE thread_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1").get(run.thread_id);
   const envelope = createRunEnvelope(runId, agent.id, lastUserMsg?.content || '');
-  // The registry can hold every tool the server has; the model is offered only the most relevant
-  // few for this task. Tools the manifest names explicitly are pinned ahead of wildcard matches.
-  const tools = selectToolsForRun(permitted, lastUserMsg?.content || '', { max: Math.round(tunable('fleet.max_tools_per_run', 24)), pinned: Array.isArray(agent.tools) ? agent.tools.filter(n => !n.includes('*')) : [] });
-  if (tools.length < permitted.length) ledger.record('fleet.tools_offered', { agent: agent.id, runId, offered: tools.map(t => t.name), permitted: permitted.length }, 'fleet');
+  // Every agent may use every shared tool; the model is offered the most relevant few for this task (the
+  // manifest's own list is pinned ahead), plus tools.search / tools.load to reach the rest. Rebuilt each step.
+  const baseTools = selectToolsForRun(permitted, lastUserMsg?.content || '', { max: Math.round(tunable('fleet.max_tools_per_run', 24)), pinned: Array.isArray(agent.tools) ? agent.tools.filter(n => !n.includes('*')) : [] });
+  if (baseTools.length < permitted.length) ledger.record('fleet.tools_offered', { agent: agent.id, runId, offered: baseTools.map(t => t.name), permitted: permitted.length }, 'fleet');
 
   // Perspective auto-assess: frame the run before the agent starts (top-level only)
   if (depth === 0 && lastUserMsg?.content) {
@@ -535,7 +587,9 @@ async function drive(runId, depth = 0) {
       } catch (_) {}
     }
 
-    const sysContent = (await systemPrompt(agent, userId, typeof lastUser?.content === 'string' ? lastUser.content : '')) + emotionNote;
+    const tools = offeredTools(baseTools, permitted, runId);
+    const sysContent = (await systemPrompt(agent, userId, typeof lastUser?.content === 'string' ? lastUser.content : '')) + emotionNote
+      + `\n\nTools: you may use any of the ${permitted.length} tools Chandra shares; ${tools.length} are attached to this step. If you need one that is not attached, call tools.search, then tools.load, then call it. Never describe a tool result you did not get from a real call.`;
     const messages = [{ role: 'system', content: sysContent }, ...getHistory(run.thread_id)];
 
     let res;
@@ -573,7 +627,7 @@ async function drive(runId, depth = 0) {
         const nudged = narrationNudges < MAX_NARRATION_NUDGES;
         ledger.record('fleet.narrated_tool_call', { agent: agent.id, tool: narrated, step, runId, nudged }, 'fleet');
         broadcastFn('fleet', { type: 'narrated_tool_call', runId, agentId: agent.id, tool: narrated, nudged });
-        addMsg(run.thread_id, runId, { role: 'system', content: nudged ? nudgeMessage(narrated, tools) : unverifiedMessage(narrated) });
+        addMsg(run.thread_id, runId, { role: 'system', content: nudged ? nudgeMessage(narrated, tools, permitted) : unverifiedMessage(narrated) });
         if (nudged) { narrationNudges++; continue; }
       }
       setRun(runId, { status: 'done' });
@@ -591,8 +645,8 @@ async function drive(runId, depth = 0) {
     // Phase D: parallel tool execution — safe tools with no approval run concurrently
     const canParallel = res.tool_calls.length > 1 &&
       res.tool_calls.every(tc => {
-        const t = toolRegistry.find(x => x.name === tc.function?.name);
-        return t && !needsApproval(t);
+        const t = findTool(tc.function?.name);
+        return t && !needsApproval(t, tc.function?.arguments || {});
       });
 
     const executeOne = async (tc) => {

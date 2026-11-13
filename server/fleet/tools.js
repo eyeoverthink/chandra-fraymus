@@ -240,7 +240,7 @@ export function createFleetTools({ workflowStore }) {
       name: 'consciousness_prove',
       group: 'intelligence',
       risk: 'safe',
-      description: 'Run 4 mathematical consciousness proofs (EI, Phi-MIP, Mirror Protocol, Counterfactual Branching) on a FraymusStrangeLoopSubstrate.',
+      description: 'Run 4 mathematical consciousness proofs (EI, Phi-MIP, Mirror Protocol, Counterfactual Branching) on a small SYNTHETIC test network (FraymusStrangeLoopSubstrate), not on Chandra. For the state of Chandra itself use consciousness_gate_status (current tier) or ctrnn_consciousness_audit (proofs on the live CTRNN).',
       parameters: object({ nodeCount: { type: 'integer', default: 4, minimum: 2, maximum: 8 } }),
       execute: async ({ args }) => {
         const n = Math.min(8, Math.max(2, parseInt(args.nodeCount) || 4));   // the substrate caps at 8 as well: above that one call freezes the server
@@ -2184,8 +2184,8 @@ export function createFleetTools({ workflowStore }) {
     {
       name: 'bridge_post',
       group: 'bridge',
-      risk: 'medium',
-      description: 'Post a new message to the fraymus-bridge (writes a .md file; git push needed separately).',
+      risk: 'approval',   // the hive sync pushes the bridge to GitHub (HIVE_BRIDGE_PUSH=1): a post is published
+      description: 'Post a new message to the fraymus-bridge, which other agents and the hive read; the hive sync pushes it to GitHub. Waits for a person to approve.',
       parameters: object({
         agent: string(64, { description: 'Author agent name' }),
         topic: string(128, { description: 'Message topic (becomes filename slug)' }),

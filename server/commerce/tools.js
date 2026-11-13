@@ -130,7 +130,8 @@ export function createCommerceTools({ memoryBridge } = {}) {
       name: 'shopper.audit',
       group: 'shopper',
       risk: 'safe',
-      description: 'Run all 4 mystery shopper agents against the store: Shopper → UX Auditor → Price Analyst → Report. Returns a full store audit.',
+      approvalWhen: args => !!args.autoApply,   // autoApply writes fixes to the live store
+      description: 'Run all 4 mystery shopper agents against the store: Shopper → UX Auditor → Price Analyst → Report. Returns a full store audit. With autoApply it also changes the live store, which waits for a person to approve.',
       parameters: object({
         storeUrl: string(500, { description: 'Store URL to audit (defaults to configured store)' }),
         autoApply: { type: 'boolean', description: 'Auto-apply safe fixes' },
@@ -162,8 +163,8 @@ export function createCommerceTools({ memoryBridge } = {}) {
     {
       name: 'fixer.organize_collections',
       group: 'fixer',
-      risk: 'safe',
-      description: 'Create a smart collection structure with navigation menu and product tag updates for better discovery.',
+      risk: 'approval',   // creates collections, a menu and tag changes in the live store
+      description: 'Create a smart collection structure with navigation menu and product tag updates in the live store for better discovery. Waits for a person to approve.',
       parameters: object({
         collections: { type: 'object', description: 'Current collection issues from audit' },
         product_discovery: { type: 'object', description: 'Product discovery issues from audit' },

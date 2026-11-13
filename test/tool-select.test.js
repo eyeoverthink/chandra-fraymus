@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { needsApproval, selectToolsForRun } from '../server/fleet/tool-select.js';
+import { needsApproval, selectToolsForRun, rankTools } from '../server/fleet/tool-select.js';
 
 const mk = (name, description = '', extra = {}) => ({ name, description, ...extra });
 const many = Array.from({ length: 60 }, (_, i) => mk('filler_' + i, 'does nothing in particular'));
@@ -41,4 +41,14 @@ test('selection is deterministic and keeps registry order', () => {
   assert.deepEqual(a, b);
   const idx = a.map(n => tools.findIndex(t => t.name === n));
   assert.deepEqual(idx, [...idx].sort((x, y) => x - y));
+});
+
+test('rankTools finds a shared tool by what it does, best first, and scores no-match zero', () => {
+  const ranked = rankTools(tools, 'publish a message on the bus');
+  assert.equal(ranked[0].t.name, 'bus_publish');
+  assert.ok(ranked[0].score > 0);
+  assert.equal(ranked.find(s => s.t.name === 'filler_3').score, 0);
+  assert.equal(ranked.length, tools.length, 'every tool is ranked; none is hidden');
+  // the per-run offer is the top of the same ranking
+  assert.ok(selectToolsForRun(tools, 'publish a message on the bus', { max: 5 }).some(t => t.name === 'bus_publish'));
 });

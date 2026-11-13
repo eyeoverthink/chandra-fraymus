@@ -896,12 +896,13 @@ export function createFraymusTools() {
         priority: { type: 'integer', minimum: 1, maximum: 10 },
       }, ['task']),
       execute: async ({ args }) => {
-        const result = motor.submit({
-          task: args.task,
-          node: args.nodePreference,
+        // MotorDispatcher has no submit(): every call threw until 2026-11-12. dispatch() queues the job on its node;
+        // only execute() (operator route) runs it — SSH / GitHub CLI executors stay out of an agent's reach.
+        return motor.dispatch({
+          prompt: args.task,
+          ...(args.nodePreference ? { node: args.nodePreference } : {}),
           priority: args.priority || 5,
         });
-        return result;
       },
     },
     {
@@ -1206,7 +1207,7 @@ export function createFraymusTools() {
     {
       name: 'fraymus.consciousness.prove',
       group: 'fraymus-integrity',
-      description: 'Run all 4 mathematical consciousness proofs from ConsciousnessFalsificationSuite: Effective Information, Phi_MIP, Mirror Protocol, Counterfactual Branching.',
+      description: 'Run the 4 consciousness proofs (Effective Information, Phi_MIP, Mirror Protocol, Counterfactual Branching) on a small SYNTHETIC test network, not on Chandra. For the state of Chandra itself use consciousness_gate_status (current tier) or ctrnn_consciousness_audit (proofs on the live CTRNN).',
       parameters: object({ nodeCount: { type: 'integer', minimum: 2, maximum: 8 } }),
       execute: async ({ args }) => {
         const substrate = new FraymusStrangeLoopSubstrate(args.nodeCount || 4);

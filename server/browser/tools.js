@@ -18,7 +18,7 @@ export function createBrowserTools() {
         },
         required: ['url'],
       },
-      execute: async ({ url, userAgent }) => openPage(url, { userAgent }),
+      execute: async ({ args: { url, userAgent } = {} }) => openPage(url, { userAgent, publicOnly: true }),   // agents reach public pages only
     },
     {
       name: 'browser_navigate',
@@ -32,7 +32,7 @@ export function createBrowserTools() {
         },
         required: ['pageId', 'url'],
       },
-      execute: async ({ pageId, url }) => navigatePage(pageId, url),
+      execute: async ({ args: { pageId, url } = {} }) => navigatePage(pageId, url),
     },
     {
       name: 'browser_screenshot',
@@ -46,7 +46,7 @@ export function createBrowserTools() {
         },
         required: ['pageId'],
       },
-      execute: async ({ pageId, fullPage }) => screenshotPage(pageId, { fullPage }),
+      execute: async ({ args: { pageId, fullPage } = {} }) => screenshotPage(pageId, { fullPage }),
     },
     {
       name: 'browser_extract_text',
@@ -61,7 +61,7 @@ export function createBrowserTools() {
         },
         required: ['pageId'],
       },
-      execute: async ({ pageId, selector, maxChars }) => extractText(pageId, { selector, maxChars }),
+      execute: async ({ args: { pageId, selector, maxChars } = {} }) => extractText(pageId, { selector, maxChars }),
     },
     {
       name: 'browser_extract_links',
@@ -72,7 +72,7 @@ export function createBrowserTools() {
         properties: { pageId: { type: 'string' } },
         required: ['pageId'],
       },
-      execute: async ({ pageId }) => extractLinks(pageId),
+      execute: async ({ args: { pageId } = {} }) => extractLinks(pageId),
     },
     {
       name: 'browser_extract_images',
@@ -83,7 +83,7 @@ export function createBrowserTools() {
         properties: { pageId: { type: 'string' } },
         required: ['pageId'],
       },
-      execute: async ({ pageId }) => extractImages(pageId),
+      execute: async ({ args: { pageId } = {} }) => extractImages(pageId),
     },
     {
       name: 'browser_click',
@@ -97,7 +97,7 @@ export function createBrowserTools() {
         },
         required: ['pageId', 'selector'],
       },
-      execute: async ({ pageId, selector }) => clickElement(pageId, selector),
+      execute: async ({ args: { pageId, selector } = {} }) => clickElement(pageId, selector),
     },
     {
       name: 'browser_fill',
@@ -112,7 +112,7 @@ export function createBrowserTools() {
         },
         required: ['pageId', 'selector', 'value'],
       },
-      execute: async ({ pageId, selector, value }) => fillInput(pageId, selector, value),
+      execute: async ({ args: { pageId, selector, value } = {} }) => fillInput(pageId, selector, value),
     },
     {
       name: 'browser_scroll',
@@ -127,12 +127,13 @@ export function createBrowserTools() {
         },
         required: ['pageId'],
       },
-      execute: async ({ pageId, direction, amount }) => scrollPage(pageId, direction, amount),
+      execute: async ({ args: { pageId, direction, amount } = {} }) => scrollPage(pageId, direction, amount),
     },
     {
       name: 'browser_eval',
       group: 'browser',
-      description: 'Execute JavaScript code in the browser page context. Returns the result.',
+      risk: 'approval',   // arbitrary code in a page can submit forms or post anywhere that page can reach
+      description: 'Execute JavaScript code in the browser page context. Returns the result. Waits for a person to approve the exact code.',
       parameters: {
         type: 'object',
         properties: {
@@ -141,7 +142,7 @@ export function createBrowserTools() {
         },
         required: ['pageId', 'code'],
       },
-      execute: async ({ pageId, code }) => evaluateJs(pageId, code),
+      execute: async ({ args: { pageId, code } = {} }) => evaluateJs(pageId, code),
     },
     {
       name: 'browser_wait',
@@ -156,7 +157,7 @@ export function createBrowserTools() {
         },
         required: ['pageId', 'selector'],
       },
-      execute: async ({ pageId, selector, timeout }) => waitForSelector(pageId, selector, timeout),
+      execute: async ({ args: { pageId, selector, timeout } = {} }) => waitForSelector(pageId, selector, timeout),
     },
     {
       name: 'browser_close',
@@ -167,7 +168,7 @@ export function createBrowserTools() {
         properties: { pageId: { type: 'string' } },
         required: ['pageId'],
       },
-      execute: async ({ pageId }) => closePage(pageId),
+      execute: async ({ args: { pageId } = {} }) => closePage(pageId),
     },
     {
       name: 'browser_status',
