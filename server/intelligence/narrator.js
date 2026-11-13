@@ -33,7 +33,11 @@ const AGENT = 'narrator';
 const ENABLED = process.env.NARRATOR_ENABLED !== '0';
 const DEFAULT_GAP_MS = Math.max(5_000, parseInt(process.env.NARRATOR_MIN_GAP_MS, 10) || 45_000);
 const minGapMs = () => tunable('narrator.min_gap_ms', DEFAULT_GAP_MS); // Phase Y: live tunable
-const ALWAYS = process.env.NARRATOR_ALWAYS === '1';
+// Every line is voiced and saved to data/tts (the shelf's Audio), whether or not an OBS overlay is listening — Vaughn
+// hears the organism through the shelf. Measured 2026-11-13: of 111 lines in 24 h, the 7 spoken with no overlay
+// attached (OBS reconnecting, server restarts) were text-only and never reached the shelf. The old "audio only with an
+// overlay" saving dates from the online edge-tts voice; VoiceStudio is local. NARRATOR_AUDIO_WITH_OVERLAY_ONLY=1 restores it.
+const ALWAYS = process.env.NARRATOR_AUDIO_WITH_OVERLAY_ONLY !== '1' || process.env.NARRATOR_ALWAYS === '1';
 // The voice is Vaughn's (VoiceStudio, the same allow-list as the home screen and the films). The stock edge-tts voice is
 // only a fallback when VoiceStudio does not answer, and every fallback is counted — until 2026-11-13 the stream spoke
 // in en-US-GuyNeural all the time and nothing said so.
