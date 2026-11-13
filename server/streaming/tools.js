@@ -88,7 +88,11 @@ export function createStreamingTools({ memoryBridge, db, dataDir, broadcast, obs
       name: 'streaming.simulate_donation',
       group: 'streaming',
       risk: 'safe',
-      description: 'Simulate a stream donation to test the minting pipeline. Triggers the full pipeline and delivers to any connected OBS overlays.',
+      // A simulated donation is shown on every connected OBS overlay — on a live stream, viewers see a donation that
+      // never happened. With an overlay connected it waits for Vaughn's approval; with none, agents test freely.
+      // (Found 2026-11-13 when the goal engine first proposed stream work.)
+      approvalWhen: () => (obsBridge?.clients?.size || 0) > 0,
+      description: 'Simulate a stream donation to test the minting pipeline. Triggers the full pipeline and delivers to any connected OBS overlays (asks for approval while an overlay is connected, because viewers would see it).',
       parameters: {
         type: 'object',
         properties: {

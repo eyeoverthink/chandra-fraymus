@@ -1,11 +1,11 @@
 /**
  * Autonomous Goal Engine — self-directed intelligence.
  *
- * Reads the system's memory landscape, identifies knowledge gaps and
- * opportunities, and proposes new chain objectives. When wired into
- * the daemon cycle, the system goes from reactive to self-directed.
+ * Proposes what the fleet works on next, from the system's real, measured problems and the owner's
+ * projects (goal-landscape.js). Every objective cites one of them and says how it will be checked;
+ * objectives about the system's own memory labels are refused (78 % of a week's goals were, before).
  *
- * Inputs:  agent_memories, chain_runs, verification_loops, vertiso_memories
+ * Inputs:  self_audit_findings, runs, capability_runs, smk_code_proposals, research_items, creation_jobs, data/projects.json
  * Outputs: goal proposals stored in goal_proposals table, optionally auto-queued
  */
 
@@ -16,39 +16,44 @@ import { isActionSuppressed } from './adaptive-strategy.js';
 import { publish } from '../fleet/bus.js';
 import { tunable } from './tunables.js';
 import { getAutonomyModifiers } from './consciousness-gate.js';
+import { realProblems, loadProjects, saveProjects, memoryCategories, checkObjective, sameJob } from './goal-landscape.js';
 
 const BASE_MAX_PROPOSALS = 2;
 
 const now = () => Date.now();
 
-const GOAL_PROMPT = `You are an Autonomous Goal Engine for a sovereign AI system called FRAYMUS.
-Your job is to analyze the system's current knowledge state and propose NEW objectives
-that the Logic Chain engine should analyze next.
+// 2026-11-13: the engine used to be shown memory category names as "knowledge domains" and told to fill "gaps"
+// between them; 78 % of a week's goals were about its own filing labels. It now sees real problems (P1…) and
+// Vaughn's projects, and every objective must cite one and say how it will be checked (goal-landscape.js).
+const GOAL_PROMPT = `You are the goal engine of Chandra-FRAYMUS, a local AI system with a fleet of agents that have real tools
+(code, web, files, media, the store, the hive). You choose what the fleet works on next.
 
-You receive:
-1. Recent chain run outcomes (what was analyzed, what succeeded/failed)
-2. Memory landscape (what knowledge categories exist, their confidence levels)
-3. Knowledge gaps (areas with low confidence or missing coverage)
-4. Recent evolution activity (fossils, verified findings)
+You receive two lists:
+1. PROBLEMS — real, measured problems in the system, each with an id (P1, P2, …) and how fixing it is checked.
+2. PROJECTS — the owner's projects, each with an id, its aim, where it lives, and how progress is checked.
 
-Propose 1-3 new objectives that would:
-- Fill knowledge gaps the system has identified
-- Build on successful chain runs with deeper analysis
-- Re-examine failed chains from a different angle
-- Explore connections between existing knowledge domains
+Propose objectives that an agent can actually carry out with tools in one run, and that move one listed problem or project forward.
+Rules:
+- Every objective cites exactly one id from the lists in "grounded_in".
+- Propose a mix: when you propose two or more, at least one must be for a PROJECT (cite its id), not only problems.
+- Be concrete: name the file, route, tool, feature or error involved. No research programmes, no frameworks, no "unified models".
+- The system's own memory categories and internal labels (such as dream, world, outcome, fossil) are NOT subjects to study.
+- "done_when" says how anyone can check it was done (a test passes, a route answers, a finding resolves, a file exists).
+- Anything that would publish, spend, or change the live store is phrased as preparing a proposal for the owner, never doing it.
 
 Output JSON only, no markdown fences:
 {
   "proposals": [
     {
-      "objective": "clear, specific objective for a Logic Chain run",
-      "rationale": "why this matters to the system's growth",
+      "objective": "one concrete thing to do",
+      "grounded_in": "P3 or a project id",
+      "done_when": "how to check it is done",
+      "rationale": "why this is worth a run now",
       "priority": "high|medium|low",
-      "builds_on": "chain_run_id or null if novel",
       "estimated_complexity": "simple|moderate|complex"
     }
   ],
-  "landscape_summary": "one paragraph on current knowledge state"
+  "landscape_summary": "one or two sentences on what most needs work"
 }`;
 
 function ensureTable() {
@@ -68,82 +73,6 @@ function ensureTable() {
   )`).run();
 }
 
-async function gatherLandscape() {
-  const oneDayAgo = now() - 86400_000;
-  const oneWeekAgo = now() - 7 * 86400_000;
-
-  const recentChains = (() => {
-    try {
-      return db.prepare(
-        `SELECT id, objective, status, stop_reason FROM chain_runs ORDER BY created_at DESC LIMIT 15`
-      ).all();
-    } catch (_) { return []; }
-  })();
-
-  const memoryCategories = (() => {
-    try {
-      return db.prepare(
-        `SELECT category, COUNT(*) as count, AVG(confidence) as avgConf, MAX(updated_at) as latest
-         FROM agent_memories GROUP BY category ORDER BY count DESC LIMIT 20`
-      ).all();
-    } catch (_) { return []; }
-  })();
-
-  const recentFossils = (() => {
-    try {
-      return db.prepare(
-        `SELECT key, value FROM agent_memories WHERE category = 'fossil' AND created_at > ? ORDER BY created_at DESC LIMIT 5`
-      ).all(oneWeekAgo);
-    } catch (_) { return []; }
-  })();
-
-  const chainVerified = (() => {
-    try {
-      return db.prepare(
-        `SELECT key, value FROM agent_memories WHERE category = 'chain_verified' AND created_at > ? ORDER BY created_at DESC LIMIT 10`
-      ).all(oneWeekAgo);
-    } catch (_) { return []; }
-  })();
-
-  const failedChains = recentChains.filter(c => c.status === 'crashed' || c.status === 'failed');
-  const completedChains = recentChains.filter(c => c.status === 'completed');
-
-  const lowConfidence = memoryCategories.filter(c => c.avgConf < 0.6 && c.count > 2);
-
-  const vertisoNamespaces = (() => {
-    try {
-      return db.prepare(
-        `SELECT namespace, COUNT(*) as count, AVG(importance) as avgImportance
-         FROM vertiso_memories GROUP BY namespace ORDER BY count DESC LIMIT 10`
-      ).all();
-    } catch (_) { return []; }
-  })();
-
-  return {
-    recentChains: recentChains.slice(0, 10).map(c => ({
-      id: c.id, objective: c.objective?.slice(0, 200), status: c.status, stopReason: c.stop_reason,
-    })),
-    completedCount: completedChains.length,
-    failedChains: failedChains.map(c => ({
-      id: c.id, objective: c.objective?.slice(0, 200), reason: c.stop_reason,
-    })),
-    memoryCategories: memoryCategories.map(c => ({
-      category: c.category, count: c.count, avgConfidence: Math.round((c.avgConf || 0) * 100) / 100,
-    })),
-    lowConfidenceAreas: lowConfidence.map(c => c.category),
-    recentFossils: recentFossils.length,
-    chainVerifiedCount: chainVerified.length,
-    vertisoNamespaces: vertisoNamespaces.map(n => ({
-      namespace: n.namespace, count: n.count, avgImportance: Math.round((n.avgImportance || 0) * 100) / 100,
-    })),
-    existingProposals: (() => {
-      try {
-        ensureTable();
-        return db.prepare(`SELECT objective, status FROM goal_proposals WHERE status = 'proposed' ORDER BY created_at DESC LIMIT 5`).all();
-      } catch (_) { return []; }
-    })(),
-  };
-}
 
 // Phase R: proposals are only worth generating if the executor can reach them.
 // Generation ran ~1,000/day against ~288/day execution capacity; the backlog grew
@@ -166,34 +95,40 @@ export async function generateGoals({ trigger = 'daemon', force = false } = {}) 
   if (!force && isActionSuppressed('goal_generate')) {
     return { generated: false, reason: 'suppressed_by_strategy', pending, maxPending: maxPending() };
   }
-  const landscape = await gatherLandscape();
-
-  const totalKnowledge = landscape.memoryCategories.reduce((s, c) => s + c.count, 0);
-  if (totalKnowledge === 0 && landscape.recentChains.length === 0) {
-    return { generated: false, reason: 'no_knowledge_base', landscape };
-  }
+  const problems = realProblems(db);
+  const projects = loadProjects();
+  const categories = memoryCategories(db);
+  const landscape = { problems, projects, existingProposals: (() => {
+    try { return db.prepare(`SELECT objective FROM goal_proposals WHERE status = 'proposed' ORDER BY created_at DESC LIMIT 6`).all().map(r => r.objective.slice(0, 160)); }
+    catch (_) { return []; }
+  })() };
 
   const gateMods = getAutonomyModifiers();
   const maxProposals = Math.min(5, Math.max(1, Math.round(BASE_MAX_PROPOSALS * gateMods.evolutionRate)));
 
-  const tierContext = `\n\nSystem consciousness tier: ${gateMods.tier} (${gateMods.proofsPassed}/4 proofs, evolution rate ${gateMods.evolutionRate}x). ` +
-    (gateMods.tier === 'DORMANT' ? 'Propose only safe, well-understood objectives. Avoid speculative or complex goals.' :
-     gateMods.tier === 'INTEGRATED' ? 'The system is fully coherent — propose ambitious, cross-domain objectives that push boundaries.' :
-     'Balance ambition with feasibility in your proposals.');
-
-  const input = JSON.stringify(landscape, null, 2);
+  const tierContext = gateMods.tier === 'DORMANT' ? '\n\nThe system is in a cautious state: prefer small, safe fixes.' : '';
+  const list = [
+    'PROBLEMS:', ...(problems.length ? problems.map(p => `${p.id} [${p.kind}] ${p.text} — checked: ${p.check}`) : ['(none measured right now)']),
+    '', 'PROJECTS:', ...projects.map(p => `${p.id}: ${p.name} — aim: ${p.aim} — where: ${p.where} — checked: ${p.check}`),
+    '', 'ALREADY QUEUED (do not repeat):', ...(landscape.existingProposals.length ? landscape.existingProposals : ['(nothing)']),
+  ].join('\n');
 
   const response = await chatOllama([
     { role: 'system', content: GOAL_PROMPT + tierContext },
-    { role: 'user', content: `Current system knowledge landscape:\n${input}\n\nPropose up to ${maxProposals} objectives.` },
-  ], { priority: 'goal', label: `goal-engine:${trigger}` });
+    { role: 'user', content: `${list}\n\nPropose up to ${maxProposals} objectives.` },
+  ], { priority: 'goal', label: `goal-engine:${trigger}`, format: 'json' });
 
   const parsed = parseJSON(response, { proposals: [], landscape_summary: 'Parse error' });
   const proposals = (parsed.proposals || []).slice(0, maxProposals);
 
-  const stored = [];
+  const stored = [], refused = [];
   for (const p of proposals) {
-    if (!p.objective || typeof p.objective !== 'string') continue;
+    if (!p || typeof p.objective !== 'string') continue;
+    const check = checkObjective(p, { problems, projects, categories });
+    if (!check.ok) { refused.push({ objective: String(p.objective).slice(0, 160), reason: check.reason }); continue; }
+    // the agent that runs it sees how it will be judged
+    p.objective = `${check.objective} (Done when: ${check.doneWhen})`;
+    p.builds_on = check.ref;
 
     // Phase S: dedup across ALL statuses for 7 days (was: exact match on 'proposed' only, so
     // an objective expired or completed yesterday was re-proposed today — self-audit saw 13x).
@@ -201,6 +136,12 @@ export async function generateGoals({ trigger = 'daemon', force = false } = {}) 
       `SELECT 1 FROM goal_proposals WHERE lower(trim(objective)) = lower(trim(?)) AND created_at > ?`
     ).get(p.objective, now() - 7 * 86400_000);
     if (exists) continue;
+    // the same job in other words, against the last 7 days and this batch
+    const recent = db.prepare(`SELECT objective FROM goal_proposals WHERE created_at > ? ORDER BY created_at DESC LIMIT 200`).all(now() - 7 * 86400_000);
+    if (recent.some(r => sameJob(r.objective, p.objective)) || stored.some(s => sameJob(s.objective, p.objective))) {
+      refused.push({ objective: String(p.objective).slice(0, 160), reason: 'same job as a goal already proposed this week' });
+      continue;
+    }
 
     const id = 'goal_' + randomUUID().replace(/-/g, '').slice(0, 10);
     db.prepare(
@@ -218,7 +159,7 @@ export async function generateGoals({ trigger = 'daemon', force = false } = {}) 
 
   try {
     publish('system', 'system.goals', JSON.stringify({
-      action: 'goals_generated', count: stored.length, trigger,
+      action: 'goals_generated', count: stored.length, trigger, refused: refused.length,
       proposals: stored.map(s => s.objective.slice(0, 100)),
       gateTier: gateMods.tier, maxProposals, at: now(),
     }));
@@ -228,6 +169,7 @@ export async function generateGoals({ trigger = 'daemon', force = false } = {}) 
     generated: stored.length > 0,
     count: stored.length,
     proposals: stored,
+    refused,
     landscapeSummary: parsed.landscape_summary,
     landscape,
     gateTier: gateMods.tier,
@@ -268,9 +210,18 @@ export function deleteProposal(id) {
 export function installGoalRoutes(app) {
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
 
-  app.post('/api/goals/generate', route(async (_req, res) => {
-    const result = await generateGoals({ trigger: 'api' });
+  app.post('/api/goals/generate', route(async (req, res) => {
+    const result = await generateGoals({ trigger: 'api', force: req.body?.force === true });
     res.json(result);
+  }));
+
+  // What goals are drawn from: the measured problems right now and Vaughn's project list (data/projects.json).
+  // Own prefix: /api/goals/:id below is a param route and would swallow /api/goals/landscape.
+  app.get('/api/goal-engine/landscape', route((_req, res) => res.json({ problems: realProblems(db), projects: loadProjects() })));
+  app.get('/api/goal-engine/projects', route((_req, res) => res.json({ projects: loadProjects() })));
+  app.put('/api/goal-engine/projects', route((req, res) => {
+    try { res.json({ projects: saveProjects(req.body?.projects) }); }
+    catch (e) { res.status(e.status || 500).json({ error: e.message }); }
   }));
 
   app.get('/api/goals', route((req, res) => {
