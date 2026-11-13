@@ -46,7 +46,7 @@ export default function FleetPanel({ wsEvent }) {
     try {
       const res = await fetch('/api/fleet/runs', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId: selectedAgent, message: message.trim() }),
+        body: JSON.stringify({ agentId: selectedAgent, message: message.trim(), interactive: true }),
       });
       const data = await res.json();
       setMessage('');

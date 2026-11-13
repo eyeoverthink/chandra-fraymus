@@ -10,8 +10,9 @@ mkdirSync(dataDir, { recursive: true });
 export const db = new Database(join(dataDir, 'chandra.db'));
 db.pragma('journal_mode = WAL');
 // A test's throwaway store is deleted at exit, so durability buys nothing there — and on a fresh store every module's
-// CREATE TABLE is a real commit: with FULL each test process made hundreds of fsyncs in parallel, and the extra disk
-// load pushed the tight-deadline sandbox tests over their limits. The real store is always FULL.
+// CREATE TABLE is a real commit, hundreds of fsyncs per test process. (These were once blamed for the sandbox-docker
+// flakes; measured on 2026-11-13, 16 parallel fsync loops caused none — the cause was event-loop pauses against a
+// 100 ms margin, fixed in that test.) The real store is always FULL.
 db.pragma(TEST_SCRATCH_DATA ? 'synchronous = OFF' : 'synchronous = FULL');
 
 // Checkpoint any leftover WAL from a previous unclean shutdown.

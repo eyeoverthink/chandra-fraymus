@@ -73,7 +73,7 @@ export default function AgentChatPanel({ wsEvent }) {
     try {
       const res = await fetch('/api/fleet/runs', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId: activeAgent.id, message: msg, threadId }),
+        body: JSON.stringify({ agentId: activeAgent.id, message: msg, threadId, interactive: true }),
       });
       const data = await res.json();
       if (data.threadId) {

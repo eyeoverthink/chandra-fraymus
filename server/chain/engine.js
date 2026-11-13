@@ -150,7 +150,9 @@ function formatSeeds(seeds) {
   return `\n\nPRIOR CHAIN FINDINGS (from previous runs on related topics — treat as context, not ground truth):\n<prior_findings>\n${lines.join('\n')}\n</prior_findings>`;
 }
 
-export async function executeChain(objective, config = {}, { broadcast = () => {}, memoryBridge } = {}) {
+// onStarted(run) fires once the run row exists, so a caller can return the id at once and leave the 16 stages
+// running: a fleet agent that awaited the whole chain held its run open for hours (2026-11-13).
+export async function executeChain(objective, config = {}, { broadcast = () => {}, memoryBridge, onStarted } = {}) {
   const slots = resolveSlots(config);
 
   const seeds = await recallPriorFindings(objective, memoryBridge);
@@ -173,6 +175,7 @@ export async function executeChain(objective, config = {}, { broadcast = () => {
 
   saveRun(run);
   broadcast('chain', { type: 'chain.started', runId: run.id, objective, totalStages: TOTAL_STAGES, seedCount: seeds.length });
+  try { onStarted?.(run); } catch (err) { console.error('chain: onStarted:', err.message); }
 
   try {
     for (let passNum = 1; passNum <= PASSES; passNum++) {
@@ -288,6 +291,16 @@ export async function executeChain(objective, config = {}, { broadcast = () => {
     broadcast('chain', { type: 'chain.error', runId: run.id, error: run.stopReason });
     throw err;
   }
+}
+
+// Start a chain and resolve as soon as it has an id; the chain finishes in the background and its result is read
+// later with loadRun / chain.status. Rejects only when the chain fails before it starts.
+export function startChain(objective, config = {}, deps = {}) {
+  return new Promise((resolve, reject) => {
+    let started = false;
+    executeChain(objective, config, { ...deps, onStarted: run => { started = true; resolve(run); } })
+      .catch(err => { if (!started) reject(err); else console.error('chain: background run failed:', err.message); });
+  });
 }
 
 export function loadRun(id) {

@@ -6,6 +6,9 @@
 
 import { randomUUID } from 'node:crypto';
 import { isAbort } from './http-error.js';
+import { systemFacts, renderSystemReport } from './system-report.js';
+import { agiProgress, renderAgiProgress } from '../intelligence/agi-progress.js';
+import { mayRecoverAtBoot } from '../config.js';
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
@@ -27,7 +30,11 @@ function classify(text) {
     if (risky.test.test(text)) return { type: 'risky', ...risky };
   }
   if (/\bpropose (a )?skill\b/i.test(text)) return { type: 'propose_skill', tool: 'propose_skill' };
-  if (/\b(health|holding up|what models|system status)\b/i.test(text)) return { type: 'health', tool: 'inspect_health' };
+  // a question about the system's own distance from AGI (not "make an explainer about AGI")
+  if (/\b(agi|general intelligence|super-?intelligen\w*)\b/i.test(text)
+      && /\b(how (far|close|near)|progress|distance|where (are|is)|are you|is (the|this) system|status|measure|close to)\b/i.test(text)
+      && !/\b(make|create|draft|write|explainer|video|script|brief)\b/i.test(text)) return { type: 'agi', tool: 'agi_progress' };
+  if (/\b(health|holding up|what models|system status|status of (the |your )?system|how is the system)\b/i.test(text)) return { type: 'health', tool: 'inspect_health' };
   if (/\b(recall|remember|notes about|what do you know)\b/i.test(text)) return { type: 'recall', tool: 'recall_notes' };
   if (/\b(brief|script|draft)\b/i.test(text)) return { type: 'draft', tool: 'draft_creation' };
   return { type: 'chat', tool: null };
@@ -63,6 +70,15 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
       CREATE TABLE IF NOT EXISTS fraymus_os_agent_approvals (step_id TEXT PRIMARY KEY, approval_id TEXT NOT NULL, run_id TEXT, created_at INTEGER NOT NULL);
     `);
   } catch (error) { console.error('fraymus-os bridge tables:', error.message); }
+
+  // A turn's watcher lives in this process's memory, so a turn still 'thinking' when the service is created belongs
+  // to a process that is gone: it would show a spinner forever. Close it and say why.
+  // (mayRecoverAtBoot: never from a test process that is on the real store — it would close a live server's turns)
+  if (mayRecoverAtBoot()) try {
+    const closed = db.prepare(`UPDATE fraymus_os_turns SET state = 'error', error = ?, updated_at = ?
+      WHERE role = 'assistant' AND state = 'thinking'`).run('Interrupted: the server restarted before this answer finished. Ask again.', Date.now()).changes;
+    if (closed) console.log(`fraymus-os: closed ${closed} turn(s) left thinking by a restart`);
+  } catch (error) { console.error('fraymus-os orphan turns:', error.message); }
 
   const CAPABILITY_DECK = [
     { id: 'create', label: 'Create', items: [
@@ -155,7 +171,7 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
 
   async function runAgent(turnId, sessionId, text, signal, sources, model = null) {
     const existing = db.prepare('SELECT thread_id FROM fraymus_os_agent_threads WHERE session_id = ?').get(sessionId);
-    const started = fleet.startRun('local', AGENT_ID, text, existing?.thread_id, { model });
+    const started = fleet.startRun('local', AGENT_ID, text, existing?.thread_id, { model, interactive: true });
     if (!existing) db.prepare('INSERT OR REPLACE INTO fraymus_os_agent_threads (session_id, thread_id, created_at) VALUES (?, ?, ?)').run(sessionId, started.threadId, Date.now());
     const callSteps = new Map();      // model tool-call key → step id
     const openByTool = new Map();     // tool name → [step ids still running]
@@ -361,9 +377,23 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
         const snap = await registry.snapshot();
         throwIfAborted(signal);
         const voiceStatus = voice ? await voice.status() : null;
-        const answer = renderHealth(snap, voiceStatus);
+        // the system first; the model registry in full only when the question is about models
+        const aboutModels = /\bmodels?\b/i.test(text);
+        const answer = aboutModels
+          ? renderHealth(snap, voiceStatus)
+          : renderSystemReport(systemFacts(db, { fleet }), { models: `This PC's Ollama: ${snap.ollama.models.length} models installed, ${snap.ollama.routeClass} at ${snap.ollama.url || 'unset'}.` });
         updateTool.run('ok', JSON.stringify({ routeClass: snap.ollama.routeClass, models: snap.ollama.models.map(model => model.name) }), Date.now(), stepId);
-        finish(turnId, { state: 'idle', sources, answer, model: snap.ollama.selectedReasoning, endpoint: snap.ollama.url, routeClass: snap.ollama.routeClass });
+        // no model wrote this answer: it is read from the database, and the caption should say so
+        finish(turnId, { state: 'idle', sources, answer, model: aboutModels ? 'model registry (no model call)' : 'live system tables (no model call)', endpoint: snap.ollama.url, routeClass: snap.ollama.routeClass });
+        return;
+      }
+      if (intent.type === 'agi') {
+        const stepId = randomUUID();
+        const now = Date.now();
+        insertTool.run(stepId, sessionId, turnId, 'agi_progress', '{}', 'running', null, 'routine', now, now);
+        const report = agiProgress(db);
+        updateTool.run('ok', JSON.stringify({ met: report.summary.met, metOnProxy: report.summary.metOnProxy, unmet: report.summary.unmet, source: report.source }), Date.now(), stepId);
+        finish(turnId, { state: 'idle', sources, answer: renderAgiProgress(report), model: 'AGI blueprint measurements (no model call)', endpoint: registry.ollama.url, routeClass: registry.ollama.routeClass });
         return;
       }
       if (intent.type === 'recall') {

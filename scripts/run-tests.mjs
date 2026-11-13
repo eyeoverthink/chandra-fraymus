@@ -35,11 +35,12 @@ const deadlineMs = Math.max(60_000, Number(process.env.TEST_DEADLINE_MS) || 45 *
 const files = process.argv.slice(2).length ? process.argv.slice(2)
   : readdirSync('test').filter(f => f.endsWith('.test.js')).sort().map(f => `test/${f}`);
 
-// Files whose tests hold real-time windows of a few hundred milliseconds against real child processes. Run in the
-// crowd they fail when the machine is busy (sandbox-docker's 300 ms cleanup window failed in 2 of 4 full runs on
-// 2026-11-13; alone it passes every time), so they run after the parallel phase, on their own. Widening the windows
-// instead would change what they test — one makes container creation land after cleanup deliberately gives up.
-const ALONE = new Set(['test/sandbox-docker.test.js']);
+// Files that must run after the parallel phase, on their own. Empty now: sandbox-docker was here (its fake daemon
+// raced a 500 ms timer against a 300 ms cleanup deadline, and any ~100 ms pause of the test process flipped the
+// order — reproduced by freezing the event loop 250 ms in every 300: 9–10 failures a run). Its fake daemon is now
+// event-driven and the window is the production 5 s, and it passes under the same pauses. Before adding a file here,
+// make its ordering explicit instead; a solo phase only hides the race.
+const ALONE = new Set([]);
 const crowd = files.filter(f => !ALONE.has(f)), alone = files.filter(f => ALONE.has(f));
 
 let current = null, killed = false;

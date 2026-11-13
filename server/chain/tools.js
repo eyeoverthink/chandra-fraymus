@@ -2,7 +2,7 @@
  * Fleet tools for Logic Chain — allows agents to trigger and query chain runs.
  */
 
-import { executeChain, loadRun, listRuns, renderDocument, saveRun } from './engine.js';
+import { startChain, loadRun, listRuns, renderDocument, saveRun } from './engine.js';
 import { ledgerStats } from './ledger.js';
 import { reviewLedger } from './review.js';
 
@@ -10,7 +10,7 @@ export function createChainTools({ broadcast, memoryBridge } = {}) {
   return [
     {
       name: 'chain.run',
-      description: 'Start a Logic Chain run: 8 specialized agents analyze an objective across 2 passes (16 stages), accumulating evidence in a structured ledger.',
+      description: 'Start a Logic Chain run: 8 specialized agents analyze an objective across 2 passes (16 stages), accumulating evidence in a structured ledger. Returns the run id at once; the chain takes many minutes — read it later with chain.status and chain.document.',
       safety: 'safe',
       parameters: {
         type: 'object',
@@ -21,9 +21,8 @@ export function createChainTools({ broadcast, memoryBridge } = {}) {
         required: ['objective'],
       },
       handler: async (params) => {
-        const run = await executeChain(params.objective, { model: params.model }, { broadcast, memoryBridge });
-        const stats = ledgerStats(run.ledger);
-        return { id: run.id, status: run.status, stages: run.stages.length, ledger: stats, durationMs: run.usage?.durationMs };
+        const run = await startChain(params.objective, { model: params.model }, { broadcast, memoryBridge });
+        return { id: run.id, status: run.status, note: 'Started. The chain runs in the background; check it with chain.status.' };
       },
     },
     {

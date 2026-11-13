@@ -145,7 +145,7 @@ export function installCommandRouter(app, { broadcast }) {
         if (!agent) {
           return res.json({ type: 'error', error: `Agent "${agentId}" not found`, agents: agents.map(a => a.id) });
         }
-        const result = startRun('local', agent.id, message);
+        const result = startRun('local', agent.id, message, undefined, { interactive: true });
         broadcast('agents', { agentId: agent.id, agentName: agent.name, action: 'started', preview: message.slice(0, 100) });
         return res.json({ type: 'agent_run', runId: result.runId, threadId: result.threadId, agentId: agent.id, agentName: agent.name });
       }
@@ -229,7 +229,7 @@ export function installCommandRouter(app, { broadcast }) {
         }
       } catch (_) { /* TAG-not-BLOCK: 3s timeout, proceed without framing */ }
 
-      const result = startRun('local', targetAgent, trimmed);
+      const result = startRun('local', targetAgent, trimmed, undefined, { interactive: true });
       broadcast('agents', { agentId: targetAgent, agentName: targetName, action: 'started', preview: trimmed.slice(0, 100), perspectiveHint });
       return res.json({ type: 'agent_run', runId: result.runId, threadId: result.threadId, agentId: targetAgent, agentName: targetName, perspectiveHint });
     } catch (err) {

@@ -50,7 +50,7 @@ export function installFleetRoutes(app) {
     const { agentId, message, threadId, model } = req.body;
     if (!agentId || !message) return res.status(400).json({ error: 'agentId and message required' });
     // model (optional): run this agent on a named model; the pool sends each call to a machine that has it
-    const result = startRun(req.body.userId || 'local', agentId, message, threadId, { model });
+    const result = startRun(req.body.userId || 'local', agentId, message, threadId, { model, interactive: req.body.interactive === true });
     res.status(201).json(result);
   }));
 

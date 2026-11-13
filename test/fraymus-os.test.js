@@ -440,7 +440,7 @@ test('an agent command runs on the chosen model and the turn names what really a
     const row = await request('GET', `/api/fraymus-os/sessions/${sent.json.sessionId}`);
     return row.json.state === 'idle' ? row.json : null;
   });
-  assert.deepEqual(started.opts, { model: 'qwen3:14b' }, 'the chosen model reaches the fleet');
+  assert.deepEqual(started.opts, { model: 'qwen3:14b', interactive: true }, 'the chosen model reaches the fleet, and the run is marked as a person waiting (never queued behind autonomous work)');
   const answer = session.turns.find(turn => turn.role === 'assistant');
   assert.match(answer.answer, /Five open findings/);
   assert.match(answer.model, /qwen3:14b on home \(2 calls\)/, 'the turn names the machine and model that answered, not the local default');

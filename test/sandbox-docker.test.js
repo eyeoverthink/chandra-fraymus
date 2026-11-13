@@ -70,7 +70,10 @@ function harness(options = {}) {
       options.mutateContainer?.(state);
       containers.set(child.name, state);
     };
-    if (options.creationDelay) setTimeout(created, options.creationDelay);
+    // manualCreation: the daemon finishes creating only when the test says so — an ordering the test controls,
+    // not one a timer race decides (a 500 ms timer against a 300 ms deadline flipped when the process paused)
+    if (options.manualCreation) child.create = created;
+    else if (options.creationDelay) setTimeout(created, options.creationDelay);
     else created();
     options.onSpawn?.(child);
     return child;
@@ -104,8 +107,11 @@ function harness(options = {}) {
     if (!containers.has(name)) throw missing(name);
     return { stdout: JSON.stringify(containers.get(name)) };
   };
+  // The production cleanup window (5 s). Success paths return as soon as two inspections agree, so this costs
+  // nothing; with 300 ms, two passes 100 ms apart left ~100 ms of slack and any pause of the test process (GC, the
+  // start-up of ~100 parallel test files) quarantined a sound run. Tests that need cleanup to fail set it short.
   const sandbox = createDockerSandbox({ images, spawnImpl, execFileImpl,
-    cleanupTimeoutMs: 300, ...options.constructor });
+    cleanupTimeoutMs: 5000, ...options.constructor });
   return { sandbox, calls, children, containers, removals, finish, engine, get peak() { return peak; } };
 }
 
@@ -284,20 +290,20 @@ test('late daemon creation after CLI cancellation is removed in the final cleanu
 
 test('unobserved creation cannot be called removed merely because early inspect checks say absent', async () => {
   const controller = new AbortController();
-  const h = harness({ creationDelay: 500, onSpawn() { setTimeout(() => controller.abort(), 5); } });
+  const h = harness({ manualCreation: true, constructor: { cleanupTimeoutMs: 300 }, onSpawn() { setTimeout(() => controller.abort(), 5); } });
   await assert.rejects(h.sandbox.run({ language: 'javascript', code: 'neverSent()' }, { signal: controller.signal }),
     { code: 'sandbox_cleanup_failed' });
   assert.equal((await h.sandbox.health()).available, false);
   assert.equal(h.children[0].input.length, 0);
   // A deliberately slow fake daemon completes after the cleanup deadline. It must
   // never have received a successful receipt; operator cleanup remains necessary.
-  await delay(250);
+  h.children[0].create();
   assert.equal(h.containers.size, 1);
   h.containers.clear();
 });
 
 test('unconfirmed cleanup quarantines the executor and never reports successful isolation', async () => {
-  const h = harness({ cleanupFailure: true });
+  const h = harness({ cleanupFailure: true, constructor: { cleanupTimeoutMs: 300 } });
   await assert.rejects(h.sandbox.run({ language: 'javascript', code: '1' }), { code: 'sandbox_cleanup_failed' });
   const health = await h.sandbox.health();
   assert.equal(health.available, false); assert.match(health.reason, /cleanup|operator/);
@@ -380,7 +386,7 @@ test('execution audit distinguishes launched policy rejection from submitted sou
 });
 
 test('execution audit retains possible source execution and verified isolation when cleanup fails', async () => {
-  const h = harness({cleanupFailure: true});
+  const h = harness({cleanupFailure: true, constructor: { cleanupTimeoutMs: 300 }});
   let observed;
   await assert.rejects(h.sandbox.run({language: 'python', code: 'print("owned source")'}), error => {
     observed = error; return error.code === 'sandbox_cleanup_failed';

@@ -480,6 +480,27 @@ function getHistory(threadId, limit = MAX_HISTORY) {
   return raw;
 }
 
+// Every tool call ends. On 2026-11-13 four autonomous runs sat in 'running' for up to 107 minutes, each awaiting a
+// tool that never returned (chain.run awaited a 16-stage chain; one reason call never settled). They counted as load,
+// so the resource gate queued every new run behind them — a question typed on the home screen waited with no answer.
+// Past the deadline the run gets an error result and moves on; the tool's own work may still finish in the background.
+// A tool may set its own `timeoutMs`; FLEET_TOOL_TIMEOUT_MS sets the default (5 min).
+export const TOOL_TIMEOUT_MS = Math.max(1000, parseInt(process.env.FLEET_TOOL_TIMEOUT_MS, 10) || 300_000);
+
+export async function withToolDeadline(tool, toolName, call) {
+  const limit = Math.max(1000, Number(tool?.timeoutMs) || TOOL_TIMEOUT_MS);
+  let timer;
+  const deadline = new Promise(resolve => {
+    timer = setTimeout(() => resolve({
+      error: `${toolName} did not finish within ${Math.round(limit / 1000)} s and was abandoned. Its work may still complete in the background; do not wait for it.`,
+      timedOut: true,
+    }), limit);
+    timer.unref?.();
+  });
+  try { return await Promise.race([Promise.resolve().then(call), deadline]); }
+  finally { clearTimeout(timer); }
+}
+
 async function executeTool(toolName, args, ctx) {
   const tool = findTool(toolName);
   if (!tool) {
@@ -527,9 +548,9 @@ async function executeTool(toolName, args, ctx) {
   }
 
   const t0 = now();
-  const result = tool.execute
-    ? await tool.execute({ args }, ctx)
-    : (tool.run ? await tool.run(args, ctx) : { error: 'tool has no executor' });
+  const result = await withToolDeadline(tool, toolName, () => tool.execute
+    ? tool.execute({ args }, ctx)
+    : (tool.run ? tool.run(args, ctx) : { error: 'tool has no executor' }));
   const durationMs = now() - t0;
 
   const sealed = sealToolResult(toolName, args, result, durationMs);
@@ -815,9 +836,11 @@ export function startRun(userId, agentId, message, threadId, opts = {}) {
     .run(runId, tid, userId || 'local', 'running', `${agentId}:${model || agent.model || 'default'}`, now(), now());
 
   // Phase D: resource-aware scheduling — queue runs when system is under pressure
+  // A person waiting on an answer (`opts.interactive`: the home screen, chat) is never queued behind the fleet's own
+  // autonomous work — the queue exists to shed background load, and a typed question is the load it is for.
   let queued = false;
   try {
-    if (isResourceConstrained()) {
+    if (!opts.interactive && isResourceConstrained()) {
       const pressure = getResourcePressure();
       runQueue.push({ runId, userId, agentId, queuedAt: now() });
       broadcastFn('fleet', { type: 'run_queued', runId, agentId, queueLength: runQueue.length, pressure: pressure.level });
@@ -920,8 +943,8 @@ export async function decideApproval(userId, approvalId, approve) {
   let result;
   try {
     if (!tool) result = { error: `tool ${a.tool} is no longer registered` };
-    else result = tool.execute ? await tool.execute({ args }, { runId: a.run_id, threadId: a.thread_id, userId: a.user_id, agent, agentId: agent?.id, approvedBy: 'human', approvalId })
-      : (tool.run ? await tool.run(args, { runId: a.run_id, agent }) : { error: 'tool has no executor' });
+    else result = await withToolDeadline(tool, a.tool, () => tool.execute ? tool.execute({ args }, { runId: a.run_id, threadId: a.thread_id, userId: a.user_id, agent, agentId: agent?.id, approvedBy: 'human', approvalId })
+      : (tool.run ? tool.run(args, { runId: a.run_id, agent }) : { error: 'tool has no executor' }));
   } catch (e) {
     result = { error: String(e.message || e).slice(0, 400) };
   }

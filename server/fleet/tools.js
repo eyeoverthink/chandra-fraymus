@@ -1,4 +1,5 @@
 import { db } from '../db.js';
+import { agiProgress, renderAgiProgress } from '../intelligence/agi-progress.js';
 import { runPipeline } from '../workflow/engine.js';
 import { createRETools, seedBuildGates } from './re-tools.js';
 import { heart, ledger, dreamer, cognition } from '../fraymus-tools.js';
@@ -48,7 +49,7 @@ import { analyzeTask, executeStrategy, listStrategies, getStrategyStats } from '
 import { recordEvent as recordTrustEvent, getAgentTrust, getLeaderboard, recommendAgents, getTrustStats } from '../intelligence/trust.js';
 import { captureThought, getSubconsciousContext, distillPatterns, introspect as subconsciousIntrospect, getSubconsciousStats } from '../intelligence/subconscious.js';
 import { runCycle as runOuroborosCycle, absorbCodebase, getCycle as getOuroborosCycle, listCycles as listOuroborosCycles, getStats as getOuroborosStats } from '../intelligence/ouroboros-cycle.js';
-import { executeChain, listRuns as listChainRuns } from '../chain/engine.js';
+import { startChain, listRuns as listChainRuns } from '../chain/engine.js';
 import observatoryRouter from '../observatory.js';
 import { encodeCodon, decodeCodon, codonStats } from '../fraymus/encoding/codon.js';
 import { forgePlasmid, digestPlasmid, plasmidToFasta } from '../fraymus/encoding/plasmid.js';
@@ -610,7 +611,7 @@ export function createFleetTools({ workflowStore }) {
       parameters: object({
         mode: { type: 'string', description: 'Optional: "run" executes an audit now, "findings" returns open findings only' },
       }),
-      execute: async (params) => {
+      execute: async ({ args: params = {} } = {}) => {
         if (params.mode === 'run') {
           const r = runSelfAudit({ trigger: 'fleet' });
           ledger.record('self_audit.run', { ...r.counts, clean: r.clean.length }, 'fleet');
@@ -620,6 +621,20 @@ export function createFleetTools({ workflowStore }) {
         const s = getSelfAuditStatus();
         ledger.record('self_audit.read', { ...s.open }, 'fleet');
         return s;
+      },
+    },
+    {
+      name: 'agi_progress',
+      group: 'intelligence',
+      risk: 'safe',
+      ownsReply: true,
+      description: 'How far is the system from AGI / general intelligence / super-intelligence? Measures progress against the 12 falsifiable requirements in docs/AGI-BLUEPRINT.md (perception, memory, reasoning, abstraction, planning, tool use, learning, calibration, agency, self-improvement, transfer, alignment) from the live database: g-score, Brier score, lesson A/B tests, kernel experiments. Read-only, no model call.',
+      parameters: object({}),
+      execute: async () => {
+        const report = agiProgress(db);
+        ledger.record('agi_progress.read', { met: report.summary.met, proxy: report.summary.metOnProxy, unmet: report.summary.unmet }, 'fleet');
+        // the report is the answer: the run ends with it rather than a model's paraphrase of it
+        return { ...report, replyToUser: renderAgiProgress(report) };
       },
     },
     {
@@ -2116,12 +2131,9 @@ export function createFleetTools({ workflowStore }) {
         maxStages: { type: 'integer', minimum: 3, maximum: 20, description: 'Max reasoning stages (default 10)' },
       }, ['objective']),
       execute: async ({ args }) => {
-        const runPromise = executeChain(args.objective, { maxStages: args.maxStages });
-        runPromise.catch(() => {});
-        await new Promise(r => setTimeout(r, 300));
-        const recent = listChainRuns(1);
-        const started = recent.find(r => r.objective === args.objective && r.status === 'running');
-        return { id: started?.id || 'pending', status: started?.status || 'starting', objective: args.objective };
+        // the id of THIS run, not whichever run listChainRuns(1) happened to show 300 ms later
+        const run = await startChain(args.objective, { maxStages: args.maxStages });
+        return { id: run.id, status: run.status, objective: args.objective };
       },
     },
     {
