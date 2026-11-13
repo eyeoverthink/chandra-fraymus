@@ -6,7 +6,7 @@
  * layout without a renderer. `layoutOf` exposes where things were put (so the rule "every face sits above the
  * caption" is a calculation, not an opinion).
  */
-import { FORMATS, LAYOUT, CAST, LEAD, SETTINGS, ALREADY_THERE, figureSvg, figureHeight, cameraAt, rng, hashOf, esc, fmt as f, clamp, backOut, ease } from './kit.js';
+import { FORMATS, LAYOUT, CAST, LEAD, SETTINGS, ALREADY_THERE, figureSvg, stickFigureSvg, figureHeight, cameraAt, rng, hashOf, esc, fmt as f, clamp, backOut, ease } from './kit.js';
 import { PROPS } from './props.js';
 
 const SLOTS = { left: 0.22, center: 0.5, right: 0.78 };
@@ -58,9 +58,9 @@ export function captionSvg(words, hot, { w, y, size }) {
  * One frame.
  * @param shot  { setting, props: string[], cast: [{who, feel, at, act}], camera, label, seed }
  * @param t     seconds since the shot began
- * @param opts  { format, dur, caption: { words, hot } }
+ * @param opts  { format, dur, caption: { words, hot }, figures: 'flat' | 'stick' }
  */
-export function shotSvg(shot, t, { format = '16:9', dur = 4, caption = null } = {}) {
+export function shotSvg(shot, t, { format = '16:9', dur = 4, caption = null, figures: figureKind = 'flat' } = {}) {
   const L = layoutOf(shot, format), { w, h, u, g } = L;
   const S = SETTINGS[shot.setting] || SETTINGS.field, seed = shot.seed ?? hashOf(`${shot.setting}|${(shot.props || []).join(',')}`);
   const layers = S.draw({ w, h, g, t, seed });
@@ -69,7 +69,8 @@ export function shotSvg(shot, t, { format = '16:9', dur = 4, caption = null } = 
   const pop = i => backOut((t - 0.1 - i * 0.14) / 0.4);
   const propSvg = (p, i) => { const k = pop(i); return k <= 0.01 ? '' : `<g transform="translate(${f(p.x)},${f(p.y)}) scale(${(p.scale * k).toFixed(3)})">${PROPS[p.name].draw(t)}</g>`; };
   const byLayer = name => L.props.map((p, i) => p.layer === name ? propSvg(p, i) : '').join('');
-  const figures = L.cast.map((c, i) => figureSvg(c.who, { x: c.x, y: c.y, scale: c.scale, feel: c.feel, act: c.act, t, phase: i * 1.7 + (seed % 7), w })).join('');
+  const drawFigure = figureKind === 'stick' ? stickFigureSvg : figureSvg;
+  const figures = L.cast.map((c, i) => drawFigure(c.who, { x: c.x, y: c.y, scale: c.scale, feel: c.feel, act: c.act, t, phase: i * 1.7 + (seed % 7), w })).join('');
   let label = '';
   if (shot.label) {
     const text = String(shot.label).slice(0, 18), k = backOut((t - 0.25) / 0.45);

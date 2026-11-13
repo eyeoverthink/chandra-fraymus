@@ -118,7 +118,8 @@ export function figureSvg(who, { x, y, scale = 1, feel = 'neutral', act = 'idle'
   const blink = ((t + phase * 0.7) % 3.1) < 0.13;
   const legLen = 46, legY = c.ry * 0.86, armY = -c.ry * 0.05;
   const legs = [-1, 1].map(side => { const a = side * leg; const fx = side * c.rx * 0.38 + Math.sin(a) * legLen, fy = legY + Math.cos(a) * legLen; return `<path d="M${f(side * c.rx * 0.38)},${f(legY - 8)} L${f(fx)},${f(fy)} h${side * 20}" stroke="#1a1a2e" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`; }).join('');
-  const arm = (side, up) => { const ang = (0.25 + up * 0.62) * Math.PI; const len = c.rx * 0.82; const ax = side * (c.rx * 0.92), hx = ax + side * Math.sin(ang) * len, hy = armY - Math.cos(ang) * len; return `<path d="M${f(ax)},${f(armY)} L${f(hx)},${f(hy)}" stroke="#1a1a2e" stroke-width="9" stroke-linecap="round"/><circle cx="${f(hx)}" cy="${f(hy)}" r="8" fill="#1a1a2e"/>`; };
+  // angle measured from straight down: 0 hangs, 0.5 is level, 1 is straight up (until 2026-11-12 a larger 'up' moved the hand down, so cheer and wave lowered the arms)
+  const arm = (side, up) => { const ang = Math.min(0.97, 0.1 + up * 0.55) * Math.PI; const len = c.rx * 0.82; const ax = side * (c.rx * 0.92), hx = ax + side * Math.sin(ang) * len, hy = armY + Math.cos(ang) * len; return `<path d="M${f(ax)},${f(armY)} L${f(hx)},${f(hy)}" stroke="#1a1a2e" stroke-width="9" stroke-linecap="round"/><circle cx="${f(hx)}" cy="${f(hy)}" r="8" fill="#1a1a2e"/>`; };
   const total = c.ry + legLen + 4;
   return `<g transform="translate(${f(x + dx * s)},${f(y + dy * s)}) scale(${f(s * 100) / 100}) rotate(${rot}) translate(0,${f(-total)})">`
     + `<ellipse cx="0" cy="${f(total - dy)}" rx="${f(c.rx * 0.9)}" ry="13" fill="#000" opacity="${f(clamp(0.22 + dy / 600, 0.06, 0.22) * 100) / 100}"/>`
@@ -129,6 +130,47 @@ export function figureSvg(who, { x, y, scale = 1, feel = 'neutral', act = 'idle'
     + `<ellipse cx="${f(-c.rx * 0.36)}" cy="${f(-c.ry * 0.62)}" rx="${f(c.rx * 0.22)}" ry="${f(c.ry * 0.1)}" fill="#fff" opacity="0.28"/>`
     + markSvg(c, who)
     + `<g transform="translate(0,${f(-c.ry * 0.34)})">${faceSvg(FEELINGS.includes(feel) ? feel : 'neutral', c.rx * 0.34, blink)}</g>`
+    + `</g>`;
+}
+
+/**
+ * The same cast member as a stick figure (the stick look): a round head with the cast's own face, a line body,
+ * line arms and legs driven by the same acts, and one touch of the character's colour (its mark as a small
+ * accent) so six stick figures stay six people. Same footprint and timing as figureSvg.
+ */
+export function stickFigureSvg(who, { x, y, scale = 1, feel = 'neutral', act = 'idle', t = 0, phase = 0, w = 1920 }) {
+  const c = CAST[who] || CAST[LEAD], ink = '#1a1a2e', sw = 9;
+  // drawn to the height of the flat body it stands in for: layout keeps faces above captions and sky props above heads by that height
+  const s = scale * (c.ry * 2 + 50) / 342;
+  let dx = 0, dy = Math.sin(t * 2.2 + phase) * 4, rot = 0, armL = 0.35, armR = 0.35, leg = 0;
+  if (act === 'hop') dy = -Math.abs(Math.sin(t * 5 + phase)) * 46;
+  else if (act === 'shake') { dx = Math.sin(t * 34 + phase) * 7; armL = armR = 0.75; }
+  else if (act === 'wave') armR = 1.5 + Math.sin(t * 9) * 0.25;
+  else if (act === 'cheer') { armL = armR = 1.6 + Math.sin(t * 10) * 0.12; dy = -Math.abs(Math.sin(t * 6)) * 30; }
+  else if (act === 'float') dy = -120 + Math.sin(t * 1.4 + phase) * 26;
+  else if (act === 'droop') { rot = 8; armL = armR = 0.08; }
+  else if (act === 'run') { leg = Math.sin(t * 14) * 0.7; dx = Math.sin(t * 1.6) * 60; armL = 0.55 + leg * 0.6; armR = 0.55 - leg * 0.6; }
+  else if (act === 'enter-left' || act === 'enter-right') { const k = 1 - backOut(t / 0.6); dx = (act === 'enter-left' ? -1 : 1) * k * (w * 0.6) / s; leg = k > 0.02 ? Math.sin(t * 16) * 0.7 : 0; }
+  const blink = ((t + phase * 0.7) % 3.1) < 0.13;
+  const head = 50, neck = 0, hip = 150, legLen = 92, armLen = 78, shoulder = 34;     // figure units, feet at 0
+  const total = head * 2 + hip + legLen;
+  const hipY = total - legLen, shY = head * 2 + shoulder;
+  const legs = [-1, 1].map(side => { const a = side * leg + side * 0.18; return `<path d="M0,${f(hipY)} L${f(Math.sin(a) * legLen)},${f(hipY + Math.cos(a) * legLen)}" stroke="${ink}" stroke-width="${sw}" stroke-linecap="round"/>`; }).join('');
+  // capped at 0.75π: a stick figure's shoulder sits just under its big head, so an arm raised further hides behind it
+  const arm = (side, up) => { const ang = Math.min(0.75, 0.1 + up * 0.55) * Math.PI, hx = side * Math.sin(ang) * armLen, hy = shY + Math.cos(ang) * armLen; return `<path d="M0,${f(shY)} L${f(hx)},${f(hy)}" stroke="${ink}" stroke-width="${sw}" stroke-linecap="round"/>`; };
+  const accent = c.mark === 'tophat' ? `<rect x="-30" y="${-26}" width="60" height="30" rx="4" fill="${c.color}"/><rect x="-44" y="2" width="88" height="9" rx="4" fill="${c.color}"/>`
+    : c.mark === 'cap' ? `<path d="M-46,22 q46,-44 92,0 Z" fill="${c.color}"/>`
+    : c.mark === 'glasses' ? `<circle cx="-18" cy="${head - 6}" r="15" fill="none" stroke="${c.color}" stroke-width="6"/><circle cx="18" cy="${head - 6}" r="15" fill="none" stroke="${c.color}" stroke-width="6"/>`
+    : c.mark === 'tufts' ? `<circle cx="-34" cy="16" r="15" fill="${c.color}"/><circle cx="34" cy="16" r="15" fill="${c.color}"/>`
+    : c.mark === 'leaf' ? `<path d="M0,2 q-4,-26 8,-40 c22,-16 40,-4 44,8 c-18,10 -36,8 -44,-8" fill="${c.color}" stroke="${ink}" stroke-width="3"/>`
+    : `<path d="M${-head * 0.95},${head + 10} Q0,${head + 30} ${head * 0.95},${head + 10}" stroke="${c.color}" stroke-width="10" fill="none"/>`;
+  return `<g transform="translate(${f(x + dx * s)},${f(y + dy * s)}) scale(${f(s * 100) / 100}) rotate(${rot}) translate(0,${f(-total)})">`
+    + `<ellipse cx="0" cy="${f(total - dy)}" rx="48" ry="11" fill="#000" opacity="0.16"/>`
+    + legs + arm(-1, armL) + arm(1, armR)
+    + `<path d="M0,${head * 2 + neck} L0,${f(hipY)}" stroke="${ink}" stroke-width="${sw}" stroke-linecap="round"/>`
+    + `<circle cx="0" cy="${head}" r="${head}" fill="#ffffff" stroke="${ink}" stroke-width="${sw}"/>`
+    + accent
+    + `<g transform="translate(0,${head + 4}) scale(0.62)">${faceSvg(FEELINGS.includes(feel) ? feel : 'neutral', 34, blink)}</g>`
     + `</g>`;
 }
 

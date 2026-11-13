@@ -41,12 +41,13 @@ import { classifyUrl } from '../fraymus-os/registry.js';
 import { buildPage } from './page-builder.js';
 import { pickWorker, runOnWorker, workersStatus, workersConfigured, installWorkerRoutes } from './workers.js';
 import { installVideoStudioRoutes } from './video-studio-bridge.js';
+import { installLooksRoutes } from './looks/index.js';
 import { pixelateBuffer, STYLES } from './pixel-art.js';
 import { renderFlatFilm, checkFilm } from './flat/render.js';
 import { RULES as FLAT_RULES, titleFitsSubject } from './flat/plan.js';
 import { CAST as FLAT_CAST } from './flat/kit.js';
 import { forgeCast, spritePixels } from './sprite-forge.js';
-import { planCreation, settleKind, describePlan, scriptMessages, normalizeScript, buildStudioMarkdown, speakerLines, normalizeLine, stillPrompt, backdropPrompt, backdropNegative, conditionsOf, subjectOf, PACES, bestDraft, extractJson, WIRED_STYLES, PIXEL_STYLES, RECIPES } from './make-plan.js';
+import { planCreation, settleKind, describePlan, scriptMessages, normalizeScript, buildStudioMarkdown, speakerLines, normalizeLine, stillPrompt, backdropPrompt, backdropNegative, conditionsOf, subjectOf, PACES, bestDraft, extractJson, WIRED_STYLES, PIXEL_STYLES, RECIPES, isVector } from './make-plan.js';
 import { scriptMessagesFor, normalizeFor, buildMarkdownFor, paintsBackdrops, forgePeople } from './make-looks.js';
 
 const execFileAsync = promisify(execFile);
@@ -187,7 +188,7 @@ async function writeScript(plan, onAttempt) {
     for (let attempt = 1; attempt <= SCRIPT_ATTEMPTS; attempt++) {
       onAttempt?.(attempt, w.label);
       let raw;
-      try { raw = await askWriter(w, scriptMessagesFor(plan, feedback), plan.style === 'flat' ? 3600 : 1500); }
+      try { raw = await askWriter(w, scriptMessagesFor(plan, feedback), isVector(plan.style) ? 3600 : 1500); }
       catch (e) { lastError = e.message; refusals.push(`${w.label}: call failed: ${clip(e.message, 120)}`); if (w.url || attempt >= 2) break; continue; }
       const s = normalizeFor(raw, plan, { final: attempt === SCRIPT_ATTEMPTS });
       if (s.ok) {
@@ -572,7 +573,7 @@ async function makeFlat(id, plan, opts) {
 
   setJob(id, { stage: 'drawing', progress: 0.28 });
   const master = join(outDir, `${script.title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'film'}_master.mp4`);
-  const render = await renderFlatFilm({ shots, lineWavs, format: plan.format, outPath: master, workDir: dir, isCancelled: () => cancelled.has(id),
+  const render = await renderFlatFilm({ shots, lineWavs, format: plan.format, outPath: master, workDir: dir, figures: plan.style === 'stick' ? 'stick' : 'flat', isCancelled: () => cancelled.has(id),
     onProgress: (p, k) => setJob(id, { stage: `drawing shot ${k + 1} of ${shots.length}`, progress: 0.28 + 0.66 * p }) });
   setJob(id, { stage: 'checking the film', progress: 0.96 });
   const verdict = await checkFilm({ shots, format: plan.format, render });
@@ -593,7 +594,7 @@ async function makeFlat(id, plan, opts) {
   }
   const name = mediaName('mp4');
   copyFileSync(master, join(VIDEO_DIR, name));
-  noteMedia(name, 'create', [plan.request, { style: 'flat', format: plan.format, seconds: +render.seconds.toFixed(1), shots: shots.length, title: script.title, voice: voiced, job: id, renderer: 'chandra flat renderer' }], { source: 'creation' });
+  noteMedia(name, 'create', [plan.request, { style: plan.style, format: plan.format, seconds: +render.seconds.toFixed(1), shots: shots.length, title: script.title, voice: voiced, job: id, renderer: 'chandra flat renderer' }], { source: 'creation' });
   lineage.output.file = name;
   try { writeFileSync(join(dir, 'lineage.json'), JSON.stringify(lineage, null, 2), 'utf8'); } catch (e) { console.error('[creation] lineage:', e.message); }
   return { kind: 'video', file: name, url: `/api/hermes/artifacts/media?kind=video&id=${name}`, pages: [], pdf: null, title: script.title, seconds: +render.seconds.toFixed(2), renderSeconds: render.renderSeconds,
@@ -638,7 +639,7 @@ async function runJob(id, opts) {
   try {
     if (!plan.kind) { const k = await decideKind(plan.request); plan = settleKind(plan, k.kind, k.why); setJob(id, { plan: JSON.stringify(plan), kind: plan.kind }); }
     emit({ action: 'creation_started', id, kind: plan.kind, style: plan.style });
-    const output = plan.kind === 'page' ? await makePage(id, plan) : plan.style === 'flat' ? await makeFlat(id, plan, opts) : plan.kind === 'still' && plan.style !== 'comic' ? await makeStill(id, plan, opts) : await makeVideo(id, plan, opts);
+    const output = plan.kind === 'page' ? await makePage(id, plan) : isVector(plan.style) ? await makeFlat(id, plan, opts) : plan.kind === 'still' && plan.style !== 'comic' ? await makeStill(id, plan, opts) : await makeVideo(id, plan, opts);
     if (cancelled.has(id)) throw new Error('cancelled');
     const seconds = +((now() - t0) / 1000).toFixed(1);
     setJob(id, { status: 'completed', stage: 'done', progress: 1, output: JSON.stringify(output), seconds, completed_at: now() });
@@ -761,6 +762,7 @@ export function installMakeRoutes(app) {
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
   installWorkerRoutes(app);
   installVideoStudioRoutes(app);   // OhGee's fraymus-video-studio on FRAYMUS-HOME, as shared tools (video-studio-bridge.js)
+  installLooksRoutes(app);         // looks: convert pictures and video, camera moves, style-recipe generation (looks/)
   app.get('/api/studio/create', route(async (req, res) => res.json(await creationStatus())));
   app.post('/api/studio/create/plan', route((req, res) => {
     const b = req.body || {};

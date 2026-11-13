@@ -124,7 +124,7 @@ export function grounded(proposal, sourceText) {
   if (claimParts(proposal.claim).values.some(v => !quote.includes(v))) return { ok: false, why: 'number_not_in_quote' };
   // a fact is read later with nothing around it: "Its value is AWAKENING" says nothing unless the claim itself names the thing
   const claim = normClaim(proposal.claim);
-  if (/^(it|its|this|that|these|those|they|their|he|she|his|her)/.test(claim) || !ent.some(w => claim.includes(w))) return { ok: false, why: 'claim_does_not_name_entity' };
+  if (/^(it|its|this|that|these|those|they|their|he|she|his|her)\b/.test(claim) || !ent.some(w => claim.includes(w))) return { ok: false, why: 'claim_does_not_name_entity' };
   return { ok: true };
 }
 

@@ -15,9 +15,10 @@
 
 import { castName } from './sprite-forge.js';
 
-export const WIRED_STYLES = ['8bit', '2bit', 'cartoon', 'comic', 'explainer', 'flat'];
+export const WIRED_STYLES = ['8bit', '2bit', 'cartoon', 'comic', 'explainer', 'flat', 'stick'];
 /** Looks drawn by Chandra's own vector renderer (server/media/flat): any shape, no studio, no graphics card. */
-export const VECTOR_STYLES = ['flat'];
+export const VECTOR_STYLES = ['flat', 'stick'];
+export const isVector = style => VECTOR_STYLES.includes(style);
 export const PIXEL_STYLES = ['8bit', '2bit'];
 /** Look → the studio recipe that renders it. */
 export const RECIPES = Object.freeze({ '8bit': '8bit', '2bit': '2bit', cartoon: 'cartoon', comic: 'comic-strip', explainer: 'explainer' });
@@ -54,6 +55,8 @@ const STYLE_COMIC = /\bcomics?\b|\bgraphic novel\b/i;
 const STYLE_CARTOON = /\bcartoon\b/i;
 const STYLE_EXPLAINER = /\bexplainer\b|\bexplain(?:s|ing|ed)?\b|\bnarrated\b|\bdocumentary\b|\bvideo essay\b/i;
 // the flat vector look: named by its style words, or by the form it was built for (a narrated story short with a recurring cast)
+// stick figures: the flat pipeline (writer, art director, voices, checks) with the cast drawn as stick figures
+const STYLE_STICK = /\bstick[\s-]?(?:figures?|man|men|people|person|animation|cartoon|comic)|\bstickm[ae]n|\bxkcd/i;
 const STYLE_FLAT = /\bkurzgesagt\b|\bin a nutshell\b|\bflat[\s-](?:vector|animation|animated|design|explainer|style|look|film|short|video|cartoon|motion)\b|\bvector[\s-](?:animation|animated|explainer|cartoon|short|video|film|style|look)\b|\bmotion[\s-]graphics?\b|\bstory shorts?\b|\binfographic (?:video|animation|film)\b/i;
 const PAGES_ONLY = /\bpages? only\b|\bjust the pages?\b|\bno video\b|\bwithout (?:a )?video\b/i;
 const OTHER_STYLES = [
@@ -90,7 +93,7 @@ export function parseRequest(text) {
   const t = String(text || '');
   if (PAGE_RE.test(t) || (PAGE_BUILD_RE.test(t) && !FILM_WORD_RE.test(t))) return { kind: 'page', style: 'web', otherStyle: null, seconds: null, format: null, palette: null, silent: false };
   // A pixel look named outright wins ("an 8-bit cartoon" is 8-bit); then the looks that are a form of their own
-  const style = STYLE_2BIT.test(t) ? '2bit' : STYLE_8BIT.test(t) ? '8bit' : STYLE_FLAT.test(t) ? 'flat' : STYLE_COMIC.test(t) ? 'comic' : STYLE_CARTOON.test(t) ? 'cartoon' : STYLE_EXPLAINER.test(t) ? 'explainer' : null;
+  const style = STYLE_2BIT.test(t) ? '2bit' : STYLE_8BIT.test(t) ? '8bit' : STYLE_STICK.test(t) ? 'stick' : STYLE_FLAT.test(t) ? 'flat' : STYLE_COMIC.test(t) ? 'comic' : STYLE_CARTOON.test(t) ? 'cartoon' : STYLE_EXPLAINER.test(t) ? 'explainer' : null;
   const other = style ? null : (OTHER_STYLES.find(([, re]) => re.test(t)) || [null])[0];
   // "cartoon" names the look here, so it is not by itself a sign that a film was asked for ("a cartoon still of …")
   const still = STILL_RE.test(t), video = VIDEO_RE.test(style === 'cartoon' ? t.replace(/\bcartoon\b/gi, ' ') : t);
@@ -98,7 +101,7 @@ export function parseRequest(text) {
   let kind = video || seconds != null ? 'video' : still ? 'still' : null;
   // A comic always has pages; the film of it comes too unless the sentence asks for pages alone. A cartoon or an explainer is a film.
   if (style === 'comic') kind = PAGES_ONLY.test(t) || (still && !video && seconds == null) ? 'still' : 'video';
-  else if ((style === 'cartoon' || style === 'explainer' || style === 'flat') && kind == null) kind = 'video';
+  else if ((style === 'cartoon' || style === 'explainer' || isVector(style)) && kind == null) kind = 'video';
   const format = /\bvertical\b|\b9\s*[:x]\s*16\b|\btiktok\b|\breels?\b|youtube shorts|\bfor (?:my |a )?phone\b|portrait (?:mode|orientation)/i.test(t) ? '9:16'
     : /\bsquare\b|\b1\s*[:x]\s*1\b/i.test(t) ? '1:1' : null;
   const palette = style === '2bit' ? (/\bpocket\b/i.test(t) ? 'gb-pocket' : /black[\s-]and[\s-]white|gr[ae]yscale|\bmono(?:chrome)?\b/i.test(t) ? 'gb-mono' : null) : null;
@@ -134,9 +137,9 @@ export function planCreation(text, overrides = {}) {
 
   const kindOverride = ['still', 'video'].includes(overrides.kind) ? overrides.kind : null;
   // an explicit look can change what the sentence alone implied: re-read the kind for looks that are always a film
-  const impliedKind = p.kind ?? (style === 'cartoon' || style === 'explainer' || style === 'comic' || style === 'flat' ? 'video' : null);
+  const impliedKind = p.kind ?? (style === 'cartoon' || style === 'explainer' || style === 'comic' || isVector(style) ? 'video' : null);
   const kind = pick('kind', kindOverride, impliedKind, null, 'not stated — decided when the job starts');
-  if (!blocked && kind === 'still' && (style === 'cartoon' || style === 'explainer' || style === 'flat')) blocked = { reason: 'still_not_wired', style };
+  if (!blocked && kind === 'still' && (style === 'cartoon' || style === 'explainer' || isVector(style))) blocked = { reason: 'still_not_wired', style };
 
   let seconds = null;
   if (kind !== 'still') {
@@ -191,8 +194,8 @@ export function describePlan(plan) {
   parts.push(`${plan.format} (${why('format')})`);
   if (plan.kind !== 'still' || comic) {
     const pictures = { cartoon: 'built-in sets', comic: 'painted narration panels', explainer: 'painted pictures behind the words', flat: 'drawn shot by shot from the flat kit with the recurring cast' }[plan.style] || 'painted backdrops';
-    const drawn = plan.style === 'cartoon' || plan.style === 'flat';
-    parts.push(plan.voice === 'silent' ? 'no voice' : plan.style === 'explainer' || plan.style === 'flat' ? 'one voice' : 'two voices', plan.backdrops === false || drawn ? (drawn ? pictures : 'no painted pictures') : pictures);
+    const drawn = plan.style === 'cartoon' || isVector(plan.style);
+    parts.push(plan.voice === 'silent' ? 'no voice' : plan.style === 'explainer' || isVector(plan.style) ? 'one voice' : 'two voices', plan.backdrops === false || drawn ? (drawn ? pictures : 'no painted pictures') : pictures);
   }
   return parts.join(', ') + (plan.notes.length ? '. ' + plan.notes.join(' ') : '');
 }

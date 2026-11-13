@@ -46,7 +46,7 @@ const sigSpread = a => { let mn = 255, mx = 0; for (const v of a) { mn = Math.mi
  * @param lineWavs  one WAV file per shot (any 16-bit PCM rate; resampled by the caller to 24 kHz mono)
  * @returns {{ file, seconds, frames, renderSeconds, timeline, audio: {seconds, longestGap, longestSilence}, signatures }}
  */
-export async function renderFlatFilm({ shots, lineWavs, format = '16:9', outPath, workDir, fps = FPS, onProgress = null, isCancelled = () => false }) {
+export async function renderFlatFilm({ shots, lineWavs, format = '16:9', outPath, workDir, fps = FPS, onProgress = null, isCancelled = () => false, figures = 'flat' }) {
   const [w, h] = FORMATS[format] || FORMATS['16:9'];
   const lines = lineWavs.map((p, k) => { const { samples, rate } = readWav(readFileSync(p)); if (rate !== RATE) throw new Error(`line ${k + 1} is ${rate} Hz; the soundtrack is built at ${RATE}`); return { samples: trimSilence(samples, rate) }; });
   if (lines.length !== shots.length) throw new Error(`${lines.length} recorded lines for ${shots.length} shots`);
@@ -76,7 +76,7 @@ export async function renderFlatFilm({ shots, lineWavs, format = '16:9', outPath
       const cap = tl.captions[ci], span = tl.spans[k];
       const showing = cap && t >= cap.at - 0.02 && t <= cap.until + 0.18;
       let hot = -1; if (showing) for (let i = 0; i < cap.times.length; i++) if (t >= cap.times[i]) hot = i;
-      const svg = shotSvg(shots[k], t - span.from, { format, dur: span.to - span.from, caption: showing ? { words: cap.words, hot } : null });
+      const svg = shotSvg(shots[k], t - span.from, { format, dur: span.to - span.from, caption: showing ? { words: cap.words, hot } : null, figures });
       const img = await loadImage(Buffer.from(svg));
       ctx.drawImage(img, 0, 0, w, h);
       const data = ctx.getImageData(0, 0, w, h).data;

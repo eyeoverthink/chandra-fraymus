@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseRequest, planCreation, settleKind, describePlan, backdropPrompt, backdropNegative, RECIPES, WIRED_STYLES } from '../server/media/make-plan.js';
+import { parseRequest, planCreation, settleKind, describePlan, backdropPrompt, backdropNegative, RECIPES, WIRED_STYLES, isVector } from '../server/media/make-plan.js';
 import { scriptMessagesFor, normalizeFor, buildMarkdownFor, paintsBackdrops, forgePeople, explainerBudget, DEFAULT_PEOPLE } from '../server/media/make-looks.js';
 
 const plan = (text, o) => { const p = planCreation(text, o); return p.kind && !p.blocked ? settleKind(p, p.kind) : p; };
@@ -12,7 +12,7 @@ test('the sentence picks the look, and a pixel look named outright wins', () => 
   assert.equal(parseRequest('a video that explains why the sky is blue').style, 'explainer');
   assert.equal(parseRequest('an 8-bit cartoon about a cat').style, '8bit');
   assert.equal(parseRequest('a 2-bit comic about a robot').style, '2bit');
-  assert.deepEqual(Object.keys(RECIPES).sort(), WIRED_STYLES.filter(s => s !== 'flat').sort());   // the flat look is drawn here, not by a studio recipe
+  assert.deepEqual(Object.keys(RECIPES).sort(), WIRED_STYLES.filter(s => !isVector(s)).sort());   // flat and stick are drawn here, not by a studio recipe
   assert.equal(RECIPES.comic, 'comic-strip');
 });
 

@@ -14,7 +14,7 @@
  */
 import { flatMessages, normalizeFlat } from './flat/plan.js';
 import { scriptMessages, normalizeScript, buildStudioMarkdown, scriptBudget, paceOf, extractJson, headline, normalizeLine, cleanLine, cleanPlace, cleanTitle,
-  wordsOf, MAX_PLACES, PIXEL_STYLES, DEFAULT_SECONDS, TITLE_SECONDS, OUTRO_SECONDS, WORDS_PER_SECOND } from './make-plan.js';
+  wordsOf, MAX_PLACES, PIXEL_STYLES, DEFAULT_SECONDS, TITLE_SECONDS, OUTRO_SECONDS, WORDS_PER_SECOND, isVector } from './make-plan.js';
 import { readLook, COLOURS } from './sprite-forge.js';
 
 const clip = (s, n) => String(s ?? '').slice(0, n);
@@ -240,7 +240,7 @@ function explainerMarkdown(plan, script, backdrops = []) {
 
 /** Chat messages asking the writer for a script in the plan's look. */
 export function scriptMessagesFor(plan, feedback = null) {
-  if (plan.style === 'flat') return flatMessages(plan, feedback);
+  if (isVector(plan.style)) return flatMessages(plan, feedback);
   if (plan.style === 'cartoon') return cartoonMessages(plan, feedback);
   if (plan.style === 'comic') return comicMessages(plan, feedback);
   if (plan.style === 'explainer') return explainerMessages(plan, feedback);
@@ -268,7 +268,7 @@ function polish(script) {
 
 /** Check and tidy what the writer (or a caller) supplied, by the rules of the plan's look. */
 export function normalizeFor(raw, plan, opts = {}) {
-  if (plan.style === 'flat') return normalizeFlat(raw, plan, opts);
+  if (isVector(plan.style)) return normalizeFlat(raw, plan, opts);
   if (plan.style === 'explainer') return normalizeExplainer(raw, plan, opts);
   const s = plan.style === 'comic' ? normalizeComic(raw, plan, opts) : normalizeScript(raw, plan, opts);
   if (!s.ok) return s;
