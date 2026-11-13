@@ -5,6 +5,16 @@ export const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..
 export const WORKSPACE_ROOT = resolve(process.env.FRAYMUS_WORKSPACE || resolve(PROJECT_ROOT, '..'));
 export const DATA_DIR = resolve(process.env.CHANDRA_DATA_DIR || resolve(PROJECT_ROOT, 'data'));
 
+/**
+ * True when this process may close rows a dead process left running (boot recovery). Never from a test process
+ * that has the real database open: on 2026-11-13 test/http.test.js loaded the runtime with no data folder named,
+ * make.js "recovered" the real creation_jobs table and a live render was marked "interrupted by restart" the
+ * minute `npm test` began. A test that names its own CHANDRA_DATA_DIR recovers its own rows as before.
+ */
+export function mayRecoverAtBoot(env = process.env) {
+  return !(env.NODE_TEST_CONTEXT && !env.CHANDRA_DATA_DIR);
+}
+
 export function loopbackUrl(value, name = 'service URL') {
   const url = new URL(value);
   if (url.protocol !== 'http:' || !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)

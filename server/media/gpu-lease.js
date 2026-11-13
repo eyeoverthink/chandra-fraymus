@@ -19,7 +19,7 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { db } from '../db.js';
-import { OLLAMA_URL } from '../config.js';
+import { OLLAMA_URL, mayRecoverAtBoot } from '../config.js';
 import { publish } from '../fleet/bus.js';
 import { pauseOllama, resumeOllama, waitForOllamaIdle, ollamaPaused } from '../intelligence/ollama-scheduler.js';
 
@@ -39,7 +39,7 @@ try {
     );
     CREATE INDEX IF NOT EXISTS idx_gpu_leases_acquired ON gpu_leases(acquired_at);
   `);
-  const closed = db.prepare(`UPDATE gpu_leases SET status = 'released', release_reason = 'process restarted', released_at = ? WHERE status = 'held'`).run(now()).changes;
+  const closed = !mayRecoverAtBoot() ? 0 : db.prepare(`UPDATE gpu_leases SET status = 'released', release_reason = 'process restarted', released_at = ? WHERE status = 'held'`).run(now()).changes;
   if (closed) console.log(`[gpu-lease] closed ${closed} lease(s) left by a previous process`);
 } catch (e) { console.error('[gpu-lease] table setup failed:', e.message); }
 

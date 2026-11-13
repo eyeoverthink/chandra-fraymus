@@ -20,7 +20,7 @@
  *
  * No paid APIs. Dedup by source id. Translation budget RESEARCH_MAX_TRANSLATE (3) per scan.
  */
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, statSync, readFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { db } from '../db.js';
 import { publish } from '../fleet/bus.js';
@@ -195,10 +195,14 @@ Return ONLY JSON, one of:
 {"kind":"idea","idea":"<one or two sentences: what new tunable or mechanism this system would need before the paper's insight applies>","citation":"<title>"}
 {"kind":"none","reason":"<short>"}`;
 
-function moduleList() {
+export function moduleList() {
   const mods = new Set();
   try { for (const entry of Object.values(getSystemMap() || {})) { const m = entry?.backend?.module; if (m) mods.add(String(m).startsWith('server/') ? String(m) : 'server/' + String(m).replace(/^\.?\//, '')); } } catch {}
   return [...mods].filter(m => existsSync(join(REPO_ROOT, m))).slice(0, 60);
+}
+function fileNames(rel, sketch) {
+  try { return namedFunctions(sketch, readFileSync(join(REPO_ROOT, rel), 'utf8')); }
+  catch (e) { console.error('[research] read', rel, e.message); return []; }
 }
 function targetOk(file) {
   const rel = String(file || '').replace(/\\/g, '/').replace(/^\.\//, '');
@@ -208,13 +212,44 @@ function targetOk(file) {
   try { return statSync(abs).isFile() ? rel : null; } catch { return null; }
 }
 
-export async function translateItem(itemId) {
+/** Names a source file declares: functions, methods, and consts bound to a function or arrow. */
+export function declaredNames(src) {
+  const names = new Set();
+  const s = String(src || '');
+  for (const m of s.matchAll(/\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)\s*\(/g)) names.add(m[1]);
+  for (const m of s.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?(?:function\b|\([^)]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)/g)) names.add(m[1]);
+  for (const m of s.matchAll(/^\s*(?:async\s+)?([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{/gm)) if (!/^(if|for|while|switch|catch|function|return)$/.test(m[1])) names.add(m[1]);
+  return names;
+}
+
+/** The functions a code sketch names that the target file really declares (a sketch may name them quoted, as calls, or bare). */
+export function namedFunctions(sketch, src) {
+  const declared = declaredNames(src);
+  const words = new Set(String(sketch || '').match(/[A-Za-z_$][\w$]{2,}/g) || []);
+  return [...words].filter(w => declared.has(w));
+}
+
+/** Function names per file for the model to choose from (the first `per` of each). */
+export function functionsByModule(files, per = 25) {
+  const out = {};
+  for (const f of files) {
+    try { out[f] = [...declaredNames(readFileSync(join(REPO_ROOT, f), 'utf8'))].slice(0, per); }
+    catch (e) { console.error('[research] functions of', f, e.message); }
+  }
+  return out;
+}
+
+/**
+ * `system` replaces the paper-reading instruction (the dream bridge passes its own: a lesson about this system, not
+ * a paper); `modules` replaces the module list; `extra` adds fields to what the model is shown.
+ */
+export async function translateItem(itemId, { system = TRANSLATE_SYSTEM, modules = null, extra = null } = {}) {
   const it = q1(`SELECT * FROM research_items WHERE id = ?`, itemId);
   if (!it || it._error) return { ok: false, error: 'item not found' };
   const tunables = TUNABLE_NAMES.map(n => ({ name: n, value: tunable(n), min: REGISTRY[n].min, max: REGISTRY[n].max, unit: REGISTRY[n].unit, effect: REGISTRY[n].effect }));
   const raw = await chatOllama([
-    { role: 'system', content: TRANSLATE_SYSTEM },
-    { role: 'user', content: JSON.stringify({ item: { title: it.title, abstract: (it.abstract || '').slice(0, 1800), source: it.source, url: it.url, matchedTerms: JSON.parse(it.relevance_terms || '[]') }, liveTunables: tunables, modules: moduleList().slice(0, 36) }) },
+    { role: 'system', content: system },
+    { role: 'user', content: JSON.stringify({ item: { title: it.title, abstract: (it.abstract || '').slice(0, 1800), source: it.source, url: it.url, matchedTerms: JSON.parse(it.relevance_terms || '[]') }, liveTunables: tunables, modules: (modules && modules.length ? modules : moduleList()).slice(0, 40), ...(extra || {}) }) },
   ], { priority: 'goal', label: `research:translate:${it.id}`, format: 'json', temperature: 0.2, maxTokens: 600, timeoutMs: 600_000 }); // 'goal': ≤ 3 calls/day, never dropped; 10 min — on a shared GPU a 2k-token prompt can queue for minutes
   const j = parseJSON(raw) || {};
   const t = now();
@@ -224,7 +259,9 @@ export async function translateItem(itemId) {
   if (kind === 'experiment' && REGISTRY[j.tunable] && Number.isFinite(parseFloat(j.value))) {
     const r = REGISTRY[j.tunable]; const v = Math.min(r.max, Math.max(r.min, parseFloat(j.value)));
     if (v === tunable(j.tunable)) kind = 'none'; else row = { kind, tunable: j.tunable, value: v, hypothesis: String(j.hypothesis || '').slice(0, 400) };
-  } else if (kind === 'code' && targetOk(j.targetFile) && j.sketch) {
+  } else if (kind === 'code' && targetOk(j.targetFile) && j.sketch && fileNames(targetOk(j.targetFile), j.sketch).length) {
+    // a code change must name a function the file really declares — on 2026-11-13 two proposals named a function
+    // that did not exist and a file that never touched the subject; the kernel's coder would have edited thin air
     row = { kind, target_file: targetOk(j.targetFile), sketch: String(j.sketch).slice(0, 1500), rationale: String(j.rationale || '').slice(0, 600) };
   } else if (kind === 'idea' && j.idea) {
     row = { kind, idea: String(j.idea).slice(0, 800) };
@@ -233,11 +270,21 @@ export async function translateItem(itemId) {
     db.prepare(`INSERT INTO research_proposals (id, item_id, kind, tunable, value, hypothesis, target_file, sketch, rationale, idea, citation, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(id, it.id, kind, row.tunable || null, row.value ?? null, row.hypothesis || null, row.target_file || null, row.sketch || null, row.rationale || null, row.idea || null, String(j.citation || it.title).slice(0, 300), kind === 'idea' ? 'stored' : 'proposed', t, t);
     if (kind === 'idea') {
-      try { storeMemory('system', 'research', `research:${it.id}`, `[Research idea] ${row.idea}\nSource: ${it.title} (${it.url})`, { confidence: 0.5, source: 'research-scout' }); } catch (e) { console.error('[research] memory:', e.message); }
+      const fromDream = it.source === 'dream';
+      try { storeMemory('system', 'research', `research:${it.id}`, fromDream ? `[Dream idea] ${row.idea}\nFrom the lesson: ${it.title}` : `[Research idea] ${row.idea}\nSource: ${it.title} (${it.url})`, { confidence: 0.5, source: fromDream ? 'dream-bridge' : 'research-scout' }); } catch (e) { console.error('[research] memory:', e.message); }
     }
     try { publish('research', 'system.research', JSON.stringify({ action: 'proposal', id, kind, title: it.title, url: it.url, tunable: row.tunable, value: row.value, hypothesis: row.hypothesis, targetFile: row.target_file, idea: row.idea })); } catch (_) {}
   }
-  const note = kind === 'none' ? String(j.reason || (j.kind ? `model answered ${j.kind} but it failed validation` : 'unparseable answer')).slice(0, 300) : `${kind}: ${String(j.citation || '').slice(0, 120)}`;
+  // when the model's answer is refused, say what was wrong with it — "failed validation" alone cannot be learned from
+  const why = () => {
+    const k = String(j.kind || '').toLowerCase();
+    if (k === 'experiment') return !REGISTRY[j.tunable] ? `no tunable named "${String(j.tunable || '').slice(0, 60)}"` : !Number.isFinite(parseFloat(j.value)) ? 'no numeric value' : `the value equals the live one (${tunable(j.tunable)})`;
+    if (k === 'code') return !j.sketch ? 'no sketch' : !targetOk(j.targetFile) ? `"${String(j.targetFile || '').slice(0, 80)}" is not an existing file under ${ALLOWED_ROOTS.join(', ')}`
+      : `the sketch names no function that ${targetOk(j.targetFile)} declares`;
+    if (k === 'idea') return 'no idea text';
+    return `unknown kind "${k.slice(0, 20)}"`;
+  };
+  const note = kind === 'none' ? String(j.reason || (j.kind && String(j.kind).toLowerCase() !== 'none' ? `model answered ${j.kind} but it failed validation: ${why()}` : 'unparseable answer')).slice(0, 300) : `${kind}: ${String(j.citation || '').slice(0, 120)}`;
   db.prepare(`UPDATE research_items SET status = ?, translate_note = ? WHERE id = ?`).run(kind === 'none' ? 'ignored' : 'translated', note, it.id);
   return { ok: true, itemId: it.id, kind, proposalId: kind !== 'none' ? id : null, reason: j.reason || null, raw: String(raw).slice(0, 600) };
 }
@@ -251,15 +298,19 @@ export async function translateTop({ max = MAX_TRANSLATE } = {}) {
 }
 
 // ─── What the kernel pulls ────────────────────────────────────────
+// a proposal from a grounded dream (dream-bridge.js) is credited as 'dream', apart from papers, so proposer credit
+// can answer whether the organism's own lessons earn their keep
+const family = r => (r.item_source === 'dream' ? 'dream' : 'research');
 export function nextResearchExperiment() {
-  const r = q1(`SELECT p.*, i.title, i.url FROM research_proposals p JOIN research_items i ON i.id = p.item_id WHERE p.kind = 'experiment' AND p.status = 'proposed' ORDER BY i.relevance DESC, p.created_at ASC LIMIT 1`);
+  const r = q1(`SELECT p.*, i.title, i.url, i.source AS item_source FROM research_proposals p JOIN research_items i ON i.id = p.item_id WHERE p.kind = 'experiment' AND p.status = 'proposed' ORDER BY i.relevance DESC, p.created_at ASC LIMIT 1`);
   if (!r || r._error) return null;
-  return { proposalId: r.id, tunable: r.tunable, value: r.value, hypothesis: `${r.hypothesis} [${r.citation}]`.slice(0, 480), rule: 'research', source: `research:${r.item_id}`, citation: r.citation, url: r.url };
+  return { proposalId: r.id, tunable: r.tunable, value: r.value, hypothesis: `${r.hypothesis} [${r.citation}]`.slice(0, 480), rule: family(r), source: `${family(r)}:${r.item_id}`, citation: r.citation, url: r.url };
 }
 export function nextResearchCode() {
-  const r = q1(`SELECT p.*, i.title, i.url FROM research_proposals p JOIN research_items i ON i.id = p.item_id WHERE p.kind = 'code' AND p.status = 'proposed' ORDER BY i.relevance DESC, p.created_at ASC LIMIT 1`);
+  const r = q1(`SELECT p.*, i.title, i.url, i.source AS item_source FROM research_proposals p JOIN research_items i ON i.id = p.item_id WHERE p.kind = 'code' AND p.status = 'proposed' ORDER BY i.relevance DESC, p.created_at ASC LIMIT 1`);
   if (!r || r._error) return null;
-  return { proposalId: r.id, originId: r.id, title: `Research: ${String(r.citation || r.title).slice(0, 120)}`, targetFile: r.target_file, sketch: r.sketch, rationale: `${r.rationale} — source: ${r.url}`, source: `research:${r.item_id}` };
+  const f = family(r);
+  return { proposalId: r.id, originId: r.id, title: `${f === 'dream' ? 'Dream' : 'Research'}: ${String(r.citation || r.title).slice(0, 120)}`, targetFile: r.target_file, sketch: r.sketch, rationale: `${r.rationale} — source: ${r.url}`, source: `${f}:${r.item_id}` };
 }
 /**
  * Ideas → self-proving demo programs (Phase AB). An `idea` names a mechanism this system lacks a

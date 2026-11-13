@@ -109,8 +109,12 @@ const LINES = {
   },
   // What the dream step concluded about the hour, after every lesson passed the evidence checks (dream-ground.js).
   // These are the system's own checked conclusions, the closest thing in the stream to a thought.
-  'system.dream': p => (p.action === 'lessons' && Array.isArray(p.lessons) && p.lessons.length
-    ? { kind: 'dream', text: `I noticed: ${clip(p.lessons[0], 170)}${p.lessons.length > 1 ? ` And ${p.lessons.length - 1} more from the same hour.` : ''}` } : null),
+  'system.dream': p => {
+    if (p.action === 'lessons' && Array.isArray(p.lessons) && p.lessons.length) return { kind: 'dream', text: `I noticed: ${clip(p.lessons[0], 170)}${p.lessons.length > 1 ? ` And ${p.lessons.length - 1} more from the same hour.` : ''}` };
+    if (p.action === 'reel_ready' && p.lessons) return { kind: 'dream', text: `I made a film of what I learned: ${p.lessons} lesson${p.lessons === 1 ? '' : 's'}, ${Math.round(p.seconds || 0)} seconds. It is on the shelf.` };
+    if (p.action === 'dream_translated' && p.kind && p.kind !== 'none') return { kind: 'dream', text: `One of my lessons became ${p.kind === 'experiment' ? 'an experiment I will measure' : p.kind === 'code' ? 'a code change for review' : 'an idea to prove in code'}: ${clip(p.lesson, 120)}` };
+    return null;
+  },
   // Phase AD: measured capability — benchmark results and lessons that survived an A/B test
   'system.capability': p => {
     if (p.action === 'benchmark_completed' && typeof p.g === 'number') return { kind: 'capability', text: `Capability check: ${p.correct} of ${p.n} fresh problems solved, g-score ${p.g.toFixed(2)}.${p.strongest && p.weakest && p.strongest !== p.weakest ? ` Strongest at ${p.strongest}, weakest at ${p.weakest}.` : ''}` };

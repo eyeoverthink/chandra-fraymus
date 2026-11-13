@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { promisify } from 'node:util';
 import { db } from '../db.js';
-import { DATA_DIR, PORT } from '../config.js';
+import { DATA_DIR, PORT, mayRecoverAtBoot } from '../config.js';
 import { publish } from '../fleet/bus.js';
 import { chatOllama } from '../commerce/shared.js';
 import { noteMedia } from './media-meta.js';
@@ -89,7 +89,7 @@ try {
     );
     CREATE INDEX IF NOT EXISTS idx_creation_jobs_created ON creation_jobs(created_at);
   `);
-  const closed = db.prepare(`UPDATE creation_jobs SET status = 'error', error = 'interrupted by restart', completed_at = ? WHERE status IN ('queued', 'running')`).run(now()).changes;
+  const closed = !mayRecoverAtBoot() ? 0 : db.prepare(`UPDATE creation_jobs SET status = 'error', error = 'interrupted by restart', completed_at = ? WHERE status IN ('queued', 'running')`).run(now()).changes;
   if (closed) console.log(`[creation] closed ${closed} job(s) left open by a previous process`);
 } catch (e) { console.error('[creation] table setup failed:', e.message); }
 
@@ -642,7 +642,8 @@ async function runJob(id, opts) {
     const output = plan.kind === 'page' ? await makePage(id, plan) : isVector(plan.style) ? await makeFlat(id, plan, opts) : plan.kind === 'still' && plan.style !== 'comic' ? await makeStill(id, plan, opts) : await makeVideo(id, plan, opts);
     if (cancelled.has(id)) throw new Error('cancelled');
     const seconds = +((now() - t0) / 1000).toFixed(1);
-    setJob(id, { status: 'completed', stage: 'done', progress: 1, output: JSON.stringify(output), seconds, completed_at: now() });
+    // error cleared: a job another process wrongly closed and that then finished must not read "completed" + an error
+    setJob(id, { status: 'completed', stage: 'done', progress: 1, output: JSON.stringify(output), error: null, seconds, completed_at: now() });
     emit({ action: 'creation_completed', id, kind: plan.kind, style: plan.style, file: output.file, seconds });
   } catch (e) {
     const wasCancelled = cancelled.has(id);

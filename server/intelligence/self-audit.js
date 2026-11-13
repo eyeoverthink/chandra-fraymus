@@ -396,8 +396,24 @@ function checkCapability() {
   return findings;
 }
 
+// Dream capture: kept dreams must be translated, and reels must finish
+function checkDreamBridge() {
+  const findings = [];
+  const t = now();
+  const waiting = q1(`SELECT COUNT(*) AS c FROM research_items WHERE source = 'dream' AND status = 'dream_new' AND fetched_at < ?`, t - DAY);
+  if ((waiting?.c || 0) >= 10) findings.push({ check: 'producer_without_consumer', subject: 'dreams→research_items', severity: 'REAL',
+    summary: `${waiting.c} kept dreams have waited over 24 h without being translated — the dream bridge is not consuming them`, evidence: { waiting: waiting.c } });
+  const stuck = q1(`SELECT COUNT(*) AS c FROM dream_reels WHERE status = 'rendering' AND created_at < ?`, t - 3 * H);
+  if (stuck?.c) findings.push({ check: 'stuck_transient', subject: 'dream_reels.status', severity: 'REAL', summary: `${stuck.c} dream reel(s) stuck in 'rendering' for over 3 h`, evidence: { count: stuck.c } });
+  const last = q(`SELECT status FROM dream_reels ORDER BY created_at DESC LIMIT 3`) || [];
+  if (last.length === 3 && last.every(r => r.status === 'error')) findings.push({ check: 'repeated_action', subject: 'dream_reels:failing', severity: 'REAL',
+    summary: 'the last three dream reels all failed — read dream_reels.error', evidence: { last: last.length } });
+  return findings;
+}
+
 const CHECKS = [
   ['repeated_action', checkRepeatedActions],
+  ['dream_bridge', checkDreamBridge],
   ['credit_assignment', checkCreditAssignment],
   ['self_modification', checkSelfModification],
   ['skill_forge', checkSkillForge],

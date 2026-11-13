@@ -28,7 +28,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { connect } from 'node:net';
 import { db } from '../db.js';
-import { DATA_DIR } from '../config.js';
+import { DATA_DIR, mayRecoverAtBoot } from '../config.js';
 import { classifyUrl } from '../fraymus-os/registry.js';
 
 const TOKEN_FILE = process.env.CHANDRA_WORKER_TOKEN_FILE || join(DATA_DIR, 'worker-token.txt');
@@ -89,7 +89,7 @@ try {
     );
     CREATE INDEX IF NOT EXISTS idx_worker_jobs_created ON worker_jobs(created_at);
   `);
-  const closed = db.prepare(`UPDATE worker_jobs SET state = 'error', error = 'interrupted by restart', completed_at = ? WHERE state = 'running'`).run(now()).changes;
+  const closed = !mayRecoverAtBoot() ? 0 : db.prepare(`UPDATE worker_jobs SET state = 'error', error = 'interrupted by restart', completed_at = ? WHERE state = 'running'`).run(now()).changes;
   if (closed) console.log(`[workers] closed ${closed} remote job(s) left open by a previous process`);
 } catch (e) { console.error('[workers] table setup failed:', e.message); }
 

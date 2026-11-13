@@ -33,6 +33,7 @@
  * producing when they are not consuming), does it leave rows transient on crash (boot
  * evaluates or aborts anything left 'running'/'building').
  */
+import { mayRecoverAtBoot } from '../config.js';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, lstatSync, statSync, readdirSync } from 'node:fs';
 import { join, resolve, relative, basename, dirname, extname, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -813,7 +814,7 @@ export function proposerStats() {
   }
   for (const v of Object.values(exp)) { const d = v.kept + v.reverted; v.keepRate = d ? round(v.kept / d, 2) : null; }
   const code = {};
-  for (const r of qa(`SELECT CASE WHEN source LIKE 'convention%' THEN 'convention' WHEN source LIKE 'research%' THEN 'research' WHEN source LIKE 'ouroboros%' THEN 'ouroboros' WHEN source LIKE 'agent%' THEN 'agent' ELSE 'operator' END AS p, status, COUNT(*) AS c FROM smk_code_proposals GROUP BY p, status`)) {
+  for (const r of qa(`SELECT CASE WHEN source LIKE 'convention%' THEN 'convention' WHEN source LIKE 'research%' THEN 'research' WHEN source LIKE 'dream%' THEN 'dream' WHEN source LIKE 'ouroboros%' THEN 'ouroboros' WHEN source LIKE 'agent%' THEN 'agent' ELSE 'operator' END AS p, status, COUNT(*) AS c FROM smk_code_proposals GROUP BY p, status`)) {
     code[r.p] = code[r.p] || { ready: 0, failed: 0, merged: 0, rejected: 0, building: 0 };
     code[r.p][r.status] = (code[r.p][r.status] || 0) + r.c;
   }
@@ -900,7 +901,7 @@ export function startSelfModification({ intervalMs = 5 * MIN } = {}) {
   if (!ENABLED) return { started: false, reason: 'SMK_ENABLED=0' };
   if (state.running) return { started: false, reason: 'already running' };
   mkdirSync(SMK_DIR, { recursive: true });
-  recoverAtBoot();
+  if (mayRecoverAtBoot()) recoverAtBoot();
   state.running = true;
   state.timer = setInterval(() => {
     selfModificationCycle({ trigger: 'timer' }).catch(e => console.error('[smk] cycle:', e.message));

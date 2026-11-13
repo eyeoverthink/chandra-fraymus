@@ -129,6 +129,7 @@ import { installSweeperRoutes } from './intelligence/transient-sweeper.js';
 import { installTunableRoutes } from './intelligence/tunables.js';
 import { installSelfModificationRoutes } from './intelligence/self-modification.js';
 import { installResearchRoutes } from './intelligence/research-scout.js';
+import { installDreamBridgeRoutes } from './intelligence/dream-bridge.js';
 import { installSkillForgeRoutes } from './intelligence/skill-forge.js';
 import { installGeneralIntelligenceRoutes } from './intelligence/general-intelligence.js';
 import { installHivePeersRoutes } from './intelligence/hive-peers.js';
@@ -387,6 +388,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installTunableRoutes(app);
   installSelfModificationRoutes(app);
   installResearchRoutes(app);
+  installDreamBridgeRoutes(app);
   installSkillForgeRoutes(app);
   installGeneralIntelligenceRoutes(app);
   installHivePeersRoutes(app);

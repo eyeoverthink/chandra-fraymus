@@ -12,6 +12,7 @@
  * is closed at boot if a previous process left it open. Nothing here calls a paid or remote service:
  * the only network traffic is to 127.0.0.1.
  */
+import { mayRecoverAtBoot } from '../config.js';
 import { spawn } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -47,7 +48,7 @@ try {
     );
     CREATE INDEX IF NOT EXISTS idx_studio_jobs_created ON studio_jobs(created_at);
   `);
-  const closed = db.prepare(`UPDATE studio_jobs SET status = 'error', error = 'interrupted by restart', completed_at = ? WHERE status IN ('queued', 'running')`).run(now()).changes;
+  const closed = !mayRecoverAtBoot() ? 0 : db.prepare(`UPDATE studio_jobs SET status = 'error', error = 'interrupted by restart', completed_at = ? WHERE status IN ('queued', 'running')`).run(now()).changes;
   if (closed) console.log(`[studio] closed ${closed} job(s) left open by a previous process`);
 } catch (e) { console.error('[studio] table setup failed:', e.message); }
 

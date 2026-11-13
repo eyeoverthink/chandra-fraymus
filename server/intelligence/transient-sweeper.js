@@ -15,6 +15,7 @@
  * (agent runs cap at 4 min, verifier loops at ~10 model calls, OPEG at one execute).
  */
 
+import { mayRecoverAtBoot } from '../config.js';
 import { db } from '../db.js';
 import { publish } from '../fleet/bus.js';
 
@@ -94,7 +95,7 @@ export function sweepOrphansFromPreviousProcess() {
 export function startTransientSweeper() {
   stopTransientSweeper();
   state.running = true;
-  const orphans = sweepOrphansFromPreviousProcess();
+  const orphans = mayRecoverAtBoot() ? sweepOrphansFromPreviousProcess() : { verification_loops: 0, ouroboros_cycles: 0 };
   if (orphans.verification_loops || orphans.ouroboros_cycles) console.log('[sweeper] closed work interrupted by the last restart:', JSON.stringify(orphans));
   const boot = sweepStaleTransients({ trigger: 'boot' });
   timer = setInterval(() => { try { sweepStaleTransients({ trigger: 'interval' }); } catch (e) { console.error('[sweeper]', e.message); } }, INTERVAL_MS);

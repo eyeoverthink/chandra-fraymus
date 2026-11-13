@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { watch, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { DATA_DIR, OLLAMA_URL } from '../config.js';
+import { DATA_DIR, OLLAMA_URL, mayRecoverAtBoot } from '../config.js';
 import { poolStream, modelPoolStatus } from '../intelligence/model-pool.js';
 import { withOllama } from '../intelligence/ollama-scheduler.js';
 import { db } from '../db.js';
@@ -54,7 +54,7 @@ export function initFleet({ broadcast, vertiso, rsi, memoryBridge }) {
   // process that is gone. Left open they count as concurrent runs in the resource envelope (7 stale
   // rows pinned it at its limit on 2026-11-10 and every new run sat in the queue until it timed out).
   // Runs parked on a human approval stay: approving re-drives them.
-  try {
+  if (mayRecoverAtBoot()) try {
     const closed = db.prepare(`UPDATE runs SET status = 'error', error = 'interrupted by restart', updated_at = ?
       WHERE status IN ('running', 'queued') AND thread_id IN (SELECT id FROM threads)`).run(now()).changes;
     if (closed) console.log(`fleet: closed ${closed} run(s) left open by a previous process`);

@@ -14,6 +14,7 @@
  *
  * One experiment at a time; rows left `running` by a dead process are closed at load and by the sweeper.
  */
+import { mayRecoverAtBoot } from '../config.js';
 import { randomUUID } from 'node:crypto';
 import { db } from '../db.js';
 import { runAgentAndWait } from '../fleet/runtime.js';
@@ -29,7 +30,7 @@ const MAX_ATTEMPTS = Math.min(5, Math.max(1, parseInt(process.env.MEMORY_EXPERIM
 let stopAsked = false;
 
 db.exec(`CREATE TABLE IF NOT EXISTS memory_experiments (id TEXT PRIMARY KEY, status TEXT NOT NULL, seed INTEGER, pairs_asked INTEGER, pairs TEXT, summary TEXT, error TEXT, started_at INTEGER NOT NULL, finished_at INTEGER)`);
-try { db.prepare(`UPDATE memory_experiments SET status = 'error', error = 'interrupted by a restart', finished_at = ? WHERE status = 'running'`).run(now()); } catch (e) { console.error('[memory-experiment] recover:', e.message); }
+if (mayRecoverAtBoot()) try { db.prepare(`UPDATE memory_experiments SET status = 'error', error = 'interrupted by a restart', finished_at = ? WHERE status = 'running'`).run(now()); } catch (e) { console.error('[memory-experiment] recover:', e.message); }
 
 let current = null;
 function rng(seed) { let a = seed >>> 0 || 1; return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }

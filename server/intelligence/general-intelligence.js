@@ -12,6 +12,7 @@
  * Daemon Step 5.95 calls generalIntelligenceCycle(); long work is started in the background and is
  * single-flight. See docs/AGI-BLUEPRINT.md for why this exists and what comes after it.
  */
+import { mayRecoverAtBoot } from '../config.js';
 import { randomUUID } from 'node:crypto';
 import { db } from '../db.js';
 import { publish } from '../fleet/bus.js';
@@ -264,7 +265,7 @@ export function getGeneralIntelligenceStatus() {
 /** Rows left running/testing by a previous process are dead by definition — close them at boot. */
 export function startGeneralIntelligence() {
   let closedRuns = 0, closedLessons = 0;
-  try {
+  if (mayRecoverAtBoot()) try {
     closedRuns = db.prepare(`UPDATE capability_runs SET status = 'error', error = 'interrupted by restart', completed_at = ? WHERE status = 'running'`).run(now()).changes;
     closedLessons = db.prepare(`UPDATE reasoner_lessons SET status = 'reverted', note = 'interrupted by restart', completed_at = ? WHERE status = 'testing'`).run(now()).changes;
   } catch (e) { console.error('[general-intelligence] boot recovery:', e.message); }

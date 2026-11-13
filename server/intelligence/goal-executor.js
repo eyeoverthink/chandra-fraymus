@@ -13,6 +13,7 @@
  * is constrained or the adaptive strategy suppresses goal-seeking.
  */
 
+import { mayRecoverAtBoot } from '../config.js';
 import { randomUUID } from 'node:crypto';
 import { db } from '../db.js';
 import { publish } from '../fleet/bus.js';
@@ -293,7 +294,7 @@ export function startGoalExecutor({ intervalMs = DEFAULT_INTERVAL_MS } = {}) {
   stopGoalExecutor();
   const expired = expireStaleProposals();
   if (expired) console.log(`[goal-executor] expired ${expired} stale proposals (> ${PROPOSAL_MAX_AGE_MS / 3600_000}h)`);
-  const swept = sweepStaleExecutions(0);
+  const swept = mayRecoverAtBoot() ? sweepStaleExecutions(0) : 0;
   if (swept) console.log(`[goal-executor] requeued ${swept} executions interrupted by restart`);
   timer = setInterval(() => {
     runGoalExecutorCycle({ trigger: 'interval' }).catch(e => console.error('[goal-executor] cycle error:', e.message));
