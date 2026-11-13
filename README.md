@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/screenshots/logo.png" alt="Chandra-FRAYMUS" width="120" />
+  <img src="docs/brand/fraymus-orb-256.png" alt="F.R.A.Y.M.U.S. — the live orb: four processes around the neural core" width="160" />
 </p>
 
 <h1 align="center">CHANDRA-FRAYMUS</h1>
