@@ -416,3 +416,33 @@ test('skill proposals stay reviewable and blocked', async t => {
   assert.equal(graph.json.counts.skill, 1);
   assert.match(graph.json.nodes[0].summary, /execution blocked/);
 });
+
+test('an agent command runs on the chosen model and the turn names what really answered', async t => {
+  let started = null;
+  const fleet = {
+    startRun: (_user, agentId, text, threadId, opts) => {
+      started = { agentId, text, opts };
+      db.prepare("INSERT INTO runs (id, status, error, steps) VALUES ('run-1', 'done', NULL, 2)").run();
+      db.prepare("INSERT INTO messages (run_id, role, name, content, tool_calls) VALUES ('run-1', 'assistant', NULL, 'Five open findings, none blocking.', NULL)").run();
+      return { runId: 'run-1', threadId: threadId || 'thread-1' };
+    },
+    toolNames: () => [], listAgents: () => [], decideApproval: async () => ({}),
+    modelCallsForRun: runId => (runId === 'run-1' ? [{ host: 'home', model: 'qwen3:14b', calls: 2, ms: 900 }] : []),
+    lastModelCall: () => ({ host: 'home', model: 'qwen3:14b', at: Date.now() }),
+  };
+  const { request, db } = await harness(t, { fleet });
+  db.exec(`CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, status TEXT, error TEXT, steps INTEGER);
+    CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT, role TEXT, name TEXT, content TEXT, tool_calls TEXT);
+    CREATE TABLE IF NOT EXISTS approvals (id TEXT PRIMARY KEY, run_id TEXT, tool TEXT, args TEXT, status TEXT, created_at INTEGER);`);
+  const sent = await request('POST', '/api/fraymus-os/command', { text: 'How many findings are open?', mode: 'agent', model: 'qwen3:14b' });
+  assert.equal(sent.status, 202);
+  const session = await until(async () => {
+    const row = await request('GET', `/api/fraymus-os/sessions/${sent.json.sessionId}`);
+    return row.json.state === 'idle' ? row.json : null;
+  });
+  assert.deepEqual(started.opts, { model: 'qwen3:14b' }, 'the chosen model reaches the fleet');
+  const answer = session.turns.find(turn => turn.role === 'assistant');
+  assert.match(answer.answer, /Five open findings/);
+  assert.match(answer.model, /qwen3:14b on home \(2 calls\)/, 'the turn names the machine and model that answered, not the local default');
+  assert.equal(answer.routeClass, 'private');
+});

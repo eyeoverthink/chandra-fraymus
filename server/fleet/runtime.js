@@ -346,6 +346,31 @@ async function systemPrompt(agent, userId, taskText = '') {
   return `${agent.systemPrompt}${memBlock}${rosterBlock}${vertisoBlock}${genomeBlock}${intelligenceBlock}${bridgeBlock}${agentMemBlock}${akashicBlock}${perspectiveBlock}${consciousnessBlock}${selfModelBlock}${lineageBlock}${graphBlock}`;
 }
 
+// Which machine and model really answered each agent call. A run row only says `default` (the pool decides per
+// call), so without this nothing — the home screen's orb included — could say what was thinking (2026-11-12).
+try {
+  db.exec(`CREATE TABLE IF NOT EXISTS fleet_model_calls (id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT, agent_id TEXT, host TEXT,
+    model TEXT, ms INTEGER, ok INTEGER, error TEXT, at INTEGER NOT NULL);
+    CREATE INDEX IF NOT EXISTS idx_fleet_model_calls_run ON fleet_model_calls(run_id);
+    CREATE INDEX IF NOT EXISTS idx_fleet_model_calls_at ON fleet_model_calls(at);`);
+} catch (e) { console.error('fleet: model-call table:', e.message); }
+const insertModelCall = (() => { try { return db.prepare('INSERT INTO fleet_model_calls (run_id, agent_id, host, model, ms, ok, error, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'); } catch (e) { console.error('fleet: model-call insert:', e.message); return null; } })();
+function recordModelCall(row) {
+  try { insertModelCall?.run(row.runId || null, row.agentId || null, row.host || null, row.model || null, row.ms ?? null, row.ok ? 1 : 0, row.error || null, now()); }
+  catch (e) { console.error('fleet: model-call record:', e.message); }
+  broadcastFn('fleet', { type: 'model_call', runId: row.runId, agentId: row.agentId, host: row.host, model: row.model, ok: !!row.ok, ms: row.ms });
+}
+/** The machines and models that answered one run: `[{ host, model, calls, ms }]`, most calls first. */
+export function modelCallsForRun(runId) {
+  try { return db.prepare(`SELECT host, model, COUNT(*) calls, SUM(ms) ms FROM fleet_model_calls WHERE run_id = ? AND ok = 1 GROUP BY host, model ORDER BY calls DESC`).all(runId); }
+  catch (e) { console.error('fleet: model calls for run:', e.message); return []; }
+}
+/** The last agent call that was answered: `{ host, model, agentId, runId, at }` or null. */
+export function lastModelCall() {
+  try { return db.prepare(`SELECT host, model, agent_id AS agentId, run_id AS runId, ms, at FROM fleet_model_calls WHERE ok = 1 ORDER BY id DESC LIMIT 1`).get() || null; }
+  catch (e) { console.error('fleet: last model call:', e.message); return null; }
+}
+
 async function chat(messages, tools, model, { runId, agentId } = {}) {
   const ollamaTools = tools.map(t => ({
     type: 'function',
@@ -363,8 +388,17 @@ async function chat(messages, tools, model, { runId, agentId } = {}) {
   // The model pool picks the machine (model-pool.js): another machine's card when it answers, this PC otherwise, the
   // next machine when one fails before replying. On this PC the call still takes an agent_run slot in the scheduler —
   // agent runs are the only thing that produces outcomes, so they go ahead of reflection/debate/verifier work.
-  return poolStream(body, { model: model || null, priority: 'agent_run', label: `agent:${agentId || 'unknown'}`, timeoutMs: 120_000 },
-    res => readChatStream(res, { runId, agentId }));
+  const t0 = now();
+  let answeredBy = null;
+  try {
+    const out = await poolStream(body, { model: model || null, priority: 'agent_run', label: `agent:${agentId || 'unknown'}`, timeoutMs: 120_000 },
+      (res, host, usedModel) => { answeredBy = { host, model: usedModel }; return readChatStream(res, { runId, agentId }); });
+    recordModelCall({ runId, agentId, host: answeredBy?.host, model: answeredBy?.model, ms: now() - t0, ok: true });
+    return out;
+  } catch (e) {
+    recordModelCall({ runId, agentId, host: answeredBy?.host || null, model: answeredBy?.model || model || null, ms: now() - t0, ok: false, error: String(e.message).slice(0, 300) });
+    throw e;
+  }
 }
 
 /** Read an Ollama streamed chat reply into {content, tool_calls}, broadcasting tokens as they come. */
@@ -522,6 +556,10 @@ async function drive(runId, depth = 0) {
 
   const permitted = agentTools(agent);
   const userId = run.user_id || 'local';
+  // `runs.model` is `agentId:model`; a model chosen for this run (startRun opts.model) wins over the manifest's, and
+  // `default` lets the pool decide per call. Model names hold a colon too (qwen3:14b): take everything after the first.
+  const chosen = String(run.model || '').slice(String(run.model || '').indexOf(':') + 1);
+  const runModel = chosen && chosen !== 'default' ? chosen : (agent.model || null);
 
   // Clock-honesty check: warn if system clock is suspect at run start
   if (!isClockTrusted()) {
@@ -555,7 +593,7 @@ async function drive(runId, depth = 0) {
     } catch (_) {}
   }
 
-  let narrationNudges = 0;
+  let narrationNudges = 0, loadNudged = false;
   for (let step = run.steps || 0; step < MAX_STEPS; step++) {
     // Harness Law 3: Budget bands — fire warnings at 60/75/85%
     const { firedNow, inReserve, newFired } = budgetBands(step + 1, MAX_STEPS, envelope.budget.fired);
@@ -594,7 +632,7 @@ async function drive(runId, depth = 0) {
 
     let res;
     try {
-      res = await chat(messages, tools, agent.model, { runId, agentId: agent.id });
+      res = await chat(messages, tools, runModel, { runId, agentId: agent.id });
     } catch (e) {
       // Harness Law 2: Salvage on crash — persist partial history before death
       salvageOnCrash(runId, agent.id, e, step, run.thread_id);
@@ -629,6 +667,18 @@ async function drive(runId, depth = 0) {
         broadcastFn('fleet', { type: 'narrated_tool_call', runId, agentId: agent.id, tool: narrated, nudged });
         addMsg(run.thread_id, runId, { role: 'system', content: nudged ? nudgeMessage(narrated, tools, permitted) : unverifiedMessage(narrated) });
         if (nudged) { narrationNudges++; continue; }
+      }
+      // Attached but never used: measured 2026-11-12 — an agent searched, loaded hermes.username_check, then ended the run
+      // listing what it had loaded. One reminder to make the call that answers the task.
+      if (!narrated && !loadNudged) {
+        const loaded = runLoaded.get(runId);
+        const used = loaded?.size ? db.prepare("SELECT DISTINCT name FROM messages WHERE run_id = ? AND role = 'tool'").all(runId).map(r => r.name) : [];
+        if (loaded?.size && ![...loaded].some(n => used.includes(n))) {
+          loadNudged = true;
+          ledger.record('fleet.loaded_not_used', { agent: agent.id, loaded: [...loaded], step, runId }, 'fleet');
+          addMsg(run.thread_id, runId, { role: 'system', content: `[harness] You attached ${[...loaded].join(', ')} but called none of them, so the task is not done. Call the one that answers the request now with real arguments, or say plainly that none of them can.` });
+          continue;
+        }
       }
       setRun(runId, { status: 'done' });
       broadcastFn('fleet', { type: 'done', runId, status: 'done', harness: { steps: envelope.steps.length, evidence: true } });
@@ -743,9 +793,11 @@ async function drive(runId, depth = 0) {
 const runQueue = [];
 let queueProcessing = false;
 
-export function startRun(userId, agentId, message, threadId) {
+export function startRun(userId, agentId, message, threadId, opts = {}) {
   const agent = getManifest(agentId);
   if (!agent) throw new Error(`Unknown agent: ${agentId}`);
+  const model = opts.model == null || opts.model === '' ? null : String(opts.model).trim();
+  if (model && !/^[\w.\-/]+(:[\w.\-]+)?$/.test(model)) throw new Error(`Not a model name: ${model.slice(0, 80)}`);
 
   const tid = threadId || randomUUID();
   if (!threadId) {
@@ -757,7 +809,7 @@ export function startRun(userId, agentId, message, threadId) {
 
   const runId = randomUUID();
   db.prepare('INSERT INTO runs (id, thread_id, user_id, status, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .run(runId, tid, userId || 'local', 'running', `${agentId}:${agent.model || 'default'}`, now(), now());
+    .run(runId, tid, userId || 'local', 'running', `${agentId}:${model || agent.model || 'default'}`, now(), now());
 
   // Phase D: resource-aware scheduling — queue runs when system is under pressure
   let queued = false;
@@ -919,7 +971,7 @@ export function getThread(userId, id) {
   if (!thread) return null;
   const messages = db.prepare('SELECT * FROM messages WHERE thread_id = ? ORDER BY id').all(id)
     .map(m => ({ ...m, tool_calls: m.tool_calls ? JSON.parse(m.tool_calls) : undefined }));
-  const runs = db.prepare('SELECT * FROM runs WHERE thread_id = ? ORDER BY created_at').all(id);
+  const runs = db.prepare('SELECT * FROM runs WHERE thread_id = ? ORDER BY created_at').all(id).map(r => ({ ...r, modelsUsed: modelCallsForRun(r.id) }));
   const approvals = db.prepare("SELECT * FROM approvals WHERE thread_id = ? AND status = 'pending'").all(id);
   return { ...thread, messages, runs, approvals };
 }

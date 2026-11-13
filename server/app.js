@@ -15,6 +15,7 @@ import { migrateWorkspaces } from './db-migrate.js';
 import { join } from 'node:path';
 import { initFleet, setFleetTools, addFleetTools, startRun, callToolDirect } from './fleet/runtime.js';
 import { createHermesTools } from './hermes/free-tools.js';
+import { createFraynixContinuityTools } from './fraynix/continuity-tools.js';
 import { createMakeTools } from './media/make.js';
 import { createFactTools } from './intelligence/facts-service.js';
 import { initMcp, mcpServers, importServers, removeServer } from './mcp/client.js';
@@ -405,7 +406,7 @@ listenThenInitialize(server,{host:HOST,port:PORT,initialize:async()=>{
   // 2026-11-10, Vaughn's decision: the fleet gets every tool (FLEET_ALL_TOOLS=0 restores skills only).
   // Approval-labelled tools still stop for a human, and each run is offered only the most relevant
   // fleet.max_tools_per_run schemas (fleet/tool-select.js) — the registry is not the prompt.
-  try { const all = process.env.FLEET_ALL_TOOLS !== '0'; addFleetTools(all ? (runtime.fleetLoopTools || []) : (runtime.fleetTools || []).filter(t => t.group === 'skill' && t.forAllAgents)); addFleetTools(createHermesTools()); addFleetTools(createMakeTools()); const n = addFleetTools(createFactTools()); console.log(`fleet: ${n} tool(s) in the run-loop registry after static skill tools`); } catch(e) { console.error(`Fleet static skill tools: ${e.message}`); }
+  try { const all = process.env.FLEET_ALL_TOOLS !== '0'; addFleetTools(all ? (runtime.fleetLoopTools || []) : (runtime.fleetTools || []).filter(t => t.group === 'skill' && t.forAllAgents)); addFleetTools(createHermesTools()); addFleetTools(createMakeTools()); addFleetTools(createFraynixContinuityTools()); const n = addFleetTools(createFactTools()); console.log(`fleet: ${n} tool(s) in the run-loop registry after static skill tools`); } catch(e) { console.error(`Fleet static skill tools: ${e.message}`); }
   if (runtime.memoryBridge) setBrainMemoryBridge(runtime.memoryBridge);
   try { await initMcp(join(DATA_DIR, 'mcp-servers.json')); } catch(e) { console.error(`MCP client deferred: ${e.message}`); }
   try {

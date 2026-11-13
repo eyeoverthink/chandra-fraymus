@@ -1,8 +1,9 @@
 import {
   startRun, decideApproval, listAgents, getAgent,
   saveAgentManifest, resetAgentManifest, listThreads, getThread,
-  getQueueStatus, reloadManifests, fleetToolNames, modelPoolStatus, searchSharedTools, listSharedTools,
+  getQueueStatus, reloadManifests, fleetToolNames, modelPoolStatus, searchSharedTools, listSharedTools, lastModelCall,
 } from './runtime.js';
+import { poolModels } from '../intelligence/model-pool.js';
 
 export function installFleetRoutes(app) {
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
@@ -46,9 +47,10 @@ export function installFleetRoutes(app) {
   }));
 
   app.post('/api/fleet/runs', route((req, res) => {
-    const { agentId, message, threadId } = req.body;
+    const { agentId, message, threadId, model } = req.body;
     if (!agentId || !message) return res.status(400).json({ error: 'agentId and message required' });
-    const result = startRun(req.body.userId || 'local', agentId, message, threadId);
+    // model (optional): run this agent on a named model; the pool sends each call to a machine that has it
+    const result = startRun(req.body.userId || 'local', agentId, message, threadId, { model });
     res.status(201).json(result);
   }));
 
@@ -59,6 +61,9 @@ export function installFleetRoutes(app) {
 
   // Every shared tool with its approval label (every agent may use every tool; only approvals stop one)
   app.get('/api/fleet/tools', route((_req, res) => { const tools = listSharedTools(); res.json({ total: tools.length, tools }); }));
+
+  // Every model the pool can reach and which machines hold it, plus the last agent call that was answered
+  app.get('/api/fleet/models', route(async (_req, res) => res.json({ models: await poolModels(), last: lastModelCall() })));
 
   // What an agent's tools.search would find
   app.get('/api/fleet/tools/search', route((req, res) => {

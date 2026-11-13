@@ -173,9 +173,15 @@
 .fraymus-orb svg { width: 100%; height: auto; display: block; }
 .orb-glow { fill: rgba(62, 224, 255, 0.08); }
 .orb-ring { fill: none; stroke: rgba(62, 224, 255, 0.75); stroke-width: 1.4; }
-.ring-a { stroke-dasharray: 8 14; transform-origin: 110px 110px; animation: spin 28s linear infinite; }
-.ring-b { stroke-dasharray: 2 10; opacity: 0.7; transform-origin: 110px 110px; animation: spin 18s linear infinite reverse; }
-.ring-c { stroke-dasharray: 18 12; opacity: 0.45; }
+/* rings are live processes (Orb.jsx + /api/fraymus-os/pulse): speed, direction and segments come from measurements */
+.orb-live-ring { transition: opacity 0.6s ease; }
+.orb-route { animation: route 1.5s ease-out forwards; }
+@keyframes route { from { transform: translate(0, 0); opacity: 1; } to { transform: translate(var(--tx), var(--ty)); opacity: 0.2; } }
+.orb-legend { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 3px; font-size: 11px; color: #8aa4b0; }
+.orb-legend li { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.orb-legend i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.orb-legend b { font-weight: 600; color: #cfe9f1; white-space: nowrap; }
+.orb-legend span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .orb-core { fill: #08323c; stroke: var(--cyan); stroke-width: 2; }
 .orb-hot { fill: #e8fdff; filter: drop-shadow(0 0 8px var(--cyan)); }
 .orb-state {
@@ -187,13 +193,12 @@
 }
 
 .is-idle .orb-core { animation: breathe 3.6s ease-in-out infinite; }
-.is-listening .orb-ring { stroke: #7dffa8; animation-duration: 4s; }
+.is-listening .orb-glow { fill: rgba(125, 255, 168, 0.12); }
 .is-listening .orb-hot { fill: #d9ffe8; }
-.is-thinking .ring-a, .is-thinking .ring-b { animation-duration: 2.4s; }
 .is-thinking .orb-core { fill: #123044; }
 .is-speaking .orb-core { animation: speak 0.7s ease-in-out infinite; }
 .is-speaking .orb-hot { fill: #fff4d2; }
-.is-error .orb-ring, .is-error .orb-core { stroke: var(--danger); }
+.is-error .orb-core { stroke: var(--danger); }
 .is-error .orb-state { color: var(--danger); }
 
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -379,3 +384,17 @@
 .shelf-search:focus { outline: none; border-color: var(--cyan); }
 .viewer-prompt { margin: 0; max-width: 70ch; text-align: center; line-height: 1.5; overflow-wrap: anywhere; }
 .viewer-prompt b { color: var(--cyan); font-weight: 600; }
+
+/* "waiting on you": the pending approvals, answerable from the home screen */
+.waiting-toggle { background: none; border: 0; color: inherit; font: inherit; padding: 0; cursor: pointer; }
+.waiting-toggle:disabled { cursor: default; }
+.waiting-list { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 6px; }
+.waiting-list li { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; padding: 8px 10px; border: 1px solid #2a3b46; border-radius: 8px; background: #0b161d; }
+.waiting-list li > div { min-width: 0; flex: 1 1 260px; }
+.waiting-list code { display: block; margin-top: 4px; font-size: 11px; color: #9fb6c1; overflow-wrap: anywhere; }
+.waiting-actions { display: flex; gap: 6px; }
+.waiting-actions button { padding: 4px 10px; }
+
+/* which model the agent runs on: automatic (the pool) or one named model */
+.model-pick { display: flex; gap: 8px; align-items: center; font-size: 12px; color: #8aa4b0; max-width: 100%; }
+.model-pick select { max-width: min(420px, 70vw); background: #0b161d; color: #cfe9f1; border: 1px solid #2a3b46; border-radius: 6px; padding: 3px 6px; }

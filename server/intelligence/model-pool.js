@@ -20,6 +20,8 @@
  *
  * Without MODEL_HOSTS (and without the older FLEET_REMOTE_MODEL) the pool is just this PC: behaviour is unchanged.
  */
+import http from 'node:http';
+import { Readable } from 'node:stream';
 import { classifyUrl } from '../fraymus-os/registry.js';
 import { OLLAMA_URL } from '../config.js';
 import { withOllama, ollamaPaused, getSchedulerStatus } from './ollama-scheduler.js';
@@ -80,7 +82,9 @@ async function check(h) {
 
 /** The model a host runs for this call, or null if it cannot take it. Explicit models need that exact model there. */
 function modelOn(h, s, requested) {
-  const isDefault = !requested || requested === defaultModel();
+  // Only "no model named" means "any machine's default". Until 2026-11-12 a request for this PC's default by name
+  // (fraynix-dna:8b) also counted as "default", so asking for fraynix-dna was answered by qwen3:14b on fraymus-home.
+  const isDefault = !requested;
   if (h.local) return isDefault ? defaultModel() : requested;          // this PC keeps its own default; explicit names were always sent here
   if (isDefault) return h.model;
   return s.models.has(requested) ? requested : null;
@@ -189,10 +193,31 @@ export async function checkAllHosts() {
 
 // ── the two shapes of call the app makes ─────────────────────────────────────────────────────────────
 
+// Node's fetch stops waiting for response headers after 300 s (undici headersTimeout), whatever the AbortSignal says.
+// A CPU-only machine can take longer than that just to read a long agent prompt before its first byte, so the call failed
+// with "fetch failed" at ~330 s while the pool still allowed it 480 s (measured 2026-11-12, llama3.2:3b on srv1). Remote
+// calls go through node:http, which has no header deadline; the caller's AbortSignal is the only limit. Returns a
+// standard Response so the stream readers do not change.
+function poolFetch(url, { method = 'GET', headers = {}, body, signal, viaHttp = true } = {}) {
+  if (!viaHttp) return fetch(url, { method, headers, body, signal });   // this PC: answers fast, keeps fetch
+  return new Promise((resolve, reject) => {
+    const payload = body == null ? null : Buffer.from(body);
+    const req = http.request(url, { method, headers: { ...headers, ...(payload ? { 'Content-Length': payload.length } : {}) } }, res => {
+      const out = new Headers();
+      for (const [k, v] of Object.entries(res.headers)) if (v != null) out.set(k, Array.isArray(v) ? v.join(', ') : String(v));
+      resolve(new Response(Readable.toWeb(res), { status: res.statusCode || 0, headers: out }));
+    });
+    const onAbort = () => req.destroy(signal.reason instanceof Error ? signal.reason : Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' }));
+    if (signal) { if (signal.aborted) return onAbort(); signal.addEventListener('abort', onAbort, { once: true }); req.on('close', () => signal.removeEventListener('abort', onAbort)); }
+    req.on('error', reject);
+    req.end(payload);
+  });
+}
+
 /** A whole reply at once (what chatOllama does). Returns the reply text. */
 export async function poolChat(messages, { model = null, priority = 'goal', label = 'chat', timeoutMs = 180_000, temperature = 0.7, maxTokens = 2048, format = null } = {}) {
-  return runOnPool({ model, priority, label, timeoutMs }, async ({ url, model: m, think, timeoutMs: t, keepAlive }) => {
-    const res = await fetch(`${url}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(t),
+  return runOnPool({ model, priority, label, timeoutMs }, async ({ url, model: m, think, timeoutMs: t, keepAlive, local }) => {
+    const res = await poolFetch(`${url}/api/chat`, { viaHttp: !local, method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(t),
       body: JSON.stringify({ model: m, messages, stream: false, options: { temperature, num_predict: maxTokens }, ...(format ? { format } : {}), ...(think === false ? { think: false } : {}), ...(keepAlive ? { keep_alive: keepAlive } : {}) }) });
     if (!res.ok) throw new Error(`Ollama ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const data = await res.json();
@@ -205,12 +230,37 @@ export async function poolChat(messages, { model = null, priority = 'goal', labe
  * after the reply started and is not retried elsewhere.
  */
 export async function poolStream(body, { model = null, priority = 'agent_run', label = 'stream', timeoutMs = 120_000 } = {}, onResponse) {
-  return runOnPool({ model, priority, label, timeoutMs }, async ({ url, model: m, think, timeoutMs: t, keepAlive, name }) => {
-    const res = await fetch(`${url}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(t),
+  return runOnPool({ model, priority, label, timeoutMs }, async ({ url, model: m, think, timeoutMs: t, keepAlive, name, local }) => {
+    const res = await poolFetch(`${url}/api/chat`, { viaHttp: !local, method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(t),
       body: JSON.stringify({ ...body, model: m, ...(think === false ? { think: false } : {}), ...(keepAlive ? { keep_alive: keepAlive } : {}) }) });
     if (!res.ok) throw new Error(`Ollama ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
-    try { return await onResponse(res, name); } catch (e) { throw Object.assign(e, { started: true }); }
+    try { return await onResponse(res, name, m); } catch (e) { throw Object.assign(e, { started: true }); }
   });
+}
+
+/** Every model the pool can reach, with the machines that hold it: `[{ model, hosts: [name…], default: [name…] }]`. */
+export async function poolModels() {
+  const byModel = new Map();
+  const add = (model, host, isDefault) => {
+    if (!model) return;
+    const e = byModel.get(model) || { model, hosts: [], default: [] };
+    if (!e.hosts.includes(host)) e.hosts.push(host);
+    if (isDefault && !e.default.includes(host)) e.default.push(host);
+    byModel.set(model, e);
+  };
+  for (const h of HOSTS) {
+    if (h.local) {
+      try {
+        const r = await fetch(`${h.url}/api/tags`, { signal: AbortSignal.timeout(4000) });
+        if (r.ok) for (const m of (await r.json()).models || []) add(m.name, h.name, m.name === defaultModel());
+      } catch (e) { console.error('[model-pool] local tags:', e.message); }
+      continue;
+    }
+    const s = await check(h);
+    if (!s.ok) continue;
+    for (const m of s.models || []) add(m, h.name, m === h.model);
+  }
+  return [...byModel.values()].sort((a, b) => b.default.length - a.default.length || a.model.localeCompare(b.model));
 }
 
 export function installModelPoolRoutes(app) {

@@ -24,7 +24,7 @@ import { createAutonomyEngine } from './autonomy.js';
 import { installFraymusRoutes } from './fraymus-routes.js';
 import { createWorkflowStore, installWorkflowRoutes } from './workflow/routes.js';
 import { createFleetTools, seedBuildGates } from './fleet/tools.js';
-import { initFleet, setFleetTools, runAgentAndWait, startRun as fleetStartRun, getThread as fleetGetThread, decideApproval as fleetDecideApproval, fleetToolNames, listAgents as fleetListAgents } from './fleet/runtime.js';
+import { initFleet, setFleetTools, runAgentAndWait, startRun as fleetStartRun, getThread as fleetGetThread, decideApproval as fleetDecideApproval, fleetToolNames, listAgents as fleetListAgents, modelCallsForRun, lastModelCall } from './fleet/runtime.js';
 import { installHermesRoutes } from './hermes/free-tools.js';
 import { installGpuLeaseRoutes } from './media/gpu-lease.js';
 import { installStudioRoutes } from './media/studio.js';
@@ -107,7 +107,7 @@ import { installMemorySearchRoutes } from './intelligence/memory-search-service.
 import { installMemoryExperimentRoutes } from './intelligence/memory-experiment.js';
 import { installFactsRoutes } from './intelligence/facts-service.js';
 import { installDistillRoutes } from './intelligence/distill-service.js';
-import { installModelPoolRoutes } from './intelligence/model-pool.js';
+import { installModelPoolRoutes, modelPoolStatus } from './intelligence/model-pool.js';
 import { initHealthMonitor, installHealthRoutes } from './health/monitor.js';
 import { installForgeRoutes } from './fleet/forge.js';
 import { installHarnessRoutes } from './fleet/harness-routes.js';
@@ -480,7 +480,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installCommerceRoutes(app, { memoryBridge });
   installCreationRoutes(app, { memoryBridge, broadcast });
   // the home screen's brain: commands go to a fleet agent holding the real tool registry
-  installFraymusOsRoutes(app, { db, broadcast, ollamaUrl, voiceUrl, fleet: { startRun: fleetStartRun, getThread: fleetGetThread, decideApproval: fleetDecideApproval, toolNames: fleetToolNames, listAgents: fleetListAgents } });
+  installFraymusOsRoutes(app, { db, broadcast, ollamaUrl, voiceUrl, fleet: { startRun: fleetStartRun, getThread: fleetGetThread, decideApproval: fleetDecideApproval, toolNames: fleetToolNames, listAgents: fleetListAgents, modelCallsForRun, lastModelCall, poolStatus: modelPoolStatus } });
   installHermesRoutes(app, { express });
   installGpuLeaseRoutes(app);
   installStudioRoutes(app);

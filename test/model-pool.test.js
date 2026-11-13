@@ -40,7 +40,8 @@ test('a default call goes to the first machine that answers, with that machine\'
   reset();
   assert.equal(await poolChat([{ role: 'user', content: 'hi' }]), 'from home (qwen3:14b)');
   assert.equal(home.st.last.think, false); assert.equal(home.st.last.keep_alive, '30m');
-  assert.equal(await poolChat([{ role: 'user', content: 'hi' }], { model: 'fraynix-dna:8b' }), 'from home (qwen3:14b)', 'naming the default model is the same as asking for the default');
+  // naming a model means that model, even when it is this PC's default: asking for fraynix-dna:8b was once answered by qwen3:14b
+  assert.equal(await poolChat([{ role: 'user', content: 'hi' }], { model: 'fraynix-dna:8b' }), 'from pc (fraynix-dna:8b)', 'a named model is answered by a machine that has it');
 });
 
 test('the drive fault: the machine is rested and the call is answered by the next one, with nothing lost', async () => {

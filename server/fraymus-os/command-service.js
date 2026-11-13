@@ -124,8 +124,25 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
       skills: count(`SELECT COUNT(*) c FROM forged_skills WHERE status = 'active'`),
       pendingApprovals: count(`SELECT COUNT(*) c FROM approvals WHERE status = 'pending'`),
       agentRuns24h: count(`SELECT COUNT(*) c FROM runs WHERE created_at > ?`, Date.now() - 86_400_000),
+      // the approvals the counter counts, so "waiting on you" can say what is waiting and be answered from here
+      approvals: (() => { try { return db.prepare(`SELECT a.id, a.tool, substr(a.args, 1, 300) AS args, a.created_at AS createdAt, r.model AS runModel, a.run_id AS runId
+        FROM approvals a LEFT JOIN runs r ON r.id = a.run_id WHERE a.status = 'pending' ORDER BY a.created_at LIMIT 20`).all()
+        .map(a => ({ ...a, agentId: String(a.runModel || '').split(':')[0] || null })); } catch (e) { console.error('fraymus-os approvals:', e.message); return []; } })(),
+      lastModel: fleet?.lastModelCall ? fleet.lastModelCall() : null,
+      pool: fleet?.poolStatus ? fleet.poolStatus().hosts.map(h => ({ name: h.name, local: h.local, model: h.defaultModel, healthy: h.healthy, inFlight: h.inFlight, calls: h.calls, meanSeconds: h.meanSeconds })) : [],
       gScore: g,
     };
+  }
+
+  // What really answered a run: the model pool sends each agent call to whichever machine can take it, so the
+  // configured local model is not what thought. Read from fleet_model_calls (fleet/runtime.js).
+  function answeredBy(runId, note = '') {
+    const used = fleet?.modelCallsForRun ? fleet.modelCallsForRun(runId) : [];
+    const tail = note ? ` · ${note}` : '';
+    if (!used.length) return { model: `${AGENT_ID}${tail}`, endpoint: registry.ollama.url, routeClass: registry.ollama.routeClass };
+    const parts = used.map(u => `${u.model} on ${u.host === 'local' ? 'this PC' : u.host} (${u.calls} call${u.calls === 1 ? '' : 's'})`);
+    const allLocal = used.every(u => u.host === 'local');
+    return { model: `${AGENT_ID} · ${parts.join(', ')}${tail}`, endpoint: used.map(u => u.host).join(', '), routeClass: allLocal ? 'local' : 'private' };
   }
 
   function parseToolContent(content) {
@@ -136,9 +153,9 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
     catch { return { parsed: null, preview: text.slice(0, 700) }; }
   }
 
-  async function runAgent(turnId, sessionId, text, signal, sources) {
+  async function runAgent(turnId, sessionId, text, signal, sources, model = null) {
     const existing = db.prepare('SELECT thread_id FROM fraymus_os_agent_threads WHERE session_id = ?').get(sessionId);
-    const started = fleet.startRun('local', AGENT_ID, text, existing?.thread_id);
+    const started = fleet.startRun('local', AGENT_ID, text, existing?.thread_id, { model });
     if (!existing) db.prepare('INSERT OR REPLACE INTO fraymus_os_agent_threads (session_id, thread_id, created_at) VALUES (?, ?, ?)').run(sessionId, started.threadId, Date.now());
     const callSteps = new Map();      // model tool-call key → step id
     const openByTool = new Map();     // tool name → [step ids still running]
@@ -148,7 +165,7 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
     for (;;) {
       if (signal?.aborted) {
         db.prepare(`UPDATE fraymus_os_tool_steps SET status = 'cancelled', updated_at = ? WHERE turn_id = ? AND status = 'running'`).run(Date.now(), turnId);
-        finish(turnId, { state: 'cancelled', sources, answer: null, error: `Stopped watching. Agent run ${started.runId} may still finish in the background.`, model: `${AGENT_ID} (agent)`, endpoint: registry.ollama.url, routeClass: registry.ollama.routeClass });
+        finish(turnId, { state: 'cancelled', sources, answer: null, error: `Stopped watching. Agent run ${started.runId} may still finish in the background.`, ...answeredBy(started.runId, 'stopped') });
         return;
       }
       run = db.prepare('SELECT status, error, steps FROM runs WHERE id = ?').get(started.runId);
@@ -191,7 +208,7 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
       }
       if (!run || !['running', 'queued'].includes(run.status)) break;
       if (Date.now() - began > AGENT_TIMEOUT_MS) {
-        finish(turnId, { state: 'error', sources, answer: null, error: `The agent did not finish within ${Math.round(AGENT_TIMEOUT_MS / 60000)} minutes. Run ${started.runId} is still in the fleet.`, model: `${AGENT_ID} (agent)`, endpoint: registry.ollama.url, routeClass: registry.ollama.routeClass });
+        finish(turnId, { state: 'error', sources, answer: null, error: `The agent did not finish within ${Math.round(AGENT_TIMEOUT_MS / 60000)} minutes. Run ${started.runId} is still in the fleet.`, ...answeredBy(started.runId, 'still running') });
         return;
       }
       await new Promise(done => setTimeout(done, 700));
@@ -208,7 +225,7 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
       state: failed ? 'error' : 'idle', sources,
       answer: answer || null,
       error: failed ? (run?.error || 'The agent run failed.') : (!answer ? 'The agent finished without a reply.' : null),
-      model: `${AGENT_ID} (agent · ${toolCount} tool call${toolCount === 1 ? '' : 's'})`, endpoint: registry.ollama.url, routeClass: registry.ollama.routeClass,
+      ...answeredBy(started.runId, `${toolCount} tool call${toolCount === 1 ? '' : 's'}`),
     });
     appendRecord({ ts: new Date().toISOString(), model: AGENT_ID, slot: sessionId, kind: 'home_command', artifact: started.runId, tools: toolCount, self_verified: toolCount > 0 && !unverified, status: run?.status || 'unknown' });
   }
@@ -231,10 +248,10 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
       if (!run || !['running', 'queued'].includes(run.status) || Date.now() > deadline) break;
     }
     const reply = db.prepare(`SELECT content FROM messages WHERE run_id = ? AND id > ? AND role = 'assistant' AND tool_calls IS NULL AND TRIM(COALESCE(content, '')) != '' ORDER BY id DESC LIMIT 1`).get(runId, before);
-    const model = `${AGENT_ID} (agent · after your decision)`;
-    if (run?.status === 'awaiting_approval') finish(turn, { state: 'idle', sources: [], answer: `${reply ? `${String(reply.content).trim()}\n\n` : ''}Another step is waiting for your approval.`, model, endpoint: registry.ollama.url, routeClass: registry.ollama.routeClass });
-    else if (reply) finish(turn, { state: 'idle', sources: [], answer: String(reply.content).trim(), model, endpoint: registry.ollama.url, routeClass: registry.ollama.routeClass });
-    else finish(turn, { state: run?.status === 'error' ? 'error' : 'idle', sources: [], answer: run?.status === 'error' ? null : 'The step is done. The agent added nothing further.', error: run?.status === 'error' ? (run.error || 'The agent run failed after the decision.') : null, model, endpoint: registry.ollama.url, routeClass: registry.ollama.routeClass });
+    const by = answeredBy(runId, 'after your decision');
+    if (run?.status === 'awaiting_approval') finish(turn, { state: 'idle', sources: [], answer: `${reply ? `${String(reply.content).trim()}\n\n` : ''}Another step is waiting for your approval.`, ...by });
+    else if (reply) finish(turn, { state: 'idle', sources: [], answer: String(reply.content).trim(), ...by });
+    else finish(turn, { state: run?.status === 'error' ? 'error' : 'idle', sources: [], answer: run?.status === 'error' ? null : 'The step is done. The agent added nothing further.', error: run?.status === 'error' ? (run.error || 'The agent run failed after the decision.') : null, ...by });
   }
 
   const agentApprovalFor = stepId => { try { return db.prepare('SELECT approval_id AS approvalId, run_id AS runId FROM fraymus_os_agent_approvals WHERE step_id = ?').get(stepId) || null; } catch { return null; } };
@@ -313,7 +330,7 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
     return { id, manifest, status: 'review' };
   }
 
-  async function execute(turnId, sessionId, text, signal, mode = 'auto') {
+  async function execute(turnId, sessionId, text, signal, mode = 'auto', agentModel = null) {
     const intent = classify(text);
     let sources = [];
     try {
@@ -323,7 +340,7 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
       // The brain: anything that is not an instant lookup goes to a tool-holding fleet agent. Its real
       // tool calls are mirrored into this session, and approval-labelled tools pause for a person.
       if (fleet && mode !== 'quick' && (mode === 'agent' || ['chat', 'risky', 'propose_skill'].includes(intent.type))) {
-        await runAgent(turnId, sessionId, text, signal, sources);
+        await runAgent(turnId, sessionId, text, signal, sources, agentModel);
         return;
       }
       if (intent.type === 'risky') {
@@ -477,7 +494,7 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
     emit({ type: 'turn', turnId, state: fields.state });
   }
 
-  function start({ text, sessionId, mode }) {
+  function start({ text, sessionId, mode, model }) {
     const clean = String(text || '').trim();
     if (!clean) {
       const error = new Error('text is required');
@@ -510,7 +527,7 @@ export function createCommandService({ db, registry, graph, recipes, voice, broa
     const controller = new AbortController();
     controllers.set(assistantTurn, controller);
     emit({ type: 'state', sessionId: sid, turnId: assistantTurn, state: 'thinking' });
-    execute(assistantTurn, sid, clean, controller.signal, ['agent', 'quick'].includes(mode) ? mode : 'auto').catch(error => {
+    execute(assistantTurn, sid, clean, controller.signal, ['agent', 'quick'].includes(mode) ? mode : 'auto', model).catch(error => {
       console.error('fraymus-os command escaped:', error.message);
     });
     return { sessionId: sid, turnId: assistantTurn, state: 'thinking' };

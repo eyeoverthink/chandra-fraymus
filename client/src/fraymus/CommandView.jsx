@@ -48,6 +48,10 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
   const [shelfQuery, setShelfQuery] = useState('');
   const [shelfSearch, setShelfSearch] = useState('');   // debounced copy of shelfQuery
   const [viewer, setViewer] = useState(null);
+  const [pulse, setPulse] = useState(null);             // live process rates for the rings (/api/fraymus-os/pulse)
+  const [poolModels, setPoolModels] = useState([]);     // every model the pool can reach, with its machines
+  const [agentModel, setAgentModel] = useState(() => { try { return localStorage.getItem('fraymus.agentModel') || ''; } catch { return ''; } });   // '' = the pool decides
+  const [showWaiting, setShowWaiting] = useState(false);
   const sessionId = useRef(null);
   const turnId = useRef(null);
   const audioRef = useRef(null);
@@ -74,6 +78,43 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
     const timer = setInterval(pull, 4000);
     return () => { stop = true; clearInterval(timer); };
   }, []);
+
+  // the rings: measured every 2 s, so a ring moves only while its process works
+  useEffect(() => {
+    let stop = false;
+    async function pull() {
+      try { const body = await api('/api/fraymus-os/pulse'); if (!stop) setPulse(body); }
+      catch (error) { console.warn('pulse unavailable:', error.message); }
+    }
+    pull();
+    const timer = setInterval(pull, 2000);
+    return () => { stop = true; clearInterval(timer); };
+  }, []);
+
+  useEffect(() => {
+    let stop = false;
+    async function pull() {
+      try { const body = await api('/api/fleet/models'); if (!stop) setPoolModels(body.models || []); }
+      catch (error) { console.warn('model list unavailable:', error.message); }
+    }
+    pull();
+    const timer = setInterval(pull, 30000);
+    return () => { stop = true; clearInterval(timer); };
+  }, []);
+
+  function chooseModel(value) {
+    setAgentModel(value);
+    try { if (value) localStorage.setItem('fraymus.agentModel', value); else localStorage.removeItem('fraymus.agentModel'); } catch { /* storage unavailable: the choice lasts this visit */ }
+  }
+
+  async function decideWaiting(approval, approve) {
+    try {
+      await api(`/api/fleet/approvals/${approval.id}`, { method: 'POST', body: JSON.stringify({ approve }) });
+      setStatus(await api('/api/fraymus-os/status'));
+    } catch (error) {
+      setBanner(`Could not ${approve ? 'approve' : 'deny'} ${approval.tool}: ${error.message}`);
+    }
+  }
 
   // the shelf: what the agents have made on this machine; refreshed while idle and after each turn
   useEffect(() => {
@@ -127,7 +168,7 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
     try {
       const started = await api('/api/fraymus-os/command', {
         method: 'POST',
-        body: JSON.stringify({ text: clean, sessionId: sessionId.current, mode }),
+        body: JSON.stringify({ text: clean, sessionId: sessionId.current, mode, ...(mode !== 'quick' && agentModel ? { model: agentModel } : {}) }),
       });
       sessionId.current = started.sessionId;
       turnId.current = started.turnId;
@@ -319,12 +360,31 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
           <span><b>{brain.skills ?? '—'}</b> forged skills</span>
           <span><b>{brain.gScore != null ? brain.gScore.toFixed(2) : '—'}</b> g-score</span>
           <span><b>{brain.agentRuns24h ?? '—'}</b> runs today</span>
-          <span className={brain.pendingApprovals ? 'needs-you' : ''}><b>{brain.pendingApprovals ?? 0}</b> waiting on you</span>
+          <button type="button" className={`waiting-toggle ${brain.pendingApprovals ? 'needs-you' : ''}`} onClick={() => setShowWaiting(v => !v)}
+            disabled={!brain.pendingApprovals} title="Agent steps that wait for your approval before they run">
+            <b>{brain.pendingApprovals ?? 0}</b> waiting on you
+          </button>
           <span className="mode-switch">
             <button type="button" className={mode === 'auto' ? 'on' : ''} onClick={() => setMode('auto')} title="Requests go to the agent, which can call tools">Agent</button>
             <button type="button" className={mode === 'quick' ? 'on' : ''} onClick={() => setMode('quick')} title="Instant lookups and plain chat, no tools">Quick</button>
           </span>
         </div>
+      )}
+      {showWaiting && brain?.approvals?.length > 0 && (
+        <ul className="waiting-list" aria-label="Steps waiting for your approval">
+          {brain.approvals.map(a => (
+            <li key={a.id}>
+              <div>
+                <b>{a.tool}</b> <span className="muted">from {a.agentId || 'an agent'} · {ago(a.createdAt)}</span>
+                <code>{a.args}</code>
+              </div>
+              <span className="waiting-actions">
+                <button type="button" onClick={() => decideWaiting(a, true)}>Approve</button>
+                <button type="button" onClick={() => decideWaiting(a, false)}>Deny</button>
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
       {statusError && <p className="warn banner">Status could not be read: {statusError}</p>}
       {banner && <p className="warn banner">{banner}</p>}
@@ -347,12 +407,28 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
           <p className="muted">Tokens/sec {telemetry?.tokensPerSec ?? '—'} · measured from provider counts, not estimated.</p>
         </aside>
         <div className="stage">
-          <Orb state={phase} />
-          <p className="model-caption">
-            {assistant?.model || status?.ollama?.selectedReasoning || 'No reasoning model selected'}
-            {' · '}
-            {routeLabel(routeClass)}
+          <Orb state={phase} pulse={pulse} />
+          <p className="model-caption" title="What really answered: the model pool sends each agent call to whichever machine can take it">
+            {phase === 'thinking'
+              ? `Thinking on ${agentModel || 'the model pool'}${(pulse?.rings?.find(r => r.id === 'routing')?.hosts || []).filter(h => h.inFlight).map(h => ` · ${h.name} answering`).join('') || ''}`
+              : assistant?.model
+                ? `${assistant.model} · ${routeLabel(routeClass)}`
+                : brain?.lastModel
+                  ? `Last answered: ${brain.lastModel.model} on ${brain.lastModel.host === 'local' ? 'this PC' : brain.lastModel.host} · ${ago(brain.lastModel.at)}`
+                  : `${status?.ollama?.selectedReasoning || 'No model selected'} · ${routeLabel(routeClass)}`}
           </p>
+          {mode !== 'quick' && poolModels.length > 0 && (
+            <label className="model-pick">
+              <span>Agent model</span>
+              <select value={agentModel} onChange={event => chooseModel(event.target.value)}>
+                <option value="">Automatic — the pool picks the fastest machine</option>
+                {agentModel && !poolModels.some(m => m.model === agentModel) && <option value={agentModel}>{agentModel} (not reachable now)</option>}
+                {poolModels.map(m => (
+                  <option key={m.model} value={m.model}>{m.model} — {m.hosts.map(h => (h === 'local' ? 'this PC' : h)).join(', ')}</option>
+                ))}
+              </select>
+            </label>
+          )}
           <article className="answer">
             {assistant?.answer || (phase === 'thinking'
               ? (mode === 'quick' ? 'Working with the installed model…' : 'The agent is working. Tool calls appear in the transcript panel as they happen.')

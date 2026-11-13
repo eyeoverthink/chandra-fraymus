@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { createReadStream, existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import multer from 'multer';
+import { readPulse } from './pulse.js';
+import { getCTRNN } from '../intelligence/ctrnn-instance.js';
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 
 function safeParse(value, fallback) {
@@ -25,6 +27,11 @@ export function installFraymusOsRoutes(app, options = {}) {
   const os = options.os;
   if (!os) throw new Error('fraymus-os routes require a created service');
   const { db } = os;
+
+  // the rings on the home screen: live rates of real processes (pulse.js)
+  app.get('/api/fraymus-os/pulse', route((_req, res) => {
+    res.json(readPulse({ db, ctrnn: (() => { try { return getCTRNN(); } catch (e) { console.error('fraymus-os pulse ctrnn:', e.message); return null; } })(), poolStatus: options.fleet?.poolStatus || null }));
+  }));
 
   app.get('/api/fraymus-os/status', route(async (_req, res) => {
     const snapshot = await os.registry.snapshot();
@@ -92,7 +99,7 @@ export function installFraymusOsRoutes(app, options = {}) {
   }));
 
   app.post('/api/fraymus-os/command', route((req, res) => {
-    res.status(202).json(os.command.start({ text: req.body?.text, sessionId: req.body?.sessionId, mode: req.body?.mode }));
+    res.status(202).json(os.command.start({ text: req.body?.text, sessionId: req.body?.sessionId, mode: req.body?.mode, model: typeof req.body?.model === 'string' ? req.body.model.slice(0, 100) : null }));
   }));
 
   app.post('/api/fraymus-os/command/voice', upload.single('audio'), route(async (req, res) => {
