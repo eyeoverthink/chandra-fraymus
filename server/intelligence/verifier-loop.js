@@ -20,6 +20,8 @@ const EXEC_TIMEOUT = 15_000;
 // exit 0), the critic sees the real output and may reject only on a CRITICAL, demonstrated issue,
 // and the generator is the coder model.
 const GEN_MODEL = process.env.VERIFIER_GEN_MODEL || process.env.SMK_CODE_MODEL || 'qwen2.5-coder:7b';
+// the second opinion after an unchanged retry; null = the model pool's default (qwen3:14b on fraymus-home today)
+const ESCALATE_MODEL = process.env.VERIFIER_ESCALATE_MODEL || null;
 const PASS_MARK = /^PASS\b/m, ALL_PASS = /^ALL PASS\b/m, FAIL_MARK = /^FAIL\b/m;
 
 const GENERATOR_PROMPT = `You are a Generator agent — an expert implementer writing a SELF-PROVING program.
@@ -102,9 +104,85 @@ export function nonBuiltinImports(code, language) {
 function detectLanguage(text) {
   const match = text.match(/```(\w+)/);
   if (match) return match[1].toLowerCase();
-  if (text.includes('import ') || text.includes('const ') || text.includes('function ')) return 'javascript';
-  if (text.includes('def ') || text.includes('import ')) return 'python';
-  return 'unknown';
+  return detectCodeLanguage(text) || 'unknown';
+}
+
+// The language the code is actually written in, from the code itself. Until 2026-11-13 a loop asked for Python ran
+// whatever the generator wrote as Python: 3 of 5 tries on the factorial loop were JavaScript and died on line 1 with a
+// SyntaxError. The old guesser also tested "import " as a JavaScript sign before any Python sign.
+export function detectCodeLanguage(code) {
+  const s = String(code || '');
+  const js = (s.match(/\bimport\s*\{|\bfrom\s+['"]|\bconst\s+\w|\blet\s+\w|\bfunction\s+\w*\s*\(|=>|console\.log|;\s*$|require\(/gm) || []).length;
+  const py = (s.match(/^\s*def\s+\w+\s*\(|^\s*class\s+\w+.*:\s*$|^\s*import\s+[A-Za-z_][\w.]*\s*$|^\s*from\s+[A-Za-z_][\w.]*\s+import\b|\bprint\(|\bself\b|^\s*if\s+__name__\s*==|:\s*$/gm) || []).length;
+  if (!js && !py) return null;
+  return js > py ? 'javascript' : 'python';
+}
+
+const LANG_NAME = { javascript: 'JavaScript (Node.js)', js: 'JavaScript (Node.js)', node: 'JavaScript (Node.js)', python: 'Python 3', py: 'Python 3' };
+const canonical = lang => (['javascript', 'js', 'node'].includes(lang) ? 'javascript' : ['python', 'py'].includes(lang) ? 'python' : lang);
+
+// A short, correct example of the proof format in the language asked for — told only in prose, the generator wrote
+// Python that proved itself with unittest (no ALL PASS) or switched to JavaScript.
+export function languageInstruction(lang) {
+  if (canonical(lang) === 'python') return `Write it in Python 3 — not JavaScript. Standard library only. At most 8 distinct checks. The FORMAT to follow (replace solve and the checks with the goal's own function and real checks — never keep this example):
+\`\`\`python
+def solve(x):
+    ...
+checks = [(solve(2), 4, "solve(2) == 4")]
+for got, want, what in checks:
+    if got != want:
+        print(f"FAIL {what}: got {got!r}"); raise SystemExit(1)
+    print(f"PASS {what}")
+print("ALL PASS")
+\`\`\``;
+  if (canonical(lang) === 'javascript') return `Write it in JavaScript (an ES module for Node.js) — not Python. node: built-ins only. At most 8 distinct checks. The FORMAT to follow (replace solve and the checks with the goal's own function and real checks — never keep this example):
+\`\`\`javascript
+import assert from 'node:assert/strict';
+const solve = x => x * 2;
+for (const [got, want, what] of [[solve(2), 4, 'solve(2) === 4']]) { assert.deepEqual(got, want, what); console.log('PASS ' + what); }
+console.log('ALL PASS');
+\`\`\``;
+  return '';
+}
+
+// What a failed run failed on, comparable across attempts: the first FAIL line, else the last line of the error,
+// with the sandbox's random temp-folder name and line numbers removed so the same error compares equal (three
+// cut-off tries on the email loop died on "unterminated string literal (detected at line 116 / 117 / 142)").
+export function failureSignature(execResult) {
+  const out = String(execResult?.stdout || ''), err = String(execResult?.stderr || '').replace(/\x1b\[[0-9;]*m/g, '');
+  const fail = out.match(/^FAIL\b.*$/m)?.[0];
+  if (fail) return fail.trim();
+  const lines = err.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length) return lines[lines.length - 1].replace(/chandra-verify-[0-9a-f]+/g, 'chandra-verify-*').replace(/\bline \d+/g, 'line N');
+  return `exit ${execResult?.exitCode}${execResult?.timedOut ? ' (timeout)' : ''}`;
+}
+
+// A reply cut off at the length limit: an opened code fence that never closes. Seen live (email loop, 2026-11-13):
+// the 7B generator fell into a repetition loop listing checks ("user@domain.com\x4c", "\x4d", …) until the 3,000-token
+// limit cut it mid-line — three tries lost to a SyntaxError that said nothing about the real problem.
+export function cutOffReply(text) {
+  return ((String(text || '').match(/```/g) || []).length % 2) === 1;
+}
+export const CUT_OFF_ERROR = 'not executed: the reply was cut off at the length limit (a code block that never closes) — usually an endless list of checks';
+
+// Proof by execution. The program's own ALL PASS (no FAIL, exit 0) — or the standard library's test runner reporting
+// success: a Python unittest run that ran ≥ 1 test and ended "OK" is the same evidence in another format (2 of the 5
+// factorial tries were correct unittest programs rejected only for not printing ALL PASS).
+
+// The example's own check, left in the code: the program proves the example, not the goal (seen live: a merge goal
+// came back as solve(x) = x + 2 with "solve(2) == 4").
+export function copiedExample(code) {
+  return /solve\(2\)\s*={2,3}\s*4|\[solve\(2\),\s*4,/.test(String(code || ''));
+}
+
+export function proofOf(execResult) {
+  const out = String(execResult?.stdout || ''), err = String(execResult?.stderr || '');
+  const ranClean = execResult?.exitCode === 0 && !execResult?.timedOut;
+  if (!ranClean) return { proved: false, how: null };
+  if (ALL_PASS.test(out) && !FAIL_MARK.test(out)) return { proved: true, how: 'all_pass' };
+  const ran = (out + '\n' + err).match(/^Ran (\d+) tests? in /m);
+  if (ran && Number(ran[1]) >= 1 && /^OK\b/m.test(out + '\n' + err) && !/^FAILED\b|^(FAIL|ERROR): /m.test(out + '\n' + err)) return { proved: true, how: 'unittest' };
+  return { proved: false, how: null };
 }
 
 export async function executeCode(code, language) {
@@ -179,6 +257,12 @@ export async function runVerifierLoop(goal, { language, maxIterations, context, 
   let feedback = '';
   let finalVerdict = 'incomplete';
   let iteration = 0;
+  let lastRanAs = null;   // the language the latest code really ran in
+  // A retry that fails the same way cannot pass: the email loop (2026-11-13) got the same regex back five times after
+  // the sandbox showed it accepts "user@domain..com" (once with only a variable renamed, so comparing code text missed
+  // it). When an attempt fails exactly like the previous one, the next attempt goes to the pool's default model
+  // (qwen3:14b on fraymus-home) as a second opinion, told plainly that its change did not touch the cause.
+  let prevFailure = null, escalated = false;
   // Reflection's speculative loops may be dropped under load ('verifier' class, 2-min max wait);
   // an operator, agent or research demo asked for this run — 'goal' class is queued but never dropped
   // (a dropped critic call killed the first revived run after the sandbox had already caught a real bug).
@@ -187,17 +271,24 @@ export async function runVerifierLoop(goal, { language, maxIterations, context, 
   try {
     for (iteration = 1; iteration <= iterations; iteration++) {
       // ── GENERATE ──────────────────────────────────────────
+      const wanted = language && language !== 'auto' ? canonical(language) : null;
+      const langLine = wanted ? `\n\n${languageInstruction(wanted)}` : '';
       const genPrompt = iteration === 1
-        ? (context ? `Goal: ${goal}\n\nContext: ${context}` : `Goal: ${goal}`)
-        : `Goal: ${goal}\n\nPrevious code had issues. Feedback:\n${feedback}\n\nFix ALL issues and produce the corrected implementation.`;
+        ? (context ? `Goal: ${goal}\n\nContext: ${context}${langLine}` : `Goal: ${goal}${langLine}`)
+        : `Goal: ${goal}${langLine}\n\nPrevious code had issues. Feedback:\n${feedback}\n\nFix ALL issues and produce the corrected implementation${wanted ? ` in ${LANG_NAME[wanted]}` : ''}.`;
 
       const genResponse = await chatOllama([
         { role: 'system', content: GENERATOR_PROMPT },
         { role: 'user', content: genPrompt },
-      ], { priority: prio, label: 'verifier:generate', model: GEN_MODEL, temperature: 0.2, maxTokens: 3000, timeoutMs: 600_000 });
+      ], { priority: prio, label: escalated ? 'verifier:generate:escalated' : 'verifier:generate', model: escalated ? ESCALATE_MODEL : GEN_MODEL, temperature: escalated ? 0.4 : 0.2, maxTokens: 3000, timeoutMs: 600_000 });
 
       currentCode = extractCode(genResponse);
-      const detectedLang = language && language !== 'auto' ? language : detectLanguage(genResponse);
+      // run the code as what it is: the fence tag, else the code itself; the requested language only when neither says
+      const fence = (genResponse.match(/```(\w+)/) || [])[1]?.toLowerCase();
+      const written = canonical(['javascript', 'js', 'node', 'mjs', 'python', 'py'].includes(fence) ? fence : (detectCodeLanguage(currentCode) || ''));
+      const detectedLang = written || wanted || detectLanguage(genResponse);
+      const switched = wanted && written && written !== wanted;
+      lastRanAs = detectedLang;
 
       db.prepare(`INSERT INTO verification_steps (loop_id, iteration, role, input, output, created_at) VALUES (?, ?, 'generator', ?, ?, ?)`).run(
         loopId, iteration, genPrompt.slice(0, 4000), currentCode.slice(0, 8000), now()
@@ -205,23 +296,29 @@ export async function runVerifierLoop(goal, { language, maxIterations, context, 
 
       // ── EXECUTE FIRST — the sandbox is the primary witness ─────────
       const missingDeps = nonBuiltinImports(currentCode, detectedLang);
+      const cutOff = cutOffReply(genResponse);
       let execResult;
-      if (missingDeps.length) {
+      if (cutOff) {
+        execResult = { exitCode: 1, stdout: '', stderr: CUT_OFF_ERROR, executed: false, timedOut: false };
+      } else if (missingDeps.length) {
         execResult = { exitCode: 1, stdout: '', stderr: `not executed: missing packages ${missingDeps.join(', ')}`, executed: false, timedOut: false };
       } else if (['javascript', 'js', 'node', 'python', 'py'].includes(detectedLang)) {
         execResult = await executeCode(currentCode, detectedLang);
       } else {
         execResult = { exitCode: 1, stdout: '', stderr: `not executed: language ${detectedLang} has no sandbox`, executed: false, timedOut: false };
       }
-      const ranClean = execResult.exitCode === 0 && !execResult.timedOut;
-      // proved = ran clean, declared ALL PASS, no FAIL line. Per-check "PASS …" lines are requested
-      // (they let the critic see what was checked) but not required — node:assert throwing on failure
-      // is evidence enough, and requiring them cost the first revived run a correct iteration.
-      const proved = ranClean && ALL_PASS.test(execResult.stdout) && !FAIL_MARK.test(execResult.stdout);
+      // proved = ran clean and declared ALL PASS with no FAIL line, or the stdlib test runner reported success
+      // (proofOf). Per-check "PASS …" lines are requested but not required — an assert throwing is evidence enough.
+      const { proved, how: provedBy } = proofOf(execResult);
+      // stuck = the same check failed the same way as last time (behaviour, not code text)
+      const failure = proved ? null : failureSignature(execResult);
+      const stuck = !!(failure && prevFailure && failure === prevFailure);
+      if (stuck) escalated = true;
+      prevFailure = failure;
       const perCheckLines = (execResult.stdout.match(/^PASS\b.*$/gm) || []).length;
       db.prepare(`INSERT INTO verification_steps (loop_id, iteration, role, input, output, verdict, created_at) VALUES (?, ?, 'executor', ?, ?, ?, ?)`).run(
         loopId, iteration, currentCode.slice(0, 4000),
-        JSON.stringify({ exitCode: execResult.exitCode, stdout: execResult.stdout.slice(0, 2000), stderr: execResult.stderr.slice(0, 2000), timedOut: execResult.timedOut, proved, perCheckLines }).slice(0, 8000),
+        JSON.stringify({ exitCode: execResult.exitCode, stdout: execResult.stdout.slice(0, 2000), stderr: execResult.stderr.slice(0, 2000), timedOut: execResult.timedOut, proved, provedBy, ranAs: detectedLang, asked: wanted, perCheckLines }).slice(0, 8000),
         proved ? 'PASSED' : 'FAILED', now()
       );
 
@@ -233,11 +330,13 @@ export async function runVerifierLoop(goal, { language, maxIterations, context, 
 
       const verdict = parseJSON(verifyResponse, { verdict: 'REJECTED', issues: [{ severity: 'critical', description: 'Failed to parse verifier output' }], summary: 'Parse error' });
       if (!Array.isArray(verdict.issues)) verdict.issues = [];
+      if (copiedExample(currentCode)) verdict.issues.unshift({ severity: 'critical', description: 'The program still contains the format example (solve(2) == 4). Replace it with a function and checks for the goal itself.' });
+      if (cutOff) verdict.issues.unshift({ severity: 'critical', description: 'Your reply was cut off before the code block closed: it ran past the length limit, almost always by listing checks without end. Write at most 8 distinct checks and close the code block.' });
       if (missingDeps.length) verdict.issues.unshift({ severity: 'critical', description: `Imports packages that do not exist in the sandbox: ${missingDeps.join(', ')}. Use the standard library only (Node: node:* built-ins).` });
       if (!proved) {
         const why = execResult.timedOut ? 'timed out after 15 s' : execResult.exitCode !== 0 ? `exited ${execResult.exitCode}` : FAIL_MARK.test(execResult.stdout) ? 'printed a FAIL line' : 'did not print "ALL PASS"';
         verdict.issues.unshift({ severity: 'critical', description: `The program did not prove itself: ${why}. Fix the failing check, print "PASS …" for each check, and end with "ALL PASS".` });
-      } else if (perCheckLines === 0) {
+      } else if (perCheckLines === 0 && provedBy !== 'unittest') {
         verdict.issues.push({ severity: 'minor', description: 'No per-check "PASS …" lines were printed; the run proved itself by exit code and ALL PASS only.' });
       }
       const critical = verdict.issues.filter(i => String(i.severity).toLowerCase() === 'critical');
@@ -256,6 +355,8 @@ export async function runVerifierLoop(goal, { language, maxIterations, context, 
 
       // ── BUILD FEEDBACK ────────────────────────────────────
       feedback = `Issues (fix the critical ones first):\n${verdict.issues.map(i => `- [${i.severity}] ${i.description}`).join('\n')}`;
+      if (switched) feedback = `- [critical] You wrote ${LANG_NAME[written]}, but this program must be ${LANG_NAME[wanted]}. Rewrite it in ${LANG_NAME[wanted]}.\n${feedback}`;
+      if (stuck) feedback = `- [critical] This attempt failed EXACTLY like the previous one (${failure.slice(0, 160)}). Your change did not touch the cause. Rethink the logic this check exercises; do not resubmit the same approach.\n${feedback}`;
       feedback += `\n\nExecution result (exit code ${execResult.exitCode}):`;
       if (execResult.stdout) feedback += `\nstdout: ${execResult.stdout.slice(0, 2000)}`;
       if (execResult.stderr) feedback += `\nstderr: ${execResult.stderr.slice(0, 2000)}`;
@@ -264,9 +365,11 @@ export async function runVerifierLoop(goal, { language, maxIterations, context, 
 
     // ── FINALIZE ──────────────────────────────────────────────
     const status = finalVerdict === 'approved' ? 'passed' : (iteration > iterations ? 'max_iterations' : 'failed');
+    const triesUsed = Math.min(iteration, iterations);
 
-    db.prepare(`UPDATE verification_loops SET status = ?, iterations_used = ?, final_code = ?, completed_at = ? WHERE id = ?`).run(
-      status, iteration, currentCode?.slice(0, 16000), now(), loopId
+    // the for-loop leaves `iteration` one past the last try when every try was used (it recorded 6 of 5)
+    db.prepare(`UPDATE verification_loops SET status = ?, iterations_used = ?, final_code = ?, language = COALESCE(?, language), completed_at = ? WHERE id = ?`).run(
+      status, triesUsed, currentCode?.slice(0, 16000), ['javascript', 'python'].includes(lastRanAs) ? lastRanAs : null, now(), loopId
     );
 
     // Save fossil if approved
@@ -274,21 +377,21 @@ export async function runVerifierLoop(goal, { language, maxIterations, context, 
       try {
         storeMemory('system', 'fossil', `verified:${goal.slice(0, 100)}`, JSON.stringify({
           goal, code: currentCode.slice(0, 4000), language: language || 'auto',
-          iterations: iteration, verifiedAt: now(), loopId, // Phase AC: the skill forge crystallizes by loop id
+          iterations: triesUsed, escalated, verifiedAt: now(), loopId, // Phase AC: the skill forge crystallizes by loop id
         }), { confidence: 1.0, source: 'verifier-loop' });
       } catch (_) {}
 
       try {
         publish('system', 'system.evolution', JSON.stringify({
           action: 'code_verified', loopId, goal: goal.slice(0, 200),
-          iterations: iteration, status, gateTier: gateMods.tier,
+          iterations: triesUsed, escalated, status, gateTier: gateMods.tier,
           evolutionRate: gateMods.evolutionRate, effectiveMax, at: now(),
         }));
       } catch (_) {}
     }
 
     return {
-      loopId, status, iterations: iteration, maxIterations: iterations,
+      loopId, status, iterations: triesUsed, escalated, maxIterations: iterations,
       effectiveMax, gateTier: gateMods.tier, evolutionRate: gateMods.evolutionRate,
       code: currentCode?.slice(0, 8000), goal,
     };
