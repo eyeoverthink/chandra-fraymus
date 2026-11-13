@@ -174,4 +174,4 @@ setInterval(() => {
     const activeHits = win.hits.filter(t => t > now - 120_000).length;
     if (activeHits === 0 && win.blocked === 0) windows.delete(key);
   }
-}, 120_000);
+}, 120_000).unref?.();

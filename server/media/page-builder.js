@@ -111,7 +111,25 @@ function changedFraction(a, b) {
 }
 
 let browserPromise = null;
+// The browser is shared between checks and closed once idle: its pipes keep a process alive, so a process that only
+// checked one page (a test, a script) never exited — the 'exit' handler below cannot fire while they are open.
+const BROWSER_IDLE_MS = 30_000;
+let idleTimer = null, inUse = 0;
+export async function closeBrowser() {
+  clearTimeout(idleTimer); idleTimer = null;
+  const pending = browserPromise; browserPromise = null;
+  const b = await pending?.catch(() => null);
+  try { await b?.close(); } catch (e) { console.error('[page-builder] browser close:', e.message); }
+}
+function releaseBrowser() {
+  inUse = Math.max(0, inUse - 1);
+  if (inUse) return;
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => { if (!inUse) closeBrowser(); }, BROWSER_IDLE_MS);
+  idleTimer.unref?.();
+}
 async function getBrowser() {
+  clearTimeout(idleTimer); idleTimer = null;
   if (browserPromise) { const b = await browserPromise.catch(() => null); if (b?.connected) return b; browserPromise = null; }
   browserPromise = (async () => {
     const puppeteer = (await import('puppeteer')).default;
@@ -131,6 +149,7 @@ process.once('exit', () => { browserPromise?.then(b => b.close()).catch(() => {}
 export async function verifyPage(url, { motionExpected = false } = {}) {
   const errors = [], blocked = [], problems = [];
   let page, shotB = null, colours = 0, moved = 0;
+  inUse++;
   try {
     const browser = await getBrowser();
     page = await browser.newPage();
@@ -150,7 +169,7 @@ export async function verifyPage(url, { motionExpected = false } = {}) {
     if (colours < 4 && text < 20) problems.push('The page is blank: one flat colour and almost no text one second after loading.');
     if (motionExpected && moved < 0.002) problems.push('Nothing moved: two screenshots taken 1.2 seconds apart are identical, but the request asks for motion. Start the animation on load with requestAnimationFrame.');
   } catch (e) { problems.push(`The browser could not open the page: ${clip(e.message, 160)}`); }
-  finally { try { await page?.close(); } catch (_) { /* already closed */ } }
+  finally { try { await page?.close(); } catch (_) { /* already closed */ } releaseBrowser(); }
   const uniq = list => [...new Set(list)].slice(0, 5);
   for (const e of uniq(errors)) problems.push(`JavaScript error: ${e}`);
   for (const b of uniq(blocked)) problems.push(`Blocked: ${b}`);

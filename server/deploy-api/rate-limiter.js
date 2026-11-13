@@ -52,4 +52,4 @@ setInterval(() => {
   for (const [key, bucket] of buckets) {
     if (bucket.lastRefill < cutoff) buckets.delete(key);
   }
-}, 300_000);
+}, 300_000).unref?.();

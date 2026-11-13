@@ -1,7 +1,8 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseRequest, planCreation, settleKind, describePlan } from '../server/media/make-plan.js';
-import { pageMessages, extractHtml, staticCheck, slugFor, titleOf, wantsMotion, verifyPage } from '../server/media/page-builder.js';
+import { pageMessages, extractHtml, staticCheck, slugFor, titleOf, wantsMotion, verifyPage, closeBrowser } from '../server/media/page-builder.js';
+after(() => closeBrowser());
 
 const page = (body, head = '<title>Test page</title>') => `<!DOCTYPE html>\n<html><head>${head}</head><body>${body}</body></html>\n`;
 const dataUrl = html => 'data:text/html;charset=utf-8,' + encodeURIComponent(html);

@@ -137,6 +137,7 @@ export function startMonitor(opts = {}) {
   _interval = setInterval(() => {
     checkClock().catch(e => console.error('[clock-honesty] check error:', e.message));
   }, ms);
+  _interval.unref?.();
   return { started: true, interval_ms: ms };
 }
 

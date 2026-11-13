@@ -120,7 +120,7 @@ test('continuity verdict reflects failed integrity probes without changing owner
   const receiptsBefore = db.prepare('SELECT COUNT(*) AS n FROM writ_receipts').get().n;
   const result = continuity({
     remembered: { stats: () => ({ total: 1 }), verify: () => ({ verified: false }) },
-    ledger: { countByKind: () => ({}), verify: () => ({ verified: false, checked: 1 }) },
+    ledger: { countByKind: () => ({}), verify: () => ({ valid: false, checked: 1 }) },   // the real Ledger.verify() shape
   }).selftest;
   assert.notEqual(result.verdict, 'ALL_CLEAR');
   assert.equal(result.probes.find(item => item.name === 'remembered_vault').pass, false);
@@ -129,7 +129,7 @@ test('continuity verdict reflects failed integrity probes without changing owner
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM writ_receipts').get().n, receiptsBefore);
   const healthy = continuity({
     remembered: { stats: () => ({ total: 1 }), verify: () => ({ verified: true }) },
-    ledger: { countByKind: () => ({}), verify: () => ({ verified: true, checked: 1 }) },
+    ledger: { countByKind: () => ({}), verify: () => ({ valid: true, checked: 1 }) },
   }).selftest;
   assert.equal(healthy.probes.find(item => item.name === 'remembered_vault').pass, true);
   assert.equal(healthy.probes.find(item => item.name === 'ledger').pass, true);

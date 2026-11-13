@@ -22,6 +22,7 @@ export function initHealthMonitor({ broadcast, ollamaBaseUrl, pollIntervalMs = 6
 
   if (intervalHandle) clearInterval(intervalHandle);
   intervalHandle = setInterval(() => collectMetrics().catch(e => console.error('health-monitor:', e.message)), pollIntervalMs);
+  intervalHandle.unref?.();   // housekeeping must not keep a process alive (the server's listener does that)
   collectMetrics().catch(() => {});
   return { started: true, intervalMs: pollIntervalMs };
 }
