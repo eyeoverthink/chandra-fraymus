@@ -201,3 +201,22 @@ test('the narrator refuses names the event does not contain, a second sentence, 
   assert.match(checkPhrasing('hybrid-predictor-v1 finished comparing outcomes at quality 0.62.', plain, facts).reason, /not in the event/);
   assert.match(checkPhrasing('pattern-forecast-v1 finished at quality 0.62. Skills clearly make agents better.', plain, facts).reason, /more than one sentence/);
 });
+
+test('the activity digest counts finished runs by agent, tool calls and model calls in its window', async () => {
+  const { activityFacts } = await import('../server/intelligence/narrator.js');
+  const db = new Database(':memory:');
+  db.exec(`CREATE TABLE runs (id TEXT, status TEXT, model TEXT, updated_at INTEGER);
+    CREATE TABLE messages (id INTEGER PRIMARY KEY, role TEXT, name TEXT, created_at INTEGER);
+    CREATE TABLE fleet_model_calls (host TEXT, at INTEGER);`);
+  const t = 1_000_000;
+  const run = db.prepare('INSERT INTO runs VALUES (?, ?, ?, ?)');
+  run.run('a', 'done', 'concierge:qwen3:14b', t + 10); run.run('b', 'error', 'concierge:default', t + 20);
+  run.run('c', 'done', 'fraymus_prime:default', t + 30); run.run('d', 'running', 'helix:default', t + 40);
+  run.run('e', 'done', 'old:default', t - 5);                                         // before the window
+  const msg = db.prepare("INSERT INTO messages (role, name, created_at) VALUES (?, ?, ?)");
+  msg.run('tool', 'self_audit_status', t + 1); msg.run('tool', 'self_audit_status', t + 2); msg.run('tool', 'reason', t + 3); msg.run('assistant', null, t + 4);
+  db.prepare("INSERT INTO fleet_model_calls VALUES ('home', ?), ('home', ?), ('local', ?)").run(t + 1, t + 2, t + 3);
+  const f = activityFacts(db, t, t + 300_000);
+  assert.deepEqual(f, { minutes: 5, runs: 3, failed: 1, agents: ['concierge', 'fraymus_prime'], tools: 3, topTools: ['self_audit_status', 'reason'], modelCalls: 3, hosts: ['home', 'this PC'] });
+  db.close();
+});

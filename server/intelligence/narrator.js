@@ -139,6 +139,29 @@ const LINES = {
     if (p.action === 'dream_translated' && p.kind && p.kind !== 'none') return { kind: 'dream', text: `One of my lessons became ${p.kind === 'experiment' ? 'an experiment I will measure' : p.kind === 'code' ? 'a code change for review' : 'an idea to prove in code'}: ${clip(p.lesson, 120)}` };
     return null;
   },
+  // The daemon's cycle (every ~18 min): what it did, from the bus event it already publishes.
+  'system.daemon': p => {
+    if (p.action !== 'cycle_complete') return null;
+    const did = [];
+    if (p.goalsGenerated) did.push(`${p.goalsGenerated} new goal${p.goalsGenerated === 1 ? '' : 's'}`);
+    if (p.reflectionActions) did.push(`${p.reflectionActions} reflection action${p.reflectionActions === 1 ? '' : 's'}`);
+    if (p.consolidation) did.push('a dream consolidation');
+    if (p.ouroborosAccepted) did.push(`${p.ouroborosAccepted} accepted self-improvement proposal${p.ouroborosAccepted === 1 ? '' : 's'}`);
+    if (p.consciousnessVerdict) did.push(`a consciousness audit (${p.consciousnessProofsPassed} of 4 proofs)`);
+    // only what the line says goes to the model: given the whole event it spoke the cycle interval as a duration
+    const facts = { goalsGenerated: p.goalsGenerated || 0, reflectionActions: p.reflectionActions || 0, dreamConsolidated: !!p.consolidation,
+      acceptedSelfImprovementProposals: p.ouroborosAccepted || 0, consciousnessProofsPassed: p.consciousnessVerdict ? p.consciousnessProofsPassed : null };
+    return { kind: 'daemon', text: `Daemon cycle done${did.length ? `: ${did.join(', ')}` : ', nothing new to act on'}.`, facts };
+  },
+  // Agent runs, tool calls and model calls, summed over the last few minutes (activityFacts below). One run at a time
+  // would be ~500 lines a day against a 45-second gap; a digest every NARRATOR_ACTIVITY_MS says what the fleet is doing.
+  'system.activity': p => {
+    if (!p.runs && !p.tools) return null;
+    const agents = p.agents?.length ? ` (${p.agents.join(', ')})` : '';
+    const tools = p.tools ? `; ${p.tools} tool call${p.tools === 1 ? '' : 's'}${p.topTools?.length ? `, mostly ${p.topTools.join(', ')}` : ''}` : '';
+    const models = p.modelCalls ? `; ${p.modelCalls} model call${p.modelCalls === 1 ? '' : 's'}${p.hosts?.length ? ` on ${p.hosts.join(' and ')}` : ''}` : '';
+    return { kind: 'activity', text: `In the last ${p.minutes} minutes: ${p.runs} agent run${p.runs === 1 ? '' : 's'} finished${p.failed ? `, ${p.failed} of them failed` : ''}${agents}${tools}${models}.` };
+  },
   // Phase AD: measured capability — benchmark results and lessons that survived an A/B test
   'system.capability': p => {
     if (p.action === 'benchmark_completed' && typeof p.g === 'number') return { kind: 'capability', text: `Capability check: ${p.correct} of ${p.n} fresh problems solved, g-score ${p.g.toFixed(2)}.${p.strongest && p.weakest && p.strongest !== p.weakest ? ` Strongest at ${p.strongest}, weakest at ${p.weakest}.` : ''}` };
@@ -146,7 +169,39 @@ const LINES = {
     return null;
   },
 };
-export const TOPICS = Object.keys(LINES);
+// system.activity is not a bus topic: the narrator builds it itself from the database
+export const TOPICS = Object.keys(LINES).filter(t => t !== 'system.activity');
+
+const ACTIVITY_MS = Math.max(60_000, parseInt(process.env.NARRATOR_ACTIVITY_MS, 10) || 5 * 60_000);
+
+/** What the fleet did between `since` and `to`: finished runs (agent = prefix of runs.model), tool calls, model calls. */
+export function activityFacts(database, since, to = now()) {
+  const q = (sql, ...p) => { try { return database.prepare(sql).all(...p); } catch (e) { console.error('[narrator] activity:', e.message); return []; } };
+  const runs = q(`SELECT status, model FROM runs WHERE updated_at > ? AND updated_at <= ? AND status IN ('done', 'error')`, since, to);
+  const byAgent = {};
+  for (const r of runs) { const a = String(r.model || '').split(':')[0]; if (a) byAgent[a] = (byAgent[a] || 0) + 1; }
+  const tools = q(`SELECT name, COUNT(*) AS c FROM messages WHERE role = 'tool' AND created_at > ? AND created_at <= ? GROUP BY name ORDER BY c DESC`, since, to);
+  const calls = q(`SELECT host, COUNT(*) AS c FROM fleet_model_calls WHERE at > ? AND at <= ? GROUP BY host ORDER BY c DESC`, since, to);
+  return {
+    minutes: Math.round((to - since) / 60_000),
+    runs: runs.length,
+    failed: runs.filter(r => r.status === 'error').length,
+    agents: Object.entries(byAgent).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([a]) => a),
+    tools: tools.reduce((n, t) => n + t.c, 0),
+    topTools: tools.slice(0, 3).map(t => t.name),
+    modelCalls: calls.reduce((n, c) => n + c.c, 0),
+    hosts: calls.slice(0, 2).map(c => (c.host === 'local' ? 'this PC' : c.host)),
+  };
+}
+
+let activityTimer = null, activitySince = now();
+function activityTick() {
+  const to = now();
+  const facts = activityFacts(db, activitySince, to);
+  activitySince = to;
+  const line = LINES['system.activity'](facts);
+  if (line) enqueue({ ...line, topic: 'system.activity', facts, source: 'activity' });
+}
 
 // ─── Saying it ───────────────────────────────────────────────────
 // The line above is the plain version; a model says it the way a person would, from the same facts. What it may not
@@ -341,7 +396,7 @@ function handlerFor(topic) {
       const facts = parse(msg.payload);
       const raw = LINES[topic](facts);
       const line = raw && throttled(raw);
-      if (line) enqueue({ ...line, topic, facts, source: 'bus' });
+      if (line) enqueue({ ...line, topic, facts: line.facts || facts, source: 'bus' });
     } catch (e) { console.error(`[narrator] ${topic}:`, e.message); }
   };
 }
@@ -351,12 +406,16 @@ export function startNarrator() {
   if (running) return { started: false, reason: 'already running' };
   running = true;
   for (const t of TOPICS) onTopic(t, AGENT, handlerFor(t));
+  activitySince = now();
+  activityTimer = setInterval(activityTick, ACTIVITY_MS);
+  activityTimer.unref?.();
   return { started: true, topics: TOPICS, minGapMs: minGapMs(), voice: VOICE, audioOnlyWithOverlay: !ALWAYS };
 }
 
 export function stopNarrator() {
   running = false;
   for (const t of TOPICS) offTopic(t, AGENT);
+  if (activityTimer) { clearInterval(activityTimer); activityTimer = null; }
   if (timer) { clearTimeout(timer); timer = null; }
   queue.length = 0;
   return { stopped: true };
@@ -367,7 +426,7 @@ export async function previewLine(topic, facts = {}, { voice = true } = {}) {
   if (!LINES[topic]) throw Object.assign(new Error(`not a narrated topic: ${topic}`), { status: 400 });
   const line = LINES[topic](facts);
   if (!line) return { said: null, reason: 'the narrator stays quiet for this event' };
-  const said = await phrase({ ...line, topic, facts });
+  const said = await phrase({ ...line, topic, facts: line.facts || facts });
   const audio = voice ? await voiceLine(said) : null;
   return { plain: line.text, said, phrasedByModel: said !== line.text, audioUrl: audio?.url || null, engine: audio?.engine || null };
 }

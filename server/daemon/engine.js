@@ -681,8 +681,10 @@ async function runCycle({ trigger = 'scheduled' } = {}) {
         reflectionActions: stepResults.reflection?.actionsCount ?? 0,
         goalsGenerated: stepResults.goalGeneration?.count ?? 0,
         perspectiveInsights: stepResults.consolidation?.perspectiveInsights ?? 0,
-        ouroborosGeneration: stepResults.ouroboros?.generation ?? null,
-        ouroborosAccepted: stepResults.ouroboros?.accepted ?? 0,
+        // a refused cycle ({skipped, …gate}) carries the gate's backlog count as `accepted` — it ran nothing, so report 0
+        ouroborosGeneration: stepResults.ouroboros?.skipped ? null : (stepResults.ouroboros?.generation ?? null),
+        ouroborosAccepted: stepResults.ouroboros?.skipped ? 0 : (stepResults.ouroboros?.accepted ?? 0),
+        ouroborosSkipped: stepResults.ouroboros?.skipped ? (stepResults.ouroboros.reason || true) : false,
         consciousnessVerdict: stepResults.consciousness?.verdict ?? null,
         consciousnessProofsPassed: stepResults.consciousness?.proofsPassed ?? 0,
         consciousnessTier: stepResults.consciousnessGate?.tier ?? null,
