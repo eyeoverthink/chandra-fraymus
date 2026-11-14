@@ -557,7 +557,7 @@ export default function CommandView({ wsStatus, onOpenSurface, onInspect }) {
                 {viewer.kind === 'image' && <img src={viewer.media} alt={viewer.title} />}
                 {viewer.kind === 'video' && <video src={viewer.media} controls autoPlay playsInline />}
                 {viewer.kind === 'audio' && <audio src={viewer.media} controls autoPlay />}
-                {viewer.prompt && <p className="viewer-prompt"><b>{viewer.kind === 'audio' ? 'Says' : 'Prompt / text'}:</b> {viewer.prompt}</p>}
+                {viewer.prompt && <p className="viewer-prompt"><b>{viewer.op === 'compose' ? 'Composed from' : viewer.kind === 'audio' ? 'Says' : 'Prompt / text'}:</b> {viewer.prompt}</p>}
                 <p className="muted">{viewer.detail}{viewer.params && Object.keys(viewer.params).length > 0 ? ` · ${Object.entries(viewer.params).slice(0, 8).map(([key, value]) => `${key} ${value}`).join(' · ')}` : ''}</p>
                 {!viewer.op && <p className="muted">Made before provenance was recorded: nothing is known about how.</p>}
               </div>

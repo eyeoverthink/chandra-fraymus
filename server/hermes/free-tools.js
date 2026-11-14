@@ -421,8 +421,9 @@ function dirEntries(dir) { try { return readdirSync(dir, { withFileTypes: true }
 function mtime(p) { try { return statSync(p).mtimeMs; } catch (_) { return 0; } }
 function firstHeading(file, fallback) { try { const m = readFileSync(file, 'utf8').slice(0, 2000).match(/^#\s+(.+)$/m) || readFileSync(file, 'utf8').slice(0, 4000).match(/<title>([^<]+)<\/title>/i); return m ? decodeEntities(m[1]).trim().slice(0, 120) : fallback; } catch (_) { return fallback; } }
 
-// media the engines wrote: images (data/media, plus GIFs from the video engine), video (data/video), audio (data/tts)
-const MEDIA_DIRS = { image: [join(DATA_DIR, 'media'), join(DATA_DIR, 'video')], video: [join(DATA_DIR, 'video')], audio: [join(DATA_DIR, 'tts')] };
+// media the engines wrote: images (data/media, plus GIFs from the video engine), video (data/video), audio (data/tts, and composed music in data/music)
+const MUSIC_DIR = join(DATA_DIR, 'music');
+const MEDIA_DIRS = { image: [join(DATA_DIR, 'media'), join(DATA_DIR, 'video')], video: [join(DATA_DIR, 'video')], audio: [join(DATA_DIR, 'tts'), MUSIC_DIR] };
 // .svg: vector drawings from looks.vector (our own output, no scripts); served under a no-script policy all the same
 const MEDIA_EXT = { image: /\.(png|jpe?g|webp|gif|svg)$/i, video: /\.(mp4|webm|mov)$/i, audio: /\.(mp3|wav|ogg)$/i };
 const MEDIA_MIME = { '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg' };
@@ -431,7 +432,7 @@ const stamp = name => { const m = /^(\d{13})-/.exec(name); return m ? Number(m[1
 const when = ms => new Date(ms).toISOString().slice(0, 16).replace('T', ' ');
 function mediaItems(kind) {
   const out = [];
-  for (const dir of MEDIA_DIRS[kind]) for (const f of dirEntries(dir)) if (f.isFile() && MEDIA_EXT[kind].test(f.name)) { const at = stamp(f.name) || mtime(join(dir, f.name)); out.push({ kind, id: f.name, title: `${kind[0].toUpperCase()}${kind.slice(1)} · ${when(at)}`, detail: extname(f.name).slice(1).toLowerCase(), media: `/api/hermes/artifacts/media?kind=${kind}&id=${encodeURIComponent(f.name)}`, at }); }
+  for (const dir of MEDIA_DIRS[kind]) for (const f of dirEntries(dir)) if (f.isFile() && MEDIA_EXT[kind].test(f.name)) { const at = stamp(f.name) || mtime(join(dir, f.name)); out.push({ kind, id: f.name, title: `${kind[0].toUpperCase()}${kind.slice(1)} · ${when(at)}`, detail: extname(f.name).slice(1).toLowerCase(), media: `/api/hermes/artifacts/media?kind=${kind}&id=${encodeURIComponent(f.name)}`, at, ...(dir === MUSIC_DIR ? { music: true } : {}) }); }
   return out;
 }
 /** Absolute path of one media file, or null. The id must be a bare file name of the right type inside that kind's folders. */
@@ -464,7 +465,8 @@ export function listArtifacts({ limit = 24, kind = null, q = '' } = {}) {
     const all = [...out, ...media.image, ...media.video, ...media.audio];
     pool = (kind ? all.filter(a => a.kind === kind) : all).filter(a => `${a.title} ${a.detail} ${a.id}`.toLowerCase().includes(needle) || byMeta.has(a.id) || spokenHits.has(a.id));
   } else {
-    pool = kind ? (media[kind] || out.filter(a => a.kind === kind)) : [...out, ...media.image, ...media.video, ...media.audio.slice(0, UNFILTERED_AUDIO_CAP)];
+    // music is made on purpose and kept in full; only the narrator's clips are capped
+    pool = kind ? (media[kind] || out.filter(a => a.kind === kind)) : [...out, ...media.image, ...media.video, ...media.audio.filter(a => a.music), ...media.audio.filter(a => !a.music).slice(0, UNFILTERED_AUDIO_CAP)];
   }
   const matched = pool.length;
   // an engine attempt that failed can leave an empty file behind (edge-tts does): never show those.

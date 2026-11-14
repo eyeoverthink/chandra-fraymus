@@ -38,13 +38,12 @@ router.post('/api/media/music/emotion-map', (req, res) => {
 router.get('/api/media/music/status', (_req, res) => {
   res.json({
     engines: {
+      ace_step_local: true,
       fal_minimax: !!process.env.FAL_API_KEY,
       suno: !!process.env.SUNO_API_KEY,
     },
-    available: !!(process.env.FAL_API_KEY || process.env.SUNO_API_KEY),
-    note: !process.env.FAL_API_KEY && !process.env.SUNO_API_KEY
-      ? 'No music API configured. Prompt generation works; actual audio requires FAL_API_KEY or SUNO_API_KEY.'
-      : 'Music generation ready',
+    available: true,
+    note: 'Music is composed on our own card (ACE-Step 1.5 on a worker; POST /api/music). Paid services are used only if set and the local path fails.',
   });
 });
 

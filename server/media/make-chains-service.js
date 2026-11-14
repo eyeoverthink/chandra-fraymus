@@ -21,6 +21,7 @@ import { createFromRequest, getCreation } from './make.js';
 import { voiceLine } from '../intelligence/narrator.js';
 import { startWorld, getWorld } from './world-builder.js';
 import { startGame, getGame } from './game-builder.js';
+import { startMusic, getSong } from './music.js';
 
 const clip = (s, n) => String(s ?? '').slice(0, n);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -150,6 +151,16 @@ export const ADAPTERS = {
     const said = lines.length ? lines.join(' ') : null;
     return { file: fileFrom(out.file, kind), summary: said ? clip(said, 3000) : null, detail: { job: job.id, style: job.style, title: out.title || null, seconds: out.seconds || null, url: out.url || null } };
   },
+  async music(step, r, ctx, report) {
+    const request = clip(r.prompt || (ctx.previousSummary ? `background music for: ${ctx.previousSummary}` : ''), 800);
+    if (request.length < 5) throw new Error('a music step needs a prompt or a running summary before it');
+    report('music: planning');
+    const started = startMusic({ request, seconds: step.seconds, instrumental: step.instrumental, source: source(ctx) });
+    await started.done;
+    const song = getSong(started.id);
+    if (song.status !== 'completed') throw new Error(`music: ${song.error || song.status}`);
+    return { file: fileFrom(song.file, 'audio'), detail: { title: song.plan?.title, seconds: song.check?.mastered?.seconds, bpm: song.plan?.bpm, key: song.plan?.keyscale, instrumental: song.plan?.instrumental } };
+  },
   async voice(step, r) {
     const text = spokenText(r.text);
     if (text.length < 2) throw new Error('nothing to say');
@@ -182,6 +193,7 @@ export function createMakeChainTools() {
     keep: { type: 'string', enum: ['subject', 'plate'], description: 'layers: which layer is passed on (default plate)' },
     context: { type: 'string', description: 'layers: what the scene is, to guide the repainted background' },
     seconds: { type: 'integer' },
+    instrumental: { type: 'boolean', description: 'music: no voice even if the prompt mentions a song' },
   }, required: ['kind'] };
   return [
     { name: 'make_chain.list', group: 'studio', risk: 'safe',

@@ -26,9 +26,9 @@ const clip = (s, n) => String(s ?? '').slice(0, n);
 export const originStore = new AsyncLocalStorage();
 
 /** The kinds that are media work on a card (what an agent's budget counts); model calls are its thinking, not media. */
-export const MEDIA_KINDS = Object.freeze(['paint', 'motion', 'mesh', 'inpaint', 'lease', 'voice', 'render']);
+export const MEDIA_KINDS = Object.freeze(['paint', 'motion', 'mesh', 'inpaint', 'lease', 'voice', 'render', 'music']);
 /** Worker job kind → ledger kind, and whether it runs on the card. */
-export const WORKER_KINDS = Object.freeze({ stills: ['paint', 'gpu'], i2v: ['motion', 'gpu'], mesh: ['mesh', 'gpu'], inpaint: ['inpaint', 'gpu'], matte: ['matte', 'cpu'], video: ['render', 'cpu'] });
+export const WORKER_KINDS = Object.freeze({ stills: ['paint', 'gpu'], i2v: ['motion', 'gpu'], mesh: ['mesh', 'gpu'], inpaint: ['inpaint', 'gpu'], matte: ['matte', 'cpu'], video: ['render', 'cpu'], music: ['music', 'gpu'] });
 export const AGENT_CARD_SECONDS_PER_DAY = Math.max(0, parseInt(process.env.AGENT_CARD_SECONDS_PER_DAY, 10) || 1800);
 const KEEP_DAYS = 90;
 

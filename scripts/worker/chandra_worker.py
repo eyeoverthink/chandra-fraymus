@@ -24,7 +24,8 @@ disk), "i2v" (a still set in motion by Wan 2.2 TI2V 5B through the same ComfyUI,
 picture made into a 3-D model, .glb, by Hunyuan3D 2.0 through ComfyUI's native nodes) and "video" (fraymus-video-studio through Chandra's launcher, with the spoken lines
 already recorded by the hub and sent along, so no voice leaves the hub's machine), "matte" (U^2-Net subject mask
 on the CPU with onnxruntime, the model rembg uses, from --u2net) and "inpaint" (SDXL repaints the transparent part of
-a picture through a latent noise mask, under the card lock) — the two halves of scene → layers.
+a picture through a latent noise mask, under the card lock) — the two halves of scene → layers — and "music" (tags +
+lyrics → song.flac by ACE-Step 1.5 turbo through ComfyUI's native nodes, under the card lock).
 
 Every request needs "Authorization: Bearer <token>". The token is full trust: whoever holds it can make this
 machine render. Bind to the private (Tailscale) address, never to a public one. Job files are data; the only
@@ -49,8 +50,8 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = "1.5.0"
-KINDS = ("stills", "i2v", "mesh", "video", "inpaint", "matte")
+VERSION = "1.6.0"
+KINDS = ("stills", "i2v", "mesh", "video", "inpaint", "matte", "music")
 HERE = os.path.dirname(os.path.abspath(__file__))
 SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{2,60}$")
@@ -67,6 +68,14 @@ WAN_FILES = {"unet": ("diffusion_models", "wan2.2_ti2v_5B_fp16.safetensors"),
 WAN_NEGATIVE = ("static, still image, frozen, blurry, low quality, distorted, deformed, morphing, melting, extra limbs, "
                 "duplicate, changing face, melting eyes, new features, text, letters, watermark, subtitles, colour shift, flicker, jpeg artifacts")
 MODULES = ["numpy", "PIL", "scipy", "soundfile"]
+MUSIC_TIMEOUT_S = 1200
+# ACE-Step 1.5 turbo, split files as Comfy-Org repackages them (graph: their audio_ace_step_1_5_split template)
+ACE_FILES = {"unet": ("diffusion_models", "acestep_v1.5_turbo.safetensors"),
+             "clip1": ("text_encoders", "qwen_0.6b_ace15.safetensors"),
+             "clip2": ("text_encoders", "qwen_1.7b_ace15.safetensors"),
+             "vae": ("vae", "ace_1.5_vae.safetensors")}
+ACE_KEYS = [f"{r} {q}" for q in ("major", "minor") for r in ("C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B")]
+ACE_LANGS = ("en", "es", "fr", "de", "it", "pt", "nl", "ja", "ko", "zh", "ru", "unknown")
 
 
 def sha256_bytes(b: bytes) -> str:
@@ -173,6 +182,50 @@ def clean_i2v(spec: dict, job_id: str) -> dict:
             "steps": min(30, max(8, int(spec.get("steps") or 20))),
             "seed": int(spec["seed"]) if isinstance(spec.get("seed"), int) else int.from_bytes(os.urandom(4), "big"),
             "prefix": f"chandra-i2v-{job_id}"}
+
+
+def ace15_workflow(c: dict) -> dict:
+    """ACE-Step 1.5 turbo text-to-music, native ComfyUI nodes (Comfy-Org's split template: 8 steps, cfg 1, shift 3).
+    The 1.7B language model writes audio codes first (generate_audio_codes), which is what holds a song's structure."""
+    return {
+        "1": {"class_type": "UNETLoader", "inputs": {"unet_name": ACE_FILES["unet"][1], "weight_dtype": "default"}},
+        "2": {"class_type": "DualCLIPLoader", "inputs": {"clip_name1": ACE_FILES["clip1"][1], "clip_name2": ACE_FILES["clip2"][1], "type": "ace", "device": "default"}},
+        "3": {"class_type": "VAELoader", "inputs": {"vae_name": ACE_FILES["vae"][1]}},
+        "4": {"class_type": "ModelSamplingAuraFlow", "inputs": {"model": ["1", 0], "shift": 3.0}},
+        "5": {"class_type": "TextEncodeAceStepAudio1.5", "inputs": {"clip": ["2", 0], "tags": c["tags"], "lyrics": c["lyrics"], "seed": c["seed"],
+                                                                    "bpm": c["bpm"], "duration": c["seconds"], "timesignature": c["timesignature"],
+                                                                    "language": c["language"], "keyscale": c["keyscale"], "generate_audio_codes": True,
+                                                                    "cfg_scale": 2.0, "temperature": 0.85, "top_p": 0.9, "top_k": 0, "min_p": 0.0}},
+        "6": {"class_type": "ConditioningZeroOut", "inputs": {"conditioning": ["5", 0]}},
+        "7": {"class_type": "EmptyAceStep1.5LatentAudio", "inputs": {"seconds": c["seconds"], "batch_size": 1}},
+        "8": {"class_type": "KSampler", "inputs": {"model": ["4", 0], "seed": c["seed"], "steps": c["steps"], "cfg": 1.0, "sampler_name": "euler",
+                                                    "scheduler": "simple", "positive": ["5", 0], "negative": ["6", 0], "latent_image": ["7", 0], "denoise": 1.0}},
+        "9": {"class_type": "VAEDecodeAudio", "inputs": {"samples": ["8", 0], "vae": ["3", 0]}},
+        "10": {"class_type": "SaveAudio", "inputs": {"audio": ["9", 0], "filename_prefix": c["prefix"]}},
+    }
+
+
+def clean_music(spec: dict, job_id: str) -> dict:
+    """Tags say the sound; lyrics carry [Verse]/[Chorus] sections, or "[Instrumental]" for none. Length 10-240 s."""
+    tags = str(spec.get("tags") or "").strip()[:1200]
+    if not tags:
+        raise ValueError("a song needs tags describing its sound (genre, instruments, mood, voice)")
+    lyrics = str(spec.get("lyrics") or "").strip()[:4000] or "[Instrumental]"
+    def num(v, d, lo, hi, cast=float):
+        try:
+            v = cast(v)
+        except (TypeError, ValueError):
+            v = d
+        return min(hi, max(lo, v))
+    key = str(spec.get("keyscale") or "C major")
+    lang = str(spec.get("language") or "en")
+    ts = str(spec.get("timesignature") or "4")
+    return {"tags": tags, "lyrics": lyrics, "seconds": round(num(spec.get("seconds"), 60.0, 10.0, 240.0), 1),
+            "bpm": num(spec.get("bpm"), 110, 40, 220, int), "keyscale": key if key in ACE_KEYS else "C major",
+            "language": lang if lang in ACE_LANGS else "en", "timesignature": ts if ts in ("2", "3", "4", "6") else "4",
+            "steps": num(spec.get("steps"), 8, 4, 30, int),
+            "seed": int(spec["seed"]) if isinstance(spec.get("seed"), int) else int.from_bytes(os.urandom(4), "big"),
+            "prefix": f"chandra-music-{job_id}"}
 
 
 def inpaint_workflow(image_name: str, c: dict, checkpoint: str, vae: str | None) -> dict:
@@ -466,7 +519,19 @@ class Worker:
         except Exception as e:
             matte["problems"].append(f"could not check packages: {e.__class__.__name__}")
         matte["ready"] = not matte["problems"]
-        self._cap = {"stills": stills, "i2v": i2v, "mesh": mesh, "video": video, "inpaint": inpaint, "matte": matte}
+        music = {"ready": False, "problems": [], "engine": "ace-step-1.5-turbo"}
+        if not self.a.comfy_dir or not os.path.exists(os.path.join(self.a.comfy_dir, "main.py")):
+            music["problems"].append("ComfyUI is not installed here (--comfy-dir)")
+        else:
+            missing = [f"{sub}/{name}" for sub, name in ACE_FILES.values() if name not in self._models(sub)]
+            if missing:
+                music["problems"].append("ACE-Step 1.5 files missing: " + ", ".join(missing))
+            if not os.path.exists(os.path.join(self.a.comfy_dir, "comfy_extras", "nodes_ace.py")):
+                music["problems"].append("this ComfyUI has no ACE-Step nodes (comfy_extras/nodes_ace.py)")
+            if not self.comfy_alive() and not (self.a.comfy_python and os.path.exists(self.a.comfy_python)):
+                music["problems"].append("ComfyUI is not running and --comfy-python is not set to start it")
+        music["ready"] = not music["problems"]
+        self._cap = {"stills": stills, "i2v": i2v, "mesh": mesh, "video": video, "inpaint": inpaint, "matte": matte, "music": music}
         self._cap_at = time.time()
         return self._cap
 
@@ -548,7 +613,7 @@ class Worker:
     def run(self, j):
         t0 = time.time()
         try:
-            {"stills": self.run_stills, "i2v": self.run_i2v, "mesh": self.run_mesh, "video": self.run_video, "inpaint": self.run_inpaint, "matte": self.run_matte}[j["kind"]](j)
+            {"stills": self.run_stills, "i2v": self.run_i2v, "mesh": self.run_mesh, "video": self.run_video, "inpaint": self.run_inpaint, "matte": self.run_matte, "music": self.run_music}[j["kind"]](j)
             out_dir = os.path.join(self.job_dir(j["id"]), "out")
             j["files"] = [{"name": n, "bytes": os.path.getsize(os.path.join(out_dir, n)), "sha256": sha256_file(os.path.join(out_dir, n))}
                           for n in sorted(os.listdir(out_dir)) if os.path.isfile(os.path.join(out_dir, n)) and SAFE_NAME.match(n)]
@@ -726,6 +791,116 @@ class Worker:
                            "steps": c["steps"], "seed": c["seed"], "generateSeconds": gen_s, "unloaded": freed, "gpuLock": self.a.gpu_lock or None}
         finally:
             for p in made + [input_path]:
+                try: os.remove(p)
+                except OSError: pass
+            try:
+                http_json(self.a.comfy_url + "/free", {"unload_models": True, "free_memory": True}, timeout=15)
+            except Exception:
+                pass
+            if lock:
+                lock.release()
+
+    # ── music: ACE-Step 1.5 ──────────────────────────────────────────────────────────────────────────
+    HEAR_CODE = r'''
+import sys, json, wave
+import numpy as np
+from faster_whisper import WhisperModel
+with wave.open(sys.argv[1], "rb") as w:
+    a = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).astype(np.float32) / 32768.0
+m = WhisperModel(sys.argv[2], device="cpu", compute_type="int8")
+segs, _ = m.transcribe(a, vad_filter=False, beam_size=5)
+print(json.dumps([{"start": round(s.start, 1), "end": round(s.end, 1), "text": s.text.strip()} for s in segs]))
+'''
+
+    def hear(self, audio_path, out_json):
+        """Transcribe sung words with faster-whisper on the CPU, in the studio's Python (it has the package and the cached
+        model: --studio-env STUDIO_WHISPER=<model>). The audio goes in as a 16 kHz array: this PyAV cannot open files itself."""
+        env_extra = self.studio_env()
+        model = env_extra.get("STUDIO_WHISPER")
+        if not model:
+            return {"ok": False, "error": "no Whisper model is named (--studio-env STUDIO_WHISPER=...)"}
+        wav = audio_path + ".16k.wav"
+        try:
+            conv = subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", audio_path, "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", wav], capture_output=True, text=True, timeout=120)
+            if conv.returncode != 0:
+                return {"ok": False, "error": "ffmpeg: " + conv.stderr.strip()[-200:]}
+            t0 = time.time()
+            r = subprocess.run([self.a.studio_python or sys.executable, "-I", "-c", self.HEAR_CODE, wav, model], capture_output=True, text=True,
+                               timeout=600, env={**os.environ, **env_extra})
+            if r.returncode != 0:
+                return {"ok": False, "error": "whisper: " + r.stderr.strip()[-300:]}
+            segs = json.loads(r.stdout.strip().splitlines()[-1])
+            with open(out_json, "w", encoding="utf-8") as f:
+                json.dump(segs, f)
+            return {"ok": True, "model": model, "segments": len(segs), "seconds": round(time.time() - t0, 1)}
+        except Exception as e:
+            return {"ok": False, "error": f"{e.__class__.__name__}: {str(e)[:200]}"}
+        finally:
+            try: os.remove(wav)
+            except OSError: pass
+
+    def run_music(self, j):
+        """tags + lyrics -> song.flac. Holds the card lock for the whole job, like stills and i2v."""
+        c = clean_music(j["spec"], j["id"])
+        lock = None
+        if self.a.gpu_lock:
+            j["stage"] = "waiting for the card"
+            lock = GpuFileLock(self.a.gpu_lock, f"chandra-worker music {j['id']} ({c['seconds']} s, ACE-Step 1.5)")
+            lock.acquire(on_wait=lambda seen: j.__setitem__("stage", f"waiting for the card (held by {seen['holder'][:60]}, {seen['ageS']} s)"))
+        made = []
+        try:
+            j["stage"] = "freeing the card"
+            freed = self.free_ollama()
+            j["stage"] = "starting ComfyUI"
+            self.ensure_comfy()
+            t0 = time.time()
+            pid = http_json(self.a.comfy_url + "/prompt", {"prompt": ace15_workflow(c)}, timeout=60).get("prompt_id")
+            if not pid:
+                raise RuntimeError("ComfyUI refused the ACE-Step workflow")
+            audio, deadline = None, time.time() + MUSIC_TIMEOUT_S
+            while time.time() < deadline and audio is None:
+                time.sleep(2)
+                el = time.time() - t0
+                j["stage"], j["progress"] = f"composing ({round(el)} s)", min(0.9, el / 120)
+                entry = http_json(f"{self.a.comfy_url}/history/{pid}", timeout=10).get(pid)
+                if not entry:
+                    continue
+                status = entry.get("status") or {}
+                if status.get("status_str") == "error":
+                    msgs = [m[1].get("exception_message", "") for m in status.get("messages", []) if m and m[0] == "execution_error"]
+                    raise RuntimeError("ComfyUI reported an error: " + (msgs[0][:300] if msgs else "unknown"))
+                if status.get("completed"):
+                    audio = [a for o in (entry.get("outputs") or {}).values() for a in (o.get("audio") or [])]
+            if not audio:
+                raise RuntimeError(f"no audio after {MUSIC_TIMEOUT_S} s")
+            gen_s = round(time.time() - t0, 1)
+            im = audio[0]
+            q = urllib.parse.urlencode({"filename": im["filename"], "subfolder": im.get("subfolder", ""), "type": im.get("type", "output")})
+            with urllib.request.urlopen(f"{self.a.comfy_url}/view?{q}", timeout=120) as r:
+                data = r.read()
+            with open(os.path.join(self.job_dir(j["id"]), "out", "song.flac"), "wb") as f:
+                f.write(data)
+            out_root = os.path.realpath(os.path.join(self.a.comfy_dir, "output"))
+            for a in audio:
+                p = os.path.realpath(os.path.join(out_root, a.get("subfolder", ""), a["filename"]))
+                if p.startswith(out_root + os.sep):
+                    made.append(p)
+            j["detail"] = {"engine": "ace-step-1.5-turbo", "seconds": c["seconds"], "bpm": c["bpm"], "keyscale": c["keyscale"],
+                           "timesignature": c["timesignature"], "language": c["language"], "steps": c["steps"], "seed": c["seed"],
+                           "instrumental": c["lyrics"] == "[Instrumental]", "generateSeconds": gen_s, "unloaded": freed,
+                           "gpuLock": self.a.gpu_lock or None}
+            # a song's words, heard back: Whisper on the CPU (the card is released first), so the hub can tell sung words from mumbling
+            if c["lyrics"] != "[Instrumental]":
+                try:
+                    http_json(self.a.comfy_url + "/free", {"unload_models": True, "free_memory": True}, timeout=15)
+                except Exception:
+                    pass
+                if lock:
+                    lock.release(); lock = None
+                j["stage"] = "listening for the words"
+                j["detail"]["heard"] = self.hear(os.path.join(self.job_dir(j["id"]), "out", "song.flac"), os.path.join(self.job_dir(j["id"]), "out", "heard.json"))
+        finally:
+            for p in made:
                 try: os.remove(p)
                 except OSError: pass
             try:

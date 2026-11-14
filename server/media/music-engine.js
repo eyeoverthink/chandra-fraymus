@@ -2,6 +2,7 @@ import { poolChat } from '../intelligence/model-pool.js';
 import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { sanitizeOllamaContent } from '../fraymus/intelligence/ollama-sanitize.js';
+import { startMusic, getSong } from './music.js';
 
 const OLLAMA = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const DATA_DIR = process.env.CHANDRA_DATA_DIR || './data';
@@ -78,6 +79,15 @@ Format: ${format}`;
 }
 
 export async function generateMusic(prompt, options = {}) {
+  // our own card first (ACE-Step 1.5 on a worker, music.js); the paid services below only if the local path fails
+  try {
+    const started = startMusic({ request: prompt.prompt || prompt, seconds: options.durationSeconds || 30, instrumental: options.instrumental !== false, source: 'music-engine' });
+    await started.done;
+    const song = getSong(started.id);
+    if (song.status === 'completed') return { status: 'generated', engine: 'ace-step-1.5', id: song.id, file: song.file, url: song.media, title: song.plan?.title, prompt: prompt.prompt || prompt };
+    console.error('[music] local:', song.error);
+    if (!process.env.FAL_API_KEY && !process.env.SUNO_API_KEY) return { status: 'failed', engine: 'ace-step-1.5', id: song.id, error: song.error, prompt: prompt.prompt || prompt };
+  } catch (e) { console.error('[music] local:', e.message); }
   const falToken = process.env.FAL_API_KEY;
   const sunoToken = process.env.SUNO_API_KEY;
 
