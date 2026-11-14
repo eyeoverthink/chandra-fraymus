@@ -117,10 +117,20 @@ export async function generateGoals({ trigger = 'daemon', force = false } = {}) 
     '', 'ALREADY QUEUED (do not repeat):', ...(landscape.existingProposals.length ? landscape.existingProposals : ['(nothing)']),
   ].join('\n');
 
-  const response = await chatOllama([
-    { role: 'system', content: GOAL_PROMPT + tierContext },
-    { role: 'user', content: `${list}\n\nPropose up to ${maxProposals} objectives.` },
-  ], { priority: 'goal', label: `goal-engine:${trigger}`, format: 'json' });
+  // At most 5 proposals of a few fields each fit in 1,200 tokens (the 2,048 default let a slow machine run past its limit).
+  // When no machine can write them in time (fraymus-home busy, this PC's model too slow for this prompt) the pool says so
+  // at once instead of spending three minutes of a card on a call that times out (card ledger, 2026-11-14): goals are
+  // generated again on the next cycle.
+  let response;
+  try {
+    response = await chatOllama([
+      { role: 'system', content: GOAL_PROMPT + tierContext },
+      { role: 'user', content: `${list}\n\nPropose up to ${maxProposals} objectives.` },
+    ], { priority: 'goal', label: `goal-engine:${trigger}`, format: 'json', maxTokens: 1200 });
+  } catch (e) {
+    if (e.code !== 'model_pool_too_slow') throw e;
+    return { generated: false, reason: 'no_fast_machine', detail: String(e.message).slice(0, 300), pending, maxPending: maxPending() };
+  }
 
   const parsed = parseJSON(response, { proposals: [], landscape_summary: 'Parse error' });
   const proposals = (parsed.proposals || []).slice(0, maxProposals);

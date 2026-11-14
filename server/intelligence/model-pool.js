@@ -67,6 +67,7 @@ const stats = { calls: 0, fallbacks: 0, reasons: {}, lastFallback: null, noHost:
  *  decide which machine the next test sees — two pool tests flaked about one run in three on exactly that (2026-11-12). */
 export function resetPoolMeasurements() {
   for (const s of state.values()) Object.assign(s, { calls: 0, failures: 0, totalMs: 0, inFlight: 0, restingUntil: 0 });
+  speeds.clear(); replyTokens.clear();
 }
 
 async function check(h) {
@@ -136,6 +137,41 @@ function expectedSeconds(h, s) {
   return per * (1 + ahead / h.slots);
 }
 
+// ── will this machine finish this call in time? ──────────────────────────────────────────────────────
+//
+// A long background call (the goal engine's: every measured problem, the projects and the queue, up to 2,048 tokens of
+// reply) once went to this PC's fraynix-dna:8b while fraymus-home was busy, ran its 180 s and failed — three minutes of
+// the card for nothing (card ledger, 2026-11-14). The pool now learns each machine's reading and writing speed per
+// model from Ollama's own reply statistics, estimates each call before choosing, and does not send a call where it
+// would overrun its limit. Background work that no machine can do in time fails at once ("too slow right now"), which
+// costs no card time; interactive and agent calls keep trying, as before.
+const speeds = new Map();      // `${host}|${model}` → { pps: prompt tokens/s, gps: generated tokens/s, n }
+const replyTokens = new Map(); // label → typical generated tokens (EMA), so a short-answer caller is not judged by its cap
+const CHARS_PER_TOKEN = 3.6, SPEED_EMA = 0.3, TOO_SLOW_SHARE = 0.85;
+/** Learn from one finished reply (Ollama's prompt_eval_* and eval_* fields; durations in ns). */
+export function learnSpeed(host, model, label, data) {
+  const pc = Number(data?.prompt_eval_count) || 0, pd = Number(data?.prompt_eval_duration) || 0, ec = Number(data?.eval_count) || 0, ed = Number(data?.eval_duration) || 0;
+  const k = `${host}|${model}`, old = speeds.get(k) || { pps: null, gps: null, n: 0 };
+  const mix = (a, b) => (a == null ? b : a * (1 - SPEED_EMA) + b * SPEED_EMA);
+  const next = { ...old, n: old.n + 1 };
+  if (pc >= 32 && pd > 0) next.pps = mix(old.pps, pc / (pd / 1e9));     // a few cached tokens say nothing about reading speed
+  if (ec >= 8 && ed > 0) next.gps = mix(old.gps, ec / (ed / 1e9));
+  speeds.set(k, next);
+  if (ec > 0 && label) replyTokens.set(label, mix(replyTokens.get(label) ?? null, ec));
+}
+/** Seconds a call would take on a machine, or null when that machine's speed for that model is not known yet. Pure on its inputs. */
+export function estimateCall(speed, { promptChars = 0, maxTokens = 2048, typicalReply = null } = {}) {
+  if (!speed?.gps) return null;
+  const read = speed.pps ? (promptChars / CHARS_PER_TOKEN) / speed.pps : 0;
+  const write = Math.min(maxTokens, typicalReply ?? maxTokens * 0.5) / speed.gps;
+  return +(read + write).toFixed(1);
+}
+/** A machine is too slow for a call when its estimate eats more than TOO_SLOW_SHARE of the call's limit. */
+export const tooSlow = (estSeconds, timeoutMs) => estSeconds != null && estSeconds > (timeoutMs / 1000) * TOO_SLOW_SHARE;
+/** Interactive questions and agent runs keep trying a slow machine; everything else can wait for a better moment. */
+export const deferrable = priority => !['interactive', 'agent_run'].includes(String(priority));
+export function poolSpeeds() { return [...speeds.entries()].map(([k, v]) => ({ machine: k.split('|')[0], model: k.split('|')[1], readTokensPerSecond: v.pps && +v.pps.toFixed(1), writeTokensPerSecond: v.gps && +v.gps.toFixed(1), replies: v.n })); }
+
 const note = (reason) => { stats.fallbacks++; const k = String(reason).replace(/\(.*$/, '').replace(/[0-9a-f]{20,}/g, '…').trim().slice(0, 70); stats.reasons[k] = (stats.reasons[k] || 0) + 1; stats.lastFallback = { at: now(), reason: String(reason).slice(0, 200) }; };
 
 /**
@@ -143,10 +179,24 @@ const note = (reason) => { stats.fallbacks++; const k = String(reason).replace(/
  * @param attempt  async ({ url, model, think, timeoutMs, local, name }) => result. Throw an error with `.started = true`
  *                 once any of the reply has been received: such a failure is not retried elsewhere.
  */
-export async function runOnPool({ model = null, priority = 'goal', label = 'model', timeoutMs = 180_000 } = {}, attempt) {
+export async function runOnPool({ model = null, priority = 'goal', label = 'model', timeoutMs = 180_000, promptChars = 0, maxTokens = 2048 } = {}, attempt) {
   stats.calls++;
   const tried = [];
-  for (const c of await candidates(model)) {
+  // machines that would overrun this call's limit: left out for background work, tried last for a person or an agent
+  const all = await candidates(model), tooSlowFor = [];
+  const fits = all.filter(c => {
+    const est = estimateCall(speeds.get(`${c.h.name}|${c.model}`), { promptChars, maxTokens, typicalReply: replyTokens.get(label) ?? null });
+    if (!tooSlow(est, Math.round(timeoutMs * c.h.slow))) return true;
+    tooSlowFor.push({ name: c.h.name, why: `would need about ${Math.round(est)} s of ${Math.round(timeoutMs * c.h.slow / 1000)} s` });
+    return false;
+  });
+  if (!fits.length && tooSlowFor.length && deferrable(priority)) {
+    stats.tooSlow = (stats.tooSlow || 0) + 1;
+    note(`too slow right now: ${tooSlowFor.map(x => `${x.name} ${x.why}`).join('; ')}`);
+    throw Object.assign(new Error(`no machine can finish this in time right now (${tooSlowFor.map(x => `${x.name}: ${x.why}`).join('; ')}); try again when a faster one is free`), { code: 'model_pool_too_slow', tooSlowFor });
+  }
+  const order = deferrable(priority) ? fits : [...fits, ...all.filter(c => !fits.includes(c))];
+  for (const c of order) {
     const { h, s } = c;
     const t = Math.round(timeoutMs * h.slow), t0 = now();
     // the ledger is charged the machine's time on the call itself, not time spent queueing for a slot; a CPU-only
@@ -171,7 +221,8 @@ export async function runOnPool({ model = null, priority = 'goal', label = 'mode
     }
   }
   stats.noHost++;
-  throw Object.assign(new Error(`no machine could answer (${tried.map(x => `${x.name}: ${x.why}`).join('; ') || 'none has the model'})`), { code: 'model_pool_exhausted', tried });
+  const skipped = tooSlowFor.filter(x => !tried.some(t => t.name === x.name)).map(x => `${x.name}: ${x.why} (left out)`);
+  throw Object.assign(new Error(`no machine could answer (${[...tried.map(x => `${x.name}: ${x.why}`), ...skipped].join('; ') || 'none has the model'})`), { code: 'model_pool_exhausted', tried });
 }
 
 const waiting = new Map();
@@ -182,7 +233,7 @@ export function modelPoolStatus() {
   return { hosts: HOSTS.map(h => { const s = state.get(h.name), busy = h.local ? localSkip() : remoteSkip(h); return { name: h.name, local: h.local, address: h.local ? 'this PC' : h.host, defaultModel: h.local ? defaultModel() : h.model, slots: h.local ? 'scheduler' : h.slots, slow: h.slow, keepAlive: h.local ? null : h.keep,
     healthy: h.local ? !busy : s.ok && now() >= s.restingUntil && !busy, why: now() < s.restingUntil && !h.local ? `resting after: ${s.why}` : busy || s.why, inFlight: s.inFlight, calls: s.calls, failures: s.failures,
     meanSeconds: s.calls ? +(s.totalMs / s.calls / 1000).toFixed(1) : null, lastOkAt: s.lastOkAt, checkedAt: s.checkedAt || null }; }),
-    refused: parsed.refused, ...stats };
+    refused: parsed.refused, speeds: poolSpeeds(), ...stats };
 }
 
 /** Ask every remote machine now (instead of waiting for its next call), and report. */
@@ -220,11 +271,13 @@ function poolFetch(url, { method = 'GET', headers = {}, body, signal, viaHttp = 
 
 /** A whole reply at once (what chatOllama does). Returns the reply text. */
 export async function poolChat(messages, { model = null, priority = 'goal', label = 'chat', timeoutMs = 180_000, temperature = 0.7, maxTokens = 2048, format = null } = {}) {
-  return runOnPool({ model, priority, label, timeoutMs }, async ({ url, model: m, think, timeoutMs: t, keepAlive, local }) => {
+  const promptChars = (messages || []).reduce((n, m) => n + String(m?.content || '').length, 0);
+  return runOnPool({ model, priority, label, timeoutMs, promptChars, maxTokens }, async ({ url, model: m, think, timeoutMs: t, keepAlive, local, name }) => {
     const res = await poolFetch(`${url}/api/chat`, { viaHttp: !local, method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(t),
       body: JSON.stringify({ model: m, messages, stream: false, options: { temperature, num_predict: maxTokens }, ...(format ? { format } : {}), ...(think === false ? { think: false } : {}), ...(keepAlive ? { keep_alive: keepAlive } : {}) }) });
     if (!res.ok) throw new Error(`Ollama ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const data = await res.json();
+    learnSpeed(name, m, label, data);
     return data.message?.content || '';
   });
 }

@@ -13,7 +13,7 @@ function fakeOllama(name, models) {
       if (st.mode === 'drive') { res.statusCode = 500; return res.end(JSON.stringify({ error: 'read D:\\ollama\\models\\blobs\\x: A device which does not exist was specified.' })); }
       if (st.mode === 'midstream') { res.setHeader('Content-Type', 'application/x-ndjson'); res.write(JSON.stringify({ message: { content: 'half ' } }) + '\n'); return setTimeout(() => res.socket.destroy(), 20); }
       if (st.last.stream) { res.setHeader('Content-Type', 'application/x-ndjson'); res.write(JSON.stringify({ message: { content: `${name} ` } }) + '\n'); return res.end(JSON.stringify({ message: { content: 'streamed' }, done: true }) + '\n'); }
-      res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ message: { content: `from ${name} (${st.last.model})` } }));
+      res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ message: { content: `from ${name} (${st.last.model})` }, ...(st.speed || {}) }));
     }, st.delay));
   });
   return new Promise(r => srv.listen(0, '127.0.0.1', () => r({ st, srv, url: `http://127.0.0.1:${srv.address().port}` })));
@@ -22,7 +22,7 @@ const home = await fakeOllama('home', ['qwen3:14b', 'llama3.1:8b']), vps = await
 process.env.OLLAMA_BASE_URL = pc.url;
 process.env.FRAYMUS_DEFAULT_MODEL = 'fraynix-dna:8b';
 process.env.MODEL_HOSTS = `home=qwen3:14b@${home.url}|slots=2, local, vps=qwen3:4b@${vps.url}|slots=1|slow=3`;
-const { parseHosts, poolChat, poolStream, modelPoolStatus, checkAllHosts, resetPoolMeasurements } = await import('../server/intelligence/model-pool.js');
+const { parseHosts, poolChat, poolStream, modelPoolStatus, checkAllHosts, resetPoolMeasurements, learnSpeed, estimateCall, tooSlow, deferrable } = await import('../server/intelligence/model-pool.js');
 const readAll = async res => (await res.text()).split('\n').filter(Boolean).map(l => JSON.parse(l).message.content).join('');
 const reset = () => { for (const f of [home, vps, pc]) f.st.mode = 'ok'; resetPoolMeasurements(); };
 
@@ -122,5 +122,40 @@ test('a call waits for a busy fast machine rather than going to a free slow one'
   pc.st.delay = 0; home.st.delay = 0;
 });
 
+
+test('a call is estimated from the machine\'s own reading and writing speed, and judged against its limit', () => {
+  // Ollama's reply statistics: 2,000 prompt tokens read in 2 s, 400 written in 100 s → 1,000 read/s, 4 written/s
+  const stat = { prompt_eval_count: 2000, prompt_eval_duration: 2e9, eval_count: 400, eval_duration: 100e9 };
+  learnSpeed('slowpc', 'm', 'label-a', stat);
+  const speed = modelPoolStatus().speeds.find(s => s.machine === 'slowpc');
+  assert.deepEqual([speed.readTokensPerSecond, speed.writeTokensPerSecond], [1000, 4]);
+  // 7,200 characters ≈ 2,000 tokens to read (2 s) + the label's typical 400-token reply (100 s) = 102 s
+  assert.equal(estimateCall({ pps: 1000, gps: 4 }, { promptChars: 7200, maxTokens: 1200, typicalReply: 400 }), 102);
+  assert.equal(estimateCall({ pps: 1000, gps: 4 }, { promptChars: 7200, maxTokens: 1200 }), 152, 'unknown caller: half its cap');
+  assert.equal(estimateCall(null, { promptChars: 99 }), null, 'an unmeasured machine is not judged');
+  assert.equal(tooSlow(160, 180_000), true); assert.equal(tooSlow(100, 180_000), false); assert.equal(tooSlow(null, 1000), false);
+  assert.equal(deferrable('goal'), true); assert.equal(deferrable('dream'), true);
+  assert.equal(deferrable('agent_run'), false); assert.equal(deferrable('interactive'), false);
+  resetPoolMeasurements();
+  assert.equal(modelPoolStatus().speeds.length, 0, 'measurements are forgotten between tests');
+});
+
+test('background work is not sent to a machine that cannot finish it in time: it fails at once, and nothing is spent', async () => {
+  reset(); home.st.mode = 'drive'; vps.st.mode = 'down'; await checkAllHosts();
+  // this PC reports itself slow: 4 tokens a second written (the 8 GB card running half of fraynix-dna on its CPU)
+  pc.st.speed = { prompt_eval_count: 1000, prompt_eval_duration: 5e9, eval_count: 200, eval_duration: 50e9 };
+  assert.equal(await poolChat([{ role: 'user', content: 'learn' }], { label: 'warm-up' }), 'from pc (fraynix-dna:8b)');
+  // the goal engine's call: a long prompt and up to 1,200 tokens of reply, 180 s allowed → ~150 s+ estimated: left out
+  const before = pc.st.chats, long = 'x'.repeat(9000);
+  await assert.rejects(() => poolChat([{ role: 'user', content: long }], { label: 'goal-engine:motor', priority: 'goal', maxTokens: 1200, timeoutMs: 180_000 }),
+    e => e.code === 'model_pool_too_slow' && /local: would need about \d+ s of 180 s/.test(e.message));
+  assert.equal(pc.st.chats, before, 'the call was never sent: no card time spent on a call that would time out');
+  assert.ok(modelPoolStatus().tooSlow >= 1);
+  // a short background call still fits, and goes
+  assert.equal(await poolChat([{ role: 'user', content: 'yes or no?' }], { label: 'scorer', priority: 'goal', maxTokens: 20 }), 'from pc (fraynix-dna:8b)');
+  // an agent (or a person) waiting on an answer is not turned away: the slow machine is still tried
+  assert.equal(await poolChat([{ role: 'user', content: long }], { label: 'agent', priority: 'agent_run', maxTokens: 1200, timeoutMs: 180_000 }), 'from pc (fraynix-dna:8b)');
+  pc.st.speed = null; reset();
+});
 
 test.after(() => { for (const f of [home, vps, pc]) f.srv.close(); });
