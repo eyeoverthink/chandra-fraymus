@@ -45,6 +45,7 @@ import { installLooksRoutes } from './looks/index.js';
 import { pixelateBuffer, STYLES } from './pixel-art.js';
 import { renderFlatFilm, checkFilm } from './flat/render.js';
 import { RULES as FLAT_RULES, titleFitsSubject } from './flat/plan.js';
+import { offlineWikiSource } from './offline-wiki.js';
 import { CAST as FLAT_CAST } from './flat/kit.js';
 import { forgeCast, spritePixels } from './sprite-forge.js';
 import { timedCard, withOrigin, assertCardBudget } from '../intelligence/card-ledger.js';
@@ -503,27 +504,54 @@ async function makeVideo(id, plan, opts) {
 /** Words in a request that are about the film, not its subject. */
 const NOT_SUBJECT = /\b(make|create|draw|generate|render|give me|i want|please|me|you|your|an?|the|is|are|does|do|\d+(?:\.\d+)?\s*-?\s*(?:seconds?|secs?|minutes?|mins?)|vertical|square|kurzgesagt|flat|vector|style|styled|animation|animated|motion|graphics?|story|short|shorts|video|film|movie|cartoon|explainer|told to the viewer as you|about|of|on|how|why|in a nutshell)\b/gi;
 
+/** Wikipedia's free, keyless API as a grounding source: search → [{title, key}], intro(key) → the article's opening. */
+export const onlineWikiSource = {
+  name: 'Wikipedia',
+  ready: true,
+  ua: { 'User-Agent': 'Chandra-FRAYMUS/1.0 (local studio; facts for a short film)' },
+  async search(subject) {
+    const sr = await (await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=6&format=json&srsearch=${encodeURIComponent(subject)}`, { headers: this.ua, signal: AbortSignal.timeout(15_000) })).json();
+    return (sr?.query?.search || []).map(h => ({ title: h.title, key: h.pageid }));
+  },
+  async intro(key) {
+    const ex = await (await fetch(`https://en.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&exintro=1&format=json&pageids=${key}`, { headers: this.ua, signal: AbortSignal.timeout(15_000) })).json();
+    return String(ex?.query?.pages?.[key]?.extract || '');
+  },
+  url: key => `https://en.wikipedia.org/?curid=${key}`,
+};
+/** Sources in the order to ask: the live API, then the offline ZIM (or the ZIM first with CREATION_GROUNDING_SOURCE=offline). */
+export function groundingSources(env = process.env) {
+  const off = offlineWikiSource();
+  const list = env.CREATION_GROUNDING_SOURCE === 'offline' ? [off, onlineWikiSource] : [onlineWikiSource, off];
+  return list.filter(s => s.ready);
+}
+
 /**
- * Facts for a film about something real, from Wikipedia's free, keyless API: the opening of the best-matching
- * article. Optional by design — offline, or with CREATION_GROUNDING=0, the film is written from the model's
- * memory and its record says so. Never throws.
+ * Facts for a film about something real: the opening of the best-matching Wikipedia article — from the live API, or
+ * from the offline copy in the vault when the API cannot be reached. Optional by design: with no source, or with
+ * CREATION_GROUNDING=0, the film is written from the model's memory and its record says so. Never throws.
+ * A source that ANSWERS "no article fits" is final (the other copy of the same encyclopedia would say the same);
+ * only a source that cannot be reached passes the question on.
  */
-export async function groundFacts(request) {
+export async function groundFacts(request, { sources = groundingSources() } = {}) {
   if (process.env.CREATION_GROUNDING === '0') return { text: null, why: 'switched off (CREATION_GROUNDING=0)' };
   const subject = clip(String(request).replace(NOT_SUBJECT, ' ').replace(/[^A-Za-z0-9' -]/g, ' ').replace(/\s+/g, ' ').trim(), 120);
   if (subject.split(' ').length < 2) return { text: null, why: 'the request names no subject to look up' };
-  try {
-    const api = 'https://en.wikipedia.org/w/api.php', ua = { 'User-Agent': 'Chandra-FRAYMUS/1.0 (local studio; facts for a short film)' };
-    const sr = await (await fetch(`${api}?action=query&list=search&srlimit=6&format=json&srsearch=${encodeURIComponent(subject)}`, { headers: ua, signal: AbortSignal.timeout(15_000) })).json();
-    // the article must be ABOUT the subject: every word of its title is in the request ("Emu War", "Immune system"), not merely a top search hit
-    // (the first search for "immune system fights virus" returned the article on HIV, and the film became a film about treatment)
-    const hit = (sr?.query?.search || []).find(h => titleFitsSubject(h.title, subject));
-    if (!hit) return { text: null, why: `no article whose title matches "${subject}" (closest: ${(sr?.query?.search || []).slice(0, 2).map(h => h.title).join(', ') || 'none'}): written from the model's memory` };
-    const ex = await (await fetch(`${api}?action=query&prop=extracts&explaintext=1&exintro=1&format=json&pageids=${hit.pageid}`, { headers: ua, signal: AbortSignal.timeout(15_000) })).json();
-    const text = clip(String(ex?.query?.pages?.[hit.pageid]?.extract || '').replace(/\s+/g, ' ').trim(), 2200);
-    if (text.length < 200) return { text: null, why: `the article "${hit.title}" had no usable opening` };
-    return { text, source: `Wikipedia, "${hit.title}"`, url: `https://en.wikipedia.org/?curid=${hit.pageid}`, title: hit.title, why: `looked up "${subject}"` };
-  } catch (e) { return { text: null, why: `no source could be reached (${clip(e.message, 80)}): written from the model's memory` }; }
+  const unreachable = [];
+  for (const src of sources) {
+    try {
+      const hits = await src.search(subject);
+      // the article must be ABOUT the subject: every word of its title is in the request ("Emu War", "Immune system"), not merely a top search hit
+      // (the first search for "immune system fights virus" returned the article on HIV, and the film became a film about treatment)
+      const hit = hits.find(h => titleFitsSubject(h.title, subject));
+      if (!hit) return { text: null, why: `no article whose title matches "${subject}" in ${src.name} (closest: ${hits.slice(0, 2).map(h => h.title).join(', ') || 'none'}): written from the model's memory` };
+      const text = clip(String(await src.intro(hit.key)).replace(/\s+/g, ' ').trim(), 2200);
+      if (text.length < 200) return { text: null, why: `the article "${hit.title}" had no usable opening` };
+      const via = unreachable.length ? ` (${unreachable.join('; ')})` : '';
+      return { text, source: `${src.name}, "${hit.title}"`, url: src.url(hit.key), title: hit.title, why: `looked up "${subject}"${via}` };
+    } catch (e) { unreachable.push(`${src.name} could not be reached: ${clip(e.message, 80)}`); }
+  }
+  return { text: null, why: `${unreachable.length ? unreachable.join('; ') : 'no source is configured'}: written from the model's memory` };
 }
 
 /**

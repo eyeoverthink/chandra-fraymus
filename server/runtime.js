@@ -34,6 +34,7 @@ import { installMakeChainRoutes } from './media/make-chains-service.js';
 import { installWorldRoutes } from './media/world-builder.js';
 import { installGameRoutes } from './media/game-builder.js';
 import { installMusicRoutes } from './media/music.js';
+import { installOfflineWikiRoutes } from './media/offline-wiki.js';
 import { installEpisodeRoutes } from './media/episode-builder.js';
 import { installCardLedgerRoutes, backfillCardLedger, pruneCardLedger, withOrigin } from './intelligence/card-ledger.js';
 import { installFleetRoutes } from './fleet/routes.js';
@@ -505,6 +506,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installWorldRoutes(app);         // walkable worlds: a place or a picture as a page you can walk through (world-builder.js)
   installGameRoutes(app);          // platform games: words or a picture as a winnable, played-through game page (game-builder.js)
   installMusicRoutes(app);         // music: words become a song or an instrumental on our own card, measured and mastered (music.js)
+  installOfflineWikiRoutes(app);   // offline Wikipedia (a Kiwix ZIM read through libzim) behind fact grounding (offline-wiki.js)
   installEpisodeRoutes(app);       // episodes: a premise as a multi-act film, each act made and checked by Make (episode-builder.js)
   installCardLedgerRoutes(app);    // card-seconds ledger: what the machines' time went on, and for whom (card-ledger.js)
   { const added = backfillCardLedger(); if (added) console.log(`[card-ledger] backfilled ${added} rows from worker receipts and leases`); pruneCardLedger(); }
