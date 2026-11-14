@@ -12,7 +12,7 @@
  * Steps 1–4 live in this file and are pure. A paid image model has to be asked, looked at and asked again;
  * here a shot is assembled from a fixed vocabulary, so most rules can be decided from the plan alone.
  */
-import { CAST, LEAD, FEELINGS, ACTS, CAMERAS, SETTINGS, SETTING_NAMES } from './kit.js';
+import { CAST, LEAD, FEELINGS, ACTS, CAMERAS, SETTINGS, SETTING_NAMES, ALREADY_THERE } from './kit.js';
 import { PROPS, PROP_NAMES, findProp, lineNamesProp, phraseSaid } from './props.js';
 
 export const SFX_NAMES = Object.freeze(['none', 'whoosh', 'pop', 'ding', 'thud', 'boom', 'zap', 'tick', 'sparkle', 'rumble', 'splash']);
@@ -161,6 +161,19 @@ export function direct(shots, fixes = []) {
   shots.forEach((s, i) => { if (!s.camera) s.camera = cams[i % cams.length]; if (i >= 2 && s.camera === shots[i - 1].camera && s.camera === shots[i - 2].camera) s.camera = cams[(cams.indexOf(s.camera) + 2) % cams.length]; });
   // 7. sound: what is on screen is heard; a big number pops; otherwise a soft whoosh on some cuts
   shots.forEach((s, i) => { if (!s.sfx || s.sfx === 'none') s.sfx = s.props.map(p => PROP_SFX[p]).find(Boolean) || (s.label ? 'pop' : i > 0 && i % 3 === 0 ? 'whoosh' : 'none'); });
+  // 8. shape morphs: where two shots in a row each feature a different prop, the cut becomes the first prop's outline
+  // flowing into the second's (morph.js) instead of a dip to black. Never two morphs in a row — every cut a morph is
+  // its own kind of slideshow.
+  const hero = s => (s.props || []).find(p => !(ALREADY_THERE[s.setting] || []).includes(p)) || null;
+  const morphs = [];
+  for (let i = 1; i < n; i++) {
+    delete shots[i].morphFrom;
+    const a = hero(shots[i - 1]), b = hero(shots[i]);
+    // not when the new shot still shows the first prop: it would travel away and pop back in beside its own morph
+    // (seen in the first film: rocket → satellite while the rocket stayed in the shot)
+    if (a && b && a !== b && !shots[i - 1].morphFrom && !(shots[i].props || []).includes(a)) { shots[i].morphFrom = a; shots[i].morphTo = b; morphs.push(`${a} → ${b}`); }
+  }
+  if (morphs.length) note(`staging: ${morphs.length} cut${morphs.length > 1 ? 's' : ''} become shape morphs (${morphs.join(', ')})`);
   return shots;
 }
 

@@ -8,6 +8,7 @@
  */
 import { FORMATS, LAYOUT, CAST, LEAD, SETTINGS, ALREADY_THERE, figureSvg, stickFigureSvg, figureHeight, cameraAt, rng, hashOf, esc, fmt as f, clamp, backOut, ease } from './kit.js';
 import { PROPS } from './props.js';
+import { morphSvg, MORPH_SECONDS } from './morph.js';
 
 const SLOTS = { left: 0.22, center: 0.5, right: 0.78 };
 export const FONT = `'Arial Black', 'Segoe UI Black', Impact, 'Arial', sans-serif`;
@@ -58,16 +59,30 @@ export function captionSvg(words, hot, { w, y, size }) {
  * One frame.
  * @param shot  { setting, props: string[], cast: [{who, feel, at, act}], camera, label, seed }
  * @param t     seconds since the shot began
- * @param opts  { format, dur, caption: { words, hot }, figures: 'flat' | 'stick' }
+ * @param opts  { format, dur, caption: { words, hot }, figures: 'flat' | 'stick', morph: { from: {loop, x, y, scale, colour}, to: {loop, colour}, bg } }
+ *              (morph: built by render.js `morphFor` for a shot whose `morphFrom` / `morphTo` the art director set)
  */
-export function shotSvg(shot, t, { format = '16:9', dur = 4, caption = null, figures: figureKind = 'flat' } = {}) {
+export function shotSvg(shot, t, { format = '16:9', dur = 4, caption = null, figures: figureKind = 'flat', morph = null } = {}) {
   const L = layoutOf(shot, format), { w, h, u, g } = L;
   const S = SETTINGS[shot.setting] || SETTINGS.field, seed = shot.seed ?? hashOf(`${shot.setting}|${(shot.props || []).join(',')}`);
   const layers = S.draw({ w, h, g, t, seed });
   const cam = cameraAt(shot.camera, clamp(t / Math.max(0.5, dur)));
   const lay = (depth, inner) => `<g transform="translate(${f(cam.px * depth * u)},${f(cam.py * depth * u)})">${inner}</g>`;
   const pop = i => backOut((t - 0.1 - i * 0.14) / 0.4);
-  const propSvg = (p, i) => { const k = pop(i); return k <= 0.01 ? '' : `<g transform="translate(${f(p.x)},${f(p.y)}) scale(${(p.scale * k).toFixed(3)})">${PROPS[p.name].draw(t)}</g>`; };
+  // a shape morph (morph.js): the previous shot's prop outline flows into this shot's prop for MORPH_SECONDS, then the
+  // prop itself appears over its own outline in a short fade (no pop: the morph already brought it in)
+  const morphing = morph && shot.morphTo && t < MORPH_SECONDS;
+  const propSvg = (p, i) => {
+    if (morph && shot.morphTo === p.name) {
+      if (morphing) {
+        const target = { ...morph.to, x: p.x, y: p.y, scale: p.scale };
+        return morphSvg({ from: morph.from, to: target, p: t / MORPH_SECONDS, bg: morph.bg });
+      }
+      const k = clamp((t - MORPH_SECONDS) / 0.14);
+      return `<g transform="translate(${f(p.x)},${f(p.y)}) scale(${p.scale.toFixed(3)})">${k < 1 ? morphSvg({ from: { ...morph.to, x: 0, y: 0, scale: 1 }, to: { ...morph.to, x: 0, y: 0, scale: 1 }, p: 1, bg: morph.bg }) : ''}<g opacity="${k.toFixed(2)}">${PROPS[p.name].draw(t)}</g></g>`;
+    }
+    const k = pop(i); return k <= 0.01 ? '' : `<g transform="translate(${f(p.x)},${f(p.y)}) scale(${(p.scale * k).toFixed(3)})">${PROPS[p.name].draw(t)}</g>`;
+  };
   const byLayer = name => L.props.map((p, i) => p.layer === name ? propSvg(p, i) : '').join('');
   const drawFigure = figureKind === 'stick' ? stickFigureSvg : figureSvg;
   const figures = L.cast.map((c, i) => drawFigure(c.who, { x: c.x, y: c.y, scale: c.scale, feel: c.feel, act: c.act, t, phase: i * 1.7 + (seed % 7), w })).join('');
@@ -77,7 +92,7 @@ export function shotSvg(shot, t, { format = '16:9', dur = 4, caption = null, fig
     if (k > 0.01) { const size = Math.round(Math.min(190, (w * 0.86) / Math.max(4, text.length) / 0.68) * (format === '16:9' ? 0.9 : 1)); label = `<g transform="translate(${f(w / 2)},${f(L.labelY)}) scale(${k.toFixed(3)})">${strokeText(esc(text), `x="0" y="${f(size * 0.35)}" font-family="${FONT}" font-size="${size}" font-weight="900" text-anchor="middle"`, '#0b0b1a', f(size * 0.2))}</g>`; }
   }
   const [gc, gx, gy, gr] = S.glow, R = Math.max(w, h) * gr;
-  const fade = t < 0.12 ? 1 - t / 0.12 : 0;   // a four-frame dip from black softens each cut without a transition effect
+  const fade = !morph && t < 0.12 ? 1 - t / 0.12 : 0;   // a four-frame dip from black softens each cut that is not a morph
   const capSize = Math.round((format === '9:16' ? 86 : format === '1:1' ? 74 : 78) * (Math.min(w, h) / 1080));
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`
     + `<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${S.sky[0]}"/><stop offset="1" stop-color="${S.sky[1]}"/></linearGradient>`

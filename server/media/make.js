@@ -596,8 +596,9 @@ async function makeFlat(id, plan, opts) {
   copyFileSync(master, join(VIDEO_DIR, name));
   noteMedia(name, 'create', [plan.request, { style: plan.style, format: plan.format, seconds: +render.seconds.toFixed(1), shots: shots.length, title: script.title, voice: voiced, job: id, renderer: 'chandra flat renderer' }], { source: 'creation' });
   lineage.output.file = name;
+  lineage.output.morphs = render.morphs || [];
   try { writeFileSync(join(dir, 'lineage.json'), JSON.stringify(lineage, null, 2), 'utf8'); } catch (e) { console.error('[creation] lineage:', e.message); }
-  return { kind: 'video', file: name, url: `/api/hermes/artifacts/media?kind=video&id=${name}`, pages: [], pdf: null, title: script.title, seconds: +render.seconds.toFixed(2), renderSeconds: render.renderSeconds,
+  return { kind: 'video', file: name, url: `/api/hermes/artifacts/media?kind=video&id=${name}`, pages: [], pdf: null, title: script.title, seconds: +render.seconds.toFixed(2), renderSeconds: render.renderSeconds, morphs: render.morphs || [],
     scenes: shots.length, words: script.words, scriptAttempts: script.attempts, scriptRefusals: script.refusals || [], scriptBy: script.writtenBy, scriptFixes: script.fixes,
     cast: script.cast.map(n => ({ name: n, look: FLAT_CAST[n]?.title, sprite: 'flat character' })), rules: script.rules, checks: verdict.checks, factsFrom: plan.facts?.source || null, factsNote: plan.factsNote || null,
     voice: voiced, voiceWhy: picked.why, voices: [...voices], renderedOn: 'this PC (CPU)', folder: dir, files: [basename(master)] };

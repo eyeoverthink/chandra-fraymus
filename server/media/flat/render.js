@@ -14,7 +14,9 @@ import { promisify } from 'node:util';
 import { readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
-import { FORMATS, LAYOUT } from './kit.js';
+import { FORMATS, LAYOUT, SETTINGS } from './kit.js';
+import { alignLoops, lerpHex } from './morph.js';
+import { silhouetteOf } from './silhouette.js';
 import { shotSvg, layoutOf } from './scene.js';
 import { RATE, readWav, writeWav, trimSilence, buildSoundtrack, synthSfx, longestSilence, captionTimeline } from './audio.js';
 import { FLAT_PACE } from './plan.js';
@@ -29,6 +31,23 @@ export function buildTimeline(shots, track) {
   const spans = shots.map((sh, k) => ({ from: cuts[k], to: k + 1 < cuts.length ? cuts[k + 1] : track.seconds, lineStart: track.starts[k], lineEnd: track.ends[k] }));
   const captions = shots.flatMap((sh, k) => captionTimeline(sh.say, track.starts[k], track.ends[k], { perGroup: 3, maxChars: 16 }).map(g => ({ ...g, shot: k })));
   return { cuts, spans, captions, seconds: track.seconds };
+}
+
+/**
+ * The morph for shot k (null when it has none): the previous shot's prop outline, placed where that prop stood,
+ * flowing into this shot's prop outline (aligned to it), the colour kept readable on this shot's sky. Pure given
+ * the silhouettes (silhouette.js).
+ */
+export function morphFor(shots, k, format, silhouettes) {
+  const s = shots[k];
+  if (!k || !s.morphFrom || !s.morphTo) return null;
+  const a = silhouettes[s.morphFrom], b = silhouettes[s.morphTo];
+  if (!a || !b) return null;
+  const at = layoutOf(shots[k - 1], format).props.find(p => p.name === s.morphFrom);
+  if (!at || !layoutOf(s, format).props.some(p => p.name === s.morphTo)) return null;
+  const sky = (SETTINGS[s.setting] || SETTINGS.field).sky;
+  const aligned = alignLoops(a.loop, b.loop).b;
+  return { from: { loop: a.loop, x: at.x, y: at.y, scale: at.scale, colour: a.colour }, to: { loop: aligned, colour: b.colour }, bg: lerpHex(sky[0], sky[1], 0.5) };
 }
 
 /** A 16×9 luminance thumbprint of a frame, cheap enough to take from every frame that is rendered. */
@@ -64,6 +83,12 @@ export async function renderFlatFilm({ shots, lineWavs, format = '16:9', outPath
   const done = new Promise((res, rej) => { ff.on('error', rej); ff.on('close', code => (code === 0 ? res() : rej(new Error(`ffmpeg ended with code ${code}: ${ffErr.trim().slice(-300)}`)))); });
   ff.stdin.on('error', () => { /* reported through the close code */ });
 
+  // the silhouettes the morphs need, measured once; a prop that cannot be outlined just keeps its plain cut
+  const silhouettes = {};
+  for (const name of new Set(shots.flatMap(s => (s.morphFrom ? [s.morphFrom, s.morphTo] : [])))) {
+    try { silhouettes[name] = await silhouetteOf(name); } catch (e) { console.error('[flat] silhouette:', e.message); }
+  }
+  const morphs = shots.map((_, k) => morphFor(shots, k, format, silhouettes));
   const canvas = createCanvas(w, h), ctx = canvas.getContext('2d');
   const sigs = shots.map(() => ({ first: null, mid: null, last: null }));
   let k = 0, ci = 0;
@@ -76,7 +101,7 @@ export async function renderFlatFilm({ shots, lineWavs, format = '16:9', outPath
       const cap = tl.captions[ci], span = tl.spans[k];
       const showing = cap && t >= cap.at - 0.02 && t <= cap.until + 0.18;
       let hot = -1; if (showing) for (let i = 0; i < cap.times.length; i++) if (t >= cap.times[i]) hot = i;
-      const svg = shotSvg(shots[k], t - span.from, { format, dur: span.to - span.from, caption: showing ? { words: cap.words, hot } : null, figures });
+      const svg = shotSvg(shots[k], t - span.from, { format, dur: span.to - span.from, caption: showing ? { words: cap.words, hot } : null, figures, morph: morphs[k] });
       const img = await loadImage(Buffer.from(svg));
       ctx.drawImage(img, 0, 0, w, h);
       const data = ctx.getImageData(0, 0, w, h).data;
@@ -92,7 +117,8 @@ export async function renderFlatFilm({ shots, lineWavs, format = '16:9', outPath
   } catch (e) { try { ff.kill(); } catch (_) { /* already gone */ } throw e; }
   if (!existsSync(outPath) || statSync(outPath).size < 10_000) throw new Error('ffmpeg wrote no film');
   return { file: outPath, seconds: tl.seconds, frames: total, fps, width: w, height: h, renderSeconds: +((Date.now() - t0) / 1000).toFixed(1), timeline: tl,
-    audio: { seconds: track.seconds, longestGap: +track.longestGap.toFixed(2), longestSilence: +longestSilence(track.mix).toFixed(2), path: audioPath }, signatures: sigs };
+    audio: { seconds: track.seconds, longestGap: +track.longestGap.toFixed(2), longestSilence: +longestSilence(track.mix).toFixed(2), path: audioPath }, signatures: sigs,
+    morphs: morphs.map((m, k) => (m ? { shot: k + 1, from: shots[k].morphFrom, to: shots[k].morphTo } : null)).filter(Boolean) };
 }
 
 /**
