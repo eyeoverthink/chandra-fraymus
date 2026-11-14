@@ -15,7 +15,7 @@ import { mayRecoverAtBoot } from '../config.js';
 import { publish } from '../fleet/bus.js';
 import { chatOllama } from '../commerce/shared.js';
 import { createChainRunner, STEP_KINDS, STEP_KIND_NAMES, MAX_STEPS, MAKE_AS, spokenText, BUILTIN_CHAINS } from './make-chains.js';
-import { lookJob, startGenerate, startConvert, startAnimate, startMotion, startAvatar, startLayers, startVector, startExtend } from './looks/index.js';
+import { lookJob, startGenerate, startConvert, startAnimate, startMotion, startAvatar, startLayers, startVector, startExtend, startRig } from './looks/index.js';
 import { startEpisode, getEpisode } from './episode-builder.js';
 import { createFromRequest, getCreation } from './make.js';
 import { voiceLine } from '../intelligence/narrator.js';
@@ -115,6 +115,10 @@ export const ADAPTERS = {
     const res = await waitLook(startLayers({ file: ctx.previousFile.file, context: clip(r.context || '', 300), plate: step.plate === 'fill' ? 'fill' : 'paint', source: source(ctx) }), report);
     const keep = step.keep === 'subject' ? res.subject : res.plate;
     return { file: fileFrom(keep, 'image'), detail: { subject: res.subject, plate: res.plate, matte: res.matte, plateBy: res.plateBy, level: res.level?.tiles } };
+  },
+  async rig(step, r, ctx, report) {
+    const res = await waitLook(startRig({ file: ctx.previousFile.file, rig: step.rig || 'bullet-time', seconds: step.seconds || 5, look: step.look || null, format: step.format || '16:9', source: source(ctx) }), report);
+    return { file: fileFrom(res.file, 'video'), detail: { rig: res.rig, depth: res.depth, parallax: res.parallax?.relative ?? null } };
   },
   async extend(step, r, ctx, report) {
     const res = await waitLook(startExtend({ file: ctx.previousFile.file, prompt: clip(r.prompt, 600), seconds: step.seconds || 3, source: source(ctx) }), report);

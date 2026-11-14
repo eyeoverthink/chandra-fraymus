@@ -6,7 +6,7 @@
  * Jobs run one at a time from an in-memory queue (a 90 s video takes a few minutes on the CPU); finished files are
  * on the shelf with provenance, so a restart loses only the job record, never the work.
  */
-import { readFileSync, copyFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, copyFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { subjectMask, finishMask, alphaFromMask, morph, maskBox, fillHole, softMask, plateCheck, levelFromPicture, matteClarity, MIN_CLARITY, silhouetteScore, SILHOUETTE_MAX, boxHole, borderSpread, PLAIN_BORDER } from './layers.js';
 import { VECTOR_STYLES, VECTOR_STYLE_NAMES } from './vector.js';
 import { vectorImage, vectorVideo, MAX_VECTOR_SECONDS } from './vector-render.js';
@@ -15,10 +15,10 @@ import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 import { DATA_DIR } from '../../config.js';
 import { LOOKS, LOOK_NAMES, lookInfo, convertImage, convertVideo, animateStill, CAMERA_MOVE_NAMES, shelfFile, saveUpload, coverPng, measureMotion, shelveClip, MOTION_MIN, containPng, turntableVideo,
-  probe, frameRate, lastFramePng, fitExtension, joinContinuation, greyEnds, seamScore, SEAM } from './convert.js';
+  probe, frameRate, lastFramePng, fitExtension, joinContinuation, greyEnds, seamScore, SEAM, RIGS, RIG_NAMES, rigFilm } from './convert.js';
 import { parseGlb, normalize, renderMesh, pictureSampler, coverage } from './mesh3d.js';
 import { image as rgbImage } from './filters.js';
-import { RECIPES, RECIPE_NAMES, recipeFor, cleanSubject, recipePrompt, animeTagsMessages, checkTags, taggedPrompt, taggedNegative } from './recipes.js';
+import { RECIPES, RECIPE_NAMES, recipeFor, cleanSubject, recipePrompt, animeTagsMessages, checkTags, taggedPrompt, taggedNegative, panelMessages, checkPanels } from './recipes.js';
 import { chatOllama } from '../../commerce/shared.js';
 
 /** The subject as checked Danbooru-style tags for the anime checkpoint, or null (then the sentence is used). */
@@ -323,7 +323,16 @@ export function startLayers({ file, dataBase64, ext, point = null, context = '',
   const path = inputPath({ file, dataBase64, ext });
   if (isVideo(path)) throw Object.assign(new Error('layers are made from a still picture'), { status: 400 });
   const pt = Array.isArray(point) && point.length === 2 && point.every(v => Number.isFinite(+v)) ? point.map(v => Math.max(0, Math.min(1, +v))) : null;
-  return enqueue('layers', `layers of ${basename(path)}`, async job => {
+  return enqueue('layers', `layers of ${basename(path)}`, job => layersWork(job, path, { pt, context, plate, denoise, source }));
+}
+
+/**
+ * The layers work itself. Called by startLayers' job, and directly inside another job that needs a picture's layers
+ * (a camera rig): the looks queue runs one job at a time, so a job that queued a layers job and waited for it would
+ * wait for itself.
+ */
+async function layersWork(job, path, { pt = null, context = '', plate = 'paint', denoise = 0.9, source = 'api' } = {}) {
+  {
     const { data, info } = await sharp(readFileSync(path)).rotate().removeAlpha().resize({ width: 1536, height: 1536, fit: 'inside', withoutEnlargement: true }).raw().toBuffer({ resolveWithObject: true });
     const W = info.width, H = info.height, img = rgbImage(W, H, new Uint8ClampedArray(data));
     const outDir = join(DATA_DIR, 'creations', job.id);
@@ -428,7 +437,7 @@ export function startLayers({ file, dataBase64, ext, point = null, context = '',
       writeFileSync(join(outDir, 'plate-refused.png'), await rawPng(plateImg.d, 3));
       // `partial`: what was made before the refusal, so a caller (a game) can still use the cut-out subject
       throw Object.assign(new Error(`the background plate failed its check: ${check.reason} (the subject layer ${subjectFile} was kept; the refused plate is in ${outDir})`),
-        { partial: { subject: subjectFile, folder: outDir } });
+        { partial: { subject: subjectFile, folder: outDir, box: { x: cx, y: cy, w: cw, h: ch }, size: [W, H] } });
     }
     const plateFile = `${Date.now()}-${job.id.slice(5)}-plate.png`;
     writeFileSync(join(MEDIA_DIR, plateFile), await rawPng(plateImg.d, 3));
@@ -440,7 +449,7 @@ export function startLayers({ file, dataBase64, ext, point = null, context = '',
     writeFileSync(join(outDir, 'level.json'), JSON.stringify({ from: src, plate: plateFile, ...level }, null, 1));
     return { from: src, subject: subjectFile, plate: plateFile, size: [W, H], matte: matteBy, matteNote, share, box: { x: cx, y: cy, w: cw, h: ch },
       plateBy, plateNote, paintedOn, plateCheck: check, level, folder: outDir };
-  });
+  }
 }
 
 /** Generate new pictures in a look: subject cleaned of franchise characters, recipe prompt, paint, finish with the look's filter. */
@@ -454,6 +463,7 @@ export function startGenerate({ prompt, look = null, count = 1, format = '16:9',
   const alt = rp.checkpoint ? { checkpoint: rp.checkpoint, checkpointPrompt: rp.checkpointPrompt, checkpointNegative: rp.checkpointNegative, cfg: 5 } : {};
   // a given seed makes the first picture repeatable (the rest follow it), for comparing a change on the same noise
   const items = Array.from({ length: n }, (_, i) => ({ prompt: p, negative, width, height, steps: 26, seed: Number.isInteger(seed) ? seed + i : Math.floor(Math.random() * 2 ** 31), ...alt }));
+  if (RECIPES[recipe].panels) return startPanels({ recipe, subject, replaced, seed, source });
   const job = enqueue('generate', `${n} × ${RECIPES[recipe].label}: ${clip(subject, 80)}`, async j => {
     let tagged = null;
     if (rp.checkpoint) {
@@ -477,6 +487,92 @@ export function startGenerate({ prompt, look = null, count = 1, format = '16:9',
   return job;
 }
 
+/**
+ * A panel story (recipe with `panels`): the beats are written by the pool model and checked (checkPanels), each is
+ * painted as its own panel on one seed (so the noise — and with it much of the drawing — is shared), and the panels
+ * are laid out 2 × 2 with a caption under each, on the shelf as one picture. The panels stay on the shelf too.
+ */
+function startPanels({ recipe, subject, replaced, seed = null, source = 'api' }) {
+  const R = RECIPES[recipe], n = R.panels;
+  const job = enqueue('generate', `${n}-panel story: ${clip(subject, 80)}`, async j => {
+    let feedback = null, beats = null, cast = null;
+    for (let a = 1; a <= 3 && !beats; a++) {
+      j.stage = `writing the ${n} panels${a > 1 ? `, attempt ${a}` : ''}`;
+      const r = checkPanels(await chatOllama(panelMessages(subject, n, feedback), { format: 'json', temperature: 0.6, maxTokens: 900, priority: 'goal', label: 'looks:panels', timeoutMs: 120_000 }), n);
+      if (r.ok) { beats = r.panels; cast = r.cast; } else feedback = r.reason;
+    }
+    if (!beats) throw new Error(`no usable panels after 3 attempts (${feedback})`);
+    const s0 = Number.isInteger(seed) ? seed : Math.floor(Math.random() * 2 ** 31);
+    const items = beats.map(b => ({ prompt: `${cast}. ${b.scene}, ${R.style}`, negative: R.negative, width: 1024, height: 704, steps: 26, seed: s0 }));
+    const painted = await paint(items, `${n}-panel story`, j);
+    if (painted.some(p => !p.ok)) throw new Error(`a panel could not be painted: ${painted.find(p => !p.ok).error}`);
+    j.stage = 'laying out the strip';
+    const file = await composeStrip(painted.map(p => p.path), beats.map(b => b.caption));
+    noteMedia(file, 'generate', [subject, { recipe, panels: beats, seed: s0, from: painted.map(p => basename(p.path)) }], { source: source === 'agent' ? 'agent' : 'looks' });
+    return { recipe, label: R.label, subject, cast, panels: beats.map((b, i) => ({ ...b, file: basename(painted[i].path) })), pictures: [{ ok: true, file, paintedOn: painted[0].paintedOn }], replacedCharacters: replaced };
+  });
+  job.notice = replaced.length ? `Franchise characters are not drawn: ${replaced.join(', ')} became an original character.` : null;
+  return job;
+}
+
+/** Lay out panels 2 × 2 (or in a row of up to 4) with a caption strip under each, white gutters, black frames. */
+export async function composeStrip(paths, captions, { panelW = 800, panelH = 550, gutter = 28, captionH = 92 } = {}) {
+  const { createCanvas, loadImage } = createRequire(import.meta.url)('@napi-rs/canvas');
+  const cols = paths.length <= 2 ? paths.length : 2, rows = Math.ceil(paths.length / cols);
+  const W = cols * panelW + (cols + 1) * gutter, H = rows * (panelH + captionH) + (rows + 1) * gutter;
+  const cv = createCanvas(W, H), ctx = cv.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  for (const [i, p] of paths.entries()) {
+    const c = i % cols, r = Math.floor(i / cols), x = gutter + c * (panelW + gutter), y = gutter + r * (panelH + captionH + gutter);
+    const img = await loadImage(readFileSync(p)), s = Math.max(panelW / img.width, panelH / img.height);
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, panelW, panelH); ctx.clip();
+    ctx.drawImage(img, x + (panelW - img.width * s) / 2, y + (panelH - img.height * s) / 2, img.width * s, img.height * s); ctx.restore();
+    ctx.lineWidth = 5; ctx.strokeStyle = '#111'; ctx.strokeRect(x, y, panelW, panelH + captionH);
+    ctx.fillStyle = '#111'; ctx.fillRect(x, y + panelH, panelW, 3);
+    ctx.fillStyle = '#111'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    let size = 34; ctx.font = `bold ${size}px Arial, sans-serif`;
+    while (ctx.measureText(captions[i] || '').width > panelW - 40 && size > 20) { size -= 2; ctx.font = `bold ${size}px Arial, sans-serif`; }
+    ctx.fillText(captions[i] || '', x + panelW / 2, y + panelH + captionH / 2 + 2, panelW - 30);
+  }
+  const file = `${Date.now()}-${randomUUID().slice(0, 8)}.png`;
+  writeFileSync(join(MEDIA_DIR, file), cv.toBuffer('image/png'));
+  return file;
+}
+
+/**
+ * A camera rig on a still (gap 8: 360° bullet-time orbit, FPV dive, crane-up reveal). The picture is split into its
+ * subject and a background plate (layersWork, plate filled from around — no card time spent on a repaint the camera
+ * mostly hides), and the two layers are moved by different amounts (convert.js RIGS / rigFilm), which reads as depth.
+ * A picture with no clear subject is filmed with the rig's single-layer move instead, and the result says so.
+ */
+export function startRig({ file, dataBase64, ext, rig = 'bullet-time', seconds = 5, look = null, format = '16:9', consent = false, realFace = false, source = 'api' }) {
+  if (!RIGS[rig]) throw Object.assign(new Error(`unknown camera rig: ${rig}. Rigs: ${RIG_NAMES.join(', ')}`), { status: 400 });
+  if (look && !LOOKS[look]) throw Object.assign(new Error(`unknown look: ${look}`), { status: 400 });
+  if (realFace && consent !== true) throw Object.assign(new Error("a real person is only cut out of a picture with that person's consent: pass consent: true once they agreed"), { status: 422, code: 'consent_required' });
+  const path = inputPath({ file, dataBase64, ext });
+  if (isVideo(path)) throw Object.assign(new Error('a camera rig is filmed from a still picture'), { status: 400 });
+  return enqueue('rig', `${RIGS[rig].label} on ${basename(path)}`, async job => {
+    let layers = null, plate = null, subject = null, depthNote = null;
+    try { layers = await layersWork(job, path, { plate: 'fill', source }); }
+    catch (e) {
+      // a plate refused for its look (flat fill) is still a good far layer: the camera hides most of the hole
+      const refused = e.partial ? join(e.partial.folder, 'plate-refused.png') : null;
+      if (refused && existsSync(refused)) {
+        layers = { subject: e.partial.subject, plateRefused: refused, box: e.partial.box, size: e.partial.size };
+        depthNote = `the filled background was refused as a picture of its own (${clip(e.message.replace(/ \(the subject layer.*$/, ''), 140)}); it is used as the far layer, where the moving subject hides most of the filled hole`;
+      } else depthNote = `${clip(e.message, 180)}: filmed as one layer`;
+    }
+    if (layers) {
+      subject = readFileSync(join(MEDIA_DIR, layers.subject));
+      plate = readFileSync(layers.plateRefused || join(MEDIA_DIR, layers.plate));
+    }
+    job.stage = `filming the ${RIGS[rig].label}`;
+    // the subject file is the crop at `box` of the working-size picture (`size`), the same size the plate is
+    const r = await rigFilm({ plate: plate || readFileSync(path), subject, box: layers?.box || null, size: layers?.size || null, rig, seconds, look, format, source: source === 'agent' ? 'agent' : 'looks', note: `${RIGS[rig].label} on ${basename(path)}` });
+    if (r.depth === 'two layers' && !r.parallax.ok) throw new Error(`the two layers moved together (relative ${r.parallax.relative}); no depth to show. The film is ${r.file}`);
+    return { file: r.file, rig, label: RIGS[rig].label, seconds: r.seconds, frames: r.frames, look, depth: r.depth, parallax: r.parallax || null, depthNote, subject: layers?.subject || null, matte: layers?.matte || null, ms: r.ms };
+  });
+}
 const view = j => ({ id: j.id, kind: j.kind, what: j.describe, status: j.status, stage: j.stage, progress: +j.progress.toFixed(2), result: j.result, error: j.error, partial: j.partial || null, notice: j.notice || null });
 const started = (j, what) => ({ ...view(j), replyToUser: `${what} — not finished yet. It is job ${j.id}; it appears on the shelf when done${j.notice ? `. ${j.notice}` : ''}.` });
 
@@ -487,7 +583,7 @@ export function createLooksTools() {
     { name: 'looks.list', group: 'looks', risk: 'safe',
       description: 'What looks Chandra can turn a picture or video into (comic hybrid, woodblock, brunaille, paper cutout, charcoal watercolour, rotoscope, painted 3D, gold ornament, low-poly ink, anime cel, ASCII, toy bricks, 8-bit, 2-bit), the style recipes it can generate new pictures in (pastoral anime, classic manga, retro robot anime, shonen action…), and the camera moves.',
       parameters: { type: 'object', properties: {}, additionalProperties: false },
-      execute: async () => ({ looks: lookInfo(), recipes: RECIPE_NAMES.map(id => ({ id, label: RECIPES[id].label, finishedWith: RECIPES[id].post })), cameraMoves: CAMERA_MOVE_NAMES }) },
+      execute: async () => ({ looks: lookInfo(), recipes: RECIPE_NAMES.map(id => ({ id, label: RECIPES[id].label, finishedWith: RECIPES[id].post, panels: RECIPES[id].panels || null })), cameraMoves: CAMERA_MOVE_NAMES, cameraRigs: RIG_NAMES.map(r => ({ id: r, label: RIGS[r].label, oneLayerFallback: RIGS[r].flat })) }) },
     { name: 'looks.convert', group: 'looks', risk: 'safe', ownsReply: true,
       description: "Turn a picture or video from Chandra's shelf into a look (comic hybrid, woodblock, ASCII, toy bricks, 8-bit…). Pass the shelf file name. A real person's face needs consent: true. Returns a job id; videos take minutes.",
       parameters: { type: 'object', properties: { file: str(160, 'Shelf file name', { minLength: 3 }), look: lookEnum, consent: { type: 'boolean', description: 'The person in it agreed' }, realFace: { type: 'boolean', description: 'It shows a real person' } }, required: ['file', 'look'], additionalProperties: false },
@@ -496,6 +592,10 @@ export function createLooksTools() {
       description: `Give a still picture from the shelf a camera move (${CAMERA_MOVE_NAMES.join(', ')}), 2–20 s, optionally in a look. Returns a job id.`,
       parameters: { type: 'object', properties: { file: str(160, 'Shelf file name of a picture', { minLength: 3 }), move: { type: 'string', enum: [...CAMERA_MOVE_NAMES] }, seconds: { type: 'integer', minimum: 2, maximum: 20 }, look: lookEnum, format: { type: 'string', enum: ['16:9', '9:16', '1:1'] } }, required: ['file'], additionalProperties: false },
       execute: async ({ args }) => started(startAnimate({ ...args, source: 'agent' }), `Making a ${args.move || 'push-in'} move on ${args.file}`) },
+    { name: 'looks.rig', group: 'looks', risk: 'safe', ownsReply: true,
+      description: `Film a still picture from the shelf with a camera rig that shows depth: ${RIG_NAMES.map(r => `${r} (${RIGS[r].label})`).join(', ')}. The picture's subject is cut out and moved apart from its background (parallax), so it reads as 3-D; a picture with no clear subject is filmed as one layer and the result says so. 2–20 s, optionally in a look. A real person needs consent: true. Returns a job id.`,
+      parameters: { type: 'object', properties: { file: str(160, 'Shelf file name of a picture', { minLength: 3 }), rig: { type: 'string', enum: [...RIG_NAMES] }, seconds: { type: 'integer', minimum: 2, maximum: 20 }, look: lookEnum, format: { type: 'string', enum: ['16:9', '9:16', '1:1'] }, consent: { type: 'boolean', description: 'The person in it agreed' }, realFace: { type: 'boolean', description: 'It shows a real person' } }, required: ['file'], additionalProperties: false },
+      execute: async ({ args }) => started(startRig({ ...args, source: 'agent' }), `Filming a ${RIGS[args.rig || 'bullet-time']?.label || 'camera rig'} on ${args.file}`) },
     { name: 'looks.motion', group: 'looks', risk: 'safe', ownsReply: true,
       description: 'Bring a still picture from the shelf to life: Wan 2.2 animates what is in it (a character turns, water flows, hair moves) for 1–5 s, optionally finished in a look. Runs on fraymus-home\'s card and takes a few minutes. For a camera move over a still use looks.animate instead. A real person\'s face needs consent: true. Returns a job id.',
       parameters: { type: 'object', properties: { file: str(160, 'Shelf file name of a picture', { minLength: 3 }), prompt: str(600, 'What moves and how, in plain words', { minLength: 3 }), seconds: { type: 'integer', minimum: 1, maximum: 5 }, format: { type: 'string', enum: ['16:9', '9:16', '1:1'] }, look: lookEnum, consent: { type: 'boolean', description: 'The person in it agreed' }, realFace: { type: 'boolean', description: 'It shows a real person' } }, required: ['file', 'prompt'], additionalProperties: false },
@@ -509,7 +609,7 @@ export function createLooksTools() {
       parameters: { type: 'object', properties: { file: str(160, 'Shelf file name of a picture of the character'), prompt: str(600, 'Or: describe the character'), model: str(160, 'Or: a .glb already on the shelf, to film again in another look (no GPU)'), look: lookEnum, colour: { type: 'string', enum: ['picture', 'clay'] }, seconds: { type: 'integer', minimum: 2, maximum: 12 }, format: { type: 'string', enum: ['16:9', '9:16', '1:1'] }, consent: { type: 'boolean', description: 'The person in it agreed' }, realFace: { type: 'boolean', description: 'It shows a real person' } }, additionalProperties: false },
       execute: async ({ args }) => started(startAvatar({ ...args, source: 'agent' }), 'Making a 3-D model') },
     { name: 'looks.generate', group: 'looks', risk: 'safe', ownsReply: true,
-      description: 'Paint new pictures in a style recipe (pastoral hand-painted anime, classic 1960s manga, retro robot anime, 90s shonen action, comic hybrid, painted 3D, gold ornament, woodblock, brunaille, paper cutout, low-poly ink, charcoal watercolour, rotoscope, flat vector, toy bricks, 8-bit, 2-bit, ASCII). Pass the user\'s words; style names like "Miyazaki" or "Spider-Verse" pick the recipe. Franchise characters are never drawn — they become original characters. Returns a job id.',
+      description: `Paint new pictures in a style recipe (${RECIPE_NAMES.map(r => RECIPES[r].label.toLowerCase()).join(', ')}). The four-panel story recipe writes four beats and lays the panels out 2 × 2 with captions. Pass the user's words; style names like "Miyazaki", "Spider-Verse", "Warhol" or "Pixar" pick the recipe. Franchise characters are never drawn — they become original characters. Returns a job id.`,
       parameters: { type: 'object', properties: { prompt: str(600, "What to paint, in the user's words", { minLength: 3 }), look: { type: 'string', enum: [...RECIPE_NAMES], description: 'Recipe, if the words do not name one' }, count: { type: 'integer', minimum: 1, maximum: 4 }, format: { type: 'string', enum: ['16:9', '9:16', '1:1'] } }, required: ['prompt'], additionalProperties: false },
       execute: async ({ args }) => started(startGenerate({ ...args, source: 'agent' }), 'Painting') },
     { name: 'looks.layers', group: 'looks', risk: 'safe', ownsReply: true,
@@ -533,11 +633,12 @@ export function createLooksTools() {
 
 export function installLooksRoutes(app) {
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(e => (e.status ? res.status(e.status).json({ error: e.message, code: e.code }) : next(e)));
-  app.get('/api/looks', route((_req, res) => res.json({ looks: lookInfo(), recipes: RECIPE_NAMES.map(id => ({ id, label: RECIPES[id].label, aliases: RECIPES[id].aliases, finishedWith: RECIPES[id].post })), cameraMoves: CAMERA_MOVE_NAMES, vectorStyles: VECTOR_STYLE_NAMES.map(id => ({ id, label: VECTOR_STYLES[id].label, about: VECTOR_STYLES[id].about })), jobs: [...jobs.values()].slice(-20).reverse().map(view) })));
+  app.get('/api/looks', route((_req, res) => res.json({ looks: lookInfo(), recipes: RECIPE_NAMES.map(id => ({ id, label: RECIPES[id].label, aliases: RECIPES[id].aliases, finishedWith: RECIPES[id].post })), cameraMoves: CAMERA_MOVE_NAMES, cameraRigs: RIG_NAMES.map(id => ({ id, label: RIGS[id].label })), vectorStyles: VECTOR_STYLE_NAMES.map(id => ({ id, label: VECTOR_STYLES[id].label, about: VECTOR_STYLES[id].about })), jobs: [...jobs.values()].slice(-20).reverse().map(view) })));
   app.post('/api/looks/convert', route((req, res) => res.status(202).json(view(startConvert(req.body || {})))));
   app.post('/api/looks/animate', route((req, res) => res.status(202).json(view(startAnimate(req.body || {})))));
   app.post('/api/looks/avatar', route((req, res) => res.status(202).json(view(startAvatar(req.body || {})))));
   app.post('/api/looks/motion', route((req, res) => res.status(202).json(view(startMotion(req.body || {})))));
+  app.post('/api/looks/rig', route((req, res) => res.status(202).json(view(startRig(req.body || {})))));
   app.post('/api/looks/extend', route((req, res) => res.status(202).json(view(startExtend(req.body || {})))));
   app.post('/api/looks/vector', route((req, res) => res.status(202).json(view(startVector(req.body || {})))));
   app.post('/api/looks/layers', route((req, res) => res.status(202).json(view(startLayers(req.body || {})))));

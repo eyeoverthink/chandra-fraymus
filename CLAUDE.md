@@ -598,6 +598,53 @@ npm run start        # production server (serves built client)
   - Extending a clip more than once in one job.
   - Continuing a flat film (its last frame is vector art Wan would repaint).
 
+### Catalog from Nexus — eight styles, three universes, three camera rigs (looks/recipes.js, filters.js, convert.js) — 2026-11-14
+- **Why:** gap 8 in `docs/NEXUS-ENGINE-CREATION-METHODS.md`: the catalog entries Nexus had and Chandra lacked. As before, **names only route** (`recipeFor` aliases) and never reach the prompt. Each style is written as its visual traits, and the test greps every recipe for the names.
+- **Eight new recipes:**
+  - `pop-silkscreen` (Warhol…; finished by the new **`silkscreen`** filter)
+  - `stencil-graffiti` (Banksy…; **`stencil`**)
+  - `newspaper-strip` (Peanuts, Sunday strip…; **`newsprint`**)
+  - `sprite-16bit` (SNES, Genesis…; the new **`16bit`** look)
+  - `hypercube` (tesseract, 4-D)
+  - `night-story` (bedtime / YouTube night story)
+  - `editorial-diagram` (LinkedIn…)
+  - **`four-panel`** (Reddit 4-panel, webcomic)
+- **Universes:** `yellow-sitcom` (Simpsons…), `cgi-feature` (Pixar, DreamWorks…), `midcentury-super` (Incredibles…). The toy-brick feature (Lego Movie) extends `brick`.
+- **Franchise characters added** (they become "an original character"): the Simpsons family, Buzz Lightyear, Lightning McQueen, Shrek, WALL-E, Nemo, Mr Incredible, Elastigirl, Frozone, Edna Mode, Jack-Jack, Emmet, Wyldstyle, Lord Business, Unikitty, Charlie Brown, Snoopy, Linus and Lucy van Pelt.
+  - Left out on purpose because they are also ordinary words: woody, dory, dash, violet, lucy, donkey, bart, marge, homer, woodstock. "A woody hillside at the Woodstock festival" stays as written.
+- **`cleanSubject` fix** (seen live): a style name removed from between an article and a preposition left "a of a child…" / "a about a cat"; the orphan article and preposition are now dropped. A real "a cup of tea" is kept.
+- **New finishing filters (pure, deterministic, tested distinct):**
+  - **`silkscreen`:** three ink tones cut at the picture's own 33 % / 70 % luminance, one of four pop ink sets (kept per video in `state.inks`), uneven squeegee coverage, and a black key plate printed off register.
+  - **`stencil`:** black below the 38th percentile, one red between 38th and 62nd, a concrete wall with brick courses, speckled overspray, a few drips.
+  - **`newsprint`:** an eight-ink 1950s palette, Ben-Day dots for every ink except black, a colour plate off register, ink lines, yellowed paper.
+  - **`16bit`** (`convert.js`): a 384 × 216 grid, the picture's own k-means palette of ≤ 48 colours (kept per video), light Bayer dither.
+- **Four-panel story** (`startPanels`, used when a recipe has `panels`):
+  - The pool model writes `{cast, panels: [{scene, caption}]}` (`panelMessages`). **`checkPanels`** refuses: the wrong count, a scene under 6 words, a caption outside 2–14 words, two captions alike, a franchise name, or a missing `cast`.
+  - **The cast description is put in front of every panel's prompt by code.** On the first live run, with only a shared seed and "the cat" in each scene, the four panels painted four different cats.
+  - Each beat is painted on one seed; **`composeStrip`** lays the panels out 2 × 2 with a caption strip under each (Skia).
+- **Camera rigs** — `RIGS` in `convert.js`: `bullet-time` (360° orbit), `fpv-dive`, `crane-up` (tool **`looks.rig`**, route `POST /api/looks/rig`, chain step **`rig`**):
+  - **Two depths from one still.** `startRig` splits the picture with **`layersWork`**, the layers job body factored out so it runs *inside* another job (the looks queue runs one job at a time, so a job that queued a layers job would wait for itself). The plate is `fill`: no card time is spent on a repaint the moving camera mostly hides.
+  - **Two layers move differently:** the far plate through a view `{z, cx, cy}`, the near cut-out by `{z, dx, dy, sx}` about the frame centre (`sx` = a turn seen edge-on), plus a camera roll on the whole frame.
+  - **`rigFrame`** draws a frame in JS: undo the roll, then the inverse of the near layer's transform, else the plate through its view, blended by premultiplied alpha; the speed smear is applied to the far layer only.
+    - Frames are drawn at ⅔ size and scaled up by the encoder; a 5 s rig takes about 11 s.
+    - **No sharp per frame:** this machine's sharp is the **WebAssembly build**, and handing it a 35 MB raw frame each frame ran its heap out of memory after a few frames. The crash left ffmpeg running and kept a test alive; `rigFilm` now kills its encoder on any error.
+  - **The depth is measured** (`rigParallax`): the difference between the layers' on-screen scale change and travel, first frame to last. Two layers moving as one flat picture score 0; a rig must reach `PARALLAX_MIN` 0.05, or the job fails.
+  - Every rig keeps its far view inside the picture at 5 points. That test caught the first FPV dive looking above the picture at zoom 1.0; it now starts at 1.12.
+  - **Fallbacks:** a refused plate (too flat to stand alone) is still used as the far layer, and the result says so in `depthNote`. A picture with no clear subject is filmed with the rig's one-layer move (`flat`: orbit / crash-zoom / tilt-up) and says `depth: 'one layer'`.
+- Tests: `test/catalog.test.js` (8: routing and no names in prompts, franchise replacement and ordinary words kept, filters deterministic and distinct, 16-bit palette ≤ 48 and kept, panel checks including the cast, the 2 × 2 layout, rig views in bounds and depth, a real two-layer rig film and a one-layer fallback).
+- **Measured 2026-11-14 (fraymus-home painting):**
+  - Warhol-style cat: three inks, off-register key.
+  - Banksy-style stencil: a child with a heart balloon in black, red and wall.
+  - Pixar-style toaster with wings.
+  - SNES mushroom-forest level.
+  - Bullet-time on the fox-knight painting (5 s, 11 s to draw): the knight holds while the forest sweeps; relative 0.246; plate used despite its flatness refusal.
+  - The first four-panel strip: a clear story, captions readable, **the cat changed every panel**, hence the cast rule.
+  - **After the rule:** the same plump grey cat with a pink nose in all four panels. Still wrong:
+    - Panel 2's cucumber was painted as a green cat (SDXL bleeds the cast description onto other objects).
+    - The last panel shows a calm cat, not the leap its beat asked for.
+  - **FPV dive** (relative 0.656, 37 s to draw with the roll): rushes in, banking, until the knight fills the frame. **Crane-up** (0.153, 11 s): the knight sinks and shrinks as the forest is revealed.
+  - Not tried live: `newspaper-strip`, `hypercube`, `night-story`, `editorial-diagram`, `yellow-sitcom`, `midcentury-super` (all routed and unit-tested), and a rig in a look.
+
 ### Memory search — agents recall by meaning, and the gain is a number (server/intelligence/memory-*.js) — 2026-11-11
 - **Why:** the first mechanism absorbed from gbrain (see the ranked list under the flat look). `recallMemories` was `key LIKE '%query%' OR value LIKE '%query%'`: a question in a sentence matched nothing. And `buildPromptContext(agentId, taskText)` **ignored its second argument** — every agent prompt carried its ten newest memories whatever the task was (the caller did not even pass the task).
 - **`memory-rank.js` (pure):** `ftsQuery` (every word quoted, so nothing typed is query syntax; all words, then any word), `rrfFuse` (k = 60), `fuse` = 0.7 · normalised RRF + 0.3 · cosine with near-duplicates dropped (word-set Jaccard > 0.85), and the measures: `precisionAt`, `recallAt`, `reciprocalRank`, `ndcgAt`, `hitAt`, `summarise`, and a seeded paired sign-flip test `signFlipP`.

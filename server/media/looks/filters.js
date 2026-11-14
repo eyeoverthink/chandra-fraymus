@@ -338,6 +338,79 @@ export function animeCel(src, { seed = 10 } = {}) {
   return applyInk(sm, inkMask(src, { threshold: 75, blur: 1, thick: src.w > 1200 ? 1 : 0 }), [30, 22, 40], 0.9);
 }
 
+// Pop silkscreen inks, chosen in sets of three (ground, mid tone, highlight) so a picture reads as one print run
+const POP_SETS = [['#ff3fa4', '#ffe14d', '#3fd6ff'], ['#ff7a1a', '#7d4dff', '#a8ff3f'], ['#00c2a8', '#ff4d6d', '#ffd23f'], ['#3b5bff', '#ff9ec7', '#fff36b']].map(s => s.map(hex));
+/** Pop silkscreen (1960s screen-print portraits): three flat ink tones, a black key plate printed slightly off
+ *  register, and uneven ink coverage. `state.inks` keeps one ink set for a whole video. */
+export function silkscreen(src, { seed = 12, state = {} } = {}) {
+  const { w, h } = src, L = blurPlane(luminance(src), w, h, 2), inks = state.inks || (state.inks = POP_SETS[Math.floor(noise2(seed, 5, seed) * POP_SETS.length)]);
+  // tone cuts at this picture's own thirds, so a dark photo still prints all three inks
+  const sorted = Float32Array.from(L).sort(), t1 = sorted[Math.floor(sorted.length * 0.33)], t2 = sorted[Math.floor(sorted.length * 0.7)];
+  const out = image(w, h), sh = Math.max(3, Math.round(w / 160));
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x, l = L[i], ink = l < t1 ? inks[0] : l < t2 ? inks[1] : inks[2];
+    const cover = 0.9 + (smoothNoise(x, y, 3, seed) - 0.5) * 0.25;                     // a squeegee never lays ink evenly
+    for (let c = 0; c < 3; c++) out.d[i * 3 + c] = clampByte(ink[c] * cover + 245 * (1 - cover));
+  }
+  // the black key: the darkest third and the contours, printed `sh` pixels off from the colour
+  const key = inkMask(src, { threshold: 60, blur: 2, thick: w > 1200 ? 2 : 1 });
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const sx = x - sh, sy = y - Math.round(sh / 2); if (sx < 0 || sy < 0) continue;
+    const j = sy * w + sx, dark = L[j] < t1 * 0.62 || key[j] > 0.5;
+    if (dark) { const p = (y * w + x) * 3; out.d[p] = 18; out.d[p + 1] = 14; out.d[p + 2] = 20; }
+  }
+  return out;
+}
+
+/** Urban stencil graffiti: a two-tone spray-paint stencil (black and one accent colour) with overspray and drips
+ *  on a weathered concrete wall. */
+export function stencil(src, { seed = 13 } = {}) {
+  const { w, h } = src, L = blurPlane(luminance(src), w, h, 2);
+  const sorted = Float32Array.from(L).sort(), dark = sorted[Math.floor(sorted.length * 0.38)], mid = sorted[Math.floor(sorted.length * 0.62)];
+  const ink = new Float32Array(w * h), accent = new Float32Array(w * h);
+  for (let i = 0; i < L.length; i++) { ink[i] = L[i] < dark ? 1 : 0; accent[i] = L[i] >= dark && L[i] < mid ? 1 : 0; }
+  const spray = blurPlane(ink, w, h, Math.max(2, Math.round(w / 300)));                  // the soft edge of a can held off the wall
+  const out = image(w, h), brick = Math.max(16, Math.round(w / 32)), red = [214, 38, 46];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x, p = i * 3;
+    // the wall: grey concrete with stains and faint brick courses
+    const course = (y % brick === 0 || ((x + (Math.floor(y / brick) % 2) * brick / 2) % (brick * 2) === 0)) ? -10 : 0;
+    const wall = 196 + (smoothNoise(x, y, 6, seed) - 0.5) * 34 + (noise2(x, y, seed) - 0.5) * 14 + course;
+    let r = wall, g = wall - 3, b = wall - 8;
+    if (accent[i]) { const a = 0.82 + (noise2(x, y, seed + 2) - 0.5) * 0.3; r = r * (1 - a) + red[0] * a; g = g * (1 - a) + red[1] * a; b = b * (1 - a) + red[2] * a; }
+    const k = ink[i] ? 0.96 : Math.min(0.55, spray[i] * 0.9) * (noise2(x, y, seed + 3) > 0.45 ? 1 : 0.4);   // speckled overspray
+    out.d[p] = clampByte(r * (1 - k) + 16 * k); out.d[p + 1] = clampByte(g * (1 - k) + 16 * k); out.d[p + 2] = clampByte(b * (1 - k) + 18 * k);
+  }
+  // a few drips run down from the lower edges of the black
+  for (let x = 0; x < w; x += 3) {
+    if (noise2(x, 7, seed) < 0.985) continue;
+    let y0 = -1; for (let y = h - 1; y >= 0; y--) if (ink[y * w + x]) { y0 = y; break; }
+    if (y0 < 0) continue;
+    const len = Math.round(h * (0.02 + noise2(x, 9, seed) * 0.06));
+    for (let y = y0; y < Math.min(h, y0 + len); y++) { const p = (y * w + x) * 3; out.d[p] = out.d[p + 1] = out.d[p + 2] = 18; }
+  }
+  return out;
+}
+
+// Four-colour newsprint: the few flat inks a 1950s Sunday strip was printed in, over yellowed paper
+const NEWS_INKS = ['#f3e7c9', '#f1c7a3', '#e3463a', '#3e6fb5', '#f2cc3d', '#6aa35a', '#8f6c4a', '#1b1b1b'].map(hex);
+/** Mid-century newspaper strip: confident ink lines, a handful of flat inks printed as Ben-Day dots over
+ *  yellowed newsprint, the colour plate a little off register. */
+export function newsprint(src, { seed = 14 } = {}) {
+  const { w, h } = src, flat = mapToPalette(kuwahara(blurImage(src, 1, 1), 2), NEWS_INKS).img, paperCol = NEWS_INKS[0];
+  const out = image(w, h), cell = Math.max(4, Math.round(w / 220)), sh = Math.max(1, Math.round(w / 640));
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const sx = Math.max(0, x - sh), i = (y * w + sx) * 3, p = (y * w + x) * 3;
+    const col = [flat.d[i], flat.d[i + 1], flat.d[i + 2]], isPaper = Math.abs(col[0] - paperCol[0]) + Math.abs(col[1] - paperCol[1]) + Math.abs(col[2] - paperCol[2]) < 20;
+    // Ben-Day: inks other than black print as dots of a fixed size on a grid; black and paper print solid
+    const dark = col[0] + col[1] + col[2] < 120, u = (x % cell) - cell / 2, v = (y % cell) - cell / 2, dot = u * u + v * v < (cell * 0.42) ** 2;
+    const c = isPaper || (!dark && !dot) ? paperCol : col;
+    for (let k = 0; k < 3; k++) out.d[p + k] = c[k];
+  }
+  applyInk(out, inkMask(src, { threshold: 70, blur: 1, thick: w > 1200 ? 2 : 1 }), [22, 20, 18], 0.95);
+  return paper(out, { seed, amount: 12, scale: 3, tint: [240, 228, 196] });
+}
+
 /** Every look the filter engine can apply, with what it is and how video frames are held. */
 export const FILTER_LOOKS = Object.freeze({
   'comic-hybrid': { fn: comicHybrid, label: 'Comic hybrid', technique: 'halftone dots, ink lines and misregistered colour over moving shapes, held on twos (the Into the Spider-Verse technique)', hold: 2 },
@@ -350,4 +423,7 @@ export const FILTER_LOOKS = Object.freeze({
   ornament: { fn: ornament, label: 'Gold ornament', technique: 'calm areas become a gold mosaic of squares, spirals and eyes (after Klimt\'s golden period)', hold: 1 },
   'lowpoly-ink': { fn: lowpolyInk, label: 'Low-poly ink', technique: 'flat low-poly triangles with loose ink and hatching (Tekkonkinkreet)', hold: 2 },
   'anime-cel': { fn: animeCel, label: 'Anime cel', technique: 'smoothed shapes, three value steps per hue, clean ink', hold: 2 },
+  silkscreen: { fn: silkscreen, label: 'Pop silkscreen', technique: 'three flat ink tones and a black key plate off register, uneven coverage (1960s pop screen prints)', hold: 2 },
+  stencil: { fn: stencil, label: 'Stencil graffiti', technique: 'black and one red spray stencil with overspray and drips on a concrete wall', hold: 2 },
+  newsprint: { fn: newsprint, label: 'Newspaper strip', technique: 'ink lines and a few flat inks as Ben-Day dots on yellowed newsprint (1950s Sunday strips)', hold: 2 },
 });

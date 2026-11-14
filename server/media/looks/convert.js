@@ -20,7 +20,7 @@ import { mkdirSync, statSync, existsSync, writeFileSync, readFileSync } from 'no
 import { join, basename } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { DATA_DIR } from '../../config.js';
-import { image, FILTER_LOOKS } from './filters.js';
+import { image, FILTER_LOOKS, kmeansPalette } from './filters.js';
 import { GLYPH_LOOKS } from './glyph-looks.js';
 import { STYLES as PIXEL_STYLES, resolvePalette, quantize } from '../pixel-art.js';
 import { noteMedia } from '../media-meta.js';
@@ -52,8 +52,22 @@ const pixelLook = style => ({
   },
 });
 
+/** 16-bit console look: a finer grid than 8-bit (384 × 216) and the picture's own palette of up to 48 colours (a
+ *  16-bit console chose its on-screen colours from thousands, so the palette is fitted to the picture — and kept for
+ *  a whole video in `state.palette`, or the colours would flicker), with light ordered dither. */
+const SIXTEEN = { native: [384, 216], colours: 48 };
+const sixteenBitLook = {
+  label: '16-bit', technique: 'a 384 × 216 grid, the picture\'s own palette of up to 48 colours, light ordered dither', hold: 2, pixel: true,
+  fn: (src, { seed = 7, state = {} } = {}) => {
+    const [nw, nh] = SIXTEEN.native, portrait = src.h > src.w, w = portrait ? nh : nw, h = portrait ? nw : nh;
+    const small = boxDown(src, w, h);
+    const pal = state.palette || (state.palette = kmeansPalette(small, SIXTEEN.colours, { seed, step: 3, iters: 10 }));
+    return image(w, h, new Uint8ClampedArray(quantize(Buffer.from(small.d.buffer, small.d.byteOffset, small.d.length), w, h, pal, { dither: true })));
+  },
+};
+
 /** Every look a picture or video can be turned into. */
-export const LOOKS = Object.freeze({ ...FILTER_LOOKS, ...GLYPH_LOOKS, '8bit': pixelLook('8bit'), '2bit': pixelLook('2bit') });
+export const LOOKS = Object.freeze({ ...FILTER_LOOKS, ...GLYPH_LOOKS, '8bit': pixelLook('8bit'), '2bit': pixelLook('2bit'), '16bit': sixteenBitLook });
 export const LOOK_NAMES = Object.freeze(Object.keys(LOOKS));
 export function lookInfo() { return LOOK_NAMES.map(id => ({ id, label: LOOKS[id].label, technique: LOOKS[id].technique, heldOn: LOOKS[id].hold })); }
 
@@ -238,6 +252,151 @@ export async function animateStill(input, { move = 'push-in', seconds = 5, look 
   await encDone;
   noteMedia(file, 'animate', [note || `${move} camera move${look ? ` in the ${LOOKS[look].label} look` : ''}`, { move, look, seconds, format }], { source });
   return { file, path, seconds, frames: drawn, move, look, ms: Date.now() - t0 };
+}
+
+// ── camera rigs: two depths from one still (gap 8; Nexus HIGGSFIELD_CAMERA_RIGS) ─────────────────────────
+
+/**
+ * A rig moves two layers of one picture — the background plate (far) and the cut-out subject (near) — by different
+ * amounts, which is what makes a camera move read as depth (parallax). For progress p in 0..1:
+ *   bg: { z, cx, cy }   the plate's view, as CAMERA_MOVES (z ≥ 1, the view inside the picture)
+ *   fg: { z, dx, dy, sx } the subject: scaled by z about the frame centre, shifted by dx, dy (fractions of the frame),
+ *                       squashed horizontally by sx about its own centre (a turn seen edge-on)
+ *   turn                camera roll in degrees, applied to the whole frame; blur: smear the plate (speed)
+ * With one layer only (no subject could be cut out) `flat` is the single-layer move used instead.
+ */
+export const RIGS = Object.freeze({
+  // the camera circles the subject: the subject stays near the middle and turns a little, the world sweeps behind it
+  'bullet-time': { label: '360° bullet-time orbit', flat: 'orbit',
+    at: p => { const s = 2 * p - 1; return { bg: { z: 1.3, cx: 0.5 + 0.11 * s, cy: 0.5 }, fg: { z: 1.12, dx: -0.02 * s, dy: 0, sx: 0.86 + 0.14 * Math.cos(s * Math.PI / 2) }, turn: 0, blur: Math.abs(s) < 0.6 }; } },
+  // a drone dives at the subject, banking: the near layer grows much faster than the far one
+  'fpv-dive': { label: 'FPV cinema dive', flat: 'crash-zoom',
+    // starts at 1.12 so the downward tilt (cy 0.455 → 0.555) stays inside the picture: at zoom 1.0 there is no room to tilt
+    at: p => { const k = easeIn(p); return { bg: { z: 1.12 + 0.5 * k, cx: 0.5, cy: 0.455 + 0.1 * ease(p) }, fg: { z: 1.0 + 1.1 * k, dx: 0, dy: 0.04 * k, sx: 1 }, turn: 7 * Math.sin(Math.PI * p), blur: p > 0.55 }; } },
+  // the camera rises from close to the subject and reveals the place: the subject sinks and shrinks faster than the world
+  'crane-up': { label: 'Crane-up reveal', flat: 'tilt-up',
+    at: p => { const k = ease(p); return { bg: { z: 1.4 - 0.25 * k, cx: 0.5, cy: 0.62 - 0.18 * k }, fg: { z: 1.3 - 0.3 * k, dx: 0, dy: -0.04 + 0.14 * k, sx: 1 }, turn: 0, blur: false }; } },
+});
+export const RIG_NAMES = Object.freeze(Object.keys(RIGS));
+
+/**
+ * Film a rig: `plate` = the background picture (bytes, the subject's hole already filled), `subject` = the cut-out
+ * (RGBA PNG bytes) and `box` = where it stood in the plate ({x, y, w, h} in plate pixels; plate size `size` [W, H]).
+ * Without a subject, the rig's single-layer move is filmed instead. Returns { file, path, seconds, frames, rig, depth }.
+ */
+export async function rigFilm({ plate, subject = null, box = null, size = null, rig, seconds = 5, look = null, format = '16:9', source = 'looks', note = '' }) {
+  const R = RIGS[rig];
+  if (!R) throw new Error(`unknown camera rig: ${rig} (have ${RIG_NAMES.join(', ')})`);
+  if (look && !LOOKS[look]) throw new Error(`unknown look: ${look}`);
+  if (!subject) {
+    const r = await animateStill(plate, { move: R.flat, seconds, look, format, source, note: note || `${R.label} (one layer)` });
+    return { ...r, rig, depth: 'one layer' };
+  }
+  seconds = Math.max(2, Math.min(20, Number(seconds) || 5));
+  const t0 = Date.now(), [ow, oh] = { '16:9': [1920, 1080], '9:16': [1080, 1920], '1:1': [1080, 1080] }[format] || [1920, 1080];
+  // frames are drawn in JS at a working size (two bilinear samples a pixel) and scaled up by the encoder
+  const [fw, fh] = look ? sizesFor(ow, oh).work : [Math.round(ow * 2 / 3 / 2) * 2, Math.round(oh * 2 / 3 / 2) * 2];
+  const [W, H] = size;
+  // two decodes, once each: the plate cover-fitted to the frame's shape at 1.25× the working size (room to zoom), and
+  // the cut-out at its own size. This machine's sharp is the WebAssembly build: handing it a 35 MB raw frame every
+  // frame ran its heap out of memory after a few frames, so nothing per frame goes through sharp.
+  const pw = Math.round(fw * 1.25), ph = Math.round(fh * 1.25);
+  const pl = await sharp(plate).flatten({ background: '#000' }).resize(pw, ph, { fit: 'cover' }).removeAlpha().raw().toBuffer();
+  const sj = await sharp(subject).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const c = Math.max(fw / W, fh / H), ox = (fw - W * c) / 2, oy = (fh - H * c) / 2;
+  const home = { x: ox + box.x * c, y: oy + box.y * c, w: box.w * c, h: box.h * c };   // the subject in the frame at rest
+  const hold = look ? LOOKS[look].hold || 1 : 1, total = Math.round(seconds * FPS), drawn = Math.ceil(total / hold);
+  mkdirSync(VIDEO_DIR, { recursive: true });
+  const file = stamp('mp4'), path = join(VIDEO_DIR, file);
+  let enc = null, encErr = '', encDone = null, state = {}, prevBg = null;
+  const travel = [];
+  try {
+    for (let k = 0; k < drawn; k++) {
+      const f = k * hold, p = total > 1 ? f / (total - 1) : 0, v = R.at(p);
+      const fr = image(fw, fh);
+      const drawnFrame = rigFrame({ plate: { d: pl, w: pw, h: ph }, subject: { d: sj.data, w: sj.info.width, h: sj.info.height }, home, view: v, w: fw, h: fh, out: fr.d, prevBg: v.blur ? prevBg : null });
+      prevBg = drawnFrame.bg;
+      travel.push({ bgX: v.bg.cx, bgY: v.bg.cy, bgZ: v.bg.z, fgX: drawnFrame.fgX / fw, fgY: drawnFrame.fgY / fh, fgZ: v.fg.z });
+      const { img, kernel } = look ? applyLook(look, fr, { seed: 7, frame: k, state, outW: ow, outH: oh }) : { img: fr, kernel: 'lanczos3' };
+      if (!enc) {
+        enc = spawn('ffmpeg', ['-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', `${img.w}x${img.h}`, '-r', String(FPS / hold), '-i', 'pipe:0',
+          '-vf', `scale=${ow}:${oh}:flags=${kernel === 'nearest' ? 'neighbor' : 'lanczos'},fps=${FPS}`, '-c:v', 'libx264', '-preset', 'medium', '-crf', '19', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', path], { windowsHide: true });
+        enc.stderr.on('data', d => { encErr += d; });
+        encDone = new Promise((res, rej) => enc.on('close', code => (code === 0 ? res() : rej(new Error(`encoder exited ${code}: ${encErr.trim().slice(-300)}`)))));
+      }
+      const buf = Buffer.from(img.d.buffer, img.d.byteOffset, img.d.length);
+      if (!enc.stdin.write(buf)) await new Promise(r => enc.stdin.once('drain', r));
+    }
+    enc.stdin.end();
+    await encDone;
+  } catch (e) {
+    // never leave the encoder running (it kept a test process alive when a frame failed)
+    if (enc && enc.exitCode == null) { enc.kill(); await encDone?.catch(() => {}); }
+    throw e;
+  }
+  const parallax = rigParallax(travel);
+  noteMedia(file, 'animate', [note || `${R.label}${look ? ` in the ${LOOKS[look].label} look` : ''}`, { rig, look, seconds, format, depth: 'two layers', parallax }], { source });
+  return { file, path, seconds, frames: drawn, rig, label: R.label, look, depth: 'two layers', parallax, ms: Date.now() - t0 };
+}
+
+/**
+ * One rig frame, w × h RGB into `out` (pure). For each output pixel: undo the camera roll (turning about the centre
+ * samples the far layer beyond the view, where the zoom left room), find whether the near layer covers it (the inverse
+ * of its scale about the frame centre, shift and horizontal squash about its own centre), else sample the plate through
+ * its view; blend by the cut-out's alpha (premultiplied, so its edge does not darken). `prevBg` (the last frame's far
+ * layer) smears the far layer only. Returns { bg: this frame's far layer, fgX, fgY: the near layer's centre }.
+ */
+export function rigFrame({ plate, subject, home, view: v, w, h, out, prevBg = null }) {
+  const P = plate.d, PW = plate.w, PH = plate.h, S = subject?.d, SW = subject?.w, SH = subject?.h;
+  const bg = new Uint8ClampedArray(w * h * 3);
+  const th = (v.turn || 0) * Math.PI / 180, co = Math.cos(th), si = Math.sin(th), cx = w / 2, cy = h / 2;
+  const zb = v.bg.z, fz = v.fg.z, fsx = v.fg.sx || 1;
+  const hcx = home.x + home.w / 2, hcy = home.y + home.h / 2;
+  const fgX = cx + (hcx - cx) * fz + v.fg.dx * w, fgY = cy + (hcy - cy) * fz + v.fg.dy * h;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const dx = x + 0.5 - cx, dy = y + 0.5 - cy, u = cx + co * dx + si * dy, vv = cy - si * dx + co * dy, o = (y * w + x) * 3;
+    // far layer
+    let px = (((u / w) - 0.5) / zb + v.bg.cx) * PW - 0.5, py = (((vv / h) - 0.5) / zb + v.bg.cy) * PH - 0.5;
+    px = px < 0 ? 0 : px > PW - 1.001 ? PW - 1.001 : px; py = py < 0 ? 0 : py > PH - 1.001 ? PH - 1.001 : py;
+    const x0 = px | 0, y0 = py | 0, fx = px - x0, fy = py - y0, i = (y0 * PW + x0) * 3, j = i + PW * 3;
+    for (let c = 0; c < 3; c++) {
+      let s = (P[i + c] * (1 - fx) + P[i + 3 + c] * fx) * (1 - fy) + (P[j + c] * (1 - fx) + P[j + 3 + c] * fx) * fy;
+      if (prevBg) s = (s + prevBg[o + c]) / 2;
+      bg[o + c] = s;
+    }
+    // near layer
+    let a = 0, r = 0, g = 0, b = 0;
+    if (S) {
+      const qx = hcx + (u - fgX) / (fz * fsx), qy = hcy + (vv - fgY) / fz;
+      if (qx >= home.x && qx < home.x + home.w && qy >= home.y && qy < home.y + home.h) {
+        let sx = (qx - home.x) / home.w * SW - 0.5, sy = (qy - home.y) / home.h * SH - 0.5;
+        sx = sx < 0 ? 0 : sx > SW - 1.001 ? SW - 1.001 : sx; sy = sy < 0 ? 0 : sy > SH - 1.001 ? SH - 1.001 : sy;
+        const sx0 = sx | 0, sy0 = sy | 0, gx = sx - sx0, gy = sy - sy0, k0 = (sy0 * SW + sx0) * 4, k1 = k0 + SW * 4;
+        const wts = [(1 - gx) * (1 - gy), gx * (1 - gy), (1 - gx) * gy, gx * gy], idx = [k0, k0 + 4, k1, k1 + 4];
+        for (let t = 0; t < 4; t++) { const al = S[idx[t] + 3] / 255 * wts[t]; a += al; r += S[idx[t]] * al; g += S[idx[t] + 1] * al; b += S[idx[t] + 2] * al; }
+      }
+    }
+    if (a > 0.001) { out[o] = r + bg[o] * (1 - a); out[o + 1] = g + bg[o + 1] * (1 - a); out[o + 2] = b + bg[o + 2] * (1 - a); }
+    else { out[o] = bg[o]; out[o + 1] = bg[o + 1]; out[o + 2] = bg[o + 2]; }
+  }
+  return { bg, fgX, fgY };
+}
+
+/**
+ * Depth reads when the two layers move DIFFERENTLY on screen (pure). The far layer's content moves by −Δ(view
+ * centre) × zoom in frame units and scales by its zoom; the near layer by its own shift and zoom. `relative` is the
+ * difference in scale change (log) plus the difference in on-screen travel between the first and the last frame: 0
+ * means the layers moved as one flat picture. An orbit keeps the subject still while the world sweeps (large
+ * relative); a dive grows the subject faster than the world (large relative in scale).
+ */
+export const PARALLAX_MIN = 0.05;
+export function rigParallax(travel) {
+  if (travel.length < 2) return { relative: 0, ok: false };
+  const a = travel[0], b = travel[travel.length - 1];
+  const bgDx = -(b.bgX - a.bgX) * b.bgZ, bgDy = -(b.bgY - a.bgY) * b.bgZ, fgDx = b.fgX - a.fgX, fgDy = b.fgY - a.fgY;
+  const scale = Math.abs(Math.log(b.fgZ / a.fgZ) - Math.log(b.bgZ / a.bgZ)), shift = Math.hypot(fgDx - bgDx, fgDy - bgDy);
+  const relative = +(scale + shift).toFixed(3);
+  return { relative, scale: +scale.toFixed(3), shift: +shift.toFixed(3), ok: relative >= PARALLAX_MIN };
 }
 
 // ── motion clips from a model (Wan 2.2 on a worker) ──────────────────────────────────────────────────
