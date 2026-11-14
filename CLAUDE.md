@@ -518,6 +518,48 @@ npm run start        # production server (serves built client)
     - Strict grounding reads only the article's opening, so real names further down ("Cuillin") are dropped too.
   - The full suite passed 998/998 on a quiet machine. One `agent.test.js` timing test failed once under the load of three concurrent world builds and passed 3/3 alone.
 
+### Platform games — words or a picture as a winnable game page (server/media/game-builder.js + page-kit/platformer.js) — 2026-11-14
+- **Why:** gap 6 in `docs/NEXUS-ENGINE-CREATION-METHODS.md` (Nexus's GameDevSuite and SceneGameAbstractor, methods 17–18). Nexus quantised a picture to tiles and never checked that a level could be finished.
+- **`page-kit/platformer.js` (`ChandraPlatformer`):** a browser global with no network and no WebGL. Node evaluates the same file (`platformerKit()`), so **a level is judged by the code that plays it.**
+  - **Physics** (`PHYS`): 32-px tiles, gravity 1900, jump 660 (holding gives the full height, letting go early a hop), run 230, coyote time 0.09 s, jump buffer 0.12 s, AABB tile collision.
+  - **`REACH` is computed from `PHYS` with a margin:** 3 tiles up (physics 3.5), 4 across (physics 4.9).
+  - Tiles: `.` air, `#` solid, `=` platform, `^` spikes, `o` coin, `S` start, `G` goal. A fall or a spike sends the hero back to the last checkpoint (one every 12 columns on the ground).
+  - The camera follows; a backdrop picture scrolls at 0.3 parallax. The hero is a sprite (data URL, 1.5 tiles tall, flipped by direction) or a drawn blob. HUD shows coins and falls; reaching the flag shows "You made it!". Touch pad on phones.
+  - `window.__chandraGame` gives `state()` and `press()` for the play check. `state()` carries `time` (game seconds), `jumps` and `rise` (takeoff minus the highest point of the latest jump, kept by every sub-step).
+  - **Fixed 1/120 s physics steps:** a slow frame runs several steps, and a stall is cut to 0.25 s. Jump height and `REACH` hold at any frame rate. Before, each frame was one step clamped to 33 ms, so at 10 fps the game ran at a third of real time.
+  - **Collision fix:** a box occupies rows up to `floor((y + h − ε) / T)`. The old `− 1` let the hero sink a pixel into the floor unseen, so `ground` flickered false at rest, worse with smaller steps. That broke coyote time and caused the first full-suite failure.
+- **Level functions (pure):**
+  - `generate({seed, cols, rows, difficulty})`: ground with hills, pits (some with spikes) no wider than the jump allows, floating platforms.
+  - **`reachable(tiles)`:** BFS over standing cells. A jump goes at most `REACH.up` higher and `REACH.across` across; a fall of any height reaches a little further; no path through a wall.
+  - **`makePlayable(tiles)`:** where the search stops, the nearest blocking cells are cleared and a step is placed one jump away, up to 40 times, until the right edge is reached. Every fix is recorded.
+  - `decorate()`: start on the left, goal at the furthest reachable cell, coins on about 22 % of reachable cells (≤ 14).
+  - **Tested:** 120 generated levels (40 seeds × 3 difficulties) are all winnable. A five-tile wall and a seven-tile pit are refused by the search and then repaired.
+- **`game-builder.js`:**
+  - **From words:** the model pool gives name, tagline, seed, difficulty and palette (JSON; clamped by `checkGameSpec`, hex colours or defaults); the level is generated.
+  - **From a picture:** `startLayers` (plate `fill` by default, `paint` to repaint on the card) supplies the **cut-out subject as the hero sprite** and the **plate as the backdrop**. The plate read as a tile grid (`levelFromImage` = `layers.levelFromPicture` → `makePlayable` → `decorate`) is the level. The grid keeps the picture's shape: `PICTURE_ROWS` 16 rows, columns from the aspect ratio (16:9 → 28, clamped to 24–96). The picture is drawn **under the level cell for cell** (`backdropMode: 'level'`), solid tiles as a 30 % tint with a gold walkable top, so you stand on the picture's own shapes. The first version drew opaque slabs over a 0.3-parallax backdrop that did not line up with the cells it came from.
+  - If the plate is refused, the layers job's error carries `partial: {subject, folder}`. The cut-out subject is still the hero, over the original picture (so it also shows in the backdrop). If the split fails entirely, the picture is the backdrop and the hero is drawn. Both cases are recorded in `notes`, which a failed game now keeps too.
+  - **A level the search cannot finish is refused before a page is built.**
+  - `gamePage()`: a fixed template. Saved under Sites.
+- **Check:**
+  - `verifyPage` (draws, moves on its own).
+  - **`playCheck`** plays the page **in game time** (`state().time`, never the wall clock):
+    - standing still, the hero is on the ground at all of 10 readings;
+    - a jump held 0.3 s takes off, rises ≥ 1 tile (from the game's own `rise`) and lands within 1.5 s;
+    - running right while holding jump 0.3 s at a time (a tap is a short hop by design) covers ≥ 3 tiles.
+  - **Why game time:** the check's software renderer (SwiftShader) draws about 10 frames a second. A reading between frames caught a 1.56-tile jump on the way down as 0.5, and a tapping bot could not climb a step a player would.
+  - `playCheck(url, {cpuThrottle})` slows the page through CDP `Emulation.setCPUThrottlingRate`; the test plays a page at 6× to reproduce a loaded machine.
+  - A failure removes the page.
+- **Interfaces:** table `games` (boot recovery behind `mayRecoverAtBoot`); routes `GET /api/games` (with `reach`, `physics`), `POST /api/games {request | file, plate?}` (202), `GET /api/games/:id`; fleet tools **`game.create`** (`ownsReply`) and `game.status`; chain step **`game`** (`prompt`, or `fromPicture: true`).
+- Tests: `test/platformer.test.js` (6): a real browser plays a page normally and at 6× CPU throttle, and the cramped first live picture level is replayed (held jumps climb its two-tile step).
+- **Measured 2026-11-14.** Specs were written on kvm2 (CPU) because the video studio held home's card.
+  - "A candy world at night with glowing lollipops" → Candy Night: purple night, maroon candy blocks, spikes; 70 s.
+  - The fox-knight picture with "a fox knight crossing a misty forest" → Misty Knight's Quest: 28 columns, the cut-out knight as hero, the painting as the level (its helmet and shoulders are ledges); 157 s. The fill plate was refused as too flat, so the subject came through `partial`.
+  - The first fox build failed its play check on a winnable level. That failure led to the three fixes above.
+  - **Theme limits:** the words path sets only the name, tagline and palette; nothing in the kit draws "glowing lollipops", and the treats are coins.
+- **Not done:**
+  - A bot that plays a level to the flag in the real game. Winnability rests on the search and the margin between `REACH` and `PHYS`.
+  - Enemies, moving platforms, sound.
+
 ### Memory search — agents recall by meaning, and the gain is a number (server/intelligence/memory-*.js) — 2026-11-11
 - **Why:** the first mechanism absorbed from gbrain (see the ranked list under the flat look). `recallMemories` was `key LIKE '%query%' OR value LIKE '%query%'`: a question in a sentence matched nothing. And `buildPromptContext(agentId, taskText)` **ignored its second argument** — every agent prompt carried its ten newest memories whatever the task was (the caller did not even pass the task).
 - **`memory-rank.js` (pure):** `ftsQuery` (every word quoted, so nothing typed is query syntax; all words, then any word), `rrfFuse` (k = 60), `fuse` = 0.7 · normalised RRF + 0.3 · cosine with near-duplicates dropped (word-set Jaccard > 0.85), and the measures: `precisionAt`, `recallAt`, `reciprocalRank`, `ndcgAt`, `hitAt`, `summarise`, and a seeded paired sign-flip test `signFlipP`.

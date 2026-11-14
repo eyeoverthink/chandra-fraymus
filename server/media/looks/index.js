@@ -46,7 +46,7 @@ function enqueue(kind, describe, work) {
   chain = chain.then(async () => {
     job.status = 'running'; job.stage = 'working';
     try { job.result = await work(job); job.status = 'done'; job.progress = 1; job.stage = 'done'; }
-    catch (e) { job.status = 'error'; job.error = clip(e.message, 400); console.error(`[looks] ${kind}:`, e.message); }
+    catch (e) { job.status = 'error'; job.error = clip(e.message, 400); job.partial = e.partial || null; console.error(`[looks] ${kind}:`, e.message); }
   });
   return job;
 }
@@ -370,7 +370,9 @@ export function startLayers({ file, dataBase64, ext, point = null, context = '',
     const paintedOn = painter.worker?.name || null;
     if (!check.ok) {
       writeFileSync(join(outDir, 'plate-refused.png'), await rawPng(plateImg.d, 3));
-      throw new Error(`the background plate failed its check: ${check.reason} (the subject layer ${subjectFile} was kept; the refused plate is in ${outDir})`);
+      // `partial`: what was made before the refusal, so a caller (a game) can still use the cut-out subject
+      throw Object.assign(new Error(`the background plate failed its check: ${check.reason} (the subject layer ${subjectFile} was kept; the refused plate is in ${outDir})`),
+        { partial: { subject: subjectFile, folder: outDir } });
     }
     const plateFile = `${Date.now()}-${job.id.slice(5)}-plate.png`;
     writeFileSync(join(MEDIA_DIR, plateFile), await rawPng(plateImg.d, 3));
@@ -419,7 +421,7 @@ export function startGenerate({ prompt, look = null, count = 1, format = '16:9',
   return job;
 }
 
-const view = j => ({ id: j.id, kind: j.kind, what: j.describe, status: j.status, stage: j.stage, progress: +j.progress.toFixed(2), result: j.result, error: j.error, notice: j.notice || null });
+const view = j => ({ id: j.id, kind: j.kind, what: j.describe, status: j.status, stage: j.stage, progress: +j.progress.toFixed(2), result: j.result, error: j.error, partial: j.partial || null, notice: j.notice || null });
 const started = (j, what) => ({ ...view(j), replyToUser: `${what} — not finished yet. It is job ${j.id}; it appears on the shelf when done${j.notice ? `. ${j.notice}` : ''}.` });
 
 export function createLooksTools() {
