@@ -8,6 +8,8 @@
  */
 import { readFileSync, copyFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { subjectMask, finishMask, alphaFromMask, morph, maskBox, fillHole, softMask, plateCheck, levelFromPicture, matteClarity, MIN_CLARITY, silhouetteScore, SILHOUETTE_MAX, boxHole, borderSpread, PLAIN_BORDER } from './layers.js';
+import { VECTOR_STYLES, VECTOR_STYLE_NAMES } from './vector.js';
+import { vectorImage, vectorVideo, MAX_VECTOR_SECONDS } from './vector-render.js';
 import { join, basename } from 'node:path';
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
@@ -230,6 +232,23 @@ export function startAvatar({ file, dataBase64, ext, prompt, model = null, look 
  *   level  — layers.levelFromPicture(plate)
  */
 /**
+ * Vector rotoscope: a picture or clip from the shelf traced into vector art (vector.js / vector-render.js) in one of
+ * VECTOR_STYLES — ink, cutout, comic, neon. A picture gives an SVG and a PNG of it; a clip gives a film drawn at
+ * 8 pictures a second with its own sound, and the SVG of every drawing in the job folder.
+ */
+export function startVector({ file, dataBase64, ext, style = 'cutout', detail = 1, maxSeconds, consent = false, realFace = false, source = 'api' }) {
+  if (!VECTOR_STYLES[style]) throw Object.assign(new Error(`unknown vector style: ${style}. Styles: ${VECTOR_STYLE_NAMES.join(', ')}`), { status: 400 });
+  if (realFace && consent !== true) throw Object.assign(new Error("a real person is only traced with that person's consent: pass consent: true once they agreed"), { status: 422, code: 'consent_required' });
+  const path = inputPath({ file, dataBase64, ext });
+  const det = Math.max(0.5, Math.min(2, Number(detail) || 1));
+  const label = VECTOR_STYLES[style].label;
+  return enqueue('vector', `${basename(path)} → ${label}`, job => (isVideo(path)
+    ? vectorVideo(path, { style, detail: det, maxSeconds, framesDir: join(DATA_DIR, 'creations', job.id, 'frames'), source: source === 'agent' ? 'agent' : 'looks',
+      onProgress: (p, n, t) => { job.progress = p; job.stage = `drawing ${n} of ${t}`; } })
+    : vectorImage(readFileSync(path), { style, detail: det, source: source === 'agent' ? 'agent' : 'looks' })));
+}
+
+/**
  * The picture the inpaint worker gets: the prefilled colours with the hole as transparency (ComfyUI repaints where
  * alpha is 0), at the painting size. Colour and mask are resized apart and joined: resizing RGBA premultiplies, so
  * every transparent pixel's colour became black — the prefill never reached the model, which then repainted dark
@@ -437,6 +456,12 @@ export function createLooksTools() {
         point: { type: 'array', items: { type: 'number' }, description: '[x, y] of the subject, each 0-1' }, plate: { type: 'string', enum: ['paint', 'fill'], description: 'paint (default) = repaint the hole on the card; fill = colours only' },
         consent: { type: 'boolean', description: 'The person in it agreed' }, realFace: { type: 'boolean', description: 'It shows a real person' } }, required: ['file'], additionalProperties: false },
       execute: async ({ args }) => started(startLayers({ ...args, source: 'agent' }), `Splitting ${args.file} into a subject, a background and a level`) },
+    { name: 'looks.vector', group: 'looks', risk: 'safe', ownsReply: true,
+      description: `Trace a picture or a video clip from the shelf into vector art (rotoscope): ${VECTOR_STYLE_NAMES.map(s => `${s} (${VECTOR_STYLES[s].about})`).join('; ')}. A picture gives an SVG you can scale or edit plus a PNG; a clip (at most ${MAX_VECTOR_SECONDS} s) gives a film drawn at 8 pictures a second with its own sound, and the SVG of every drawing. No model, runs on this PC. \`detail\` 0.5–2 (default 1: more = more lines). A real person needs consent: true. Returns a job id.`,
+      parameters: { type: 'object', properties: { file: str(160, 'Shelf file name of a picture or a video', { minLength: 3 }), style: { type: 'string', enum: [...VECTOR_STYLE_NAMES] },
+        detail: { type: 'number', minimum: 0.5, maximum: 2 }, maxSeconds: { type: 'integer', minimum: 1, maximum: MAX_VECTOR_SECONDS },
+        consent: { type: 'boolean', description: 'The person in it agreed' }, realFace: { type: 'boolean', description: 'It shows a real person' } }, required: ['file'], additionalProperties: false },
+      execute: async ({ args }) => started(startVector({ ...args, source: 'agent' }), `Tracing ${args.file} as ${VECTOR_STYLES[args.style || 'cutout']?.label || 'vector art'}`) },
     { name: 'looks.status', group: 'looks', risk: 'safe',
       description: 'Progress and result of a looks job (convert, animate, generate): status, stage and the files made.',
       parameters: { type: 'object', properties: { id: str(40, 'Job id', { minLength: 6 }) }, required: ['id'], additionalProperties: false },
@@ -446,11 +471,12 @@ export function createLooksTools() {
 
 export function installLooksRoutes(app) {
   const route = fn => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(e => (e.status ? res.status(e.status).json({ error: e.message, code: e.code }) : next(e)));
-  app.get('/api/looks', route((_req, res) => res.json({ looks: lookInfo(), recipes: RECIPE_NAMES.map(id => ({ id, label: RECIPES[id].label, aliases: RECIPES[id].aliases, finishedWith: RECIPES[id].post })), cameraMoves: CAMERA_MOVE_NAMES, jobs: [...jobs.values()].slice(-20).reverse().map(view) })));
+  app.get('/api/looks', route((_req, res) => res.json({ looks: lookInfo(), recipes: RECIPE_NAMES.map(id => ({ id, label: RECIPES[id].label, aliases: RECIPES[id].aliases, finishedWith: RECIPES[id].post })), cameraMoves: CAMERA_MOVE_NAMES, vectorStyles: VECTOR_STYLE_NAMES.map(id => ({ id, label: VECTOR_STYLES[id].label, about: VECTOR_STYLES[id].about })), jobs: [...jobs.values()].slice(-20).reverse().map(view) })));
   app.post('/api/looks/convert', route((req, res) => res.status(202).json(view(startConvert(req.body || {})))));
   app.post('/api/looks/animate', route((req, res) => res.status(202).json(view(startAnimate(req.body || {})))));
   app.post('/api/looks/avatar', route((req, res) => res.status(202).json(view(startAvatar(req.body || {})))));
   app.post('/api/looks/motion', route((req, res) => res.status(202).json(view(startMotion(req.body || {})))));
+  app.post('/api/looks/vector', route((req, res) => res.status(202).json(view(startVector(req.body || {})))));
   app.post('/api/looks/layers', route((req, res) => res.status(202).json(view(startLayers(req.body || {})))));
   app.post('/api/looks/generate', route((req, res) => res.status(202).json({ ...view(startGenerate(req.body || {})) })));
   app.get('/api/looks/jobs/:id', route((req, res) => { const j = lookJob(req.params.id); if (!j) return res.status(404).json({ error: 'no such job' }); res.json(view(j)); }));

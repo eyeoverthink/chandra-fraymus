@@ -423,8 +423,9 @@ function firstHeading(file, fallback) { try { const m = readFileSync(file, 'utf8
 
 // media the engines wrote: images (data/media, plus GIFs from the video engine), video (data/video), audio (data/tts)
 const MEDIA_DIRS = { image: [join(DATA_DIR, 'media'), join(DATA_DIR, 'video')], video: [join(DATA_DIR, 'video')], audio: [join(DATA_DIR, 'tts')] };
-const MEDIA_EXT = { image: /\.(png|jpe?g|webp|gif)$/i, video: /\.(mp4|webm|mov)$/i, audio: /\.(mp3|wav|ogg)$/i };
-const MEDIA_MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg' };
+// .svg: vector drawings from looks.vector (our own output, no scripts); served under a no-script policy all the same
+const MEDIA_EXT = { image: /\.(png|jpe?g|webp|gif|svg)$/i, video: /\.(mp4|webm|mov)$/i, audio: /\.(mp3|wav|ogg)$/i };
+const MEDIA_MIME = { '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg' };
 const UNFILTERED_AUDIO_CAP = 2; // the narrator speaks every few minutes; unfiltered, audio would bury everything else
 const stamp = name => { const m = /^(\d{13})-/.exec(name); return m ? Number(m[1]) : 0; }; // engines name files <epoch ms>-<id>.<ext>
 const when = ms => new Date(ms).toISOString().slice(0, 16).replace('T', ' ');
@@ -510,7 +511,7 @@ export function installHermesRoutes(app, { express } = {}) {
   app.get('/api/hermes/brief', route((req, res) => res.json(morningBrief())));
   app.get('/api/hermes/artifacts', route((req, res) => res.json(listArtifacts({ q: typeof req.query.q === 'string' ? req.query.q : '', limit: Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 24)), kind: ['site', 'wiki', 'client', 'report', 'draft', 'image', 'video', 'audio'].includes(req.query.kind) ? req.query.kind : null }))));
   // media bytes go through /api so the dev proxy and the built client both reach them same-origin
-  app.get('/api/hermes/artifacts/media', (req, res, next) => { try { const f = mediaFile(String(req.query.kind || ''), String(req.query.id || '')); if (!f) return res.status(404).json({ error: 'media not found' }); res.setHeader('Content-Type', f.mime); res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Cache-Control', 'private, max-age=3600'); res.sendFile(f.path, err => { if (err && !res.headersSent) next(err); }); } catch (e) { next(e); } });
+  app.get('/api/hermes/artifacts/media', (req, res, next) => { try { const f = mediaFile(String(req.query.kind || ''), String(req.query.id || '')); if (!f) return res.status(404).json({ error: 'media not found' }); res.setHeader('Content-Type', f.mime); res.setHeader('X-Content-Type-Options', 'nosniff'); if (f.mime === 'image/svg+xml') res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox"); res.setHeader('Cache-Control', 'private, max-age=3600'); res.sendFile(f.path, err => { if (err && !res.headersSent) next(err); }); } catch (e) { next(e); } });
   app.get('/api/hermes/artifacts/read', route((req, res) => { const a = readArtifact(String(req.query.kind || ''), String(req.query.id || '')); return a ? res.json(a) : res.status(404).json({ error: 'artifact not found' }); }));
   app.get('/api/hermes/sites', route((req, res) => { let sites = []; try { sites = readdirSync(SITES_DIR, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => ({ slug: d.name, url: `/sites/${d.name}/` })); } catch (_) { /* no sites yet */ } res.json({ sites }); }));
   // operator call of a safe tool; approval-labelled tools only run through an agent's approval flow

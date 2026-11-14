@@ -429,6 +429,39 @@ npm run start        # production server (serves built client)
   - An agent calling `looks.layers` in plain words.
   - Inpainting with a real inpainting model (none on disk; SDXL base varies by seed).
 
+### Vector rotoscope — pictures and clips traced into SVG (server/media/looks/vector.js + vector-render.js) — 2026-11-14
+- **Why:** gap 3 in `docs/NEXUS-ENGINE-CREATION-METHODS.md`, Nexus's RotoscopeStudio (method 14). It thresholded a luma gradient and followed 8-direction chains, which marks *both* sides of every edge, giving thick, doubled lines. The existing `rotoscope` look in filters.js is raster. This one is real vector output: scalable, editable, a few tens of KB.
+- **`vector.js` (pure):**
+  - **Ink:** `canny()` = two box blurs (≈ Gaussian), Sobel, non-maximum suppression (one-pixel edges), and hysteresis at fractions of the strongest gradient (low 0.07, high 0.18), so one setting works on dark and bright pictures. `traceEdges()` follows chains from endpoints first, keeps going in the direction closest to the current heading, and drops chains shorter than ~1/90 of the long side. `rdp()` (Ramer–Douglas–Peucker) simplifies, and `smoothPath()` draws quadratic curves through the midpoints. A line's width follows its edge strength.
+  - **Fills:** `kmeansPalette` → `labelMap` (3×3 majority filter twice) → `mergeSmall` (regions under long²/2500 px join their surroundings) → `contours()`. That is marching squares on pixel centres, with the case table oriented so the inside is always on the same side (checked by hand for all 16 cases), so segments link into closed loops; saddles are joined. Regions are drawn largest first over a rect of the commonest colour, so no gap can show. Points on the frame edge are snapped outside it, otherwise smoothing rounded the corners off.
+  - **`VECTOR_STYLES`:**
+    - `ink`: lines on paper.
+    - `cutout`: 6 muted flat colours and thin ink (Waltz-with-Bashir-like).
+    - `comic`: 5 saturated flats and heavy black ink.
+    - `neon`: each line in the colour of the picture under it, drawn twice (wide and faint, then thin) as a glow, since SVG filters are not relied on in Skia.
+  - **`vectorize(img, {style, work 640, palette, detail 0.5–2, outW, outH})`:** width/height = the drawing size and viewBox = the working grid, so the renderer rasterises sharp.
+  - **`vectorFidelity`:** `colourError` = mean difference on 48-px copies, which separates the styles. `edgeRecall` is reported but is **lenient (≈ 0.6–1.0 for everything)**, so it is not a gate.
+- **`vector-render.js`:** Skia (`@napi-rs/canvas`, as in the flat films) renders.
+  - **A picture:** SVG + PNG on the shelf (op `vector`; the SVG's provenance names its PNG).
+  - **A clip:** decoded at **8 drawings a second, held on threes** at 24 fps. One palette from the first frame for the whole clip, so colours do not flicker; the moving lines are the look. Every drawing's SVG goes to `data/creations/<job>/frames/`, and the film keeps the clip's sound. At most `LOOKS_MAX_VECTOR_SECONDS` (30).
+  - **Check:** something was drawn; filled styles must keep `colourError ≤ MAX_COLOUR_ERROR` (45; measured 9–38). A clip is checked on its first frame.
+- **Interfaces:**
+  - `startVector({file | dataBase64+ext, style, detail, maxSeconds, consent, realFace})`, route `POST /api/looks/vector` (202).
+  - Fleet tool **`looks.vector`** (`ownsReply`), `vectorStyles` in `GET /api/looks`.
+  - Chain step **`vector`** (needs a picture; passes on its PNG, SVG beside it).
+  - **The shelf now lists and serves `.svg`** (`image/svg+xml`, under `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox`). The drawings contain no script (tested), and the policy holds for any SVG anyway.
+- **Measured 2026-11-14 (this PC, CPU, no model):**
+  - Vectorizing takes 60–600 ms a picture, rendering under 230 ms. SVGs are 20–200 KB.
+  - Fox knight in comic style: 2.0 s, 80 KB, colour error 14.5.
+  - Robot in ink: 1.3 s.
+  - The 3 s girl-and-cat motion clip in cutout style: 24 drawings in 14 s, 72 KB of SVG each. By eye it reads as rotoscope animation: the tail and hair move, the colours hold.
+  - Busy scenes in ink become many small loops; use `detail` < 1 for fewer.
+- Tests: `test/vector-roto.test.js` (7: one-pixel edges, RDP, square and ring outlines, speckle merge, all styles parse with no script and fills keep colours, the clip palette is reused, the chain step).
+- **Not verified:**
+  - An agent calling `looks.vector` in plain words. The live attempt sat queued because fraymus-home's card was held by the video studio's own render and agent calls fell to this PC.
+  - Clips with sound.
+  - A 30 s clip (time scales roughly 0.6 s per drawing).
+
 ### Memory search — agents recall by meaning, and the gain is a number (server/intelligence/memory-*.js) — 2026-11-11
 - **Why:** the first mechanism absorbed from gbrain (see the ranked list under the flat look). `recallMemories` was `key LIKE '%query%' OR value LIKE '%query%'`: a question in a sentence matched nothing. And `buildPromptContext(agentId, taskText)` **ignored its second argument** — every agent prompt carried its ten newest memories whatever the task was (the caller did not even pass the task).
 - **`memory-rank.js` (pure):** `ftsQuery` (every word quoted, so nothing typed is query syntax; all words, then any word), `rrfFuse` (k = 60), `fuse` = 0.7 · normalised RRF + 0.3 · cosine with near-duplicates dropped (word-set Jaccard > 0.85), and the measures: `precisionAt`, `recallAt`, `reciprocalRank`, `ndcgAt`, `hitAt`, `summarise`, and a seeded paired sign-flip test `signFlipP`.

@@ -106,7 +106,7 @@ Ranked by value for the least new machinery. Each line names the offline equival
    - Background removal: corner flood fill first (their algorithm, pure, no model), with a segmentation model only if needed.
    - Clean backdrop: SDXL inpainting on fraymus-home, masked by the cutout.
    - *Check:* the cutout's alpha covers the subject, and the backdrop shows no part of the subject.
-3. **Vector rotoscope** (#14). Edge trace → paths → SVG per frame, in pure code. Chandra's raster rotoscope stays as a look; this adds an editable vector output.
+3. **Built 2026-11-14** (`server/media/looks/vector.js`, `looks.vector`; see CLAUDE.md "Vector rotoscope"). **Vector rotoscope** (#14). Edge trace → paths → SVG per frame, in pure code. Chandra's raster rotoscope stays as a look; this adds an editable vector output.
 4. **Shape-morph explainers** (#13). Resample every flat prop to N points and morph between keyframes. This adds Kurzgesagt's signature transitions (a cell becomes a planet) to the flat look. Add the WCAG contrast rule to the flat renderer's colour choices.
 5. **Map → walkable world** (#8, #20). The pool model + Wikipedia grounding write the world JSON (the same schema). A page-kit component `ChandraTerrain` (height grid, palette, landmark meshes, fly controls) renders it. *Check:* the page must run and move in the page builder's browser test.
 6. **Platformer page kit** (#17, #18). A `ChandraPlatformer` component that takes a tile grid + sprites, so "make a game from this picture" becomes method 2 → 17 → page builder.

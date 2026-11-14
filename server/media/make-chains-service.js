@@ -15,7 +15,7 @@ import { mayRecoverAtBoot } from '../config.js';
 import { publish } from '../fleet/bus.js';
 import { chatOllama } from '../commerce/shared.js';
 import { createChainRunner, STEP_KINDS, STEP_KIND_NAMES, MAX_STEPS, MAKE_AS, spokenText, BUILTIN_CHAINS } from './make-chains.js';
-import { lookJob, startGenerate, startConvert, startAnimate, startMotion, startAvatar, startLayers } from './looks/index.js';
+import { lookJob, startGenerate, startConvert, startAnimate, startMotion, startAvatar, startLayers, startVector } from './looks/index.js';
 import { createFromRequest, getCreation } from './make.js';
 import { voiceLine } from '../intelligence/narrator.js';
 
@@ -83,6 +83,10 @@ export const ADAPTERS = {
   async avatar(step, r, ctx, report) {
     const res = await waitLook(startAvatar({ file: ctx.previousFile.file, look: step.look || null, seconds: step.seconds || 6, format: step.format || '1:1', source: source(ctx) }), report);
     return { file: fileFrom(res.film, 'video'), detail: { model: res.model, still: res.still } };
+  },
+  async vector(step, r, ctx, report) {
+    const res = await waitLook(startVector({ file: ctx.previousFile.file, style: step.style || 'cutout', detail: step.detail, source: source(ctx) }), report);
+    return { file: fileFrom(res.file, 'image'), detail: { svg: res.svg, style: res.label, lines: res.stats?.lines, check: res.check } };
   },
   async layers(step, r, ctx, report) {
     const res = await waitLook(startLayers({ file: ctx.previousFile.file, context: clip(r.context || '', 300), plate: step.plate === 'fill' ? 'fill' : 'paint', source: source(ctx) }), report);
