@@ -15,7 +15,8 @@ import { mayRecoverAtBoot } from '../config.js';
 import { publish } from '../fleet/bus.js';
 import { chatOllama } from '../commerce/shared.js';
 import { createChainRunner, STEP_KINDS, STEP_KIND_NAMES, MAX_STEPS, MAKE_AS, spokenText, BUILTIN_CHAINS } from './make-chains.js';
-import { lookJob, startGenerate, startConvert, startAnimate, startMotion, startAvatar, startLayers, startVector } from './looks/index.js';
+import { lookJob, startGenerate, startConvert, startAnimate, startMotion, startAvatar, startLayers, startVector, startExtend } from './looks/index.js';
+import { startEpisode, getEpisode } from './episode-builder.js';
 import { createFromRequest, getCreation } from './make.js';
 import { voiceLine } from '../intelligence/narrator.js';
 import { startWorld, getWorld } from './world-builder.js';
@@ -114,6 +115,22 @@ export const ADAPTERS = {
     const res = await waitLook(startLayers({ file: ctx.previousFile.file, context: clip(r.context || '', 300), plate: step.plate === 'fill' ? 'fill' : 'paint', source: source(ctx) }), report);
     const keep = step.keep === 'subject' ? res.subject : res.plate;
     return { file: fileFrom(keep, 'image'), detail: { subject: res.subject, plate: res.plate, matte: res.matte, plateBy: res.plateBy, level: res.level?.tiles } };
+  },
+  async extend(step, r, ctx, report) {
+    const res = await waitLook(startExtend({ file: ctx.previousFile.file, prompt: clip(r.prompt, 600), seconds: step.seconds || 3, source: source(ctx) }), report);
+    return { file: fileFrom(res.file, 'video'), detail: { added: res.added, seconds: res.seconds, seam: res.seam?.seam, paintedOn: res.paintedOn } };
+  },
+  async episode(step, r, ctx, report) {
+    const premise = clip(r.prompt || ctx.previousSummary || '', 600);
+    if (premise.length < 10) throw new Error('an episode step needs a premise (prompt) or a running summary before it');
+    report('episode: outlining');
+    const started = startEpisode({ premise, acts: step.acts || 3, secondsPerAct: step.secondsPerAct || 20, style: step.style || 'flat', format: step.format || '16:9', source: source(ctx) });
+    await started.done;
+    const ep = getEpisode(started.id);
+    if (ep.status !== 'completed') throw new Error(`episode: ${ep.error || ep.status}`);
+    // the acts' narration is the story so far for any later step
+    const said = (ep.acts || []).flatMap(a => (a.shots || []).map(s => s.say)).join(' ');
+    return { file: fileFrom(ep.file, 'video'), summary: said ? clip(said, 3000) : null, detail: { episode: ep.id, title: ep.outline?.title, acts: ep.acts.length, seconds: ep.check?.seconds } };
   },
   async make(step, r, ctx, report) {
     const asKind = step.as === 'still' ? 'still' : step.as === 'page' ? 'page' : step.as === 'video' ? 'video' : undefined;

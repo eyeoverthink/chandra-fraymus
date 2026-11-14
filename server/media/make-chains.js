@@ -34,6 +34,8 @@ export const STEP_KINDS = {
   layers:  { needs: 'image', gives: 'image', fields: ['context'], required: [],                 about: 'split the newest picture into its subject (transparent cutout) and the background with the subject removed; `keep` (subject | plate, default plate) says which is passed on' },
   make:    { needs: null,    gives: 'any',   fields: ['prompt'],  required: ['prompt'],         about: 'Make from a sentence: a film in any wired look, a still, comic pages or a web page' },
   voice:   { needs: null,    gives: 'audio', fields: ['text'],    required: [],                 about: "say the text (default: the running summary) in Vaughn's voice" },
+  extend:  { needs: 'video', gives: 'video', fields: ['prompt'],  required: ['prompt'],         about: 'continue the newest clip from its last frame with Wan 2.2 (what happens next); kept only if the join reads as a continuation' },
+  episode: { needs: null,    gives: 'video', fields: ['prompt'],  required: [],                 about: 'a multi-act flat (or stick) episode from a premise (`prompt`, default the running summary); `acts` 3–8, `secondsPerAct`' },
 };
 export const STEP_KIND_NAMES = Object.keys(STEP_KINDS);
 /** What a make step produces, by its "as" field (Make's own kinds). */

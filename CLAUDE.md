@@ -560,6 +560,44 @@ npm run start        # production server (serves built client)
   - A bot that plays a level to the flag in the real game. Winnability rests on the search and the margin between `REACH` and `PHYS`.
   - Enemies, moving platforms, sound.
 
+### Episodes and continuation — multi-act films, and clips that go on (server/media/episode-plan.js + episode-builder.js; looks extend) — 2026-11-14
+- **Why:** gap 7 in `docs/NEXUS-ENGINE-CREATION-METHODS.md`. Nexus `/api/cartoon/episode` wrote a premise into 3–8 sections in one paid call and never checked them. Nexus video `previousInteractionId` started a clip where the last one ended.
+- **`episode-plan.js` (pure):**
+  - `outlineMessages` / **`checkOutline`**: title, logline, cast from the recurring flat cast (the lead `nilo` is always added), 3–8 acts each with a 12–40-word beat and a kit place (`placeFor`). It refuses, with the reason: the wrong act count, fewer than two cast members, a beat under 8 words, or two beats with content-word Jaccard ≥ `SAME_BEAT` 0.6. Extra acts are cut *before* the last so the ending survives.
+  - **`actContext(outline, k, earlier)`**: an act's beat, the last two lines of the act before (`previously`), the next act's beat, the cast, and every line already said.
+  - **`actBrief`**: the act's brief for the writer (act k of n; begin right after the previous act's end; stop before the next beat; only the last act resolves).
+  - **`checkActNarration`** = **rule 18** in the flat checker (`normalizeFlat`, only when `plan.episode`). An act must share content words with its beat (⌈beat/5⌉, 1–3) and repeat no earlier act's line (Jaccard ≥ 0.6). Rule 18 is reported *first* among failures, because fixing props or length is pointless while an act tells the wrong story. It is never repaired in final mode.
+  - `topicalPick`.
+- **`episode-builder.js`:**
+  - Facts are looked up **once** for the premise (`groundFacts`), and every act gets them; `makeFlat` skips its own lookup for an act.
+  - Outline: ≤ 3 attempts with the reason fed back.
+  - **Each act is a normal Make job** (`createFromRequest({…, episode: ctx})`; Make refuses non-vector looks for an episode). So each act also passes Make's 17 plan rules and 11 film checks or is not on the shelf. A failed act is tried once more.
+  - The rolling summary is read from the act's `shots.json`.
+  - **`assemble()`**: an episode card (3 s) and an act card (1.6 s) per act, drawn by Skia in the flat font. Every segment is re-encoded to one size, 30 fps, AAC 48 kHz stereo, then joined by the concat demuxer.
+  - **`checkEpisode`**: opens, has picture and sound, every act present, and length = sum of the parts ± `LENGTH_TOLERANCE` 1.5 s.
+  - Table `episodes` (boot recovery behind `mayRecoverAtBoot`); at most 2 open at once. The record is `data/creations/<ep-id>/episode.json`, with outline, acts, parts and check. On the shelf as op `episode`.
+- **Topical premise (no premise given):** `topicalPick` takes the newest `world_observations` web find that can hold a story, never reused. **The poller's finds are search results for Chandra's interests, not news headlines.** On the day: "Gartner hype cycle – Wikipedia", a Shutterstock page, "18 Easy Ways to…". So `NOT_A_STORY` skips reference, stock, how-to, list and login pages, and nothing calls it a headline. The page's snippet is the facts.
+- **Continuation — `startExtend({file, prompt, seconds 1–5})`** in `looks/index.js` (tool **`looks.extend`**, route `POST /api/looks/extend`, chain step **`extend`**):
+  - The clip's **last frame** (`lastFramePng`) is Wan 2.2's start picture on the worker (same i2v kind, card lock and agent cap as `motion`).
+  - **`fitExtension`** drops the model's first frame (that is the start picture again, so no frame shows twice) and matches the source's size and frame rate.
+  - **`joinContinuation`** keeps the source's sound and gives the extension silence.
+  - **The seam is measured** (`seamScore`: grey difference between the last frame and the first new one, against the median neighbour difference in the 12 frames each side). It passes when seam ≤ max(3 × ref, ref + 6); otherwise the job fails as "reads as a cut".
+  - Tested with ffmpeg sources: a true continuation of one test pattern passes and a cut to another fails, the cut jumping > 3× more.
+- **Chain step `episode`:** a premise from `prompt` or the running summary; the acts' narration becomes the summary.
+- **Measured 2026-11-14:**
+  - **"Nilo, a young lighthouse keeper… storm… fishing boat"**, 3 acts × 20 s: *The Lighthouse Keeper's Storm*, 69.6 s, 4.7 min end to end (writer qwen3:14b on fraymus-home, CPU render here). Every act passed rule 18 and 11/11 film checks first time; length 69.62 measured against 69.61 expected.
+    - **The hand-off works:** act 2 ends "The generator lies buried deep in the basement", act 3 opens "Nilo finds the old generator in the basement", and no act reintroduces the cast.
+    - What is wrong is the flat kit's vocabulary: no storm weather (a "storm hits the lighthouse" shot is a sunny field), no lighthouse prop (drawn as the radio tower), and the ocean setting is underwater.
+  - **Topical, stick look**, 3 acts × 18 s, no premise given: the newest web find that holds a story was a ScienceDirect article on when people accept or reject AI suggestions. It became *The Balance* (Nilo learns to weigh the AI against his own judgment): 58.4 s, 3.6 min, every act first try, faithful to the snippet. The search result's cut-off title ("…: The ...") reached the premise, so `topicalPick` now trims it. A "broken bridge" has no prop and is drawn as a brown blob.
+  - **Continuation of the 3 s girl-and-cat Wan clip** ("the girl strokes the cat, the cat looks up"): 3.04 → 6.04 s, 120 s on fraymus-home. The join is invisible by eye, and the new seconds do what was asked. Seam 1.51 against a normal step of 0.18: the ratio alone (8×) would have refused a calm clip, which is why the absolute slack exists. The 1.5 is a faint VAE colour shift.
+- Tests: `test/episodes.test.js` (7: outline checks and refusals, act context and brief, rule 18 alone and inside the real flat checker, topical filter on the real stored titles, cards drawn and a real join of clips in another size/rate equal to the sum of its parts) and `test/continuation.test.js` (2).
+- **Not done:**
+  - Studio looks (8-bit, cartoon, comic) as episodes: their cast is forged per film and would need to be fixed across acts.
+  - A second voice.
+  - Music between acts.
+  - Extending a clip more than once in one job.
+  - Continuing a flat film (its last frame is vector art Wan would repaint).
+
 ### Memory search — agents recall by meaning, and the gain is a number (server/intelligence/memory-*.js) — 2026-11-11
 - **Why:** the first mechanism absorbed from gbrain (see the ranked list under the flat look). `recallMemories` was `key LIKE '%query%' OR value LIKE '%query%'`: a question in a sentence matched nothing. And `buildPromptContext(agentId, taskText)` **ignored its second argument** — every agent prompt carried its ten newest memories whatever the task was (the caller did not even pass the task).
 - **`memory-rank.js` (pure):** `ftsQuery` (every word quoted, so nothing typed is query syntax; all words, then any word), `rrfFuse` (k = 60), `fuse` = 0.7 · normalised RRF + 0.3 · cosine with near-duplicates dropped (word-set Jaccard > 0.85), and the measures: `precisionAt`, `recallAt`, `reciprocalRank`, `ndcgAt`, `hitAt`, `summarise`, and a seeded paired sign-flip test `signFlipP`.

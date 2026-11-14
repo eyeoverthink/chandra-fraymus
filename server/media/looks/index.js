@@ -14,7 +14,8 @@ import { join, basename } from 'node:path';
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 import { DATA_DIR } from '../../config.js';
-import { LOOKS, LOOK_NAMES, lookInfo, convertImage, convertVideo, animateStill, CAMERA_MOVE_NAMES, shelfFile, saveUpload, coverPng, measureMotion, shelveClip, MOTION_MIN, containPng, turntableVideo } from './convert.js';
+import { LOOKS, LOOK_NAMES, lookInfo, convertImage, convertVideo, animateStill, CAMERA_MOVE_NAMES, shelfFile, saveUpload, coverPng, measureMotion, shelveClip, MOTION_MIN, containPng, turntableVideo,
+  probe, frameRate, lastFramePng, fitExtension, joinContinuation, greyEnds, seamScore, SEAM } from './convert.js';
 import { parseGlb, normalize, renderMesh, pictureSampler, coverage } from './mesh3d.js';
 import { image as rgbImage } from './filters.js';
 import { RECIPES, RECIPE_NAMES, recipeFor, cleanSubject, recipePrompt, animeTagsMessages, checkTags, taggedPrompt, taggedNegative } from './recipes.js';
@@ -131,6 +132,61 @@ export function startMotion({ file, dataBase64, ext, prompt, seconds = 2, format
     if (look) { job.stage = `finishing in ${LOOKS[look].label}`; styled = await convertVideo(join(DATA_DIR, 'video', made), { look, source: 'looks', note: `${LOOKS[look].label}: ${what}` }); }
     return { file: styled?.file || made, motion: made, styled: styled?.file || null, look, seconds: +(detail.frames / 24).toFixed(2), frames: detail.frames, size: [w, h], seed: detail.seed, steps: detail.steps,
       generateSeconds: detail.generateSeconds, workerSeconds: r.seconds, paintedOn: picked.worker.name, movement: motion, camera: asked.camera, unloaded: detail.unloaded || [] };
+  });
+}
+
+/** Wan's frame size nearest a clip's shape. */
+const motionSizeFor = (w, h) => { const a = w / h; return a > 1.2 ? MOTION_SIZES['16:9'] : a < 0.83 ? MOTION_SIZES['9:16'] : MOTION_SIZES['1:1']; };
+
+/**
+ * Continue a clip: its last frame is Wan 2.2's start picture, so the new seconds begin exactly where the clip ended
+ * (gap 7's second half, Nexus "previousInteractionId"). The extension is fitted to the clip (first frame dropped, same
+ * size and frame rate) and joined; the joined clip is kept only when the seam measures as a continuation
+ * (seamScore), not a cut. Same worker, card lock and agent cap as `motion`.
+ */
+export function startExtend({ file, prompt, seconds = 3, steps, seed, consent = false, realFace = false, source = 'api' }) {
+  const what = String(prompt || '').trim();
+  if (what.length < 3) throw Object.assign(new Error('say what happens next (prompt)'), { status: 400 });
+  if (realFace && consent !== true) throw Object.assign(new Error("a real person's face is only animated with that person's consent: pass consent: true once they agreed"), { status: 422, code: 'consent_required' });
+  const path = shelfFile(file);
+  if (!isVideo(path)) throw Object.assign(new Error('extend continues a video clip; to bring a still to life use motion'), { status: 400 });
+  if (source === 'agent') {
+    const dayAgo = Date.now() - 86_400_000;
+    while (agentMotionAt.length && agentMotionAt[0] < dayAgo) agentMotionAt.shift();
+    if (agentMotionAt.length >= AGENT_MOTION_PER_DAY) throw Object.assign(new Error(`agents have started ${AGENT_MOTION_PER_DAY} motion clips in the last 24 hours; try again later or ask a person to start one`), { status: 429 });
+    agentMotionAt.push(Date.now());
+  }
+  const secs = Math.max(1, Math.min(5, Number(seconds) || 3));
+  return enqueue('extend', `${basename(path)} goes on: ${clip(what, 80)}`, async job => {
+    const info = await probe(path), fps = await frameRate(path), [w, h] = motionSizeFor(info.w, info.h);
+    const picked = await pickWorker('i2v');
+    if (!picked.worker) throw new Error(`no machine can animate right now (${picked.why}); this PC's 8 GB card cannot hold Wan 2.2 5B`);
+    const outDir = join(DATA_DIR, 'creations', job.id); mkdirSync(outDir, { recursive: true });
+    job.stage = 'taking the last frame';
+    const last = await lastFramePng(path, join(outDir, 'last-frame.png'));
+    const start = await coverPng(last, w, h, { realFace, consent });
+    const asked = motionPrompts(what);
+    job.stage = `${picked.worker.name}: sending the last frame`;
+    const r = await runOnWorker(picked.worker, { id: `${job.id}-i2v`, kind: 'i2v', spec: { prompt: asked.prompt, negative: asked.negative, seconds: secs, width: w, height: h, ...(steps ? { steps: Number(steps) } : {}), ...(Number.isInteger(seed) ? { seed } : {}) }, files: { 'start.png': start }, purpose: `continuation: ${clip(what, 120)}` },
+      { outDir, onProgress: (s, p) => { job.stage = `${picked.worker.name}: ${s}`; job.progress = Math.min(0.85, Number(p) || 0); }, timeoutMs: 2_400_000 });
+    const out = r.outputs.find(o => o.name === 'clip.mp4');
+    if (!out) throw new Error('the worker finished without a clip');
+    const motion = await measureMotion(out.path);
+    if (motion.overall < MOTION_MIN) throw new Error(`the continuation barely moves (difference ${motion.overall} of at least ${MOTION_MIN}); not joined. It is in ${outDir}`);
+    job.stage = 'fitting and joining';
+    const fitted = join(outDir, 'extension-fitted.mp4'), joined = join(outDir, 'joined.mp4');
+    await fitExtension(out.path, fitted, { w: info.w, h: info.h, fps });
+    const extSeconds = (await probe(fitted)).seconds;
+    // the seam, measured on the very frames that meet: the source's last frames and the fitted extension's first
+    const [a, b] = [await greyEnds(path), await greyEnds(fitted)];
+    const seam = seamScore(a.tail, b.head);
+    if (!seam.ok) throw new Error(`the join reads as a cut, not a continuation (the picture jumps ${seam.seam} at the seam; frames normally change by ${seam.ref}, limit ${seam.limit}); not put on the shelf. It is in ${outDir}`);
+    await joinContinuation(path, fitted, joined, { audio: info.audio, extSeconds });
+    const total = (await probe(joined)).seconds;
+    const detail = r.receipt.detail || {};
+    const made = shelveClip(readFileSync(joined), { op: 'extend', note: what, params: { from: basename(path), engine: detail.engine || 'wan2.2-ti2v-5b', added: +extSeconds.toFixed(2), total: +total.toFixed(2), seed: detail.seed, steps: detail.steps, seam, paintedOn: picked.worker.name, camera: asked.camera }, source: source === 'agent' ? 'agent' : 'looks' });
+    return { file: made, from: basename(path), seconds: +total.toFixed(2), added: +extSeconds.toFixed(2), originalSeconds: +info.seconds.toFixed(2), seam, movement: motion, seed: detail.seed, steps: detail.steps,
+      generateSeconds: detail.generateSeconds, workerSeconds: r.seconds, paintedOn: picked.worker.name, camera: asked.camera, keptSound: info.audio, folder: outDir };
   });
 }
 
@@ -444,6 +500,10 @@ export function createLooksTools() {
       description: 'Bring a still picture from the shelf to life: Wan 2.2 animates what is in it (a character turns, water flows, hair moves) for 1–5 s, optionally finished in a look. Runs on fraymus-home\'s card and takes a few minutes. For a camera move over a still use looks.animate instead. A real person\'s face needs consent: true. Returns a job id.',
       parameters: { type: 'object', properties: { file: str(160, 'Shelf file name of a picture', { minLength: 3 }), prompt: str(600, 'What moves and how, in plain words', { minLength: 3 }), seconds: { type: 'integer', minimum: 1, maximum: 5 }, format: { type: 'string', enum: ['16:9', '9:16', '1:1'] }, look: lookEnum, consent: { type: 'boolean', description: 'The person in it agreed' }, realFace: { type: 'boolean', description: 'It shows a real person' } }, required: ['file', 'prompt'], additionalProperties: false },
       execute: async ({ args }) => started(startMotion({ ...args, source: 'agent' }), `Bringing ${args.file} to life`) },
+    { name: 'looks.extend', group: 'looks', risk: 'safe', ownsReply: true,
+      description: 'Continue a video clip from the shelf: its last frame is the start of 1–5 new seconds made by Wan 2.2 (say what happens next), and the two are joined into one longer clip. The join is measured and kept only if it reads as a continuation, not a cut. Runs on fraymus-home\'s card and takes a few minutes. Returns a job id.',
+      parameters: { type: 'object', properties: { file: str(160, 'Shelf file name of a video clip', { minLength: 3 }), prompt: str(600, 'What happens next, in plain words', { minLength: 3 }), seconds: { type: 'integer', minimum: 1, maximum: 5 }, consent: { type: 'boolean', description: 'The person in it agreed' }, realFace: { type: 'boolean', description: 'It shows a real person' } }, required: ['file', 'prompt'], additionalProperties: false },
+      execute: async ({ args }) => started(startExtend({ ...args, source: 'agent' }), `Continuing ${args.file}`) },
     { name: 'looks.avatar', group: 'looks', risk: 'safe', ownsReply: true,
       description: 'Make a 3-D model (avatar) of a character: from a shelf picture, or from a description painted first as a full-body character. Hunyuan3D on fraymus-home makes the .glb; Chandra then films it turning around, optionally in a look (ascii, 8bit, 2bit, brick, woodblock, comic-hybrid…). A real person needs consent: true. Takes a few minutes. Returns a job id.',
       parameters: { type: 'object', properties: { file: str(160, 'Shelf file name of a picture of the character'), prompt: str(600, 'Or: describe the character'), model: str(160, 'Or: a .glb already on the shelf, to film again in another look (no GPU)'), look: lookEnum, colour: { type: 'string', enum: ['picture', 'clay'] }, seconds: { type: 'integer', minimum: 2, maximum: 12 }, format: { type: 'string', enum: ['16:9', '9:16', '1:1'] }, consent: { type: 'boolean', description: 'The person in it agreed' }, realFace: { type: 'boolean', description: 'It shows a real person' } }, additionalProperties: false },
@@ -478,6 +538,7 @@ export function installLooksRoutes(app) {
   app.post('/api/looks/animate', route((req, res) => res.status(202).json(view(startAnimate(req.body || {})))));
   app.post('/api/looks/avatar', route((req, res) => res.status(202).json(view(startAvatar(req.body || {})))));
   app.post('/api/looks/motion', route((req, res) => res.status(202).json(view(startMotion(req.body || {})))));
+  app.post('/api/looks/extend', route((req, res) => res.status(202).json(view(startExtend(req.body || {})))));
   app.post('/api/looks/vector', route((req, res) => res.status(202).json(view(startVector(req.body || {})))));
   app.post('/api/looks/layers', route((req, res) => res.status(202).json(view(startLayers(req.body || {})))));
   app.post('/api/looks/generate', route((req, res) => res.status(202).json({ ...view(startGenerate(req.body || {})) })));

@@ -16,7 +16,7 @@
  */
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { mkdirSync, statSync, existsSync, writeFileSync } from 'node:fs';
+import { mkdirSync, statSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { DATA_DIR } from '../../config.js';
@@ -284,6 +284,64 @@ export async function measureMotion(path) {
   const scene = shifts.reduce((s, b) => s + b.diff, 0) / shifts.length, last = shifts[shifts.length - 1];
   return { overall: +overall.toFixed(2), step: +step.toFixed(2), scene: +scene.toFixed(2),
     drift: { x: +(100 * last.dx / w).toFixed(1), y: +(100 * last.dy / h).toFixed(1) }, frames: n };
+}
+
+// ── continuation: a clip that goes on from where another ended ─────────────────────────────────────────
+
+/**
+ * A continuation is judged at its seam. `seam` is the mean grey difference (0–255, 96 px copies) between the last frame
+ * of the first clip and the first frame of the second; `ref` is the median difference between neighbouring frames
+ * within the last and first SEAM.frames of the two clips — how much the picture normally changes from one frame to
+ * the next. The join is a continuation when seam ≤ max(ratio × ref, ref + slack); a cut to another shot scores far
+ * above that (a cut between two unrelated test pictures measures dozens).
+ */
+export const SEAM = Object.freeze({ ratio: 3, slack: 6, frames: 12 });
+const greyDiff = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]); return s / a.length; };
+export function seamScore(tailA, headB) {
+  if (!tailA.length || !headB.length) return { seam: null, ref: null, limit: null, ok: false };
+  const steps = [];
+  for (let i = 1; i < tailA.length; i++) steps.push(greyDiff(tailA[i - 1], tailA[i]));
+  for (let i = 1; i < headB.length; i++) steps.push(greyDiff(headB[i - 1], headB[i]));
+  steps.sort((x, y) => x - y);
+  const ref = steps.length ? steps[Math.floor(steps.length / 2)] : 0, seam = greyDiff(tailA[tailA.length - 1], headB[0]);
+  const limit = Math.max(SEAM.ratio * ref, ref + SEAM.slack);
+  return { seam: +seam.toFixed(2), ref: +ref.toFixed(2), limit: +limit.toFixed(2), ok: seam <= limit };
+}
+/** The first and last `n` frames of a clip as 96 px grey arrays. */
+export async function greyEnds(path, n = SEAM.frames) {
+  const info = await probe(path), w = 96, h = Math.max(2, Math.round(96 * info.h / info.w / 2) * 2), size = w * h;
+  const frames = raw => Array.from({ length: Math.floor(raw.length / size) }, (_, i) => raw.subarray(i * size, (i + 1) * size));
+  const vf = ['-vf', `scale=${w}:${h},format=gray`, '-f', 'rawvideo', 'pipe:1'];
+  const head = frames(await run('ffmpeg', ['-v', 'error', '-i', path, '-frames:v', String(n), ...vf]));
+  const tail = frames(await run('ffmpeg', ['-v', 'error', '-sseof', '-2', '-i', path, ...vf])).slice(-n);
+  return { head, tail };
+}
+/** A clip's frame rate (frames a second). */
+export async function frameRate(path) {
+  const r = (await run('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=r_frame_rate', '-of', 'csv=p=0', path])).toString().trim();
+  const [a, b] = r.split('/').map(Number);
+  return b ? a / b : a || 24;
+}
+/** The very last frame of a clip as PNG (decoded from its last second; each frame overwrites the file). */
+export async function lastFramePng(path, outPng) {
+  await run('ffmpeg', ['-v', 'error', '-y', '-sseof', '-1', '-i', path, '-update', '1', '-q:v', '1', outPng]);
+  return readFileSync(outPng);
+}
+/**
+ * Fit an extension to the clip it continues: its first frame dropped (it is the start frame it was given, already the
+ * last frame of the source), scaled to the source's size and re-timed to its frame rate. No sound of its own.
+ */
+export async function fitExtension(ext, out, { w, h, fps }) {
+  await run('ffmpeg', ['-v', 'error', '-y', '-i', ext, '-vf', `trim=start_frame=1,setpts=PTS-STARTPTS,scale=${w}:${h},setsar=1,fps=${fps}`, '-an', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '18', out]);
+}
+/** The source and its fitted extension as one clip; the source's sound is kept and the extension gets silence. */
+export async function joinContinuation(src, fitted, out, { audio, extSeconds }) {
+  const args = ['-v', 'error', '-y', '-i', src, '-i', fitted];
+  if (audio) args.push('-f', 'lavfi', '-t', extSeconds.toFixed(3), '-i', 'anullsrc=r=48000:cl=stereo');
+  const fc = audio ? '[0:v]setsar=1,format=yuv420p[v0];[1:v]setsar=1,format=yuv420p[v1];[0:a]aresample=48000,aformat=channel_layouts=stereo[a0];[v0][a0][v1][2:a]concat=n=2:v=1:a=1[v][a]'
+    : '[0:v]setsar=1,format=yuv420p[v0];[1:v]setsar=1,format=yuv420p[v1];[v0][v1]concat=n=2:v=1:a=0[v]';
+  args.push('-filter_complex', fc, '-map', '[v]', ...(audio ? ['-map', '[a]', '-c:a', 'aac', '-b:a', '160k'] : []), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '18', '-movflags', '+faststart', out);
+  await run('ffmpeg', args);
 }
 
 /** A picture fitted whole inside a size×size square on white: the input a picture-to-3-D model expects. */

@@ -536,7 +536,8 @@ async function makeFlat(id, plan, opts) {
     script.attempts = 0; script.writtenBy = 'supplied by the caller'; script.refusals = [];
   } else {
     setJob(id, { stage: 'reading about the subject', progress: 0.01 });
-    const facts = await groundFacts(plan.request);
+    // an act uses the facts looked up once for its episode's premise (its own request is "act 2 of …")
+    const facts = plan.episode ? (plan.episode.facts || { text: null, why: 'an act of an episode whose premise had no source' }) : await groundFacts(plan.request);
     plan = { ...plan, facts: facts.text ? { text: facts.text, source: facts.source, url: facts.url } : null, factsNote: facts.why };
     setJob(id, { stage: 'planning shots', progress: 0.02 });
     script = await writeScript(plan, (attempt, who) => setJob(id, { stage: `planning shots: ${who}${attempt > 1 ? `, attempt ${attempt}` : ''}` }));
@@ -657,11 +658,16 @@ async function runJob(id, opts) {
  * Accept a typed request. Returns at once; the work happens in the queue.
  * @returns {{ accepted: boolean, id?, status?, plan, summary, reason?, message? }}
  */
-export async function createFromRequest({ request, kind, style, seconds, format, palette, voice, backdrops, image, scenes, cast, title, source = 'api', agentId = null } = {}) {
+export async function createFromRequest({ request, kind, style, seconds, format, palette, voice, backdrops, image, scenes, cast, title, episode = null, source = 'api', agentId = null } = {}) {
   const text = clip(request, 1500).replace(/\s+/g, ' ').trim();
   if (text.length < 3) throw Object.assign(new Error('request is required: say what to make'), { status: 400 });
   let plan = planCreation(text, { kind: image ? 'still' : kind, style, seconds, format, palette, voice, backdrops });
   if (plan.blocked) return { accepted: false, reason: plan.blocked.reason, message: describePlan(plan), plan, summary: describePlan(plan) };
+  // an act of an episode (episode-builder.js): the writer is told which act, its beat and how the story stands
+  if (episode) {
+    if (!isVector(plan.style)) return { accepted: false, reason: 'episode_needs_vector_look', message: 'Episodes are made in the flat or stick look.', plan, summary: describePlan(plan) };
+    plan = { ...plan, episode };
+  }
   if (plan.kind) plan = settleKind(plan, plan.kind);
   if (image && plan.kind !== 'page' && !PIXEL_STYLES.includes(plan.style)) return { accepted: false, reason: 'image_needs_pixel_look', message: 'Turning a picture into pixel art needs the 8-bit or 2-bit look.', plan, summary: describePlan(plan) };
   if (plan.kind !== 'page' && (plan.kind !== 'still' || plan.style === 'comic')) {

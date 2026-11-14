@@ -14,6 +14,7 @@
  */
 import { CAST, LEAD, FEELINGS, ACTS, CAMERAS, SETTINGS, SETTING_NAMES, ALREADY_THERE } from './kit.js';
 import { PROPS, PROP_NAMES, findProp, lineNamesProp, phraseSaid } from './props.js';
+import { actBrief, checkActNarration } from '../episode-plan.js';
 
 export const SFX_NAMES = Object.freeze(['none', 'whoosh', 'pop', 'ding', 'thud', 'boom', 'zap', 'tick', 'sparkle', 'rumble', 'splash']);
 /** A prop that is on screen suggests its own sound when the planner names none. */
@@ -78,7 +79,9 @@ export function flatMessages(plan, feedback = null) {
     '- Do not put a cast name in "show": the cast goes in "who".',
   ].join('\n');
   const facts = plan.facts?.text ? `\n\nFACTS from ${plan.facts.source} — use these and nothing that contradicts them; where they give a number or a date, use that one; do not add events they do not mention:\n${plan.facts.text}` : '';
-  return [{ role: 'system', content: system }, { role: 'user', content: `Request: ${plan.request}${facts}` + (feedback ? `\n\nYour previous plan was refused: ${feedback} Plan it again and fix that.` : '') }];
+  // an act of an episode: which act, its beat, how the story stands, the episode's cast (see episode-plan.js)
+  const episode = plan.episode ? `\n\n${actBrief(plan.episode)}` : '';
+  return [{ role: 'system', content: system }, { role: 'user', content: `Request: ${plan.request}${episode}${facts}` + (feedback ? `\n\nYour previous plan was refused: ${feedback} Plan it again and fix that.` : '') }];
 }
 
 function cleanSay(raw) {
@@ -255,6 +258,9 @@ export function normalizeFlat(raw, plan, { final = false } = {}) {
     if (!hit && rep) check[17] = [false, `shots ${rep[1][1] + 1} and ${rep[1][2] + 1} say nearly the same thing (${rep[1].length} lines begin "${rep[0]}")`]; }
   { const count = {}; for (const s of shots) for (const p of s.props) count[p] = (count[p] || 0) + 1; const worst = Object.entries(count).sort((a, b) => b[1] - a[1])[0]; check[16] = [!worst || shots.length < 4 || worst[1] <= Math.ceil(shots.length / 2), worst ? `${worst[0]} in ${worst[1]} of ${shots.length}` : 'no props']; }
   const rules = RULES.map(r => ({ n: r.n, hard: r.hard, ok: !!check[r.n][0], detail: check[r.n][1] }));
+  // rule 18, for an act of an episode only: it tells its own beat and repeats nothing an earlier act said
+  const act = plan.episode ? checkActNarration(shots, plan.episode) : null;
+  if (act) rules.push({ n: 18, hard: true, ok: act.ok, detail: act.detail });
   const base = { title: toAscii(obj.title || '').replace(/["#>_`|\\:]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40) || 'Untitled', shots, scenes: shots, cast: [...new Set(shots.flatMap(s => s.cast.map(c => c.who)))], words: total, estSeconds: est, rules, fixes };
   if (shots.length < 2) return { ...base, ok: false, reason: 'Fewer than two usable shots.' };
   const reasons = {
@@ -267,14 +273,18 @@ export function normalizeFlat(raw, plan, { final = false } = {}) {
     7: `${LEAD} is in ${withLead} of ${shots.length} shots; the lead must be in at least half.`,
     8: `Only ${jokes} shots show what their line says; in at least two shots choose a prop the line names (for example the line says "rocket" and props has "rocket").`,
     17: `${check[17][1]}: "${shots[(/shots (\d+) and (\d+)/.exec(check[17][1]) || [0, 1, 1])[2] - 1]?.say}". Every line must add a new event or fact; do not pad the ending with slogans.`,
+    18: act?.reason || '',
     12: est < seconds * 0.85 ? `${total} words would run about ${Math.round(est)} seconds and ${seconds} were asked for. Write about ${b.words} words: ${b.shots} shots of roughly ${FLAT_PACE.lineWords} words each.` : `${total} words would run about ${Math.round(est)} seconds; ${seconds} were asked for. Aim for about ${b.words} words.`,
   };
-  const failed = rules.filter(r => r.hard && !r.ok);
+  // an act telling the wrong story is told so first: fixing its props or its length would not help
+  const failed = rules.filter(r => r.hard && !r.ok).sort((a, b) => (b.n === 18) - (a.n === 18));
   if (failed.length && !final) return { ...base, ok: false, reason: failed.slice(0, 2).map(r => `Rule ${r.n}: ${reasons[r.n]}`).join(' ') };
   // last resort: repair what can be repaired without the writer, and say so
   if (failed.some(r => r.n === 7)) { for (const s of shots) if (!s.cast.some(c => c.who === LEAD) && s.cast.length < 3 && shots.filter(x => x.cast.some(c => c.who === LEAD)).length < Math.ceil(shots.length / 2)) s.cast.unshift({ who: LEAD, feel: 'curious', at: null, act: 'idle' }); fixes.push(`${LEAD} added to shots to keep the lead on screen`); }
   if (failed.some(r => r.n === 17)) { const key = x => new Set(words(x.say.toLowerCase().replace(/[^a-z0-9 ]/g, ' ')).filter(w => w.length > 2)); const alike = (o, t) => { const inter = [...o].filter(w => t.has(w)).length, uni = new Set([...o, ...t]).size; return uni && inter / uni >= 0.5; }; const kept = []; for (let i = shots.length - 1; i >= 0; i--) { const k = key(shots[i]); if (kept.some(o => alike(o, k))) shots.splice(i, 1); else kept.push(k); } fixes.push('lines that repeated an earlier line were removed'); }
   if (failed.some(r => r.n === 5)) { for (const s of shots) if (!s.cast.length && !s.props.length) s.cast.push({ who: LEAD, feel: 'curious', at: 'center', act: 'idle' }); fixes.push('empty shots given the lead character'); }
+  // an act that never tells its beat cannot be repaired here: the episode would skip an event, so it is refused
+  if (failed.some(r => r.n === 18)) return { ...base, rules, ok: false, reason: `Rule 18: ${reasons[18]}` };
   for (const r of failed) if (![5, 7, 17].includes(r.n)) fixes.push(`rule ${r.n} not met: ${r.detail}`);
   return { ...base, ok: true };
 }
