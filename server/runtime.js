@@ -30,6 +30,7 @@ import { installHermesRoutes } from './hermes/free-tools.js';
 import { installGpuLeaseRoutes } from './media/gpu-lease.js';
 import { installStudioRoutes } from './media/studio.js';
 import { installMakeRoutes } from './media/make.js';
+import { installMakeChainRoutes } from './media/make-chains-service.js';
 import { installFleetRoutes } from './fleet/routes.js';
 import { installMcpEndpoint } from './mcp/server.js';
 import { installOAuthRoutes, installAccessRoutes } from './mcp/auth.js';
@@ -493,6 +494,7 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installGpuLeaseRoutes(app);
   installStudioRoutes(app);
   installMakeRoutes(app);
+  installMakeChainRoutes(app);     // make chains: several makers in a row, each handed the last one's text and file
   installDistributionRoutes(app, { memoryBridge, broadcast });
   installAnalyticsRoutes(app, { memoryBridge, broadcast });
   installLearningLoopRoutes(app, { memoryBridge, broadcast });

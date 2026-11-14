@@ -307,7 +307,7 @@ async function voiceStudioSay(text) {
   return { url: `/tts/${name}`, engine: `voicestudio:${VS_VOICE}`, durationEstimate: Math.max(2, Math.round(buf.length / 48_000)) };
 }
 
-async function voiceLine(text) {
+export async function voiceLine(text) {
   if (VS_USABLE) {
     try { const r = await voiceStudioSay(text); state.voiceUse.own++; return r; }
     catch (e) { state.voiceUse.lastFallback = clip(e.message, 120); console.error('[narrator] VoiceStudio:', state.voiceUse.lastFallback); }
