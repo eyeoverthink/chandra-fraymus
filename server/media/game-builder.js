@@ -20,6 +20,7 @@ import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { db } from '../db.js';
 import { PORT, mayRecoverAtBoot, DATA_DIR } from '../config.js';
+import { withOrigin } from '../intelligence/card-ledger.js';
 import { publish } from '../fleet/bus.js';
 import { chatOllama } from '../commerce/shared.js';
 import { SITES_DIR, verifyPage, withBrowserPage, slugFor } from './page-builder.js';
@@ -281,7 +282,7 @@ export function startGame({ request = '', file = null, plate = 'fill', source = 
   if (file) shelfFile(file);
   const id = `game-${randomUUID().slice(0, 10)}`;
   db.prepare(`INSERT INTO games (id, request, source_file, status, stage, created_at) VALUES (?, ?, ?, 'queued', 'queued', ?)`).run(id, text, file, now());
-  const done = tail.p.then(() => runGame(id, { request: text, file, plate }));
+  const done = tail.p.then(() => withOrigin({ via: id }, () => runGame(id, { request: text, file, plate })));
   tail.p = done.catch(e => console.error('[games] queue:', e.message));
   return { id, status: 'queued', done };
 }

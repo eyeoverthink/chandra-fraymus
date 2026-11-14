@@ -47,6 +47,7 @@ import { renderFlatFilm, checkFilm } from './flat/render.js';
 import { RULES as FLAT_RULES, titleFitsSubject } from './flat/plan.js';
 import { CAST as FLAT_CAST } from './flat/kit.js';
 import { forgeCast, spritePixels } from './sprite-forge.js';
+import { timedCard, withOrigin, assertCardBudget } from '../intelligence/card-ledger.js';
 import { planCreation, settleKind, describePlan, scriptMessages, normalizeScript, buildStudioMarkdown, speakerLines, normalizeLine, stillPrompt, backdropPrompt, backdropNegative, conditionsOf, subjectOf, PACES, bestDraft, extractJson, WIRED_STYLES, PIXEL_STYLES, RECIPES, isVector } from './make-plan.js';
 import { scriptMessagesFor, normalizeFor, buildMarkdownFor, paintsBackdrops, forgePeople } from './make-looks.js';
 
@@ -221,7 +222,11 @@ async function pickVoiceEngine() {
   } catch (e) { return { engine: 'cascade', why: `VoiceStudio is not answering (${clip(e.message, 60)})` }; }
 }
 
+// VoiceStudio runs on this PC's card: each line is charged to the card ledger (kind voice)
 async function speakWithVoiceStudio(text, voice) {
+  return timedCard({ machine: 'this PC', card: 'gpu', kind: 'voice', label: `voice: ${voice}` }, () => speakVS(text, voice));
+}
+async function speakVS(text, voice) {
   let lastError = null;
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
@@ -677,6 +682,7 @@ export async function createFromRequest({ request, kind, style, seconds, format,
   const open = db.prepare(`SELECT id, status FROM creation_jobs WHERE request = ? AND style = ? AND status IN ('queued', 'running') ORDER BY created_at DESC LIMIT 1`).get(text, plan.style);
   if (open) return { accepted: true, duplicateOf: open.id, id: open.id, status: open.status, plan, summary: describePlan(plan), message: 'The same request is already being made.' };
   if (source === 'agent') {
+    try { assertCardBudget(); } catch (e) { return { accepted: false, reason: 'card_budget', message: e.message, plan, summary: describePlan(plan) }; }
     const recent = db.prepare(`SELECT id, status FROM creation_jobs WHERE request = ? AND style = ? AND status = 'completed' AND created_at > ? ORDER BY created_at DESC LIMIT 1`).get(text, plan.style, now() - 86_400_000);
     if (recent) return { accepted: true, duplicateOf: recent.id, id: recent.id, status: recent.status, plan, summary: describePlan(plan), message: 'This exact request was already made in the last 24 hours; see that job.' };
     const today = db.prepare(`SELECT COUNT(*) n FROM creation_jobs WHERE source = 'agent' AND created_at > ?`).get(now() - 86_400_000).n;
@@ -689,7 +695,7 @@ export async function createFromRequest({ request, kind, style, seconds, format,
   db.prepare(`INSERT INTO creation_jobs (id, request, kind, style, status, stage, plan, source, agent_id, created_at) VALUES (?, ?, ?, ?, 'queued', 'queued', ?, ?, ?, ?)`)
     .run(id, text, plan.kind, plan.style, JSON.stringify(plan), source, agentId, now());
   const opts = { image: image || null, scenes: Array.isArray(scenes) ? scenes.slice(0, 30) : null, cast: Array.isArray(cast) ? cast.slice(0, 2) : null, title: title ? clip(title, 60) : null };
-  tail = tail.then(() => runJob(id, opts)).catch(e => console.error('[creation] queue:', e.message));
+  tail = tail.then(() => withOrigin({ via: id }, () => runJob(id, opts))).catch(e => console.error('[creation] queue:', e.message));
   return { accepted: true, id, status: 'queued', plan, summary: describePlan(plan) };
 }
 

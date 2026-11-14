@@ -27,6 +27,7 @@ import { buildSpatialContext } from '../intelligence/self-model.js';
 import { buildLineageContext } from '../intelligence/lineage.js';
 import { contextualRecall } from '../intelligence/knowledge-graph.js';
 import { isResourceConstrained, getResourcePressure } from '../intelligence/resource-envelope.js';
+import { originStore, currentOrigin } from '../intelligence/card-ledger.js';
 
 const MAX_STEPS = 8;
 const MAX_HISTORY = 40;
@@ -571,7 +572,17 @@ function persistEvidence(runId, step, sealed) {
   }
 }
 
+/**
+ * Every step of a run happens with its card-ledger origin set explicitly (never inherited: a queued run may be started
+ * from another run's completion, inside that other agent's context).
+ */
+const runOrigin = new Map();
 async function drive(runId, depth = 0) {
+  const r = db.prepare('SELECT model FROM runs WHERE id = ?').get(runId);
+  const origin = runOrigin.get(runId) || `agent:${String(r?.model || 'concierge').split(':')[0]}`;
+  return originStore.run({ origin, via: [], run: runId }, () => driveRun(runId, depth));
+}
+async function driveRun(runId, depth = 0) {
   const run = db.prepare('SELECT * FROM runs WHERE id = ?').get(runId);
   if (!run || run.status !== 'running') return;
 
@@ -841,6 +852,9 @@ export function startRun(userId, agentId, message, threadId, opts = {}) {
   // tools.load fills, so they stay offered for the whole run.
   const pins = (Array.isArray(opts.pinTools) ? opts.pinTools : []).filter(n => typeof n === 'string' && findTool(n)).slice(0, 8);
   if (pins.length) runLoaded.set(runId, new Set(pins));
+  // who the run's card time is charged to, decided now: a person's request (`api`) or, started by the fleet itself, the agent
+  runOrigin.set(runId, currentOrigin()?.origin || null);
+  while (runOrigin.size > 500) runOrigin.delete(runOrigin.keys().next().value);   // a run that outlives 500 newer ones falls back to its agent
 
   // A person waiting on an answer (`opts.interactive`: the home screen, chat) is never queued behind the fleet's own
   // autonomous work — the queue exists to shed background load, and a typed question is the load it is for.

@@ -45,7 +45,7 @@ export const RECIPES = Object.freeze({
     negative: 'photo, 3d render, text, watermark, logo', post: 'ornament',
   },
   woodblock: {
-    label: 'Woodblock print', aliases: ['ukiyo-e', 'ukiyoe', 'woodblock', 'hokusai', 'hiroshige', 'samurai jack', 'kubo', 'kubo and the two strings'],
+    label: 'Woodblock print', aliases: ['ukiyo-e', 'ukiyoe', 'woodblock', 'woodblock print', 'ukiyo-e print', 'ukiyo-e woodblock print', 'hokusai', 'hiroshige', 'samurai jack', 'kubo', 'kubo and the two strings'],
     style: 'Japanese ukiyo-e woodblock print, flat planes of colour, bold black outlines, bokashi gradient sky, stylised waves and mountains, washi paper texture',
     negative: 'photo, 3d render, gradient shading, text, watermark, signature', post: 'woodblock',
   },

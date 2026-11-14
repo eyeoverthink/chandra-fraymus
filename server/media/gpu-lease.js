@@ -22,6 +22,7 @@ import { db } from '../db.js';
 import { OLLAMA_URL, mayRecoverAtBoot } from '../config.js';
 import { publish } from '../fleet/bus.js';
 import { pauseOllama, resumeOllama, waitForOllamaIdle, ollamaPaused } from '../intelligence/ollama-scheduler.js';
+import { recordCard, currentOrigin, originOf } from '../intelligence/card-ledger.js';
 
 const DEFAULT_TTL_MS = 10 * 60_000;
 const MAX_TTL_MS = 6 * 3_600_000;
@@ -92,7 +93,8 @@ export async function acquireGpuLease(owner, { purpose = '', ttlMs = DEFAULT_TTL
   if (!owner) return { ok: false, reason: 'owner required' };
   if (lease) return { ok: false, reason: 'held', heldBy: lease.owner, purpose: lease.purpose, expiresInMs: Math.max(0, lease.expiresAt - now()) };
   const ttl = Math.min(MAX_TTL_MS, Math.max(30_000, ttlMs));
-  lease = { id: `gpu-${randomUUID().slice(0, 10)}`, owner: clip(owner, 60), purpose: clip(purpose, 160), acquiredAt: now(), expiresAt: now() + ttl, freedMB: null, timer: null };
+  // who it is charged to is decided now: the release may come from the watchdog, outside the caller's context
+  lease = { id: `gpu-${randomUUID().slice(0, 10)}`, owner: clip(owner, 60), purpose: clip(purpose, 160), acquiredAt: now(), expiresAt: now() + ttl, freedMB: null, timer: null, origin: originOf(currentOrigin(), owner) };
   const mine = lease;
   try {
     const before = await vramSnapshot();
@@ -134,6 +136,7 @@ export async function releaseGpuLease(owner, { reason = 'done', force = false } 
   const vram = await vramSnapshot();
   try { db.prepare(`UPDATE gpu_leases SET status = 'released', release_reason = ?, released_at = ? WHERE id = ?`).run(clip(reason, 160), now(), done.id); }
   catch (e) { console.error('[gpu-lease] release record:', e.message); }
+  recordCard({ machine: 'this PC', card: 'gpu', kind: 'lease', seconds: (now() - done.acquiredAt) / 1000, job: done.id, label: `${done.owner}: ${done.purpose}`, origin: done.origin, ok: reason !== 'expired' });
   emit({ action: 'released', leaseId: done.id, owner: done.owner, reason, heldMs: now() - done.acquiredAt });
   return { ok: true, released: true, leaseId: done.id, heldMs: now() - done.acquiredAt, vram };
 }

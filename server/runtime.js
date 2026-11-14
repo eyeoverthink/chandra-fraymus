@@ -34,6 +34,7 @@ import { installMakeChainRoutes } from './media/make-chains-service.js';
 import { installWorldRoutes } from './media/world-builder.js';
 import { installGameRoutes } from './media/game-builder.js';
 import { installEpisodeRoutes } from './media/episode-builder.js';
+import { installCardLedgerRoutes, backfillCardLedger, pruneCardLedger, withOrigin } from './intelligence/card-ledger.js';
 import { installFleetRoutes } from './fleet/routes.js';
 import { installMcpEndpoint } from './mcp/server.js';
 import { installOAuthRoutes, installAccessRoutes } from './mcp/auth.js';
@@ -313,6 +314,8 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   const autonomy = createAutonomyEngine({ db, broadcast, agent: { get: id => agent.get(id) }, tasks, memoryBridge, logEvent: (kind, actor, detail) => {
     try { db.prepare('INSERT INTO events (kind, actor, detail, created_at) VALUES (?, ?, ?, ?)').run(kind, actor, detail, Date.now()); } catch (e) { console.error('runtime: event insert failed:', e.message); }
   }});
+  // card ledger: work a request starts is charged to the operator (`api`), carried through every await and queued job
+  app.use((req, res, next) => withOrigin({ origin: 'api' }, next));
   app.use(gatewayMiddleware());
   app.use(apiVersionRouter());
   installGatewayRoutes(app);
@@ -501,6 +504,8 @@ export function installRuntime(app, { db, broadcast, workspace = WORKSPACE_ROOT,
   installWorldRoutes(app);         // walkable worlds: a place or a picture as a page you can walk through (world-builder.js)
   installGameRoutes(app);          // platform games: words or a picture as a winnable, played-through game page (game-builder.js)
   installEpisodeRoutes(app);       // episodes: a premise as a multi-act film, each act made and checked by Make (episode-builder.js)
+  installCardLedgerRoutes(app);    // card-seconds ledger: what the machines' time went on, and for whom (card-ledger.js)
+  { const added = backfillCardLedger(); if (added) console.log(`[card-ledger] backfilled ${added} rows from worker receipts and leases`); pruneCardLedger(); }
   installDistributionRoutes(app, { memoryBridge, broadcast });
   installAnalyticsRoutes(app, { memoryBridge, broadcast });
   installLearningLoopRoutes(app, { memoryBridge, broadcast });

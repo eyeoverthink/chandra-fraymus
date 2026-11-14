@@ -19,6 +19,7 @@ import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { withOrigin } from '../intelligence/card-ledger.js';
 import { createRequire } from 'node:module';
 import { db } from '../db.js';
 import { DATA_DIR, PORT, mayRecoverAtBoot } from '../config.js';
@@ -268,7 +269,7 @@ export function startWorld({ request = '', file = null, source = 'api' } = {}) {
   if (file) shelfFile(file);                                          // throws a 404 when it is not there
   const id = `world-${randomUUID().slice(0, 10)}`;
   db.prepare(`INSERT INTO worlds (id, request, source_file, status, stage, created_at) VALUES (?, ?, ?, 'queued', 'queued', ?)`).run(id, text, file, now());
-  const done = jobsTail.p.then(() => runWorld(id, { request: text, file }));
+  const done = jobsTail.p.then(() => withOrigin({ via: id }, () => runWorld(id, { request: text, file })));
   jobsTail.p = done.catch(e => console.error('[worlds] queue:', e.message));
   return { id, status: 'queued', done };
 }

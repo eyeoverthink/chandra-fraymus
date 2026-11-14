@@ -645,6 +645,35 @@ npm run start        # production server (serves built client)
   - **FPV dive** (relative 0.656, 37 s to draw with the roll): rushes in, banking, until the knight fills the frame. **Crane-up** (0.153, 11 s): the knight sinks and shrinks as the forest is revealed.
   - Not tried live: `newspaper-strip`, `hypercube`, `night-story`, `editorial-diagram`, `yellow-sitcom`, `midcentury-super` (all routed and unit-tested), and a rig in a look.
 
+### Card-seconds ledger — what the machines' time went on, and for whom (server/intelligence/card-ledger.js) — 2026-11-14
+- **Why:** gap 10 in `docs/NEXUS-ENGINE-CREATION-METHODS.md`. Nexus kept a cost ledger in dollars. Nothing here is paid, so the real cost is **card time**: the RTX 3070 here, the RTX 5070 on fraymus-home, and the CPU time of the pool's VPSs. Nothing totalled it, and Looks jobs (in memory) forgot who started them.
+- **One table, `card_ledger`** (at, machine, card `gpu|cpu`, kind, seconds, job, origin, via, label, ok, detail; 90 days kept). A row is written where the work happens; no caller passes anything:
+  - **`model`:** every model-pool call (`runOnPool` wraps the attempt in `timedCard`). This is the machine's time on the call, **not time queueing for a slot**. A host with `slow > 1` (the CPU VPSs) is charged CPU time.
+  - **Worker jobs** (`runOnWorkerInner`): the worker's own seconds from its **signed receipt**, not the hub's round trip, which includes transfers. `WORKER_KINDS` maps stills → `paint`, i2v → `motion`, mesh, inpaint (card); matte, video → `render` (CPU). A failed job is charged the hub's elapsed time with `ok = 0`.
+  - **`lease`:** this PC's card held for local painting (`releaseGpuLease`). Its origin is decided at acquire, because the watchdog may release it from another context.
+  - **`voice`:** each VoiceStudio line (Make films, the narrator) runs on this PC's card and was untracked.
+- **Who — `AsyncLocalStorage`** (`withOrigin`, `currentOrigin`), so no call site changes:
+  - **HTTP request:** a middleware in `installRuntime` sets `api` (the operator or the app).
+  - **Agent run:** `fleet/runtime.js drive()` sets the origin **explicitly**: the request's origin recorded at `startRun` (`runOrigin`), else `agent:<id>`. It is never inherited, because a queued run can be started from another run's completion, inside that other agent's context.
+  - **Nesting:** an inner `withOrigin` keeps the outer origin and appends to `via`. The Looks, Make, episode, game, world and chain queues tag their jobs, so `jobCardSeconds(id)` finds every row of a job; Looks job views carry `card`.
+  - **No store** (the daemon's own loops) → `system:<first word of the label>` (reflection, dream, goals…).
+- **The consumer — a budget:** an agent over `AGENT_CARD_SECONDS_PER_DAY` (1,800 s) of **media** card time in 24 h is refused new card work (`assertCardBudget`, 429 `card_budget`) when it queues a Looks card job or a Make job.
+  - Media = paint, motion, mesh, inpaint, lease, voice, render on a card. Model calls are an agent's thinking and are not counted; nor is CPU time.
+  - The operator and the system are never refused.
+- **Backfill:** at boot, once per row, from `worker_jobs` receipts and `gpu_leases`. A Make job's agent is found from `creation_jobs`; anything else is `before the ledger`.
+- **Interfaces:**
+  - `GET /api/card-ledger?days=&by=origin|machine|kind|card|job|day|agent` (with budgets)
+  - `GET /api/card-ledger/job/:id`, `GET /api/card-ledger/budgets`
+  - Fleet tool **`card_ledger`**
+- Tests: `test/card-ledger.test.js` (6): pure decisions; origin through awaits, timers and a later-queued job; totals and a job's rows; the budget counts media only and never refuses the operator; a real `runOnPool` call charged to its agent, and a failed one marked; the backfill from receipts and leases, run twice.
+- **Measured 2026-11-14, the backfill:** 100 earlier uses, **2,864 card-seconds (48 min) since 2026-11-10**: leases here 1,385 s, painting on fraymus-home 802 s, Wan motion 441 s, inpainting 193 s, one 3-D mesh 43 s; plus 473 CPU seconds of renders and mattes.
+- **Live, the first ~70 minutes after the restart:**
+  - `api` 9.1 s: a woodblock lighthouse painted on fraymus-home.
+  - The daemon's loops by name: debate 24 s, trend radar 21 s, reflection 12 s, synthesis 10 s, research 5 s.
+  - **Found at once: `goal-engine:motor` held this PC's card for 180 s and failed** (fraynix-dna:8b timing out, half on the CPU of the 8 GB card). That is a failed call that cost three minutes of card time and produced nothing; it is open for the goal engine.
+  - `chat:untagged` rows show model callers that never set a label.
+- **Not seen live yet:** an `agent:<id>` row from an autonomous run (the goal executor ran none in the window; unit-tested through `runOnPool`), and the budget refusing a real agent.
+
 ### Memory search — agents recall by meaning, and the gain is a number (server/intelligence/memory-*.js) — 2026-11-11
 - **Why:** the first mechanism absorbed from gbrain (see the ranked list under the flat look). `recallMemories` was `key LIKE '%query%' OR value LIKE '%query%'`: a question in a sentence matched nothing. And `buildPromptContext(agentId, taskText)` **ignored its second argument** — every agent prompt carried its ten newest memories whatever the task was (the caller did not even pass the task).
 - **`memory-rank.js` (pure):** `ftsQuery` (every word quoted, so nothing typed is query syntax; all words, then any word), `rrfFuse` (k = 60), `fuse` = 0.7 · normalised RRF + 0.3 · cosine with near-duplicates dropped (word-set Jaccard > 0.85), and the measures: `precisionAt`, `recallAt`, `reciprocalRank`, `ndcgAt`, `hitAt`, `summarise`, and a seeded paired sign-flip test `signFlipP`.

@@ -25,6 +25,7 @@ import { Readable } from 'node:stream';
 import { classifyUrl } from '../fraymus-os/registry.js';
 import { OLLAMA_URL } from '../config.js';
 import { withOllama, ollamaPaused, getSchedulerStatus } from './ollama-scheduler.js';
+import { timedCard } from './card-ledger.js';
 
 const now = () => Date.now();
 const HEALTH_TTL_MS = 30_000, REST_MS = 60_000;
@@ -148,13 +149,16 @@ export async function runOnPool({ model = null, priority = 'goal', label = 'mode
   for (const c of await candidates(model)) {
     const { h, s } = c;
     const t = Math.round(timeoutMs * h.slow), t0 = now();
+    // the ledger is charged the machine's time on the call itself, not time spent queueing for a slot; a CPU-only
+    // machine (slow > 1) is charged CPU, not card, time
+    const charged = fn => timedCard({ machine: h.name, card: h.slow > 1 ? 'cpu' : 'gpu', kind: 'model', label, detail: { model: c.model } }, fn);
     try {
       let result;
-      if (h.local) result = await withOllama(priority, () => attempt({ url: h.url, model: c.model, think: undefined, timeoutMs: t, local: true, name: h.name }), { label });
+      if (h.local) result = await withOllama(priority, () => charged(() => attempt({ url: h.url, model: c.model, think: undefined, timeoutMs: t, local: true, name: h.name })), { label });
       else {
         if (s.inFlight >= h.slots) await waitForSlot(h, s);
         s.inFlight++;
-        try { result = await attempt({ url: h.url, model: c.model, think: h.think ? undefined : false, timeoutMs: t, local: false, name: h.name, keepAlive: h.keep }); }
+        try { result = await charged(() => attempt({ url: h.url, model: c.model, think: h.think ? undefined : false, timeoutMs: t, local: false, name: h.name, keepAlive: h.keep })); }
         finally { s.inFlight--; wake(h.name); }
       }
       s.calls++; s.totalMs += now() - t0; s.lastOkAt = now();

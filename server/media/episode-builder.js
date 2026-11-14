@@ -21,6 +21,7 @@ import { promisify } from 'node:util';
 import { createCanvas } from '@napi-rs/canvas';
 import { db } from '../db.js';
 import { mayRecoverAtBoot, DATA_DIR } from '../config.js';
+import { withOrigin } from '../intelligence/card-ledger.js';
 import { publish } from '../fleet/bus.js';
 import { chatOllama } from '../commerce/shared.js';
 import { createFromRequest, getCreation, groundFacts } from './make.js';
@@ -237,7 +238,7 @@ export function startEpisode({ premise = '', acts = 4, secondsPerAct = SECONDS_P
   if (open >= 2) throw Object.assign(new Error(`${open} episodes are already being made; each takes many minutes`), { status: 429 });
   const id = `ep-${randomUUID().slice(0, 10)}`;
   db.prepare(`INSERT INTO episodes (id, premise, style, format, acts_asked, seconds_per_act, status, stage, source, created_at) VALUES (?, ?, ?, ?, ?, ?, 'queued', 'queued', ?, ?)`).run(id, text || null, style, format, n, secs, source, now());
-  const done = tail.p.then(() => runEpisode(id, { premise: text, acts: n, secondsPerAct: secs, style, format }));
+  const done = tail.p.then(() => withOrigin({ via: id }, () => runEpisode(id, { premise: text, acts: n, secondsPerAct: secs, style, format })));
   tail.p = done.catch(e => console.error('[episodes] queue:', e.message));
   return { id, status: 'queued', acts: n, secondsPerAct: secs, topical: !text, done };
 }

@@ -31,6 +31,7 @@ async function animeTags(subject) {
 import { pickWorker, runOnWorker } from '../workers.js';
 import { renderStillBatch } from '../studio.js';
 import { noteMedia } from '../media-meta.js';
+import { assertCardBudget, withOrigin, currentOrigin, jobCardSeconds } from '../../intelligence/card-ledger.js';
 
 const sharp = createRequire(import.meta.url)('sharp');
 const MEDIA_DIR = join(DATA_DIR, 'media');
@@ -39,16 +40,20 @@ let chain = Promise.resolve();
 const clip = (s, n) => String(s ?? '').slice(0, n);
 const isVideo = p => /\.(mp4|webm|mov|mkv)$/i.test(p);
 
+/** Jobs that put work on a graphics card: an agent over its daily card allowance cannot start one (card-ledger.js). */
+const CARD_JOBS = new Set(['generate', 'motion', 'extend', 'avatar', 'layers']);
 function enqueue(kind, describe, work) {
+  if (CARD_JOBS.has(kind)) assertCardBudget();
   const id = `look-${randomUUID().slice(0, 8)}`;
-  const job = { id, kind, describe, status: 'queued', stage: 'waiting', progress: 0, result: null, error: null, createdAt: Date.now() };
+  const job = { id, kind, describe, status: 'queued', stage: 'waiting', progress: 0, result: null, error: null, createdAt: Date.now(), origin: currentOrigin()?.origin || 'system' };
   jobs.set(id, job);
   while (jobs.size > 200) jobs.delete(jobs.keys().next().value);
-  chain = chain.then(async () => {
+  // the job runs later in the queue, still charged to whoever queued it, and tagged with its own id
+  chain = chain.then(() => withOrigin({ via: id }, async () => {
     job.status = 'running'; job.stage = 'working';
     try { job.result = await work(job); job.status = 'done'; job.progress = 1; job.stage = 'done'; }
     catch (e) { job.status = 'error'; job.error = clip(e.message, 400); job.partial = e.partial || null; console.error(`[looks] ${kind}:`, e.message); }
-  });
+  }));
   return job;
 }
 export const lookJob = id => jobs.get(id) || null;
@@ -573,7 +578,8 @@ export function startRig({ file, dataBase64, ext, rig = 'bullet-time', seconds =
     return { file: r.file, rig, label: RIGS[rig].label, seconds: r.seconds, frames: r.frames, look, depth: r.depth, parallax: r.parallax || null, depthNote, subject: layers?.subject || null, matte: layers?.matte || null, ms: r.ms };
   });
 }
-const view = j => ({ id: j.id, kind: j.kind, what: j.describe, status: j.status, stage: j.stage, progress: +j.progress.toFixed(2), result: j.result, error: j.error, partial: j.partial || null, notice: j.notice || null });
+// cardSeconds: what this job used on the machines so far (card-ledger.js), read when the job is looked at
+const view = j => ({ id: j.id, kind: j.kind, what: j.describe, status: j.status, stage: j.stage, progress: +j.progress.toFixed(2), result: j.result, error: j.error, partial: j.partial || null, notice: j.notice || null, origin: j.origin || null, card: j.status === 'queued' ? null : jobCardSeconds(j.id) });
 const started = (j, what) => ({ ...view(j), replyToUser: `${what} — not finished yet. It is job ${j.id}; it appears on the shelf when done${j.notice ? `. ${j.notice}` : ''}.` });
 
 export function createLooksTools() {

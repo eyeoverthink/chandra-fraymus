@@ -28,6 +28,7 @@ import { getObsBridge } from '../streaming/overlay.js';
 import { chatOllama } from '../commerce/shared.js';
 import { classifyUrl } from '../fraymus-os/registry.js';
 import { getProtocolModifiers } from '../awareness/protocol-engine.js';
+import { timedCard } from './card-ledger.js';
 
 const now = () => Date.now();
 const AGENT = 'narrator';
@@ -296,6 +297,10 @@ async function phrase(item) {
 }
 
 async function voiceStudioSay(text) {
+  // VoiceStudio runs on this PC's card: each narrated line is charged to the card ledger (kind voice)
+  return timedCard({ machine: 'this PC', card: 'gpu', kind: 'voice', label: 'narrator: voice' }, () => voiceStudioSayInner(text));
+}
+async function voiceStudioSayInner(text) {
   const r = await fetch(`${VOICESTUDIO.url}/v1/audio/speech`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: 'tts-1', input: text, voice: VS_VOICE, response_format: 'wav' }), signal: AbortSignal.timeout(60_000) });
   if (!r.ok) throw new Error(`VoiceStudio HTTP ${r.status}`);

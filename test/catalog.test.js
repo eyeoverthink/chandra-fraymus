@@ -48,6 +48,7 @@ test('the universes never draw their characters, and ordinary words that are als
   assert.equal(R.cleanSubject('a Banksy stencil of a child releasing a heart-shaped balloon').subject, 'a child releasing a heart-shaped balloon');
   assert.equal(R.cleanSubject('a reddit comic about a cat discovering a cucumber').subject, 'a cat discovering a cucumber');
   assert.equal(R.cleanSubject('a cup of tea, Warhol style').subject, 'a cup of tea');   // a real "of" stays
+  assert.equal(R.cleanSubject('a lighthouse at dusk, ukiyo-e woodblock print').subject, 'a lighthouse at dusk');   // seen live: "…, print" was left
 });
 
 test('silkscreen, stencil and newsprint: deterministic, the right size, unlike the source and unlike each other', () => {

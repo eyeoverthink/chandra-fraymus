@@ -113,7 +113,7 @@ Ranked by value for the least new machinery. Each line names the offline equival
 7. **Built 2026-11-14** (`server/media/episode-plan.js` + `episode-builder.js`, `episode.create`; `looks.extend`; see CLAUDE.md "Episodes and continuation"). **Multi-act episodes and video continuation** (#9, #2). Episodes: a section loop over Make. Continuation: Wan 2.2 from the last frame of the previous clip, under the same GPU lock.
 8. **Built 2026-11-14** (`looks/recipes.js` + `filters.js` + `convert.js` RIGS, `looks.rig`; see CLAUDE.md "Catalog from Nexus"). Rigs use two real depths from scene → layers, not a flat approximation. **Missing catalog entries**: the 8 new style recipes, the 4 universes as descriptions, the 3 camera rigs. Bullet-time and FPV need depth; with a single still they can only be approximated.
 9. **Music** (#3). There is no free score model on this machine. Vaughn's ACE-Step checkout (`heartmula-rig/ACE-Step-1.5`) is a candidate. Installing or running it is a download and Vaughn's call.
-10. **Card-seconds ledger** (#25): total GPU-lease and worker time per job and per agent. This is the real cost here.
+10. **Built 2026-11-14** (`server/intelligence/card-ledger.js`, `/api/card-ledger`, tool `card_ledger`; see CLAUDE.md "Card-seconds ledger"). With attribution and a per-agent daily budget as its consumer. **Card-seconds ledger** (#25): total GPU-lease and worker time per job and per agent. This is the real cost here.
 
 ## What not to carry over
 

@@ -13,6 +13,7 @@
  * Templates: {{input}} {{previous_summary}} {{previous_file}} {{step_N}} (summary of step N) {{step_N_file}}.
  */
 import { randomUUID } from 'node:crypto';
+import { withOrigin } from '../intelligence/card-ledger.js';
 
 const clip = (s, n) => String(s ?? '').slice(0, n);
 const parse = (s, d) => { try { return s ? JSON.parse(s) : d; } catch (e) { console.error('[make-chains] bad JSON in a row:', e.message); return d; } };
@@ -261,7 +262,7 @@ export function createChainRunner({ db, adapters, clock = () => Date.now(), emit
     const id = `chainrun-${randomUUID().slice(0, 10)}`;
     db.prepare(`INSERT INTO make_chain_runs (id, chain_id, name, input, input_file, status, steps, results, source, agent_id, created_at) VALUES (?, ?, ?, ?, ?, 'queued', ?, '[]', ?, ?, ?)`)
       .run(id, chain.id, chain.name, text, inputFile ? JSON.stringify(inputFile) : null, JSON.stringify(chain.steps), source, agentId, clock());
-    const done = tail.then(() => runSteps(id));
+    const done = tail.then(() => withOrigin({ via: id }, () => runSteps(id)));
     tail = done.catch(e => console.error('[make-chains] queue:', e.message));
     return { id, status: 'queued', chain: { id: chain.id, name: chain.name, steps: chain.steps.length }, done };
   }

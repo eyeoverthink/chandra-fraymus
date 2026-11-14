@@ -30,6 +30,7 @@ import { connect } from 'node:net';
 import { db } from '../db.js';
 import { DATA_DIR, mayRecoverAtBoot } from '../config.js';
 import { classifyUrl } from '../fraymus-os/registry.js';
+import { recordCard, WORKER_KINDS } from '../intelligence/card-ledger.js';
 
 const TOKEN_FILE = process.env.CHANDRA_WORKER_TOKEN_FILE || join(DATA_DIR, 'worker-token.txt');
 const now = () => Date.now();
@@ -199,8 +200,16 @@ async function runOnWorkerInner(worker, { id, kind, spec, files = {}, purpose = 
     try { await call(worker, `/jobs/${id}/ack`, { method: 'POST', body: { nonce } }); } catch (e) { console.error('[workers] ack:', e.message); }
     const seconds = +((now() - t0) / 1000).toFixed(1);
     db.prepare(`UPDATE worker_jobs SET state = 'done', receipt = ?, seconds = ?, completed_at = ? WHERE id = ?`).run(JSON.stringify(receipt), seconds, now(), id);
+    // the ledger takes the worker's own time from its signed receipt (the hub's round trip includes transfers)
+    const [lkind, card] = WORKER_KINDS[kind] || [kind, 'gpu'];
+    recordCard({ machine: worker.name, card, kind: lkind, seconds: receipt.seconds ?? seconds, job: id, label: purpose, detail: { worker: receipt.worker } });
     return { receipt, outputs, seconds };
-  } catch (e) { throw fail(e.message); }
+  } catch (e) {
+    // a failed job is charged the hub's elapsed time: the card may have worked on it until it failed
+    const [lkind, card] = WORKER_KINDS[kind] || [kind, 'gpu'];
+    recordCard({ machine: worker.name, card, kind: lkind, seconds: (now() - t0) / 1000, job: id, label: purpose, ok: false, detail: { error: clip(e.message, 160) } });
+    throw fail(e.message);
+  }
 }
 
 export function workerJobs(limit = 20) {
