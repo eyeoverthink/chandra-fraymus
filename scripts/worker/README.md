@@ -74,6 +74,11 @@ Useful options: `--models-dir` (weights outside ComfyUI), `--ollama-url` (unload
   ComfyUI's `extra_model_paths.yaml`. Holds `--gpu-lock` for the whole clip and unloads Ollama first, like stills.
 - `mesh` (1.4.0): `files: {"start.png"}`, `spec: {steps?, cfg?, octree?, seed?}` → `model.glb`. Hunyuan3D 2.0 through ComfyUI's native
   nodes; needs `checkpoints/hunyuan3d-dit-v2_fp16.safetensors`. Under the GPU lock, like the other GPU kinds.
+- `matte` (1.5.0): `files: {"image.png"}` → `mask.png` (8-bit, same size, white = subject). U²-Net on the CPU with onnxruntime;
+  needs the model file at `--u2net` (default `D:\Models\fraymus\rembg\models\u2net\u2net.onnx`, never downloaded) and onnxruntime,
+  numpy and Pillow in the worker's Python. No card, so no GPU lock.
+- `inpaint` (1.5.0): `files: {"image.png"}` (RGBA: alpha 0 = repaint; the colour under it is the hub's prefill), `spec: {prompt?, negative?,
+  steps?, cfg?, denoise?, seed?}` → `plate.png`. SDXL with a latent noise mask through ComfyUI; ready whenever `stills` is. Under the GPU lock.
 - `stills` items may name `checkpoint`: used only when that file is in the checkpoints folder (health lists them), otherwise `--checkpoint`.
 - A finished job carries a receipt: the caller's nonce, the content digest, and the SHA-256 of every output. The hub checks all three
   before it uses a file, then acknowledges, and the worker deletes the job folder. Unacknowledged jobs are removed after 24 hours.

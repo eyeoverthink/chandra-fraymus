@@ -15,7 +15,7 @@ import { mayRecoverAtBoot } from '../config.js';
 import { publish } from '../fleet/bus.js';
 import { chatOllama } from '../commerce/shared.js';
 import { createChainRunner, STEP_KINDS, STEP_KIND_NAMES, MAX_STEPS, MAKE_AS, spokenText, BUILTIN_CHAINS } from './make-chains.js';
-import { lookJob, startGenerate, startConvert, startAnimate, startMotion, startAvatar } from './looks/index.js';
+import { lookJob, startGenerate, startConvert, startAnimate, startMotion, startAvatar, startLayers } from './looks/index.js';
 import { createFromRequest, getCreation } from './make.js';
 import { voiceLine } from '../intelligence/narrator.js';
 
@@ -84,6 +84,11 @@ export const ADAPTERS = {
     const res = await waitLook(startAvatar({ file: ctx.previousFile.file, look: step.look || null, seconds: step.seconds || 6, format: step.format || '1:1', source: source(ctx) }), report);
     return { file: fileFrom(res.film, 'video'), detail: { model: res.model, still: res.still } };
   },
+  async layers(step, r, ctx, report) {
+    const res = await waitLook(startLayers({ file: ctx.previousFile.file, context: clip(r.context || '', 300), plate: step.plate === 'fill' ? 'fill' : 'paint', source: source(ctx) }), report);
+    const keep = step.keep === 'subject' ? res.subject : res.plate;
+    return { file: fileFrom(keep, 'image'), detail: { subject: res.subject, plate: res.plate, matte: res.matte, plateBy: res.plateBy, level: res.level?.tiles } };
+  },
   async make(step, r, ctx, report) {
     const asKind = step.as === 'still' ? 'still' : step.as === 'page' ? 'page' : step.as === 'video' ? 'video' : undefined;
     const usePicture = step.usePicture && ctx.previousFile?.kind === 'image' ? ctx.previousFile.file : undefined;
@@ -127,6 +132,8 @@ export function createMakeChainTools() {
     move: { type: 'string', description: 'move: camera move (push-in, orbit, ken-burns…)' },
     style: { type: 'string', description: 'make: the look (flat, stick, 8bit, cartoon, comic, explainer…)' },
     as: { type: 'string', enum: Object.keys(MAKE_AS), description: 'make: what it makes' },
+    keep: { type: 'string', enum: ['subject', 'plate'], description: 'layers: which layer is passed on (default plate)' },
+    context: { type: 'string', description: 'layers: what the scene is, to guide the repainted background' },
     seconds: { type: 'integer' },
   }, required: ['kind'] };
   return [

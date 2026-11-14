@@ -102,7 +102,7 @@ The engine folder (`physicsEngine`, `shaderPlugins` with live GLSL, `sdkGenerato
 Ranked by value for the least new machinery. Each line names the offline equivalent and what would check it.
 
 1. **Built 2026-11-14 as Make chains** (`server/media/make-chains.js`, tools `make_chain.*`, routes `/api/make-chains`; see CLAUDE.md "Make chains"). **Workflow chains with a rolling summary + image** (#24). Every step gets the previous step's text summary and newest image. This is a small change to the workflow engine and makes Story → Keyframe → Game and Topic → Storyboard → Art + Score + Voice runnable by agents. *Check:* each step's output must name or show what the previous step produced.
-2. **Scene → layers** (#10, #16, #17). This is the base for game parts, sprites and parallax:
+2. **Built 2026-11-14** (`server/media/looks/layers.js`, `looks.layers`, worker kinds `matte` (U²-Net) and `inpaint`; see CLAUDE.md "Scene → layers"). **Scene → layers** (#10, #16, #17). This is the base for game parts, sprites and parallax:
    - Background removal: corner flood fill first (their algorithm, pure, no model), with a segmentation model only if needed.
    - Clean backdrop: SDXL inpainting on fraymus-home, masked by the cutout.
    - *Check:* the cutout's alpha covers the subject, and the backdrop shows no part of the subject.

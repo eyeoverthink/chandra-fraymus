@@ -6,7 +6,8 @@
  * Jobs run one at a time from an in-memory queue (a 90 s video takes a few minutes on the CPU); finished files are
  * on the shelf with provenance, so a restart loses only the job record, never the work.
  */
-import { readFileSync, copyFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, copyFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { subjectMask, finishMask, alphaFromMask, morph, maskBox, fillHole, softMask, plateCheck, levelFromPicture, matteClarity, MIN_CLARITY, silhouetteScore, SILHOUETTE_MAX, boxHole, borderSpread, PLAIN_BORDER } from './layers.js';
 import { join, basename } from 'node:path';
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
@@ -217,6 +218,154 @@ export function startAvatar({ file, dataBase64, ext, prompt, model = null, look 
   return job;
 }
 
+/**
+ * Scene → layers: a picture becomes (1) its subject on a transparent background, (2) the background with the subject
+ * removed, and (3) a coarse tile level read from that background. From Nexus Engine's "scene abstractor" (see
+ * docs/NEXUS-ENGINE-CREATION-METHODS.md), with Chandra's own tools and a check on each layer:
+ *   matte  — U^2-Net on a worker's CPU (finds the subject in a full scene); without one, the colour fill in layers.js,
+ *            which refuses a busy background instead of guessing
+ *   plate  — the hole (subject, grown) is first filled from the colours around it, then repainted by SDXL on the
+ *            worker's card (plate: 'paint'); the result is blended back so nothing outside the hole moves, and
+ *            plateCheck() must see the hole changed and the rest unchanged
+ *   level  — layers.levelFromPicture(plate)
+ */
+/**
+ * The picture the inpaint worker gets: the prefilled colours with the hole as transparency (ComfyUI repaints where
+ * alpha is 0), at the painting size. Colour and mask are resized apart and joined: resizing RGBA premultiplies, so
+ * every transparent pixel's colour became black — the prefill never reached the model, which then repainted dark
+ * slabs and silhouettes (found 2026-11-14).
+ */
+export async function inpaintInput(prefill, hole, pw, ph) {
+  const { w: W, h: H } = prefill;
+  const rgb = await sharp(Buffer.from(prefill.d.buffer, prefill.d.byteOffset, prefill.d.byteLength), { raw: { width: W, height: H, channels: 3 } }).resize(pw, ph, { fit: 'fill' }).raw().toBuffer();
+  const a = await sharp(Buffer.from(Uint8Array.from(hole, v => (v ? 0 : 255))), { raw: { width: W, height: H, channels: 1 } }).resize(pw, ph, { fit: 'fill', kernel: 'nearest' }).extractChannel(0).raw().toBuffer();
+  return sharp(rgb, { raw: { width: pw, height: ph, channels: 3 } }).joinChannel(a, { raw: { width: pw, height: ph, channels: 1 } }).png().toBuffer();
+}
+
+// denoise 0.9 by default: on the girl-and-tree scene 1.0 painted a darker, flatter trunk than 0.9 (2026-11-14, one seed each)
+export function startLayers({ file, dataBase64, ext, point = null, context = '', plate = 'paint', denoise = 0.9, consent = false, realFace = false, source = 'api' }) {
+  if (realFace && consent !== true) throw Object.assign(new Error("a real person is only cut out of a picture with that person's consent: pass consent: true once they agreed"), { status: 422, code: 'consent_required' });
+  const path = inputPath({ file, dataBase64, ext });
+  if (isVideo(path)) throw Object.assign(new Error('layers are made from a still picture'), { status: 400 });
+  const pt = Array.isArray(point) && point.length === 2 && point.every(v => Number.isFinite(+v)) ? point.map(v => Math.max(0, Math.min(1, +v))) : null;
+  return enqueue('layers', `layers of ${basename(path)}`, async job => {
+    const { data, info } = await sharp(readFileSync(path)).rotate().removeAlpha().resize({ width: 1536, height: 1536, fit: 'inside', withoutEnlargement: true }).raw().toBuffer({ resolveWithObject: true });
+    const W = info.width, H = info.height, img = rgbImage(W, H, new Uint8ClampedArray(data));
+    const outDir = join(DATA_DIR, 'creations', job.id);
+    mkdirSync(outDir, { recursive: true });
+    const rawPng = (buf, ch) => sharp(Buffer.from(buf.buffer, buf.byteOffset, buf.byteLength), { raw: { width: W, height: H, channels: ch } }).png().toBuffer();
+    const src = basename(path);
+
+    // 1. the subject's matte
+    let alpha = null, matteBy = null, matteNote = null, share = null;
+    const mw = Math.max(8, Math.round(W * Math.min(1, 384 / Math.max(W, H)))), mh = Math.max(8, Math.round(H * Math.min(1, 384 / Math.max(W, H))));
+    const picked = await pickWorker('matte');
+    if (picked.worker) {
+      job.stage = `${picked.worker.name}: finding the subject`;
+      let soft = null;
+      try {
+        const r = await runOnWorker(picked.worker, { id: `${job.id}-matte`, kind: 'matte', spec: {}, files: { 'image.png': await rawPng(img.d, 3) }, purpose: `subject matte of ${src}` },
+          { outDir, onProgress: s => { job.stage = `${picked.worker.name}: ${s}`; }, timeoutMs: 300_000 });
+        const m = r.outputs.find(o => o.name === 'mask.png');
+        if (!m) throw new Error('the worker sent no mask');
+        // extractChannel(0): sharp returns 3 channels from a resized grey image unless told otherwise
+        soft = await sharp(readFileSync(m.path)).greyscale().resize(W, H, { fit: 'fill' }).extractChannel(0).raw().toBuffer();
+        matteBy = `U^2-Net on ${picked.worker.name}`;
+      } catch (e) { matteNote = `the worker could not make the matte (${clip(e.message, 160)}); the colour fill was used`; console.error('[looks] matte:', e.message); }
+      if (soft) {
+        const clarity = matteClarity(soft);
+        if (clarity < MIN_CLARITY) throw new Error(`no clear subject in this picture: the matte is undecided over ${Math.round((1 - clarity) * 100)} % of it (a landscape or a pattern has nothing to cut out)`);
+        const small = await sharp(soft, { raw: { width: W, height: H, channels: 1 } }).resize(mw, mh, { fit: 'fill' }).extractChannel(0).raw().toBuffer();
+        const fm = finishMask(Uint8Array.from(small, v => (v > 127 ? 1 : 0)), mw, mh, { point: pt });
+        if (!fm.ok) throw new Error(`no clear subject in this picture: ${fm.reason}`);
+        const keep = alphaFromMask(morph(fm.mask, mw, mh, 2), mw, mh, W, H, 1);
+        alpha = new Uint8ClampedArray(W * H);
+        for (let i = 0; i < alpha.length; i++) alpha[i] = Math.min(soft[i], keep[i]);
+        share = fm.share;
+      }
+    } else matteNote = `no worker can make a matte (${picked.why}); the colour fill was used`;
+    if (!alpha) {
+      job.stage = 'finding the subject by colour';
+      const sm = subjectMask(img, { point: pt });
+      if (!sm.ok) throw new Error(`could not separate the subject: ${sm.reason}`);
+      alpha = alphaFromMask(sm.mask, sm.w, sm.h, W, H);
+      matteBy = 'colour fill (no model)'; share = sm.share;
+    }
+
+    // 2. the subject layer, cropped to its box with a small margin
+    job.stage = 'cutting out the subject'; job.progress = 0.3;
+    const solid = Uint8Array.from(alpha, v => (v > 127 ? 1 : 0)), box = maskBox(solid, W, H);
+    if (!box) throw new Error('the matte is empty');
+    const pad = Math.round(Math.max(W, H) * 0.02), cx = Math.max(0, box.x - pad), cy = Math.max(0, box.y - pad);
+    const cw = Math.min(W - cx, box.w + 2 * pad), ch = Math.min(H - cy, box.h + 2 * pad);
+    const rgba = Buffer.alloc(W * H * 4);
+    for (let i = 0; i < W * H; i++) { rgba[i * 4] = img.d[i * 3]; rgba[i * 4 + 1] = img.d[i * 3 + 1]; rgba[i * 4 + 2] = img.d[i * 3 + 2]; rgba[i * 4 + 3] = alpha[i]; }
+    const subjectFile = `${Date.now()}-${job.id.slice(5)}-subject.png`;
+    writeFileSync(join(MEDIA_DIR, subjectFile), await sharp(rgba, { raw: { width: W, height: H, channels: 4 } }).extract({ left: cx, top: cy, width: cw, height: ch }).png().toBuffer());
+    noteMedia(subjectFile, 'layers', [`subject of ${src}`, { role: 'subject', from: src, matte: matteBy, share, box: { x: cx, y: cy, w: cw, h: ch } }], { source: source === 'agent' ? 'agent' : 'looks' });
+
+    // 3. the background plate: grow the hole past the subject's halo, fill it from around, repaint it on the card
+    job.stage = 'filling the background'; job.progress = 0.45;
+    const R = Math.max(3, Math.round(Math.max(W, H) * 0.012));
+    const shaped = morph(Uint8Array.from(alpha, v => (v > 8 ? 1 : 0)), W, H, R);
+    // a plain background (a studio, a flat colour) is already right when filled from around: painting one invented a
+    // room with a door and a ceiling light behind the robot (2026-11-14), so the card is only used for a real scene
+    const spread = borderSpread(img), plainBackground = spread <= PLAIN_BORDER;
+    const painter = plate !== 'paint' ? { worker: null, why: 'plate: fill was asked for' }
+      : plainBackground ? { worker: null, why: `the background is plain (border spread ${spread})` } : await pickWorker('inpaint');
+    const prompt = `${clip(context, 300) ? `${clip(context, 300)}, ` : ''}empty background scenery, nobody in it, same style, same lighting, seamless`;
+    // one plate for one hole: prefill from around, repaint on the worker if there is one, blend back, check
+    const makePlate = async (hole, attempt) => {
+      const prefill = fillHole(img, hole);
+      let out = prefill, by = 'filled from the colours around the subject (no painting)';
+      if (painter.worker) {
+        const s = 1024 / Math.max(W, H), pw = Math.max(512, Math.round((W * s) / 64) * 64), ph = Math.max(512, Math.round((H * s) / 64) * 64);
+        const sent = await inpaintInput(prefill, hole, pw, ph);
+        job.stage = `${painter.worker.name}: repainting the background${attempt > 1 ? ' (second try, box-shaped hole)' : ''}`;
+        const r = await runOnWorker(painter.worker, { id: `${job.id}-inpaint${attempt}`, kind: 'inpaint', spec: { prompt, denoise: Math.max(0.3, Math.min(1, Number(denoise) || 0.9)) }, files: { 'image.png': sent }, purpose: `background plate of ${src}` },
+          { outDir, onProgress: st => { job.stage = `${painter.worker.name}: ${st}`; }, timeoutMs: 1_200_000 });
+        const p = r.outputs.find(o => o.name === 'plate.png');
+        if (!p) throw new Error('the worker sent no plate');
+        const painted = await sharp(readFileSync(p.path)).removeAlpha().resize(W, H, { fit: 'fill' }).raw().toBuffer();
+        const blend = softMask(hole, W, H, R / 2);
+        out = rgbImage(W, H);
+        for (let i = 0; i < W * H; i++) { const t = hole[i] ? 1 : Math.min(1, blend[i] * 2); for (let c = 0; c < 3; c++) out.d[i * 3 + c] = t * painted[i * 3 + c] + (1 - t) * img.d[i * 3 + c]; }
+        by = `repainted by SDXL on ${painter.worker.name}${attempt > 1 ? ' (box-shaped hole)' : ''}`;
+      }
+      const check = plateCheck(img, out, morph(hole, W, H, R), { w: W, h: H });   // the blend reaches about R past the hole
+      const sil = silhouetteScore(out, solid, hole);
+      check.silhouette = sil.score;
+      if (check.ok && !sil.ok) { check.ok = false; check.reason = `a figure was painted back where the subject was (silhouette ${sil.score}, at most ${SILHOUETTE_MAX})`; }
+      return { out, by, check };
+    };
+    let plateNote = painter.worker || plate !== 'paint' ? null : plainBackground ? `the background is plain (border spread ${spread}), so it is filled from the surrounding colours without painting` : `no worker can repaint (${painter.why}); the background is filled from the surrounding colours`;
+    let made = await makePlate(shaped, 1);
+    // a figure-shaped hole invites a figure: try once more with a box around the subject, which suggests none
+    if (!made.check.ok && painter.worker && /figure was painted|flatter than its surroundings/.test(made.check.reason)) {
+      writeFileSync(join(outDir, 'plate-refused-1.png'), await rawPng(made.out.d, 3));
+      const first = made.check.reason;
+      made = await makePlate(morph(boxHole(solid, W, H, 2 * R), W, H, 0), 2);
+      plateNote = `first try refused: ${first}; a box-shaped hole was used`;
+    }
+    const { out: plateImg, by: plateBy, check } = made;
+    const paintedOn = painter.worker?.name || null;
+    if (!check.ok) {
+      writeFileSync(join(outDir, 'plate-refused.png'), await rawPng(plateImg.d, 3));
+      throw new Error(`the background plate failed its check: ${check.reason} (the subject layer ${subjectFile} was kept; the refused plate is in ${outDir})`);
+    }
+    const plateFile = `${Date.now()}-${job.id.slice(5)}-plate.png`;
+    writeFileSync(join(MEDIA_DIR, plateFile), await rawPng(plateImg.d, 3));
+    noteMedia(plateFile, 'layers', [`background of ${src} with the subject removed`, { role: 'plate', from: src, by: plateBy, check }], { source: source === 'agent' ? 'agent' : 'looks' });
+
+    // 4. a coarse game level read from the plate
+    job.stage = 'reading a level'; job.progress = 0.95;
+    const level = levelFromPicture(plateImg);
+    writeFileSync(join(outDir, 'level.json'), JSON.stringify({ from: src, plate: plateFile, ...level }, null, 1));
+    return { from: src, subject: subjectFile, plate: plateFile, size: [W, H], matte: matteBy, matteNote, share, box: { x: cx, y: cy, w: cw, h: ch },
+      plateBy, plateNote, paintedOn, plateCheck: check, level, folder: outDir };
+  });
+}
+
 /** Generate new pictures in a look: subject cleaned of franchise characters, recipe prompt, paint, finish with the look's filter. */
 export function startGenerate({ prompt, look = null, count = 1, format = '16:9', seed = null, source = 'api' }) {
   const recipe = look && RECIPES[look] ? look : recipeFor(prompt) || look;
@@ -282,6 +431,12 @@ export function createLooksTools() {
       description: 'Paint new pictures in a style recipe (pastoral hand-painted anime, classic 1960s manga, retro robot anime, 90s shonen action, comic hybrid, painted 3D, gold ornament, woodblock, brunaille, paper cutout, low-poly ink, charcoal watercolour, rotoscope, flat vector, toy bricks, 8-bit, 2-bit, ASCII). Pass the user\'s words; style names like "Miyazaki" or "Spider-Verse" pick the recipe. Franchise characters are never drawn — they become original characters. Returns a job id.',
       parameters: { type: 'object', properties: { prompt: str(600, "What to paint, in the user's words", { minLength: 3 }), look: { type: 'string', enum: [...RECIPE_NAMES], description: 'Recipe, if the words do not name one' }, count: { type: 'integer', minimum: 1, maximum: 4 }, format: { type: 'string', enum: ['16:9', '9:16', '1:1'] } }, required: ['prompt'], additionalProperties: false },
       execute: async ({ args }) => started(startGenerate({ ...args, source: 'agent' }), 'Painting') },
+    { name: 'looks.layers', group: 'looks', risk: 'safe', ownsReply: true,
+      description: 'Split a picture from the shelf into layers: the subject on a transparent background (a sprite or cutout), the background with the subject removed and repainted (a clean plate or game backdrop), and a coarse tile level read from that background. The subject is found by U^2-Net on fraymus-home, so a full scene works; with no worker only a plain background can be separated. `point` = [x, y] in 0-1 picks the subject when there are several. A real person needs consent: true. Returns a job id.',
+      parameters: { type: 'object', properties: { file: str(160, 'Shelf file name of a picture', { minLength: 3 }), context: str(300, 'What the scene is, to guide the repainted background'),
+        point: { type: 'array', items: { type: 'number' }, description: '[x, y] of the subject, each 0-1' }, plate: { type: 'string', enum: ['paint', 'fill'], description: 'paint (default) = repaint the hole on the card; fill = colours only' },
+        consent: { type: 'boolean', description: 'The person in it agreed' }, realFace: { type: 'boolean', description: 'It shows a real person' } }, required: ['file'], additionalProperties: false },
+      execute: async ({ args }) => started(startLayers({ ...args, source: 'agent' }), `Splitting ${args.file} into a subject, a background and a level`) },
     { name: 'looks.status', group: 'looks', risk: 'safe',
       description: 'Progress and result of a looks job (convert, animate, generate): status, stage and the files made.',
       parameters: { type: 'object', properties: { id: str(40, 'Job id', { minLength: 6 }) }, required: ['id'], additionalProperties: false },
@@ -296,6 +451,7 @@ export function installLooksRoutes(app) {
   app.post('/api/looks/animate', route((req, res) => res.status(202).json(view(startAnimate(req.body || {})))));
   app.post('/api/looks/avatar', route((req, res) => res.status(202).json(view(startAvatar(req.body || {})))));
   app.post('/api/looks/motion', route((req, res) => res.status(202).json(view(startMotion(req.body || {})))));
+  app.post('/api/looks/layers', route((req, res) => res.status(202).json(view(startLayers(req.body || {})))));
   app.post('/api/looks/generate', route((req, res) => res.status(202).json({ ...view(startGenerate(req.body || {})) })));
   app.get('/api/looks/jobs/:id', route((req, res) => { const j = lookJob(req.params.id); if (!j) return res.status(404).json({ error: 'no such job' }); res.json(view(j)); }));
 }

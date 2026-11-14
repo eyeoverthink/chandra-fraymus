@@ -90,9 +90,17 @@ export async function convertImage(input, { look, seed = 7, realFace = false, co
   const { img, kernel } = applyLook(look, image(work[0], work[1], new Uint8ClampedArray(data)), { seed, frame: 0, state: {}, outW: out[0], outH: out[1] });
   mkdirSync(MEDIA_DIR, { recursive: true });
   const file = stamp('png'), path = join(MEDIA_DIR, file);
-  await sharp(Buffer.from(img.d.buffer, img.d.byteOffset, img.d.length), { raw: { width: img.w, height: img.h, channels: 3 } })
-    .resize(out[0], out[1], { kernel, fit: 'fill' }).png({ compressionLevel: 8 }).toFile(path);
-  noteMedia(file, 'look', [note || `${LOOKS[look].label} look`, { look, seed, from: `${w0}x${h0}` }], { source });
+  const rgb = sharp(Buffer.from(img.d.buffer, img.d.byteOffset, img.d.length), { raw: { width: img.w, height: img.h, channels: 3 } }).resize(out[0], out[1], { kernel, fit: 'fill' });
+  // a cutout keeps its transparency (first seen live: an 8-bit sprite made from a cut-out knight came back on black).
+  // The alpha is taken at the look's own grid, made hard for pixel looks so it follows their blocks, then scaled like the picture.
+  if (meta.hasAlpha) {
+    let a = await sharp(input).rotate().extractChannel('alpha').resize(img.w, img.h, { fit: 'fill' }).raw().toBuffer();
+    if (LOOKS[look].pixel) a = Buffer.from(a.map(v => (v > 127 ? 255 : 0)));
+    const alpha = await sharp(a, { raw: { width: img.w, height: img.h, channels: 1 } }).resize(out[0], out[1], { kernel, fit: 'fill' }).extractChannel(0).raw().toBuffer();
+    const flat = await rgb.raw().toBuffer();
+    await sharp(flat, { raw: { width: out[0], height: out[1], channels: 3 } }).joinChannel(alpha, { raw: { width: out[0], height: out[1], channels: 1 } }).png({ compressionLevel: 8 }).toFile(path);
+  } else await rgb.png({ compressionLevel: 8 }).toFile(path);
+  noteMedia(file, 'look', [note || `${LOOKS[look].label} look`, { look, seed, from: `${w0}x${h0}`, transparent: !!meta.hasAlpha }], { source });
   return { file, path, width: out[0], height: out[1], look, label: LOOKS[look].label, ms: Date.now() - t0 };
 }
 

@@ -385,6 +385,50 @@ npm run start        # production server (serves built client)
 - Tests: `test/make-chains.test.js` (10).
 - **Not verified live:** `picture-to-motion` and `story-to-game-page` end to end, a saved chain run by an agent, the rewrite-on-ignored-input path with a real model (unit-tested only), a step timing out.
 
+### Scene → layers — subject, background, level (server/media/looks/layers.js + startLayers in looks/index.js) — 2026-11-14
+- **Why:** gap 2 in `docs/NEXUS-ENGINE-CREATION-METHODS.md` (Nexus methods 10, 16, 17), and Vaughn chose it next. A picture becomes three layers:
+  - its **subject** on a transparent background (a sprite or cutout);
+  - the **background** with the subject removed and repainted (a plate or game backdrop);
+  - a coarse **tile level** read from that background.
+- **Matte (who is the subject):**
+  - **First choice: U²-Net** (rembg's salient-object model), run on fraymus-home's CPU by **worker 1.5.0, kind `matte`** (`u2net_mask()`: 320² input, ImageNet normalisation, min-max of the first output). **Nothing was downloaded:** `D:\Models\fraymus\rembg\models\u2net\u2net.onnx` was already there (OhGee's, listed in the studio's `toolbox/registry.json`), and the worker's Python (the video-studio venv) already had onnxruntime. Worker flag `--u2net`.
+  - **`matteClarity(soft)`:** the share of pixels clearly black or clearly white must be ≥ `MIN_CLARITY` 0.85. Measured: robot on white 0.985, girl in a painted scene 0.959, flat landscape 0.626. A hazy matte is refused ("no clear subject"); before this check, the moon was cut out of a landscape.
+  - **`finishMask`** keeps the largest piece, or the piece under `point` [x, y] (0–1), fills enclosed holes, and checks the share is 1–85 %.
+  - **Without a worker: the colour fill (`subjectMask`).**
+    - It grows from the border neighbour by neighbour (`local` 22), bounded against the seed colour (`global` 140), and stops at drawn edges (`edgeStop` 55, Sobel).
+    - It **refuses a busy border** (`borderSpread` > `PLAIN_BORDER` 30; the painted scenes measured 99–111) rather than guess.
+    - Limit, seen live: the robot's softly shaded white head on a white studio was lost to the background. U²-Net keeps it.
+- **Plate (what is behind the subject):**
+  - The hole is the matte grown by 1.2 % of the long side. `fillHole` fills it by push-pull, from the colours around it.
+  - **Plain backgrounds stop there.** Border spread ≤ 30 means no painting: SDXL had invented a room with a door and a ceiling light behind the robot.
+  - **Scenes are repainted** by **worker kind `inpaint`**: SDXL base, `SetLatentNoiseMask` over the prefill, denoise **0.9** by default (1.0 gave a darker, flatter trunk), under the card lock. The result is blended back so nothing outside the hole moves.
+  - **The bug that caused every bad plate:** resizing RGBA in sharp **premultiplies**, so the colour under every transparent pixel became black. The model was handed a black hole each time, which explains the dark slab, the dark knight silhouette and a black box. `inpaintInput()` now resizes colour and alpha apart and joins them, and a test checks the colour under the hole.
+  - **Checks:**
+    - **`plateCheck`:** the hole changed (≥ 12), the rest did not (≤ 2), and the hole is not far flatter than a ring around it (detail ratio ≥ 0.35).
+    - **`silhouetteScore`:** the plate's mean colour over the subject's own pixels against the margin of the hole. A figure painted back in the subject's shape scores ≥ 59; good plates scored 7–36. The limit is `SILHOUETTE_MAX` 40.
+    - A plate refused for shape or flatness is **retried once with a box-shaped hole** (`boxHole`), a shape that does not suggest a body. A second failure refuses the job: the subject layer is kept and the refused plates are saved in the job folder.
+- **Level:** `levelFromPicture(plate)`, 24×13 cells: `.` open (like the top row's sky colour), `#` solid, `=` a platform top, and the bottom row always solid. Written to `data/creations/<job>/level.json` and returned. It is coarse: no game uses it yet.
+- **Restyle keeps transparency** (`convertImage` in convert.js). The alpha is taken at the look's own grid, made hard for pixel looks, and scaled like the picture. Before this, an 8-bit sprite made from the cut-out knight came back on black.
+- **Interfaces:**
+  - `startLayers({file | dataBase64+ext, point?, context?, plate: 'paint'|'fill', denoise?, consent, realFace})` returns `{subject, plate, matte, matteNote, share, box, plateBy, plateNote, paintedOn, plateCheck, level, folder}`. Both files go on the shelf with provenance (op `layers`, role `subject` / `plate`).
+  - Route `POST /api/looks/layers` (202).
+  - Fleet tool **`looks.layers`** (`ownsReply`).
+  - Chain step **`layers`** (needs a picture; `keep: subject | plate` says which file is passed on, default plate; `context` is a template).
+  - A real person needs `consent: true`.
+- **Measured 2026-11-14, about 20 s a picture on fraymus-home:**
+  - Girl and cat at sunset: the girl and the tree trunk she stands against came out as one subject. The plate continues the foliage and a tree.
+  - Fox knight in a misty forest: the first plate was refused for shape, and the box retry painted a forest path. **The box's edge is faintly visible.**
+  - Robot on white: a clean cutout including the white head; a plain-gradient plate.
+  - Flat landscape: refused, no clear subject.
+  - Chain paint → layers(keep subject) → 8-bit: 117 s, transparent sprite.
+- Tests: `test/scene-layers.test.js` (13).
+- **Not done or not verified:**
+  - Choosing one subject among touching objects (U²-Net merges them; `point` only picks between separate pieces).
+  - Softer blending at a box hole's edge.
+  - A game that reads `level.json` (the platformer page kit, gap 6).
+  - An agent calling `looks.layers` in plain words.
+  - Inpainting with a real inpainting model (none on disk; SDXL base varies by seed).
+
 ### Memory search — agents recall by meaning, and the gain is a number (server/intelligence/memory-*.js) — 2026-11-11
 - **Why:** the first mechanism absorbed from gbrain (see the ranked list under the flat look). `recallMemories` was `key LIKE '%query%' OR value LIKE '%query%'`: a question in a sentence matched nothing. And `buildPromptContext(agentId, taskText)` **ignored its second argument** — every agent prompt carried its ten newest memories whatever the task was (the caller did not even pass the task).
 - **`memory-rank.js` (pure):** `ftsQuery` (every word quoted, so nothing typed is query syntax; all words, then any word), `rrfFuse` (k = 60), `fuse` = 0.7 · normalised RRF + 0.3 · cosine with near-duplicates dropped (word-set Jaccard > 0.85), and the measures: `precisionAt`, `recallAt`, `reciprocalRank`, `ndcgAt`, `hitAt`, `summarise`, and a seeded paired sign-flip test `signFlipP`.

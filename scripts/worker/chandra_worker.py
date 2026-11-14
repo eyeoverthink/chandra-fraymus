@@ -22,7 +22,9 @@ Workspace's claim / nonce / acknowledge protocol:
 Kinds: "stills" (SDXL-family checkpoints through a local ComfyUI; an item may name another checkpoint that is on
 disk), "i2v" (a still set in motion by Wan 2.2 TI2V 5B through the same ComfyUI, native nodes only), "mesh" (a
 picture made into a 3-D model, .glb, by Hunyuan3D 2.0 through ComfyUI's native nodes) and "video" (fraymus-video-studio through Chandra's launcher, with the spoken lines
-already recorded by the hub and sent along, so no voice leaves the hub's machine).
+already recorded by the hub and sent along, so no voice leaves the hub's machine), "matte" (U^2-Net subject mask
+on the CPU with onnxruntime, the model rembg uses, from --u2net) and "inpaint" (SDXL repaints the transparent part of
+a picture through a latent noise mask, under the card lock) — the two halves of scene → layers.
 
 Every request needs "Authorization: Bearer <token>". The token is full trust: whoever holds it can make this
 machine render. Bind to the private (Tailscale) address, never to a public one. Job files are data; the only
@@ -47,7 +49,8 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = "1.4.0"
+VERSION = "1.5.0"
+KINDS = ("stills", "i2v", "mesh", "video", "inpaint", "matte")
 HERE = os.path.dirname(os.path.abspath(__file__))
 SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{2,60}$")
@@ -170,6 +173,62 @@ def clean_i2v(spec: dict, job_id: str) -> dict:
             "steps": min(30, max(8, int(spec.get("steps") or 20))),
             "seed": int(spec["seed"]) if isinstance(spec.get("seed"), int) else int.from_bytes(os.urandom(4), "big"),
             "prefix": f"chandra-i2v-{job_id}"}
+
+
+def inpaint_workflow(image_name: str, c: dict, checkpoint: str, vae: str | None) -> dict:
+    """SDXL repaints only the masked area of a picture. The picture's alpha is the mask (transparent = repaint: ComfyUI's
+    LoadImage gives MASK = 1 - alpha). The hub pre-fills the hole with the surrounding colours, so a plain checkpoint
+    with a latent noise mask works without an inpainting model."""
+    wf = {
+        "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": checkpoint}},
+        "6": {"class_type": "CLIPTextEncode", "inputs": {"text": c["prompt"], "clip": ["4", 1]}},
+        "7": {"class_type": "CLIPTextEncode", "inputs": {"text": c["negative"], "clip": ["4", 1]}},
+        "11": {"class_type": "LoadImage", "inputs": {"image": image_name}},
+        "12": {"class_type": "VAEEncode", "inputs": {"pixels": ["11", 0], "vae": ["10", 0] if vae else ["4", 2]}},
+        "13": {"class_type": "SetLatentNoiseMask", "inputs": {"samples": ["12", 0], "mask": ["11", 1]}},
+        "3": {"class_type": "KSampler", "inputs": {"seed": c["seed"], "steps": c["steps"], "cfg": c["cfg"], "sampler_name": "dpmpp_2m", "scheduler": "karras",
+                                                    "denoise": c["denoise"], "model": ["4", 0], "positive": ["6", 0], "negative": ["7", 0], "latent_image": ["13", 0]}},
+        "8": {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["10", 0] if vae else ["4", 2]}},
+        "9": {"class_type": "SaveImage", "inputs": {"filename_prefix": c["prefix"], "images": ["8", 0]}},
+    }
+    if vae:
+        wf["10"] = {"class_type": "VAELoader", "inputs": {"vae_name": vae}}
+    return wf
+
+
+def clean_inpaint(spec: dict, job_id: str) -> dict:
+    def num(v, d, lo, hi, cast=int):
+        try:
+            return min(hi, max(lo, cast(v)))
+        except (TypeError, ValueError):
+            return d
+    return {"prompt": str(spec.get("prompt") or "empty background scenery, nobody in it, same style and lighting")[:1200],
+            "negative": str(spec.get("negative") or "person, people, character, figure, animal, face, body, text, watermark, blurry")[:600],
+            "steps": num(spec.get("steps"), 30, 10, 60), "cfg": num(spec.get("cfg"), 6.0, 1.0, 12.0, float), "denoise": num(spec.get("denoise"), 0.9, 0.3, 1.0, float),
+            "seed": int(spec["seed"]) if isinstance(spec.get("seed"), int) else int.from_bytes(os.urandom(4), "big"),
+            "prefix": f"chandra-inpaint-{job_id}"}
+
+
+def u2net_mask(model_path: str, image_path: str, out_path: str) -> dict:
+    """Salient-object matte with U^2-Net (the model rembg uses), run on the CPU with onnxruntime: 320x320 input,
+    ImageNet normalisation after dividing by the image maximum, the first output through min-max, back to full size."""
+    import numpy as np
+    import onnxruntime as ort
+    from PIL import Image
+    t0 = time.time()
+    im = Image.open(image_path).convert("RGB")
+    small = np.asarray(im.resize((320, 320), Image.LANCZOS), dtype=np.float32)
+    small = small / max(1e-6, float(small.max()))
+    mean, std = np.array([0.485, 0.456, 0.406], np.float32), np.array([0.229, 0.224, 0.225], np.float32)
+    x = ((small - mean) / std).transpose(2, 0, 1)[None].astype(np.float32)
+    sess = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
+    pred = sess.run(None, {sess.get_inputs()[0].name: x})[0][0, 0]
+    lo, hi = float(pred.min()), float(pred.max())
+    pred = (pred - lo) / max(1e-6, hi - lo)
+    mask = Image.fromarray((pred * 255).astype(np.uint8)).resize(im.size, Image.LANCZOS)
+    mask.save(out_path)
+    a = np.asarray(mask, dtype=np.float32) / 255
+    return {"engine": "u2net (onnxruntime, CPU)", "width": im.size[0], "height": im.size[1], "share": round(float((a > 0.5).mean()), 4), "seconds": round(time.time() - t0, 2)}
 
 
 HUNYUAN3D_CKPT = "hunyuan3d-dit-v2_fp16.safetensors"
@@ -394,7 +453,20 @@ class Worker:
                 mesh["problems"].append("ComfyUI is not running and --comfy-python is not set to start it")
         mesh["ready"] = not mesh["problems"]
         stills["checkpoints"] = self._models("checkpoints") if self.a.comfy_dir else []
-        self._cap = {"stills": stills, "i2v": i2v, "mesh": mesh, "video": video}
+        # inpaint = the stills machinery with a mask; matte = U^2-Net on the CPU (no card, no lock)
+        inpaint = {"ready": stills["ready"], "problems": list(stills["problems"]), "engine": "sdxl + latent noise mask"}
+        matte = {"ready": False, "problems": [], "engine": "u2net (onnxruntime, CPU)", "model": self.a.u2net}
+        if not self.a.u2net or not os.path.exists(self.a.u2net):
+            matte["problems"].append(f"the U^2-Net model is not at {self.a.u2net} (--u2net)")
+        try:
+            import importlib.util as _u
+            for m in ("onnxruntime", "numpy", "PIL"):
+                if not _u.find_spec(m):
+                    matte["problems"].append(f"the worker's Python has no {m}")
+        except Exception as e:
+            matte["problems"].append(f"could not check packages: {e.__class__.__name__}")
+        matte["ready"] = not matte["problems"]
+        self._cap = {"stills": stills, "i2v": i2v, "mesh": mesh, "video": video, "inpaint": inpaint, "matte": matte}
         self._cap_at = time.time()
         return self._cap
 
@@ -435,8 +507,8 @@ class Worker:
             return 400, {"error": "id must be 3-61 letters, digits, - or _"}
         if not isinstance(nonce, str) or len(nonce) < 16:
             return 400, {"error": "nonce must be at least 16 characters"}
-        if kind not in ("stills", "i2v", "mesh", "video"):
-            return 400, {"error": "kind must be stills, i2v, mesh or video"}
+        if kind not in KINDS:
+            return 400, {"error": "kind must be one of " + ", ".join(KINDS)}
         spec = body.get("spec") if isinstance(body.get("spec"), dict) else {}
         files = {}
         for name, b64 in (body.get("files") or {}).items():
@@ -476,7 +548,7 @@ class Worker:
     def run(self, j):
         t0 = time.time()
         try:
-            {"stills": self.run_stills, "i2v": self.run_i2v, "mesh": self.run_mesh, "video": self.run_video}[j["kind"]](j)
+            {"stills": self.run_stills, "i2v": self.run_i2v, "mesh": self.run_mesh, "video": self.run_video, "inpaint": self.run_inpaint, "matte": self.run_matte}[j["kind"]](j)
             out_dir = os.path.join(self.job_dir(j["id"]), "out")
             j["files"] = [{"name": n, "bytes": os.path.getsize(os.path.join(out_dir, n)), "sha256": sha256_file(os.path.join(out_dir, n))}
                           for n in sorted(os.listdir(out_dir)) if os.path.isfile(os.path.join(out_dir, n)) and SAFE_NAME.match(n)]
@@ -652,6 +724,77 @@ class Worker:
             shutil.rmtree(frames_dir, ignore_errors=True)
             j["detail"] = {"engine": "wan2.2-ti2v-5b", "frames": len(images), "fps": I2V_FPS, "width": c["width"], "height": c["height"],
                            "steps": c["steps"], "seed": c["seed"], "generateSeconds": gen_s, "unloaded": freed, "gpuLock": self.a.gpu_lock or None}
+        finally:
+            for p in made + [input_path]:
+                try: os.remove(p)
+                except OSError: pass
+            try:
+                http_json(self.a.comfy_url + "/free", {"unload_models": True, "free_memory": True}, timeout=15)
+            except Exception:
+                pass
+            if lock:
+                lock.release()
+
+    # ── matte and inpaint: a scene split into layers ─────────────────────────────────────────────────
+    def run_matte(self, j):
+        """image.png -> mask.png (8-bit, same size; white = the subject). CPU only, so no card lock."""
+        src = os.path.join(self.job_dir(j["id"]), "in", "image.png")
+        if not os.path.exists(src):
+            raise ValueError("image.png is missing")
+        j["stage"] = "finding the subject (U^2-Net)"
+        j["detail"] = u2net_mask(self.a.u2net, src, os.path.join(self.job_dir(j["id"]), "out", "mask.png"))
+
+    def run_inpaint(self, j):
+        """image.png (alpha 0 = repaint) -> plate.png. Holds the card lock like stills."""
+        c = clean_inpaint(j["spec"], j["id"])
+        src = os.path.join(self.job_dir(j["id"]), "in", "image.png")
+        if not os.path.exists(src):
+            raise ValueError("image.png is missing")
+        cap = self.capabilities()["stills"]
+        lock = None
+        if self.a.gpu_lock:
+            j["stage"] = "waiting for the card"
+            lock = GpuFileLock(self.a.gpu_lock, f"chandra-worker inpaint {j['id']}")
+            lock.acquire(on_wait=lambda seen: j.__setitem__("stage", f"waiting for the card (held by {seen['holder'][:60]}, {seen['ageS']} s)"))
+        made, input_name = [], f"chandra-inpaint-{j['id']}.png"
+        input_path = os.path.join(self.a.comfy_dir, "input", input_name)
+        try:
+            j["stage"] = "freeing the card"
+            freed = self.free_ollama()
+            j["stage"] = "starting ComfyUI"
+            self.ensure_comfy()
+            os.makedirs(os.path.dirname(input_path), exist_ok=True)
+            shutil.copyfile(src, input_path)
+            t0 = time.time()
+            pid = http_json(self.a.comfy_url + "/prompt", {"prompt": inpaint_workflow(input_name, c, cap["checkpoint"], cap["vae"])}, timeout=60).get("prompt_id")
+            if not pid:
+                raise RuntimeError("ComfyUI refused the inpaint workflow")
+            image, deadline = None, time.time() + STILL_TIMEOUT_S
+            while time.time() < deadline and not image:
+                time.sleep(1.5)
+                j["stage"] = f"repainting the background ({round(time.time() - t0)} s)"
+                entry = http_json(f"{self.a.comfy_url}/history/{pid}", timeout=10).get(pid)
+                if not entry:
+                    continue
+                status = entry.get("status") or {}
+                if status.get("status_str") == "error":
+                    msgs = [m[1].get("exception_message", "") for m in status.get("messages", []) if m and m[0] == "execution_error"]
+                    raise RuntimeError("ComfyUI reported an error: " + (msgs[0][:300] if msgs else "unknown"))
+                images = [im for o in (entry.get("outputs") or {}).values() for im in (o.get("images") or [])]
+                image = images[0] if images else None
+            if not image:
+                raise RuntimeError(f"no picture after {STILL_TIMEOUT_S} s")
+            q = urllib.parse.urlencode({"filename": image["filename"], "subfolder": image.get("subfolder", ""), "type": image.get("type", "output")})
+            with urllib.request.urlopen(f"{self.a.comfy_url}/view?{q}", timeout=60) as r:
+                data = r.read()
+            with open(os.path.join(self.job_dir(j["id"]), "out", "plate.png"), "wb") as f:
+                f.write(data)
+            out_root = os.path.realpath(os.path.join(self.a.comfy_dir, "output"))
+            p = os.path.realpath(os.path.join(out_root, image.get("subfolder", ""), image["filename"]))
+            if p.startswith(out_root + os.sep):
+                made.append(p)
+            j["detail"] = {"engine": "sdxl inpaint (latent noise mask)", "checkpoint": cap["checkpoint"], "steps": c["steps"], "denoise": c["denoise"], "seed": c["seed"],
+                           "generateSeconds": round(time.time() - t0, 1), "unloaded": freed, "gpuLock": self.a.gpu_lock or None}
         finally:
             for p in made + [input_path]:
                 try: os.remove(p)
@@ -909,6 +1052,7 @@ def main(argv=None):
     ap.add_argument("--lowvram", action="store_true", help="start ComfyUI with --lowvram (cards with 8 GB)")
     ap.add_argument("--ollama-url", default=os.environ.get("CHANDRA_WORKER_OLLAMA_URL", ""), help="a local Ollama to unload before painting, e.g. http://127.0.0.1:11434")
     ap.add_argument("--gpu-lock", default=os.environ.get("CHANDRA_WORKER_GPU_LOCK", ""), help="the card lock shared with other agents on this machine, e.g. D:/Models/fraymus/gpu.lock (held for every stills job)")
+    ap.add_argument("--u2net", default=os.environ.get("CHANDRA_WORKER_U2NET", r"D:\Models\fraymus\rembg\models\u2net\u2net.onnx"), help="U^2-Net ONNX file for the matte kind (rembg's model; never downloaded by the worker)")
     ap.add_argument("--studio-dir", default=os.environ.get("CHANDRA_WORKER_STUDIO_DIR"))
     ap.add_argument("--studio-python", default=os.environ.get("CHANDRA_WORKER_STUDIO_PYTHON"))
     ap.add_argument("--launcher", default=None)
