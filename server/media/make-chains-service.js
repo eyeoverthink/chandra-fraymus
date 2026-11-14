@@ -18,6 +18,7 @@ import { createChainRunner, STEP_KINDS, STEP_KIND_NAMES, MAX_STEPS, MAKE_AS, spo
 import { lookJob, startGenerate, startConvert, startAnimate, startMotion, startAvatar, startLayers, startVector } from './looks/index.js';
 import { createFromRequest, getCreation } from './make.js';
 import { voiceLine } from '../intelligence/narrator.js';
+import { startWorld, getWorld } from './world-builder.js';
 
 const clip = (s, n) => String(s ?? '').slice(0, n);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -83,6 +84,16 @@ export const ADAPTERS = {
   async avatar(step, r, ctx, report) {
     const res = await waitLook(startAvatar({ file: ctx.previousFile.file, look: step.look || null, seconds: step.seconds || 6, format: step.format || '1:1', source: source(ctx) }), report);
     return { file: fileFrom(res.film, 'video'), detail: { model: res.model, still: res.still } };
+  },
+  async world(step, r, ctx, report) {
+    const pic = step.fromPicture && ctx.previousFile?.kind === 'image' ? ctx.previousFile.file : null;
+    if (!pic && !r.prompt) throw new Error('a world step needs a prompt, or fromPicture with a picture before it');
+    const started = startWorld({ request: pic ? '' : r.prompt, file: pic, source: source(ctx) });
+    await started.done;
+    const w = getWorld(started.id);
+    if (w.status !== 'completed') throw new Error(`world: ${w.error || w.status}`);
+    report('world: walked through and kept');
+    return { file: fileFrom(w.slug, 'page'), detail: { url: w.url, name: w.spec?.name, walked: w.check?.walk?.walked } };
   },
   async vector(step, r, ctx, report) {
     const res = await waitLook(startVector({ file: ctx.previousFile.file, style: step.style || 'cutout', detail: step.detail, source: source(ctx) }), report);

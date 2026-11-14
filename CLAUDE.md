@@ -476,6 +476,48 @@ npm run start        # production server (serves built client)
   - Clips with sound.
   - A 30 s clip (time scales roughly 0.6 s per drawing).
 
+### Walkable worlds — a place or a picture as a page you can walk through (server/media/world-builder.js + page-kit/terrain.js) — 2026-11-14
+- **Why:** gap 5 in `docs/NEXUS-ENGINE-CREATION-METHODS.md` (Nexus methods 8 and 20: a model wrote world parameters from a search, three.js drew them).
+- **`page-kit/terrain.js` (`ChandraTerrain`):** a browser global with no network and **no WebGL**. A heightfield is drawn column by column, front to back, one height buffer per screen column (the "voxel space" technique), on Canvas 2D at up to 560 px wide, then scaled. It runs in any browser, including headless Chromium with no card.
+  - **`generate(spec)` is pure,** so Node runs it too (the tests do). Terrain: seeded value-noise fbm mixed with ridged noise by `rugged`, and an island that sinks smoothly to the edge. The sink is **not clamped**: a clamp left a third of the map at exactly 0 and the water line could not split it.
+  - Each `peak` landmark raises the land; anything built gets a flat spot. **`water` is the share of the land under water**, set at that quantile of the heights (measured within 0.01 of what was asked).
+  - Colours: water by depth, a shore band, ground, rock by slope or height, snow on top (`palette.snow: null` = none). Sun lighting is baked into the colours.
+  - Or `spec.data` = `{size, heights, colours}` in base64, which is how a world is read from a picture.
+  - **`mount(canvas, spec)`:**
+    - **Movement:** walk (the eye 5.5 units above the ground, followed smoothly) or fly (F; Space/Shift up and down); W/S and arrows to move, A/D to turn, drag to look; on-screen buttons on touch screens.
+    - **What is drawn:** landmarks as six sprite kinds (tower, peak, plaza, bridge, ruin, depot), clipped against the terrain as the sweep passes their depth, with labels; a minimap with landmarks and a heading arrow.
+    - **Start:** the camera begins on land, facing the nearest landmark or the middle. The first world began at the shore facing out to sea.
+    - **Close range:** heights are blended between cells (z < 48), because close up one cell had drawn as a flat block.
+    - **Before anyone takes the controls:** a slow look around, so a still page still moves.
+    - **For tests:** `window.__chandraWorld` gives `state()` (x, z, y, ground, mode, `landShare`, landmarks visible), `step`, `press`, `setMode`.
+- **`world-builder.js`:**
+  - **Spec:** the model pool writes it (JSON, ≤ 3 attempts; `worldMessages` asks for 3–6 landmarks). **Real places are grounded:** `placeOf(request)` strips the world words ("a walkable world of the Isle of Skye" → "Isle Skye"; before this, the lookup searched the whole phrase and missed the article). `make.js groundFacts` (now exported) fetches the Wikipedia opening.
+  - **`checkWorldSpec`:** clamps every number, defaults any colour that is not `#rrggbb`, maps unknown landmark kinds to tower, and pushes landmarks that are closer than 0.2 apart. **It drops any landmark whose capitalised name words are not in the facts or the request** (`nameGrounded`), so a world of a real place may not invent real places. Descriptive names ("the old harbour") pass.
+  - **`worldFromPicture`:** brightness becomes height (stretched to the full range, blurred 1.6 so pixels are not cliffs) and colours become the ground, at 256².
+  - **`worldPage`:** a fixed template, not model-written: the component inlined, the spec, a title card with summary and landmark list, help, a walk/fly indicator, touch pad, and a credit line naming the facts source.
+- **Check:**
+  - `verifyPage` under the site policy (draws, moves on its own).
+  - **`walkCheck`** drives the page: the first view must show land (`landShare` ≥ `MIN_LAND_IN_VIEW` 0.1); holding W for 1.2 s must move it at least 3 map units; the eye must stay within 2 of 5.5 above the ground; F must take off.
+  - A world that fails is deleted from Sites and the job says why. `page-builder.js withBrowserPage(fn)` (new export) runs a check on the shared headless browser.
+- **Interfaces:**
+  - Jobs: one at a time, table `worlds`; runs a dead process left open are closed at boot behind `mayRecoverAtBoot`.
+  - Routes `GET /api/worlds`, `POST /api/worlds {request | file}` (202), `GET /api/worlds/:id`.
+  - Fleet tools **`world.create`** (`ownsReply`) and `world.status`.
+  - Chain step **`world`** (`prompt`, or `fromPicture: true` to use the newest picture, e.g. a background plate from `layers`).
+- Tests: `test/walkable-world.test.js` (4, including a real browser walk on a built page).
+- **Measured 2026-11-14.** fraymus-home's card was held by the video studio throughout, so specs were written on slower machines; timings are not representative.
+  - **First round:** all three passed the checks of the time, and **all three first views were a wall of ground** (`landShare` 1.0). The land rose a third of the map's width with the eye at 5.5. Hence the vertical scale 0.32 → 0.13, the 16-heading start choice, and the upper bound `MAX_LAND_IN_VIEW` 0.85. The desert came out green (no ground colour given): a missing ground now comes from shore and rock.
+  - **Second round:**
+    - **Isle of Skye:** grounded on Wikipedia "Isle of Skye". Five invented names were dropped ("Cuillin Peaks", "Clan MacLeod Stone"…); Portree Harbour stayed. Rugged green mountains, land 77 % of the first view, walked 14.8, eye 5.48 above the ground, flew 35.5.
+    - **Desert planet with glass towers at dusk:** no article, written from memory. Grey canyon cliffs under a purple dusk, one landmark, land 61 %.
+    - **World from the girl-scene background plate:** 24 s, the picture's colours as a valley, land 82 %.
+  - **Honest gaps:**
+    - The model gives fewer landmarks than asked (1 of 3–6), and strict grounding drops most for a real place.
+    - Landmark kinds are six fixed sprites (no "glass tower").
+    - A picture world has no landmarks.
+    - Strict grounding reads only the article's opening, so real names further down ("Cuillin") are dropped too.
+  - The full suite passed 998/998 on a quiet machine. One `agent.test.js` timing test failed once under the load of three concurrent world builds and passed 3/3 alone.
+
 ### Memory search — agents recall by meaning, and the gain is a number (server/intelligence/memory-*.js) — 2026-11-11
 - **Why:** the first mechanism absorbed from gbrain (see the ranked list under the flat look). `recallMemories` was `key LIKE '%query%' OR value LIKE '%query%'`: a question in a sentence matched nothing. And `buildPromptContext(agentId, taskText)` **ignored its second argument** — every agent prompt carried its ten newest memories whatever the task was (the caller did not even pass the task).
 - **`memory-rank.js` (pure):** `ftsQuery` (every word quoted, so nothing typed is query syntax; all words, then any word), `rrfFuse` (k = 60), `fuse` = 0.7 · normalised RRF + 0.3 · cosine with near-duplicates dropped (word-set Jaccard > 0.85), and the measures: `precisionAt`, `recallAt`, `reciprocalRank`, `ndcgAt`, `hitAt`, `summarise`, and a seeded paired sign-flip test `signFlipP`.

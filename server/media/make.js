@@ -503,7 +503,7 @@ const NOT_SUBJECT = /\b(make|create|draw|generate|render|give me|i want|please|m
  * article. Optional by design — offline, or with CREATION_GROUNDING=0, the film is written from the model's
  * memory and its record says so. Never throws.
  */
-async function groundFacts(request) {
+export async function groundFacts(request) {
   if (process.env.CREATION_GROUNDING === '0') return { text: null, why: 'switched off (CREATION_GROUNDING=0)' };
   const subject = clip(String(request).replace(NOT_SUBJECT, ' ').replace(/[^A-Za-z0-9' -]/g, ' ').replace(/\s+/g, ' ').trim(), 120);
   if (subject.split(' ').length < 2) return { text: null, why: 'the request names no subject to look up' };

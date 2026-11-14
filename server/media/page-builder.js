@@ -176,6 +176,14 @@ export async function verifyPage(url, { motionExpected = false } = {}) {
   return { ok: problems.length === 0, problems, errors: uniq(errors), blocked: uniq(blocked), colours, moved, motionExpected, screenshot: shotB };
 }
 
+/** Run `fn(page)` on a fresh tab of the shared headless browser (closed afterwards). For checks that drive a page. */
+export async function withBrowserPage(fn) {
+  inUse++;
+  let page;
+  try { page = await (await getBrowser()).newPage(); return await fn(page); }
+  finally { try { await page?.close(); } catch (_) { /* already closed */ } releaseBrowser(); }
+}
+
 /**
  * Write → check → run → retry. `ask(messages)` returns the model's reply; `onStage(text)` reports progress.
  * Resolves the kept page, or throws with what the browser saw on the last attempt.

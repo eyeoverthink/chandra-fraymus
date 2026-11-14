@@ -28,6 +28,7 @@ export const STEP_KINDS = {
   move:    { needs: 'image', gives: 'video', fields: [],          required: [],                 about: 'a camera move over the newest picture (push-in, orbit, ken-burns…)' },
   motion:  { needs: 'image', gives: 'video', fields: ['prompt'],  required: ['prompt'],         about: 'bring the newest picture to life with Wan 2.2 on fraymus-home' },
   avatar:  { needs: 'image', gives: 'video', fields: [],          required: [],                 about: 'a 3-D model of the character in the newest picture, filmed turning' },
+  world:   { needs: null,    gives: 'page',  fields: ['prompt'],  required: [],                 about: 'a walkable 3-D world page from words (`prompt`) or, with `fromPicture: true`, from the newest picture' },
   vector:  { needs: 'image', gives: 'image', fields: [],          required: [],                 about: 'trace the newest picture into vector art (style: ink, cutout, comic, neon); passes on its PNG, the SVG is beside it' },
   layers:  { needs: 'image', gives: 'image', fields: ['context'], required: [],                 about: 'split the newest picture into its subject (transparent cutout) and the background with the subject removed; `keep` (subject | plate, default plate) says which is passed on' },
   make:    { needs: null,    gives: 'any',   fields: ['prompt'],  required: ['prompt'],         about: 'Make from a sentence: a film in any wired look, a still, comic pages or a web page' },
